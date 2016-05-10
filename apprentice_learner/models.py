@@ -1,3 +1,5 @@
 from django.db import models
+from picklefield.fields import PickledObjectField
 
-# Create your models here.
+class Agent(models.Model):
+    instance = PickledObjectField()
