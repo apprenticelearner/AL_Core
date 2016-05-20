@@ -14,7 +14,7 @@ class BaseAgent(object):
         """
         raise NotImplementedError("request function not implemented")
 
-    def train(self, state, selection, action, inputs, correct):
+    def train(self, state, label, foas, selection, action, inputs, correct):
         """
         Accepts a JSON object representing the state, a string representing the
         selection, a string representing the action, list of strings

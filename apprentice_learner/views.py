@@ -10,8 +10,10 @@ from django.http import HttpResponseNotAllowed
 
 from apprentice_learner.models import Agent
 from agents.Dummy import Dummy
+from agents.WhereWhenHow import WhereWhenHow
 
-agents = {'Dummy': Dummy}
+agents = {'Dummy': Dummy,
+          'WhereWhenHow': WhereWhenHow}
 
 @csrf_exempt
 def create(request):
@@ -91,6 +93,12 @@ def train(request, agent_id):
         if 'state' not in data:
             print("request body missing 'state'")
             return HttpResponseBadRequest("request body missing 'state'")
+        if 'label' not in data:
+            print("request body missing 'label'")
+            return HttpResponseBadRequest("request body missing 'label'")
+        if 'foas' not in data:
+            print("request body missing 'foas'")
+            return HttpResponseBadRequest("request body missing 'foas'")
         if 'selection' not in data:
             print("request body missing 'selection'")
             return HttpResponseBadRequest("request body missing 'selection'")
@@ -105,8 +113,10 @@ def train(request, agent_id):
             return HttpResponseBadRequest("request body missing 'correct'")
         
         agent = Agent.objects.get(id=agent_id)
-        agent.instance.train(data['state'], data['selection'], data['action'],
-                             data['inputs'], data['correct'])
+        agent.instance.train(data['state'], data['label'], data['foas'],
+                             data['selection'], data['action'], data['inputs'],
+                             data['correct'])
+        agent.save()
         return HttpResponse("OK")
 
     except Exception as e:

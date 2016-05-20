@@ -8,7 +8,7 @@ class Dummy(BaseAgent):
     def request(self, state):
         return {}
 
-    def train(self, state, selection, action, inputs, correct):
+    def train(self, state, label, foas, selection, action, inputs, correct):
         pass
 
     def check(self, state, selection, action, inputs):
