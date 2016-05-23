@@ -11,9 +11,11 @@ from django.http import HttpResponseNotAllowed
 from apprentice_learner.models import Agent
 from agents.Dummy import Dummy
 from agents.WhereWhenHow import WhereWhenHow
+from agents.LogicalWhenHow import LogicalWhenHow
 
 agents = {'Dummy': Dummy,
-          'WhereWhenHow': WhereWhenHow}
+          'WhereWhenHow': WhereWhenHow,
+          'LogicalWhenHow': LogicalWhenHow}
 
 @csrf_exempt
 def create(request):
