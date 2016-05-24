@@ -32,58 +32,49 @@ class LogicalWhenHow(BaseAgent):
         #pprint(self.skills)
         ff = Flattener()
         tup = Tuplizer()
-        act_plan = ActionPlanner(math_actions)
 
         state = tup.transform(state)
         state = ff.transform(state)
         
         for label in self.skills:
-            for seq in self.skills[label]:
-                s = self.skills[label][seq]
-                for m in s['when_classifier'].get_matches(state):
-                    if isinstance(m, tuple):
-                        mapping = {"?foa%i" % (i): v for i,v in enumerate(m)}
-                    else:
-                        mapping = {"?foa0": m}
-                    plan = self.rename_exp(seq, mapping)
-                    pprint(state)
-                    print(seq)
-                    print(m)
-                    print(mapping)
-                    print(plan)
-                    if state[('value', plan[2][1])] != "":
-                        continue
-
-                    try:
-                        grounded_plan = tuple([act_plan.execute_plan(ele, state)
-                                                   for ele in plan])
-                        pprint(plan)
-                        pprint(grounded_plan)
-                            
-                        response = {}
-                        response['label'] = label
-                        response['selection'] = grounded_plan[2]
-                        response['action'] = grounded_plan[1]
-                        response['inputs'] = list(grounded_plan[3:])
-                        response['foas'] = []
-                        #response['foas'].append("|" +
-                        #                        limited_state[("name", "?foa0")] +
-                        #                        "|" + grounded_plan[3]) 
-                        #for i in range(1,len(mapping)):
-                        #    response['foas'].append("|" +
-                        #                            limited_state[("name", "?foa%i" % i)]
-                        #                            +
-                        #                            "|" +
-                        #                            limited_state[('value', "?foa%i" % i)]) 
-
-                        pprint(response)
-                        return response
-
-                    except Exception as e:
-                        #print("EXECPTION WITH", e)
-                        continue
+            for grounded_plan, plan in self.get_plan(label, state):
+                response = {}
+                response['label'] = label
+                response['selection'] = grounded_plan[2]
+                response['action'] = grounded_plan[1]
+                response['inputs'] = list(grounded_plan[3:])
+                response['foas'] = []
+                return response
 
         return {}
+
+    def get_plan(self, label, state):
+        act_plan = ActionPlanner(math_actions)
+
+        for seq in self.skills[label]:
+            s = self.skills[label][seq]
+            for m in s['when_classifier'].get_matches(state):
+                if isinstance(m, tuple):
+                    mapping = {"?foa%i" % (i): v for i,v in enumerate(m)}
+                else:
+                    mapping = {"?foa0": m}
+                plan = self.rename_exp(seq, mapping)
+                #pprint(state)
+                #print(seq)
+                #print(m)
+                #print(mapping)
+                #print(plan)
+                if state[('value', plan[2][1])] != "":
+                    continue
+
+                try:
+                    grounded_plan = tuple([act_plan.execute_plan(ele, state)
+                                               for ele in plan])
+                    yield grounded_plan, plan
+
+                except Exception as e:
+                    #print("EXECPTION WITH", e)
+                    continue
 
     def train(self, state, label, foas, selection, action, inputs, correct):
 
@@ -96,9 +87,9 @@ class LogicalWhenHow(BaseAgent):
         example['inputs'] = inputs
         example['correct'] = correct
 
-        
+        tup = Tuplizer()
         flt = Flattener()
-        example['flat_state'] = flt.transform(state)
+        example['flat_state'] = flt.transform(tup.transform(state))
         pprint(example)
 
         if label not in self.skills:
@@ -127,47 +118,23 @@ class LogicalWhenHow(BaseAgent):
         act_plan = ActionPlanner(actions=math_actions)
         explanations = []
 
-
         # TODO need to update code for checking existing explanations
-        for exp in self.skills[label]:
-            s = self.skills[label][exp]
-            for m in s['when_classifier'].get_matches(example['flat_state']):
-                mapping = {"?foa%i" % (i): v for i,v in enumerate(m)}
-                plan = self.rename_exp(exp, mapping)
-
-                try:
-                    grounded_plan = tuple([act_plan.execute_plan(ele, example['flat_state'])
-                                               for ele in plan])
-                    if grounded_plan == sai:
-                        print("found existing explanation")
-                        explanations.append(plan)
-                except Exception as e:
-                    #print("EXECPTION WITH", e)
-                    continue
-        
-        #for exp in self.skills[label]:
-        #    try:
-        #        grounded_plan = tuple([act_plan.execute_plan(ele,
-        #                                                     example['flat_state'])
-        #                               for ele in exp])
-        #        if grounded_plan == sai:
-        #            print("found existing explanation")
-        #            explanations.append(exp)
-        #    except Exception as e:
-        #        print("EXECPTION WITH", e)
-        #        continue
-        #    pass
+        print("TRYING PREV EXP", label, [l for l in self.skills])
+        for grounded_plan, plan in self.get_plan(label, example['flat_state']):
+            if grounded_plan == sai:
+                print("found existing explanation")
+                explanations.append(plan)
 
         if len(explanations) == 0:
             explanations = act_plan.explain_sai(example['flat_state'], sai)
-            explanations.append(sai)
 
         pprint(explanations)
 
         for exp in explanations:
             new_exp, args = self.arg_exp(exp)
+            print(exp)
             print(new_exp)
-            print(args)
+            #print(args)
 
             if new_exp not in self.skills[label]:
                 self.skills[label][new_exp] = {}
@@ -180,6 +147,11 @@ class LogicalWhenHow(BaseAgent):
             self.skills[label][new_exp]['args'].append(args)
             self.skills[label][new_exp]['examples'].append(example)
             self.skills[label][new_exp]['correct'].append(int(example['correct']))
+
+            print("exp pos: ", (sum(self.skills[label][new_exp]['correct'])))
+            print("exp neg: ", (len(self.skills[label][new_exp]['correct']) -
+                                sum(self.skills[label][new_exp]['correct'])))
+            print()
             
             T = self.skills[label][new_exp]['args']
             X = [e['flat_state'] for e in self.skills[label][new_exp]['examples']]
@@ -206,6 +178,8 @@ class LogicalWhenHow(BaseAgent):
         return tuple(new_exp)
 
     def arg_exp(self, exp, count=0):
+        # TODO need to check if FOA already exists for eahc obj and use prev
+        # foa
         new_exp = []
         args = []
         for ele in exp:

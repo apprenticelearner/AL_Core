@@ -8,7 +8,7 @@ from ilp.base_ilp import BaseILP
 
 class Foil(BaseILP):
 
-    def __init__(self, closed_world=False):
+    def __init__(self, closed_world=True):
 
         # the name of the relation being learned
         self.name = "target_relation"
@@ -80,8 +80,8 @@ class Foil(BaseILP):
         p = Popen(['clingo'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
         output = p.communicate(input=data.encode("utf-8"))[0]
 
-        print(data)
-        print(output.decode())
+        #print(data)
+        #print(output.decode())
 
         matches = re.findall(self.name + "\(" + self.example_name + "," + ",".join(["(?P<arg%i>[^ ,()]+)" % i for i in range(self.arity-1)]) + "\)", output.decode())
 
@@ -219,7 +219,7 @@ class Foil(BaseILP):
                 data += ", ".join(t) + "\n"
             data += ".\n"
 
-        print(data)
+        #print(data)
 
         # Send data to subprocess
         output = p.communicate(input=data.encode("utf-8"))[0]
