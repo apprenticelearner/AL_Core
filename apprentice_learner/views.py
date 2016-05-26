@@ -12,10 +12,12 @@ from apprentice_learner.models import Agent
 from agents.Dummy import Dummy
 from agents.WhereWhenHow import WhereWhenHow
 from agents.LogicalWhenHow import LogicalWhenHow
+from agents.LogicalWhereWhenHow import LogicalWhereWhenHow
 
 agents = {'Dummy': Dummy,
           'WhereWhenHow': WhereWhenHow,
-          'LogicalWhenHow': LogicalWhenHow}
+          'LogicalWhenHow': LogicalWhenHow,
+          'LogicalWhereWhenHow': LogicalWhereWhenHow}
 
 @csrf_exempt
 def create(request):
