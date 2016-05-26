@@ -3,12 +3,6 @@ import inspect
 from itertools import permutations
 from itertools import product
 
-from sklearn.feature_extraction import DictVectorizer
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
-
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 #from concept_formation.structure_mapper import rename_flat
@@ -16,7 +10,22 @@ from concept_formation.structure_mapper import get_component_names
 
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
+from agents.WhenLearner import when_learners
 from ilp.most_specific import MostSpecific
+
+#decorator for pipeline
+
+
+#dictionary for when with pipeline stuff
+#logistic regression(error check)
+#svm(basically svc with kernels)
+#SGD classifier
+#nearest neighbours classification
+#Any Ensemble classifier
+
+#Pyibl prepopulate, chose
+
+#Concept_formation(Cobweb)
 
 class LogicalWhereWhenHow(BaseAgent):
     """
@@ -25,7 +34,7 @@ class LogicalWhereWhenHow(BaseAgent):
     classifiers. How learning is a form of planner. 
     """
     #def __init__(self, where, when, how):
-    def __init__(self):
+    def __init__(self, when="cobweb"):
 
         #self.where = where
         #self.when = when
@@ -33,8 +42,8 @@ class LogicalWhereWhenHow(BaseAgent):
         #self.where = Foil
         self.where = MostSpecific
         #self.when = DecisionTreeClassifier
-        #self.when = LogisticRegression
-        self.when = GaussianNB
+        self.when = when
+        #self.when = GaussianNB
         #self.how = ActionPlanner(math_actions)
         self.skills = {}
         self.examples = {}
@@ -209,8 +218,9 @@ class LogicalWhereWhenHow(BaseAgent):
                 self.skills[label][exp]['examples'] = []
                 self.skills[label][exp]['correct'] = []
                 where = self.where()
-                when = Pipeline([('dict_vect', DictVectorizer(sparse=False)), 
-                                  ('clf', self.when())])
+                when = when_learners[self.when]()
+                #when = Pipeline([('dict_vect', DictVectorizer(sparse=False)), 
+                #                  ('clf', self.when())])
                 self.skills[label][exp]['where_classifier'] = where
                 self.skills[label][exp]['when_classifier'] = when
 
