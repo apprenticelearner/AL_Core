@@ -8,7 +8,8 @@ from ilp.base_ilp import BaseILP
 
 class Foil(BaseILP):
 
-    def __init__(self, closed_world=True):
+    def __init__(self, bind_objects=False, bind_values=True, closed_world=True,
+                max_tuples=100000):
 
         # the name of the relation being learned
         self.name = "target_relation"
@@ -41,6 +42,9 @@ class Foil(BaseILP):
 
         # whether or not to use closed world assumption
         self.closed_world = closed_world
+        self.bind_objects = bind_objects
+        self.bind_values = bind_values
+        self.max_tuples = max_tuples
 
         # rules for computing matches
         self.rules = ""
@@ -96,8 +100,8 @@ class Foil(BaseILP):
             x = x.replace("underscore", "_")
             x = x.replace("minussign", "-")
             x = x.replace("plussign", "+")
-            x = x.replace("sspp", " ")
-            x = x.replace("qqmm", "?")
+            x = x.replace("space", " ")
+            x = x.replace("questionmark", "?")
             x = x[1:]
             if x == "nil":
                 x == ""
@@ -111,8 +115,8 @@ class Foil(BaseILP):
         elif isinstance(x, str):
             if x == "":
                 x = "nil"
-            x = x.replace("?", "qqmm")
-            x = x.replace(" ", "sspp")
+            x = x.replace("?", "questionmark")
+            x = x.replace(" ", "space")
             x = x.replace("+", "plussign")
             x = x.replace("-", "minussign")
             x = x.replace("_", "underscore")
@@ -175,14 +179,42 @@ class Foil(BaseILP):
             else:
                 raise Exception("tuple element is not an object or value")
 
+        num_neg_tuples = 1.0
+        for t in self.types:
+            if t == "E":
+                num_neg_tuples *= len(self.examples)
+            elif t == "O":
+                num_neg_tuples *= len(self.objects)
+            elif t == "V":
+                num_neg_tuples *= len(self.values)
+
+        num_pos_tuples = len(self.pos)
+        max_neg_tuples = self.max_tuples - num_pos_tuples
+
+        sample_size = min(10000, 10000 * ((max_neg_tuples-1) / num_neg_tuples))
+        sample_size = int(sample_size) / 100
+
+        print("NUM_NEG: ", num_neg_tuples)
+        print("MAX_NEG: ", max_neg_tuples)
+        print("SAMPLE: ", sample_size)
+
         # Create subprocess
-        p = Popen(['ilp/FOIL6/foil6', '-m100000000'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+        p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, '-s %0.2f' %
+                   sample_size], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
 
         # construct file.
         # types and values
         data = "#E: " + ",".join(["%s" % v for v in self.examples]) + ".\n"
-        data += "#O: " + ",".join(["%s" % v for v in self.objects]) + ".\n"
-        data += "#V: " + ",".join(["*%s" % v for v in self.values]) + ".\n\n"
+
+        if self.bind_objects:
+            data += "#O: " + ",".join(["*%s" % v for v in self.objects]) + ".\n"
+        else:
+            data += "#O: " + ",".join(["%s" % v for v in self.objects]) + ".\n"
+
+        if self.bind_values:
+            data += "#V: " + ",".join(["*%s" % v for v in self.values]) + ".\n\n"
+        else:
+            data += "#V: " + ",".join(["%s" % v for v in self.values]) + ".\n\n"
 
         # target relation header
         if len(self.pos) > 0 and len(self.pos[0]) > 0:
@@ -233,6 +265,8 @@ class Foil(BaseILP):
         # Process result
         for line in output.decode().split("\n"):
             print(line)
+            if re.search("^Training Set Size will exceed tuple limit:", line):
+                raise Exception("Tuple limit exceeded, should never happen.")
             #match = re.search('^' + self.name + ".+:-", line)
             matches = re.findall("^" + self.name + "\(" +
                                  ",".join(["(?P<arg%i>[^ ,()]+)" % i for i in

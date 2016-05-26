@@ -2,5 +2,4 @@
 
 copy-same-denom(V, V, V) ###
 7, 7, +
-;
 .

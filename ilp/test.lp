@@ -87,5 +87,5 @@ avalue(currr_ex,aqqmmobjminussigndone,anil).
 avalue(currr_ex,aqqmmobjminussignJCommTableunderscoreC1R1,a5).
 aname(currr_ex,aqqmmobjminussignJCommTable5underscoreC1R1,aJCommTable5underscoreC1R1).
 aname(currr_ex,aqqmmobjminussignJCommLabel3,aJCommLabel3).
-target_relation(A,B,C,D) :- aname(A,B,adone), aname(A,C,aJCommTable3underscoreC1R1), avalue(A,C,G), avalue(A,D,H), avalue(I,C,H), avalue(I,D,J), not avalue(A,_,J), G<>a4, J<>a2, G<>a9, exxx(A), objj(B), objj(C), objj(D).
-#show target_relation/4.
+target_relation(A,B,C,D,E,F) :- objj(B), objj(C), objj(D), objj(E), objj(F), exxx(A).
+#show target_relation/6.
