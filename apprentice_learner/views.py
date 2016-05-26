@@ -8,7 +8,6 @@ from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
 from django.http import HttpResponseNotAllowed
 
-
 from apprentice_learner.models import ActionSet
 from apprentice_learner.models import Agent
 from agents.Dummy import Dummy
@@ -20,38 +19,6 @@ agents = {'Dummy': Dummy,
           'WhereWhenHow': WhereWhenHow,
           'LogicalWhenHow': LogicalWhenHow,
           'LogicalWhereWhenHow': LogicalWhereWhenHow}
-
-
-
-
-#update math_actions
-#import sys
-#sys.stdout = open('/home/anant/Documents/output2.txt', 'w')
-#print("HELLO ARE YO thewU")
-#from .models import PyFunction
-#print("HELLOHOW ARE YOU")
-#new_function = PyFunction.objects.get(id=1)
-#math_actions_temp = {
-#    "subtract":"subtracting",
-#    "multiply":"multiplying",
-#    "divide":"dividing"
-#}
-#print("HEY! I AM back")
-#if new_function.name not in list(math_actions_temp.keys()):
-#    math_actions_temp[new_function.name] = new_function.fun_def
-#    print("HURRAY!I AM HAPPY")
-#    print(math_actions_temp)
-#    print("I AM MORE HAPPY")
-#print('Hello World')
-#
-
-#number of events
-#num_request =
-#num_train =
-#num_check =
-
-
-
 
 @csrf_exempt
 def create(request):
@@ -74,36 +41,29 @@ def create(request):
         print("Specified agent not supported")
         return HttpResponseBadRequest("Specified agent not supported")
 
+    if 'action_set' not in data:
+        print("request body missing 'action_set'")
+        return HttpResponseBadRequest("request body missing 'action_set'")
+
+    try:
+        action_set = ActionSet.objects.get(name=data['action_set'])
+    except ActionSet.DoesNotExist:
+        print("Specified action set does not exist")
+        return HttpResponseBadRequest("Specified action set does not exist")
+
     if 'args' not in data:
         args = {}
     else:
         args = data['args']
 
     try:
-        instance = agents[data['agent_type']](*args)
-        #updates
-        agent = Agent(instance=instance, action_set=ActionSet.objects.all()[0], name="agent", num_request=0, num_train=0, num_check=0 )
-        agent.save()
-        agent.name="agent"+str(agent.id)
-        #updates
-        #agent.time_creation = datetime.now()
-        #update actionset 
-        updated_function_set = {}
-        for j in agent.action_set.function.all():
-            #for j in i.function.all():
-            print(j.name)
-            print(j.fun_def)
-            temp_dict={}
-            exec(j.fun_def,temp_dict)
-            updated_function_set[j.name] = temp_dict[j.name]
-            print(updated_function_set[j.name](2,4))
-        print(updated_function_set)
-        
-        ##
+        instance = agents[data['agent_type']](**args)
+        agent = Agent(instance=instance, action_set=action_set)
         agent.save()
         ret_data = {'agent_id': str(agent.id)}
-    except Exception as  e:
-        print("Failed to create agent"+str(e))
+
+    except Exception as e:
+        print("Failed to create agent", e)
         return HttpResponseServerError("Failed to create agent, ensure provided args are correct.")
 
     return HttpResponse(json.dumps(ret_data))
@@ -128,14 +88,13 @@ def request(request, agent_id):
             return HttpResponseBadRequest("request body missing 'state'")
 
         agent = Agent.objects.get(id=agent_id)
-        #update actions
-        #agent.time_modified = datetime.now()
-        #====
-        #updated
-        agent.num_request = agent.num_request + 1
+        agent.inc_request()
         agent.save()
-        #updated
-        response = agent.instance.request(data['state'])
+
+        features = agent.get_feature_dict()
+        functions = agent.get_function_dict()
+
+        response = agent.instance.request(data['state'], features, functions)
         return HttpResponse(json.dumps(response))
 
     except Exception as e:
@@ -176,14 +135,14 @@ def train(request, agent_id):
             return HttpResponseBadRequest("request body missing 'correct'")
         
         agent = Agent.objects.get(id=agent_id)
-        #updated
-        agent.num_train = agent.num_train+1
-        #agent.time_modified = datetime.now()
-        agent.save()
-        #updated
-        agent.instance.train(data['state'], data['label'], data['foas'],
-                             data['selection'], data['action'], data['inputs'],
-                             data['correct'])
+        agent.inc_train()
+
+        features = agent.get_feature_dict()
+        functions = agent.get_function_dict()
+
+        agent.instance.train(data['state'], features, functions, data['label'],
+                             data['foas'], data['selection'], data['action'],
+                             data['inputs'], data['correct'])
         agent.save()
         return HttpResponse("OK")
 
@@ -213,12 +172,16 @@ def check(request, agent_id):
             return HttpResponseBadRequest("request body missing 'inputs'")
         
         agent = Agent.objects.get(id=agent_id)
-        #updated
-        agent.num_check = agent.num_check+1
+        agent.inc_check()
         agent.save()
-        #updated
+
         response = {}
-        response['correct'] = agent.instance.check(data['state'],
+
+        features = agent.get_feature_dict()
+        functions = agent.get_function_dict()
+
+        response['correct'] = agent.instance.check(data['state'], features,
+                                                   functions,
                                                    data['selection'],
                                                    data['action'],
                                                    data['inputs'])

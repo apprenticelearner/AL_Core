@@ -16,11 +16,7 @@ from concept_formation.structure_mapper import get_component_names
 
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
-from agents.action_planner import math_actions
 from ilp.most_specific import MostSpecific
-
-def equals(x, y):
-    return x == y
 
 class LogicalWhereWhenHow(BaseAgent):
     """
@@ -30,6 +26,7 @@ class LogicalWhereWhenHow(BaseAgent):
     """
     #def __init__(self, where, when, how):
     def __init__(self):
+
         #self.where = where
         #self.when = when
         #self.how = how
@@ -38,14 +35,13 @@ class LogicalWhereWhenHow(BaseAgent):
         #self.when = DecisionTreeClassifier
         #self.when = LogisticRegression
         self.when = GaussianNB
-        self.how = ActionPlanner(math_actions)
-        self.features = {'equals': equals}
+        #self.how = ActionPlanner(math_actions)
         self.skills = {}
         self.examples = {}
 
-    def compute_features(self, state):
-        for feature in self.features:
-            num_args = len(inspect.getargspec(self.features[feature]).args)
+    def compute_features(self, state, features):
+        for feature in features:
+            num_args = len(inspect.getargspec(features[feature]).args)
             if num_args < 1:
                 raise Exception("Features must accept at least 1 argument")
             possible_args = [attr for attr in state]
@@ -53,14 +49,14 @@ class LogicalWhereWhenHow(BaseAgent):
             for tupled_args in product(possible_args, repeat=num_args):
                 new_feature = (feature,) + tupled_args
                 values = [state[attr] for attr in tupled_args]
-                yield new_feature, self.features[feature](*values)
+                yield new_feature, features[feature](*values)
 
-    def request(self, state):
+    def request(self, state, features, functions):
         #print("REQUEST")
         #pprint(self.skills)
         ff = Flattener()
         tup = Tuplizer()
-        act_plan = ActionPlanner(math_actions)
+        act_plan = ActionPlanner(functions)
 
         state = tup.transform(state)
         state = ff.transform(state)
@@ -96,13 +92,13 @@ class LogicalWhereWhenHow(BaseAgent):
                     vX = {}
                     for foa in mapping:
                         vX[('value', foa)] = state[('value', mapping[foa])]
-                    for attr, value in self.compute_features(vX):
+                    for attr, value in self.compute_features(vX, features):
                         vX[attr] = value
                     vX = tup.undo_transform(vX)
 
-                    #print("WHEN PREDICTION STATE")
-                    #pprint(vX)
-                    #pprint(s['when_classifier'].predict([vX]))
+                    print("WHEN PREDICTION STATE")
+                    pprint(vX)
+                    pprint(s['when_classifier'].predict([vX]))
 
                     if s['when_classifier'].predict([vX])[0] == 0:
                         continue
@@ -133,7 +129,8 @@ class LogicalWhereWhenHow(BaseAgent):
 
         return {}
 
-    def train(self, state, label, foas, selection, action, inputs, correct):
+    def train(self, state, features, functions, label, foas, selection, action,
+              inputs, correct):
 
         # create example dict
         example = {}
@@ -184,7 +181,7 @@ class LogicalWhereWhenHow(BaseAgent):
         # mark selection (so that we can identify it as empty 
         sai = tuple(sai)
 
-        act_plan = ActionPlanner(actions=math_actions)
+        act_plan = ActionPlanner(actions=functions)
         explanations = []
 
         for exp in self.skills[label]:
@@ -192,18 +189,18 @@ class LogicalWhereWhenHow(BaseAgent):
                 grounded_plan = tuple([act_plan.execute_plan(ele, example['limited_state'])
                                            for ele in exp])
                 if grounded_plan == sai:
-                    print("found existing explanation")
+                    #print("found existing explanation")
                     explanations.append(exp)
             except Exception as e:
-                print("EXECPTION WITH", e)
+                #print("EXECPTION WITH", e)
                 continue
             pass
 
         if len(explanations) == 0:
             explanations = act_plan.explain_sai(example['limited_state'], sai)
 
-        print("EXPLANATIONS")
-        pprint(explanations)
+        #print("EXPLANATIONS")
+        #pprint(explanations)
 
         for exp in explanations:
             if exp not in self.skills[label]:
@@ -237,18 +234,18 @@ class LogicalWhereWhenHow(BaseAgent):
             value_X = []
             for e in self.skills[label][exp]['examples']:
                 x = {attr: e['foa_values'][attr] for attr in e['foa_values']}
-                for attr, value in self.compute_features(x):
+                for attr, value in self.compute_features(x, features):
                     x[attr] = value
                 x = tup.undo_transform(x)
                 value_X.append(x)
 
-                if example['label'] == "convert-different-num2":
-                    print("CORRECTNESS:", e['correct'])
-                    pprint(x)
+                #if example['label'] == "convert-different-num2":
+                #    print("CORRECTNESS:", e['correct'])
+                #    pprint(x)
 
             self.skills[label][exp]['where_classifier'].fit(T, structural_X, y)
             self.skills[label][exp]['when_classifier'].fit(value_X, y)
 
-    def check(self, state, selection, action, inputs):
+    def check(self, state, features, functions, selection, action, inputs):
         return False
 
