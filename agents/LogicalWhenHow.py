@@ -15,6 +15,8 @@ from agents.action_planner import ActionPlanner
 from agents.action_planner import math_actions
 from ilp.foil import Foil
 
+#import sys
+#sys.stdout = open('/home/anant/Documents/output.txt', 'w')
 class LogicalWhenHow(BaseAgent):
     """
     This is the basis for the 3 learning phase model. It accepts three classes

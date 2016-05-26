@@ -313,12 +313,34 @@ def divide(x,y):
     else:
         raise TypeError("Arguments must both be strings or both be Numbers")
 
+ 
 math_actions = {
     "add":add,
     "subtract":subtract,
     "multiply":multiply,
     "divide":divide
 }
+
+#updating math function using pyfunction
+#import sys, os
+#sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'apprentice_learner'))
+#print("HELLO ARE YO thewU")
+#import models
+#print("HELLOHOW ARE YOU")
+#new_function = models.PyFunction.objects.get(id=1)
+#math_actions_temp = {
+#    "subtract":"subtracting",
+#    "multiply":"multiplying",
+#    "divide":"dividing"
+#}
+#print("HEY! I AM back")
+#if new_function.name not in list(math_actions_temp.keys()):
+#    math_actions_temp[new_function.name] = new_function.fun_def
+#    print("HURRAY!I AM HAPPY")
+#    print(math_actions_temp)
+#    print("I AM MORE HAPPY")
+#sys.path = os.path.dirnamr(__file__)
+#updating ends
 
 if __name__ == "__main__":
     actions = {'add': add,

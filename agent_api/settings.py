@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'apprentice_learner',
+    
 ]
 
 MIDDLEWARE_CLASSES = [
