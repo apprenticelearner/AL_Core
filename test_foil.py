@@ -1,10 +1,11 @@
-from ilp.foil import Foil
+from ilp.foil2 import Foil
 
 x = Foil(closed_world=False)
 
 e1 = {}
 e1[('value', '?c1')] = '7'
 e1[('value', '?c2')] = '7'
+e1[('value', '?c100')] = ''
 
 e2 = {}
 e2[('value', '?c1')] = '7'

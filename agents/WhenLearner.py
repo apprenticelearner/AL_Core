@@ -1,3 +1,4 @@
+from pprint import pprint
 from copy import deepcopy
 from agents.pyibl import Agent
 
@@ -74,6 +75,7 @@ class ScikitPyIBL(object):
             zero_situation = self.agent.situationDecision("0", tuple(x))
             one_situation = self.agent.situationDecision("1", tuple(x))
             result = self.agent.choose(zero_situation, one_situation)
+            pprint(tuple(x))
             print("Pred: ", result)
             print("Actual: ", self.y[i])
             if int(result) == self.y[i]:
@@ -99,7 +101,7 @@ when_learners['naive bayes'] = Wrapper(GaussianNB)
 when_learners['decision tree'] = Wrapper(DecisionTreeClassifier)
 when_learners['logistic regression'] = Wrapper(CustomLogisticRegression)
 when_learners['cobweb'] = ScikitCobweb
-when_learners['pyibl'] = ScikitPyIBL
+when_learners['pyibl'] = Wrapper(ScikitPyIBL)
 #clf_class = Wrapper(GaussianNB)
 #clf = clf_class()
 #
