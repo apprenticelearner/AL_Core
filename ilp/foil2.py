@@ -10,14 +10,14 @@ from ilp.base_ilp import BaseILP
 
 class Foil(BaseILP):
 
-    def __init__(self, bind_objects=True, closed_world=True, max_tuples=100000):
+    def __init__(self, bind_objects=True, closed_world=False, max_tuples=100000):
         """
         The constructor. 
         """
         # Keywords used for constructing foil file (try not to conflict).
         self.name = "target_relation"
         self.example_type = "E"
-        self.example_name = "curr_example"
+        self.example_name = self.clean("curr_example")
         self.example_keyword = "e"
         self.continuous_type = "C"
         self.object_type = "O"
@@ -50,7 +50,7 @@ class Foil(BaseILP):
         self.pos_aux_tuples = {}
 
         # String representation of learned rules
-        self.rules = ""
+        self.rules = set()
 
     def resolve_type(self, val):
         if isinstance(val, Number):
@@ -125,25 +125,32 @@ class Foil(BaseILP):
                         self.aux_relations[rel] = (self.example_type,
                                                  self.resolve_type(X[i][rel]))
                         self.pos_aux_tuples[rel] = set()
-                    self.pos_aux_tuples[rel].add((example_id, X[i][rel]))
+                    self.pos_aux_tuples[rel].add((example_id, str(X[i][rel])))
                 elif isinstance(rel, tuple):
-                    tup = (self.example_type,)
+                    tup_type = (self.example_type,)
                     for ele in rel[1:]:
                         if isinstance(ele, tuple):
                             if ele in X[i]:
                                 # the ele tuple head should be the type
-                                tup += ele[0] 
+                                tup_type += (ele[0],)
                             else:
                                 raise Exception("don't know what to do with tuple element. No value is defined for tuple in state.")
                         else:
-                            tup += (self.resolve_type(ele),)
-                    tup += (self.resolve_type(X[i][rel]),)
+                            tup_type += (self.resolve_type(ele),)
+                    tup_type += (self.resolve_type(X[i][rel]),)
 
                     if rel[0] not in self.aux_relations:
-                        self.aux_relations[rel[0]] = tup
+                        self.aux_relations[rel[0]] = tup_type
                         self.pos_aux_tuples[rel[0]] = set()
-                    self.pos_aux_tuples[rel[0]].add((example_id,) + rel[1:] + (
-                                                    X[i][rel],))
+
+                    tup = (example_id,)
+                    for attr in rel[1:]:
+                        if attr in X[i]:
+                            tup += (X[i][attr],)
+                        else:
+                            tup += (attr,)
+                    tup += (str(X[i][rel]),)
+                    self.pos_aux_tuples[rel[0]].add(tup)
                 else:
                     raise Exception("attribute not string or tuple.")
 
@@ -219,7 +226,7 @@ class Foil(BaseILP):
         # Send data to subprocess
         output = p.communicate(input=data.encode("utf-8"))[0]
 
-        self.rules = ""
+        self.rules = set()
 
         found = False
             
@@ -234,14 +241,15 @@ class Foil(BaseILP):
                                            range(len(self.target_types))]) + "\)", line)
             if matches:
                 found = True
+                rule = ""
                 args = matches[0]
-                self.rules += re.sub("_[0-9]+", "_", 
+                rule += re.sub("_[0-9]+", "_", 
                                      re.sub("not\((?P<content>[^)]+)\)", 
                                             "not \g<content>", line[:-1]))
                 
                 first_arg = False
                 if " :- " not in line:
-                    self.rules += " :- "
+                    rule += " :- "
                     first_arg = True
 
                 ground_atoms = set()
@@ -252,21 +260,22 @@ class Foil(BaseILP):
                 for i, arg in enumerate(args):
                     if arg not in ground_atoms:
                         if not first_arg:
-                            self.rules += ", "
+                            rule += ", "
                         else:
                             first_arg = False
-                        self.rules += "type" + self.target_types[i] + "(" + arg + ")"
+                        rule += "type" + self.target_types[i] + "(" + arg + ")"
 
-                self.rules += ".\n"
+                self.rules.add(rule)
+                #self.rules += ".\n"
         
         #print("POS: ", len(self.pos))
         #print("NEG: ", len(self.neg))
         if not self.closed_world and not found and len(self.pos) > len(self.neg):
-            self.rules += self.name + "(" + ",".join([chr(i + ord('A')) for i in range(len(self.target_types))]) + ") :- "
-            self.rules += ", ".join(["type" + t + "(" + chr(i +
-                                                                    ord('A')) +
-                                     ")" for i,t in enumerate(self.target_types)])
-            self.rules += ".\n"
+            rule = self.name + "(" + ",".join([chr(i + ord('A')) for i in range(len(self.target_types))]) + ") :- "
+            rule += ", ".join(["type" + t + "(" + chr(i + ord('A')) + ")" for
+                               i,t in enumerate(self.target_types)])
+            self.rules.add(rule)
+            #self.rules += ".\n"
 
         print("LEARNED RULES")
         print(self.rules)
@@ -299,35 +308,67 @@ class Foil(BaseILP):
 
         # add type info to logic program
         data = ""
-        data += "type" + self.example_type + "(" + self.example_name + ").\n"
+        data += "assert(type" + self.example_type + "(" + self.example_name 
+        data += ")).\n"
         for tt in val_types:
             for val in val_types[tt]:
-                data += "type" + tt + "(" + val + ").\n"
+                data += "assert(type" + tt + "(" + val + ")).\n"
 
         # add aux relations to logic program
         for rel in X:
             if isinstance(rel, str):
-                data += rel + "(" + self.example_name + ", " + X[rel] + ").\n"
+                data += "assert(" + rel + "(" + self.example_name 
+                data += ", " + str(X[rel]) + ")).\n"
             elif isinstance(rel, tuple):
-                data += rel[0] + "(" + self.example_name + ", " + ", ".join(rel[1:]) + ", " + X[rel] + ").\n"
-                for ele in rel[1:]:
+                data += "assert(" + rel[0] + "(" + self.example_name + ", " 
+                vals = [X[attr] if attr in X else attr for attr in rel[1:]]
+                data += ", ".join(vals) + ", " + str(X[rel]) + ")).\n"
+                for ele in vals:
                     if ele not in X:
-                        data += "type" + self.object_type + "(" + ele + ").\n"
+                        data += "assert(type" + self.object_type 
+                        data += "(" + ele + ")).\n"
             else:
                 raise Exception("attribute not string or tuple.")
 
-        data += self.rules
-        data += "#show %s/%i." % (self.name, len(self.target_types))
+        for rule in self.rules:
+            # replace with appropriate prolog operators.
+            rule = re.sub(" (?P<first>\w+)<>(?P<second>\w+)", 
+                          " dif(\g<first>, \g<second>)", rule)
+            rule = rule.replace("<=", "=<")
+            data += "assert((" + rule + ")).\n"
 
-        p = Popen(['clingo'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
-        output = p.communicate(input=data.encode("utf-8"))[0]
+
+        args = [chr(i + ord("A")) for i in
+                         range(len(self.target_types))]
+
+        data += self.name + "("
+        data += ", ".join(args) + ").\n\n"
 
         print(data)
+        p = Popen(['swipl', '-q'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+        output = p.communicate(input=data.encode("utf-8"))[0]
+
         print(output.decode())
 
-        matches = re.findall(self.name + "\(" + self.example_name + "," + ",".join(["(?P<arg%i>[^ ,()]+)" % i for i in range(len(self.target_types)-1)]) + "\)", output.decode())
+        matches = re.findall("(?P<arg>[" + "".join(args) + 
+                             "]) = (?P<val>\w+)", output.decode())
+        mapping = dict(matches)
 
-        return [self.unclean(m) for m in matches]
+        for a in args:
+            if a not in mapping:
+                return []
+
+        return [tuple([self.unclean(self.get_val(a, mapping)) for a in args[1:]])]
+
+    def get_val(self, arg, mapping):
+        if arg not in mapping:
+            print(arg)
+            print(mapping)
+            raise Exception("arg not in mapping")
+        if mapping[arg] in mapping:
+            return self.get_val(mapping[arg], mapping)
+        else:
+            return mapping[arg]
 
     def unclean(self, x):
         if isinstance(x, tuple):
