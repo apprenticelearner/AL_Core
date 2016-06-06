@@ -14,7 +14,7 @@ from ilp.base_ilp import BaseILP
 
 class Foil(BaseILP):
 
-    def __init__(self, closed_world=False, max_tuples=100000):
+    def __init__(self, closed_world=True, max_tuples=100000):
         """
         The constructor. 
         """
@@ -228,7 +228,7 @@ class Foil(BaseILP):
 
             data += ".\n"
 
-        print(data)
+        #print(data)
 
         # Send data to subprocess
         output = p.communicate(input=data.encode("utf-8"))[0]
@@ -277,7 +277,7 @@ class Foil(BaseILP):
         
         #print("POS: ", len(self.pos))
         #print("NEG: ", len(self.neg))
-        if not self.closed_world and not found and len(self.pos) > len(self.neg):
+        if not found and len(self.pos) > len(self.neg):
             rule = self.name + "(" + ",".join([chr(i + ord('A')) for i in range(len(self.target_types))]) + ") :- "
             rule += ", ".join(["type" + t + "(" + chr(i + ord('A')) + ")" for
                                i,t in enumerate(self.target_types)])
@@ -289,7 +289,7 @@ class Foil(BaseILP):
 
     def get_matches(self, X):
 
-        if self.rules == "":
+        if len(self.rules) == 0:
             return
 
         X = {self.clean(a): self.clean(X[a]) for a in X}
@@ -323,20 +323,16 @@ class Foil(BaseILP):
             else:
                 raise Exception("attribute not string or tuple.")
 
-        #p = PopenSpawn('swipl -q', encoding="utf-8", maxread=100000)
-        p = pexpect.spawn('swipl -q', timeout=5, echo=False, encoding="utf-8",
-                          maxread=1000000, searchwindowsize=100)
-
         # add type info to logic program
         #p.expect("\?- ")
         #p.sendline("assert(type" + self.example_type + "(" + self.example_name
         #           + ")).")
-        data = "assert(type" + self.example_type + "(" + self.example_name + ")).\n"
+        data = "type" + self.example_type + "(" + self.example_name + ").\n"
 
         for tt in val_types:
             if val_types[tt] != "continuous":
                 for val in val_types[tt]:
-                    data += "assert(type" + tt + "(" + val + ")).\n"
+                    data += "type" + tt + "(" + val + ").\n"
                     #p.expect("\?- ")
                     #p.sendline("assert(type" + tt + "(" + val + ")).")
 
@@ -344,60 +340,68 @@ class Foil(BaseILP):
             if "targetArg" in tt:
                 if self.val_types[tt] != "continuous":
                     for val in self.val_types[tt]:
-                        data += "assert(type" + tt + "(" + val + ")).\n"
+                        data += "type" + tt + "(" + val + ").\n"
                         #p.expect("\?- ")
                         #p.sendline("assert(type" + tt + "(" + val + ")).")
 
         # add aux relations to logic program
+        rel_dict = dict()
         for rel in X:
             if isinstance(rel, str):
-                data += "assert(" + rel + "(" + self.example_name
-                #data = "assert(" + rel + "(" + self.example_name
+                rel_str = rel + "(" + self.example_name
                 if not isinstance(X[rel], bool):
-                    data += ", " + str(X[rel]) 
-                data += ")).\n"
-                #p.expect("\?- ")
-                #p.sendline(data)
+                    rel_str += ", " + str(X[rel]) 
+                rel_str += ").\n"
+
+                if rel not in rel_dict:
+                    rel_dict[rel] = set()
+                rel_dict[rel].add(rel_str)
 
             elif isinstance(rel, tuple):
-                data += "assert(" + rel[0] + "(" + self.example_name + ", " 
+                rel_str = rel[0] + "(" + self.example_name + ", " 
                 #data = "assert(" + rel[0] + "(" + self.example_name + ", " 
                 vals = [X[attr] if attr in X else attr for attr in rel[1:]]
-                data += ", ".join(vals)
+                rel_str += ", ".join(vals)
                 if not isinstance(X[rel], bool):
-                    data += ", " + str(X[rel]) 
-                data += ")).\n"
-                #p.expect("\?- ")
-                #p.sendline(data)
+                    rel_str += ", " + str(X[rel]) 
+                rel_str += ").\n"
+
+                if rel[0] not in rel_dict:
+                    rel_dict[rel[0]] = set()
+                rel_dict[rel[0]].add(rel_str)
 
             else:
                 raise Exception("attribute not string or tuple.")
+
+        for rel in rel_dict:
+            for rel_str in rel_dict[rel]:
+                data += rel_str
 
         for rule in self.rules:
             # replace with appropriate prolog operators.
             rule = re.sub(" (?P<first>\w+)<>(?P<second>\w+)", 
                           " dif(\g<first>, \g<second>)", rule)
+            rule = re.sub(" not (?P<term>[\w,()]+),", 
+                          " not(\g<term>),", rule)
             rule = rule.replace("<=", "=<")
-            data += "assert((" + rule + ")).\n"
-            #p.expect("\?- ")
-            #p.sendline("assert((" + rule + ")).")
+            data += rule + ".\n"
 
         args = [chr(i + ord("B")) for i in
                          range(len(self.target_types) - 1)]
         all_args = [self.example_name] + args
 
-        print(data)
+        #print(data)
 
-        print("ready to send data")
+        outfile = open("foil_binding_lp.pl", 'w')
+        outfile.write(data)
+        outfile.close()
 
-        p.write(data)
+        #p = PopenSpawn('swipl -q -s foil_binding_lp.pl', encoding="utf-8",
+        #               maxread=100000)
+        p = pexpect.spawn('swipl -q -s foil_binding_lp.pl', timeout=None,
+                          echo=False, encoding="utf-8", maxread=1000000,
+                          searchwindowsize=None)
 
-        #p.sendline(data)
-
-        print("data sent")
-
-        p.sendline("print(expectme).")
-        p.expect("expectme")
 
         p.expect("\?- ")
 
@@ -405,34 +409,53 @@ class Foil(BaseILP):
         
         patterns = []
         for arg in args:
-            patterns.append(arg + " = " + "(?P<" + arg + r">\w+)")
-        arg_pattern = ",\r\n".join(patterns)
+            patterns.append(arg + r" = " + r"(?P<" + arg + r">\w+)")
+        arg_pattern = r",[\r\n ]+".join(patterns)
 
-        mid_pattern = arg_pattern + " "
-        end_pattern = arg_pattern + "."
+        mid_pattern = arg_pattern + r" "
+        end_pattern = arg_pattern + r"."
 
-        resp = 1
+        previous_matches = set()
+
+        resp = -1
         while resp != 0:
             if len(args) > 0:
                 try:
-                    resp = p.expect(["false.", "true.", mid_pattern, end_pattern])
+                    resp = p.expect(["false.", "ERROR", "true.", mid_pattern,
+                                     end_pattern])
                 except Exception as e:
                     print(e)
                     print(p.buffer)
                     print(p.before)
             else:
-                resp = p.expect(["false.", "true."])
+                resp = p.expect(["false.", "ERROR", "true."])
+
             if resp == 1:
+                print(p)
+                print(p.buffer)
+                print(p.before)
+                print(data)
+                try:
+                    raise Exception("Error in prolog program")
+                except Exception:
+                    return
+            if resp == 2:
                 yield tuple()
-                break
-            elif resp == 2 or resp == 3:
+                return
+            elif resp == 3 or resp == 4:
                 mapping = {arg: p.match.group(arg) for arg in args}
-                yield tuple([self.unclean(self.get_val(a, mapping)) 
+
+                m = tuple([self.unclean(self.get_val(a, mapping)) 
                              for a in args])
-                if resp == 2:
+                if m not in previous_matches:
+                    yield m
+                    previous_matches.add(m)
+
+                if resp == 3:
                     p.send(";")
                 else:
-                    break
+                    return
+
 
     def get_val(self, arg, mapping):
         if arg not in mapping:
