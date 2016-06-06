@@ -15,7 +15,7 @@ from concept_formation.structure_mapper import get_component_names
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.action_planner import math_actions
-from ilp.foil2 import Foil
+from ilp.foil import Foil
 
 #import sys
 #sys.stdout = open('/home/anant/Documents/output.txt', 'w')
@@ -79,7 +79,7 @@ class LogicalWhenHow(BaseAgent):
                 plan = self.rename_exp(seq, mapping)
                 #pprint(state)
                 #print(seq)
-                #print(m)
+                print(m)
                 #print(mapping)
                 #print(plan)
                 if state[('value', plan[2][1])] != "":
@@ -110,7 +110,7 @@ class LogicalWhenHow(BaseAgent):
         tup = Tuplizer()
         flt = Flattener()
         example['flat_state'] = flt.transform(tup.transform(state))
-        pprint(example)
+        #pprint(example)
 
         if label not in self.skills:
             self.skills[label] = {}
@@ -140,8 +140,16 @@ class LogicalWhenHow(BaseAgent):
 
         # TODO need to update code for checking existing explanations
         print("TRYING PREV EXP", label, [l for l in self.skills])
-        for grounded_plan, plan in self.get_plan(label, example['flat_state'],
+
+        temp_state = {attr: example['flat_state'][attr] 
+                      for attr in example['flat_state']}
+        for attr, value in self.compute_features(temp_state, features):
+            temp_state[attr] = value
+
+        for grounded_plan, plan in self.get_plan(label, temp_state,
                                                 functions):
+            print("trying: ", plan)
+
             if grounded_plan == sai:
                 print("found existing explanation")
                 explanations.append(plan)
@@ -185,9 +193,9 @@ class LogicalWhenHow(BaseAgent):
 
             y = self.skills[label][new_exp]['correct']
 
-            print(T)
-            print(X)
-            print(y)
+            #print(T)
+            #print(X)
+            #print(y)
             
             self.skills[label][new_exp]['when_classifier'].fit(T, X, y)
 
