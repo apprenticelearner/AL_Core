@@ -4,13 +4,10 @@ from subprocess import Popen
 from subprocess import PIPE
 from subprocess import STDOUT
 import re
-from copy import deepcopy
 
 import pexpect
-from pexpect.popen_spawn import PopenSpawn
 
 from ilp.base_ilp import BaseILP
-
 
 class Foil(BaseILP):
 
@@ -162,46 +159,91 @@ class Foil(BaseILP):
                 else:
                     raise Exception("attribute not string or tuple.")
 
-        if self.closed_world is True:
-            # only need to do sophisticated sampling when using closed world.
-            num_neg_tuples = 1.0
-            for t in self.target_types:
-                num_neg_tuples *= len(self.val_types[t])
-
-            num_pos_tuples = len(self.pos)
-            max_neg_tuples = self.max_tuples - num_pos_tuples
-
-            sample_size = min(10000, 10000 * ((max_neg_tuples-1) / num_neg_tuples))
-            sample_size = int(sample_size) / 100
-
-            print("NUM_NEG: ", num_neg_tuples)
-            print("MAX_NEG: ", max_neg_tuples)
-            print("SAMPLE: ", sample_size)
-
-            # Create subprocess
-            p = pexpect.spawn('ilp/FOIL6/foil6 -m %i -s %0.2f' %
-                              (self.max_tuples, sample_size))
-            p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, '-s %0.2f' %
-                       sample_size], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
-        else:
-            p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples],
-                      stdout=PIPE, stdin=PIPE, stderr=STDOUT)
 
         data = ""
 
+        # combine types and rename to combined types
+        combined_types = {}
+        overlap = {}
+        for tt1 in self.val_types:
+            for tt2 in self.val_types:
+                if tt1 not in overlap:
+                    overlap[tt1] = set()
+                if tt1 == tt2: 
+                    continue
+                if (tt1 == self.example_type or tt2 == self.example_type):
+                    continue
+                if (self.val_types[tt1] == "continuous" and
+                    self.val_types[tt2] == "continuous"):
+                    overlap[tt1].add(tt2)
+                if (self.val_types[tt1] == "continuous" or
+                    self.val_types[tt2] == "continuous"):
+                    continue
+                if (len(self.val_types[tt1].intersection(self.val_types[tt2]))
+                    > 0):
+                    overlap[tt1].add(tt2)
+
+        #pprint(overlap)
+        num_types = 0
+
+        open_list = set(overlap)
+        closed_list = set()
+
+        while len(open_list) > 0:
+            inner_list = set()
+            new_t = "type%i" % num_types
+            num_types += 1
+            combined_types[new_t] = set()
+            inner_list.add(open_list.pop())
+
+            while len(inner_list) > 0:
+                curr_t = inner_list.pop()
+                combined_types[new_t].add(curr_t)
+                closed_list.add(curr_t)
+                for some_t in overlap[curr_t]:
+                    if some_t not in closed_list:
+                        inner_list.add(some_t)
+            open_list = open_list - closed_list
+
+        #pprint(combined_types)
+        self.type_mapping = {} 
         for tt in self.val_types:
+            for ht in combined_types:
+                if tt in combined_types[ht]:
+                    self.type_mapping[tt] = ht
+                    break
+        #pprint(self.type_mapping)
+
+        printed_types = set()
+        for tt in self.val_types:
+            if self.type_mapping[tt] in printed_types:
+                continue
+
             if tt == self.example_type:
-                data += "#type" + tt + ": " + ",".join(["%s" % v for v in
-                                                    self.val_types[tt]]) + ".\n"
+                data += "#" + self.type_mapping[tt] + ": "
+                vals = set()
+                for sub_t in combined_types[self.type_mapping[tt]]:
+                    for v in self.val_types[sub_t]:
+                        vals.add(v)
+                data += ",".join(["%s" % v for v in vals]) + ".\n"
             elif self.val_types[tt] == "continuous":
-                data += "#type" + tt + ": " + self.val_types[tt] + ".\n"
+                data += "#" + self.type_mapping[tt] + ": " + self.val_types[tt] + ".\n"
             else:
-                data += "#type" + tt + ": " + ",".join(["*%s" % v for v in
-                                                    self.val_types[tt]]) + ".\n"
+                data += "#" + self.type_mapping[tt] + ": " 
+                vals = set()
+                for sub_t in combined_types[self.type_mapping[tt]]:
+                    for v in self.val_types[sub_t]:
+                        vals.add(v)
+                data += ",".join(["*%s" % v for v in vals]) + ".\n"
+            printed_types.add(self.type_mapping[tt])
+
         data += "\n"
+        #print(data)
+
+        # rename target relation header to new types
 
         # target relation header
-        data += self.name + "(" + ", ".join(["type" + tt for tt in
+        data += self.name + "(" + ", ".join([self.type_mapping[tt] for tt in
                                              self.target_types]) + ") " 
         data += "".join(["#" for i in range(len(self.target_types))]) + "\n"
 
@@ -217,9 +259,11 @@ class Foil(BaseILP):
 
         data += ".\n"
 
+        # rename aux relation header to new types
+
         # aux relations
         for rel in self.aux_relations:
-            data += "*" + rel + "(" + ", ".join(['type' + tt for tt in
+            data += "*" + rel + "(" + ", ".join([self.type_mapping[tt] for tt in
                                                  self.aux_relations[rel]]) + ")\n"
 
             # the positive examples of relation
@@ -229,6 +273,37 @@ class Foil(BaseILP):
             data += ".\n"
 
         #print(data)
+
+        if self.closed_world is True:
+            # only need to do sophisticated sampling when using closed world.
+            num_neg_tuples = 1.0
+            for t in self.target_types:
+                vals = set()
+                for sub_t in combined_types[self.type_mapping[t]]:
+                    for v in self.val_types[sub_t]:
+                        vals.add(v)
+                num_neg_tuples *= len(vals)
+
+            num_pos_tuples = len(self.pos)
+            max_neg_tuples = self.max_tuples - num_pos_tuples
+
+            sample_size = min(10000, 10000 * ((max_neg_tuples-1) / num_neg_tuples))
+            sample_size = int(sample_size) / 100
+
+            #print("NUM_NEG: ", num_neg_tuples)
+            #print("MAX_NEG: ", max_neg_tuples)
+            #print("SAMPLE: ", sample_size)
+
+            # Create subprocess
+            #p = pexpect.spawn('ilp/FOIL6/foil6 -m %i -s %0.2f -a %0.2f' %
+            #                  (self.max_tuples, sample_size, 0.6))
+            p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, '-s %0.2f' %
+                       sample_size, '-a 100', '-d 20', '-w 20', '-l 20', 
+                       '-t 40'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+        else:
+            p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, 
+                       '-a 100', '-d 20', '-w 20', '-l 20', '-t 40'],
+                      stdout=PIPE, stdin=PIPE, stderr=STDOUT)
 
         # Send data to subprocess
         output = p.communicate(input=data.encode("utf-8"))[0]
@@ -270,16 +345,16 @@ class Foil(BaseILP):
                             rule += ", "
                         else:
                             first_arg = False
-                        rule += "type" + self.target_types[i] + "(" + arg + ")"
+                        rule += self.type_mapping[self.target_types[i]] + "(" + arg + ")"
 
                 self.rules.add(rule)
                 #self.rules += ".\n"
         
         #print("POS: ", len(self.pos))
         #print("NEG: ", len(self.neg))
-        if not found and len(self.pos) > len(self.neg):
+        if self.closed_world is False and not found and len(self.pos) > len(self.neg):
             rule = self.name + "(" + ",".join([chr(i + ord('A')) for i in range(len(self.target_types))]) + ") :- "
-            rule += ", ".join(["type" + t + "(" + chr(i + ord('A')) + ")" for
+            rule += ", ".join([self.type_mapping[t] + "(" + chr(i + ord('A')) + ")" for
                                i,t in enumerate(self.target_types)])
             self.rules.add(rule)
             #self.rules += ".\n"
@@ -327,12 +402,12 @@ class Foil(BaseILP):
         #p.expect("\?- ")
         #p.sendline("assert(type" + self.example_type + "(" + self.example_name
         #           + ")).")
-        data = "type" + self.example_type + "(" + self.example_name + ").\n"
+        data = self.type_mapping[self.example_type] + "(" + self.example_name + ").\n"
 
         for tt in val_types:
             if val_types[tt] != "continuous":
                 for val in val_types[tt]:
-                    data += "type" + tt + "(" + val + ").\n"
+                    data += self.type_mapping[tt] + "(" + val + ").\n"
                     #p.expect("\?- ")
                     #p.sendline("assert(type" + tt + "(" + val + ")).")
 
@@ -340,7 +415,7 @@ class Foil(BaseILP):
             if "targetArg" in tt:
                 if self.val_types[tt] != "continuous":
                     for val in self.val_types[tt]:
-                        data += "type" + tt + "(" + val + ").\n"
+                        data += self.type_mapping[tt] + "(" + val + ").\n"
                         #p.expect("\?- ")
                         #p.sendline("assert(type" + tt + "(" + val + ")).")
 
