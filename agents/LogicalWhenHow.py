@@ -82,6 +82,7 @@ class LogicalWhenHow(BaseAgent):
                 print(m)
                 #print(mapping)
                 #print(plan)
+
                 if state[('value', plan[2][1])] != "":
                     print("SELECTION VALUE NOT NIL")
                     continue
