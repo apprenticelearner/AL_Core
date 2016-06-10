@@ -15,7 +15,8 @@ from concept_formation.structure_mapper import get_component_names
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.action_planner import math_actions
-from ilp.foil import Foil
+#from ilp.foil import Foil
+from ilp.aleph import Aleph
 
 #import sys
 #sys.stdout = open('/home/anant/Documents/output.txt', 'w')
@@ -26,7 +27,7 @@ class LogicalWhenHow(BaseAgent):
     classifiers. How learning is a form of planner. 
     """
     def __init__(self):
-        self.when = Foil
+        self.when = Aleph
         self.how = ActionPlanner(math_actions)
         self.skills = {}
         self.examples = {}
@@ -71,7 +72,15 @@ class LogicalWhenHow(BaseAgent):
 
         for seq in self.skills[label]:
             s = self.skills[label][seq]
-            for m in s['when_classifier'].get_matches(state):
+
+            # constraints for efficiency.
+            constraints = []
+            constraints.append("avalue(A,B,anil)")
+            for i in range(len(s['when_classifier'].target_types) - 2):
+                v = chr(i + ord("C"))
+                constraints.append("not(avalue(A," + v + ",anil))")
+
+            for m in s['when_classifier'].get_matches(state, constraints):
                 if isinstance(m, tuple):
                     mapping = {"?foa%i" % (i): v for i,v in enumerate(m)}
                 else:

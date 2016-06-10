@@ -3,6 +3,7 @@ from numbers import Number
 from subprocess import Popen
 from subprocess import PIPE
 from subprocess import STDOUT
+from itertools import product
 import re
 
 import pexpect
@@ -43,7 +44,7 @@ class Aleph(BaseILP):
         self.pos_aux_tuples = {}
 
         # String representation of learned rules
-        self.rules = set()
+        self.rules = ""
 
     def fit(self, T, X, y):
 
@@ -95,9 +96,7 @@ class Aleph(BaseILP):
                             self.aux_relations[rel] = (self.example_type, arg)
 
                         self.pos_aux_tuples[rel] = set()
-                    if isinstance(X[i][rel], Number):
-                        self.val_types[arg] = "continuous"
-                    elif not isinstance(X[i][rel], bool):
+                    if not isinstance(X[i][rel], bool):
                         self.val_types[arg].add(str(X[i][rel]))
                     self.pos_aux_tuples[rel].add((example_id, str(X[i][rel])))
 
@@ -138,7 +137,6 @@ class Aleph(BaseILP):
                     raise Exception("attribute not string or tuple.")
 
 
-        data = ""
 
         # combine types and rename to combined types
         combined_types = {}
@@ -150,12 +148,6 @@ class Aleph(BaseILP):
                 if tt1 == tt2: 
                     continue
                 if (tt1 == self.example_type or tt2 == self.example_type):
-                    continue
-                if (self.val_types[tt1] == "continuous" and
-                    self.val_types[tt2] == "continuous"):
-                    overlap[tt1].add(tt2)
-                if (self.val_types[tt1] == "continuous" or
-                    self.val_types[tt2] == "continuous"):
                     continue
                 if (len(self.val_types[tt1].intersection(self.val_types[tt2]))
                     > 0):
@@ -192,156 +184,149 @@ class Aleph(BaseILP):
                     break
         #pprint(self.type_mapping)
 
+        # create the background file for aleph
+        data = ""
+        
+        # target relation mode
+        data += ":- modeh(*," + self.name + "(" + ",".join(["+" + self.type_mapping[tt] for tt
+                                            in self.target_types]) + ")).\n" 
+
+        # aux relation modes
+        for rel in self.aux_relations:
+            for vt in product('+-#', repeat=len(self.aux_relations[rel]) - 1):
+                vt = ('+',) + vt
+                data += ":- modeb(*," + rel + "(" + ",".join([vt[i] +
+                                                              self.type_mapping[tt]
+                                                              for i, tt in
+                                                     enumerate(self.aux_relations[rel])]) + ")).\n"
+
+        # eq relation mode
+        #for tt in combined_types:
+        #    if tt == self.type_mapping[self.example_type]: 
+        #        # don't need dif relation for example types.
+        #        continue
+
+        #    data += ":- modeb(*,(+" + tt + ")=(" + "#" + tt + ")).\n"
+        #    data += ":- modeb(*,(-" + tt + ")=(" + "#" + tt + ")).\n"
+
+        # dif relation mode (i.e., not equal).
+        for tt in combined_types:
+            if tt == self.type_mapping[self.example_type]: 
+                # don't need dif relation for example types.
+                continue
+
+            for vt in product('+-', repeat=2):
+                data += ":- modeb(*,dif(" + vt[0] + tt + "," + vt[1] + tt + ")).\n"
+            data += ":- modeb(*,dif(+" + tt + "," + "#" + tt + ")).\n"
+            data += ":- modeb(*,dif(-" + tt + "," + "#" + tt + ")).\n"
+
+        # aux relation determinations
+        data += "\n"
+        for rel in self.aux_relations:
+            data += ":- determination(" + self.name + "/%i" % (len(self.target_types))
+            data += "," + rel + "/%i" % (len(self.aux_relations[rel])) + ").\n"
+
+        # eq relation determination
+        #data += ":- determination(" + self.name + "/%i" % (len(self.target_types))
+        #data += ",'='/2).\n"
+
+        # dif relation determination (i.e., not equal).
+        data += ":- determination(" + self.name + "/%i" % (len(self.target_types))
+        data += ",dif/2).\n"
+
+        # type information
+        data += "\n"
         printed_types = set()
         for tt in self.val_types:
             if self.type_mapping[tt] in printed_types:
                 continue
 
-            if tt == self.example_type:
-                data += "#" + self.type_mapping[tt] + ": "
-                vals = set()
-                for sub_t in combined_types[self.type_mapping[tt]]:
-                    for v in self.val_types[sub_t]:
-                        vals.add(v)
-                data += ",".join(["%s" % v for v in vals]) + ".\n"
-            elif self.val_types[tt] == "continuous":
-                data += "#" + self.type_mapping[tt] + ": " + self.val_types[tt] + ".\n"
-            else:
-                data += "#" + self.type_mapping[tt] + ": " 
-                vals = set()
-                for sub_t in combined_types[self.type_mapping[tt]]:
-                    for v in self.val_types[sub_t]:
-                        vals.add(v)
-                data += ",".join(["*%s" % v for v in vals]) + ".\n"
+            vals = set()
+            for sub_t in combined_types[self.type_mapping[tt]]:
+                for v in self.val_types[sub_t]:
+                    vals.add(v)
+            for v in vals:
+                data += self.type_mapping[tt] + "(" + v + ").\n"
             printed_types.add(self.type_mapping[tt])
 
+        # aux relations background info
         data += "\n"
-        #print(data)
-
-        # rename target relation header to new types
-
-        # target relation header
-        data += self.name + "(" + ", ".join([self.type_mapping[tt] for tt in
-                                             self.target_types]) + ") " 
-        data += "".join(["#" for i in range(len(self.target_types))]) + "\n"
-
-        # positive examples
-        for t in self.pos:
-            data += ", ".join(t) + "\n"
-
-        if self.closed_world is False:
-            # negative examples
-            data += ";\n"
-            for t in self.neg:
-                data += ", ".join(t) + "\n"
-
-        data += ".\n"
-
-        # rename aux relation header to new types
-
-        # aux relations
         for rel in self.aux_relations:
-            data += "*" + rel + "(" + ", ".join([self.type_mapping[tt] for tt in
-                                                 self.aux_relations[rel]]) + ")\n"
-
-            # the positive examples of relation
             for t in self.pos_aux_tuples[rel]:
-                data += ", ".join(t) + "\n"
+                data += rel + "(" + ",".join(t) + ").\n"
 
-            data += ".\n"
+        #write background data
+        with open("aleph_data.b", "w") as f:
+            f.write(data)
+        print(data)
+        self.background_data = data
 
-        #print(data)
+        # write positive examples file
+        data = ""
+        for t in self.pos:
+            data += self.name + "(" + ",".join(t) + ").\n"
 
-        if self.closed_world is True:
-            # only need to do sophisticated sampling when using closed world.
-            num_neg_tuples = 1.0
-            for t in self.target_types:
-                vals = set()
-                for sub_t in combined_types[self.type_mapping[t]]:
-                    for v in self.val_types[sub_t]:
-                        vals.add(v)
-                num_neg_tuples *= len(vals)
-
-            num_pos_tuples = len(self.pos)
-            max_neg_tuples = self.max_tuples - num_pos_tuples
-
-            sample_size = min(10000, 10000 * ((max_neg_tuples-1) / num_neg_tuples))
-            sample_size = int(sample_size) / 100
-
-            #print("NUM_NEG: ", num_neg_tuples)
-            #print("MAX_NEG: ", max_neg_tuples)
-            #print("SAMPLE: ", sample_size)
-
-            # Create subprocess
-            #p = pexpect.spawn('ilp/FOIL6/foil6 -m %i -s %0.2f -a %0.2f' %
-            #                  (self.max_tuples, sample_size, 0.6))
-            p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, '-s %0.2f' %
-                       sample_size], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
-        else:
-            p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples],
-                      stdout=PIPE, stdin=PIPE, stderr=STDOUT)
-
-        # Send data to subprocess
-        output = p.communicate(input=data.encode("utf-8"))[0]
-
-        self.rules = set()
-
-        found = False
-            
-        # Process result
-        for line in output.decode().split("\n"):
-            print(line)
-            if re.search("^Training Set Size will exceed tuple limit:", line):
-                raise Exception("Tuple limit exceeded, should never happen.")
-            #match = re.search('^' + self.name + ".+:-", line)
-            matches = re.findall("^" + self.name + "\(" +
-                                 ",".join(["(?P<arg%i>[^ ,()]+)" % i for i in
-                                           range(len(self.target_types))]) + "\)", line)
-            if matches:
-                found = True
-                rule = ""
-                args = matches[0]
-                rule += re.sub("_[0-9]+", "_", 
-                                     re.sub("not\((?P<content>[^)]+)\)", 
-                                            "not \g<content>", line[:-1]))
+        with open("aleph_data.f", "w") as f:
+            f.write(data)
+        print(data)
                 
-                first_arg = False
-                if " :- " not in line:
-                    rule += " :- "
-                    first_arg = True
+        # write positive examples file
+        data = ""
+        for t in self.neg:
+            data += self.name + "(" + ",".join(t) + ").\n"
 
-                ground_atoms = set()
-                for tt in self.val_types:
-                    if self.val_types[tt] != "continuous":
-                        ground_atoms = ground_atoms.union(self.val_types[tt])
+        with open("aleph_data.n", "w") as f:
+            f.write(data)
+        print(data)
 
-                for i, arg in enumerate(args):
-                    if arg not in ground_atoms:
-                        if not first_arg:
-                            rule += ", "
-                        else:
-                            first_arg = False
-                        rule += self.type_mapping[self.target_types[i]] + "(" + arg + ")"
-
-                self.rules.add(rule)
-                #self.rules += ".\n"
+        #p = Popen(['swipl', '-q'],
+        #          stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+        # timeout = 5 min
+        p = pexpect.spawn('swipl -q', timeout=300,
+                          echo=True, encoding="utf-8", maxread=1000000,
+                          searchwindowsize=None)
         
-        #print("POS: ", len(self.pos))
-        #print("NEG: ", len(self.neg))
-        if self.closed_world is False and not found and len(self.pos) > len(self.neg):
-            rule = self.name + "(" + ",".join([chr(i + ord('A')) for i in range(len(self.target_types))]) + ") :- "
-            rule += ", ".join([self.type_mapping[t] + "(" + chr(i + ord('A')) + ")" for
-                               i,t in enumerate(self.target_types)])
-            self.rules.add(rule)
-            #self.rules += ".\n"
+        p.expect("\?- ")
+        p.sendline("[library(aleph)].")
+        
+        p.expect("\?- ")
+        p.sendline("read_all(aleph_data).")
+        p.expect("true ")
+        p.send('.')
+
+        p.expect("\?- ")
+        #p.sendline("set(nodes, 100000).")
+        p.sendline("set(clauselength, 10).")
+
+        #p.expect("\?- ")
+        #p.sendline("set(evalfn, posonly).")
+        #if len(self.neg) == 0:
+        #    p.sendline("set(evalfn, posonly).")
+        #else:
+
+        p.expect("\?- ")
+        p.sendline("induce.")
+
+        p.expect("\?- ")
+        print(p.before)
+        p.sendline('write_rules("aleph_data.pl").')
+
+        # wait for the data to be saved?
+        p.expect("\?- ")
+
+        with open("aleph_data.pl", 'r') as f:
+            self.rules = f.read()
 
         print("LEARNED RULES")
         print(self.rules)
 
-    def get_matches(self, X):
+    def get_matches(self, X, constraints=None):
 
-        if len(self.rules) == 0:
+        if self.rules == "":
             return
+
+        if constraints == None:
+            constraints = []
 
         X = {self.clean(a): self.clean(X[a]) for a in X}
 
@@ -374,26 +359,23 @@ class Aleph(BaseILP):
             else:
                 raise Exception("attribute not string or tuple.")
 
-        # add type info to logic program
-        #p.expect("\?- ")
-        #p.sendline("assert(type" + self.example_type + "(" + self.example_name
-        #           + ")).")
-        data = self.type_mapping[self.example_type] + "(" + self.example_name + ").\n"
-
+        data = ":- style_check(-singleton).\n"
+        
+        for tt in set(self.type_mapping.values()):
+            data += ":- discontiguous %s/1.\n" % tt
+        
+        data += self.type_mapping[self.example_type] + "(" + self.example_name + ").\n"
         for tt in val_types:
-            if val_types[tt] != "continuous":
-                for val in val_types[tt]:
+            for val in val_types[tt]:
+                if tt in self.type_mapping:
                     data += self.type_mapping[tt] + "(" + val + ").\n"
-                    #p.expect("\?- ")
-                    #p.sendline("assert(type" + tt + "(" + val + ")).")
+                else:
+                    data += tt + "(" + val + ").\n"
 
         for tt in self.val_types:
             if "targetArg" in tt:
-                if self.val_types[tt] != "continuous":
-                    for val in self.val_types[tt]:
-                        data += self.type_mapping[tt] + "(" + val + ").\n"
-                        #p.expect("\?- ")
-                        #p.sendline("assert(type" + tt + "(" + val + ")).")
+                for val in self.val_types[tt]:
+                    data += self.type_mapping[tt] + "(" + val + ").\n"
 
         # add aux relations to logic program
         rel_dict = dict()
@@ -428,40 +410,48 @@ class Aleph(BaseILP):
             for rel_str in rel_dict[rel]:
                 data += rel_str
 
-        for rule in self.rules:
-            # replace with appropriate prolog operators.
-            rule = re.sub(" (?P<first>\w+)<>(?P<second>\w+)", 
-                          " dif(\g<first>, \g<second>)", rule)
-            rule = re.sub(" not (?P<term>[\w,()]+),", 
-                          " not(\g<term>),", rule)
-            rule = rule.replace("<=", "=<")
-            data += rule + ".\n"
+        data += self.rules
 
         args = [chr(i + ord("B")) for i in
                          range(len(self.target_types) - 1)]
         all_args = [self.example_name] + args
 
-        #print(data)
+        bind_args = ['A'] + args
+        data += "bind_relation(" + ",".join(bind_args) + ") :- "
+        bind_body = [self.type_mapping[tt] + "(" + bind_args[i] + ")" 
+                     for i,tt in enumerate(self.target_types)]
+        bind_body = [self.name + "(" + ",".join(['EX'] + args) + ")"] + bind_body
 
-        outfile = open("foil_binding_lp.pl", 'w')
+        # user provided constraints
+        bind_body += constraints
+
+        data += ", ".join(bind_body)
+
+        data += ".\n" 
+
+        print(data)
+
+        outfile = open("binding_lp.pl", 'w')
         outfile.write(data)
         outfile.close()
 
         #p = PopenSpawn('swipl -q -s foil_binding_lp.pl', encoding="utf-8",
         #               maxread=100000)
-        p = pexpect.spawn('swipl -q -s foil_binding_lp.pl', timeout=None,
+
+        # timeout = 5 min
+        p = pexpect.spawn('swipl -q -s binding_lp.pl', timeout=300,
                           echo=False, encoding="utf-8", maxread=1000000,
                           searchwindowsize=None)
 
 
         p.expect("\?- ")
 
-        p.sendline(self.name + "(" + ", ".join(all_args) + ").")
+        p.sendline("bind_relation(" + ", ".join(all_args) + ").")
         
         patterns = []
         for ai, arg in enumerate(args):
             patterns.append(r"(?P<" + "arg%i" % (ai) + ">[" +
-                            r"".join(args) + "])" + r" = " + 
+                            r"".join(args) + "0-9]+)" + r" = " + 
                             r"(?P<" + "argval%i" % (ai) + r">\w+)")
         arg_pattern = r",[\r\n ]+".join(patterns)
 

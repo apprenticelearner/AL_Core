@@ -362,7 +362,10 @@ class Foil(BaseILP):
         print("LEARNED RULES")
         print(self.rules)
 
-    def get_matches(self, X):
+    def get_matches(self, X, constraints=None):
+
+        if constraints is None:
+            constraints = []
 
         if len(self.rules) == 0:
             return
@@ -407,7 +410,10 @@ class Foil(BaseILP):
         for tt in val_types:
             if val_types[tt] != "continuous":
                 for val in val_types[tt]:
-                    data += self.type_mapping[tt] + "(" + val + ").\n"
+                    if tt in self.type_mapping:
+                        data += self.type_mapping[tt] + "(" + val + ").\n"
+                    data += tt + "(" + val + ").\n"
+
                     #p.expect("\?- ")
                     #p.sendline("assert(type" + tt + "(" + val + ")).")
 
@@ -465,6 +471,19 @@ class Foil(BaseILP):
                          range(len(self.target_types) - 1)]
         all_args = [self.example_name] + args
 
+        bind_args = ['A'] + args
+        data += "bind_relation(" + ",".join(bind_args) + ") :- "
+        bind_body = [self.type_mapping[tt] + "(" + bind_args[i] + ")" 
+                     for i,tt in enumerate(self.target_types)]
+        bind_body = [self.name + "(" + ",".join(['A'] + args) + ")"] + bind_body
+
+        # user provided constraints
+        bind_body += constraints
+        data += ", ".join(bind_body)
+        data += ".\n" 
+
+        print(data)
+
         #print(data)
 
         outfile = open("foil_binding_lp.pl", 'w')
@@ -480,7 +499,7 @@ class Foil(BaseILP):
 
         p.expect("\?- ")
 
-        p.sendline(self.name + "(" + ", ".join(all_args) + ").")
+        p.sendline("bind_relation(" + ", ".join(all_args) + ").")
         
         patterns = []
         for arg in args:
