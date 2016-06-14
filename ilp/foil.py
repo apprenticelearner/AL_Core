@@ -11,12 +11,13 @@ from ilp.base_ilp import BaseILP
 
 class Foil(BaseILP):
 
-    def __init__(self, closed_world=True, max_tuples=100000):
+    def __init__(self, closed_world=True, max_tuples=100000,
+                 name="target_relation"):
         """
         The constructor. 
         """
         # Keywords used for constructing foil file (try not to conflict).
-        self.name = "target_relation"
+        self.name = name
         self.example_type = "E"
         self.example_name = self.clean("curr_example")
         self.example_keyword = "e"
@@ -32,6 +33,9 @@ class Foil(BaseILP):
 
         # the target relation types
         self.target_types = None
+
+        # the states that tuples can occur in.
+        self.states = {}
 
         # tuples for target relation
         self.pos = set()
@@ -61,7 +65,15 @@ class Foil(BaseILP):
         self.val_types[self.example_type] = set()
 
         for i, correct in enumerate(y):
-            example_id = "%s%i" % (self.example_keyword, i) 
+
+            # get the example id. 
+            state = frozenset(X[i].items())
+            if state not in self.states:
+                self.states[state] = len(self.states)
+            eid = self.states[state]
+
+            #example_id = "%s%i" % (self.example_keyword, i) 
+            example_id = "%s%i" % (self.example_keyword, eid) 
             self.val_types[self.example_type].add(example_id)
 
             # Get target relation tuples
@@ -298,11 +310,11 @@ class Foil(BaseILP):
             #p = pexpect.spawn('ilp/FOIL6/foil6 -m %i -s %0.2f -a %0.2f' %
             #                  (self.max_tuples, sample_size, 0.6))
             p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, '-s %0.2f' %
-                       sample_size, '-a 100', '-d 20', '-w 20', '-l 20', 
+                       sample_size, '-d 20', '-w 20', '-l 20', 
                        '-t 40'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
         else:
             p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, 
-                       '-a 100', '-d 20', '-w 20', '-l 20', '-t 40'],
+                       '-d 20', '-w 20', '-l 20', '-t 40'],
                       stdout=PIPE, stdin=PIPE, stderr=STDOUT)
 
         # Send data to subprocess
@@ -314,7 +326,7 @@ class Foil(BaseILP):
             
         # Process result
         for line in output.decode().split("\n"):
-            print(line)
+            #print(line)
             if re.search("^Training Set Size will exceed tuple limit:", line):
                 raise Exception("Tuple limit exceeded, should never happen.")
             #match = re.search('^' + self.name + ".+:-", line)
@@ -324,31 +336,34 @@ class Foil(BaseILP):
             if matches:
                 found = True
                 rule = ""
-                args = matches[0]
+                #args = matches[0]
                 rule += re.sub("_[0-9]+", "_", 
                                      re.sub("not\((?P<content>[^)]+)\)", 
                                             "not \g<content>", line[:-1]))
                 
-                first_arg = False
-                if " :- " not in line:
-                    rule += " :- "
-                    first_arg = True
-
-                ground_atoms = set()
-                for tt in self.val_types:
-                    if self.val_types[tt] != "continuous":
-                        ground_atoms = ground_atoms.union(self.val_types[tt])
-
-                for i, arg in enumerate(args):
-                    if arg not in ground_atoms:
-                        if not first_arg:
-                            rule += ", "
-                        else:
-                            first_arg = False
-                        rule += self.type_mapping[self.target_types[i]] + "(" + arg + ")"
-
                 self.rules.add(rule)
-                #self.rules += ".\n"
+                
+                #first_arg = False
+                #if " :- " not in line:
+                #    rule += " :- "
+                #    first_arg = True
+
+                #ground_atoms = set()
+                #for tt in self.val_types:
+                #    if self.val_types[tt] != "continuous":
+                #        ground_atoms = ground_atoms.union(self.val_types[tt])
+
+                #for i, arg in enumerate(args):
+                #    if arg not in ground_atoms:
+                #        if not first_arg:
+                #            rule += ", "
+                #        else:
+                #            first_arg = False
+                #        rule += self.type_mapping[self.target_types[i]] + "(" + arg + ")"
+
+                #print('RULE2', rule)
+                #self.rules.add(rule)
+                ##self.rules += ".\n"
         
         #print("POS: ", len(self.pos))
         #print("NEG: ", len(self.neg))
@@ -359,8 +374,8 @@ class Foil(BaseILP):
             self.rules.add(rule)
             #self.rules += ".\n"
 
-        print("LEARNED RULES")
-        print(self.rules)
+        #print("LEARNED RULES")
+        #print(self.rules)
 
     def get_matches(self, X, constraints=None):
 
@@ -482,7 +497,7 @@ class Foil(BaseILP):
         data += ", ".join(bind_body)
         data += ".\n" 
 
-        print(data)
+        #print(data)
 
         #print(data)
 
