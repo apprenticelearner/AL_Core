@@ -17,4 +17,3 @@ class MostSpecific(BaseILP):
         for i,t in enumerate(T):
             if y[i] == 1:
                 self.pos.add(t)
-
