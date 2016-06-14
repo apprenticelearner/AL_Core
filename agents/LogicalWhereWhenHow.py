@@ -15,6 +15,7 @@ from agents.WhenLearner import when_learners
 from ilp.most_specific import MostSpecific
 from ilp.aleph import Aleph
 from ilp.foil import Foil
+from ilp.ifoil import iFoil
 
 #decorator for pipeline
 
@@ -43,7 +44,8 @@ class LogicalWhereWhenHow(BaseAgent):
         #self.when = when
         #self.how = how
         #self.where = Foil
-        self.where = MostSpecific
+        #self.where = MostSpecific
+        self.where = iFoil
         #self.where = Aleph
         #self.when = DecisionTreeClassifier
         self.when = when
@@ -81,23 +83,23 @@ class LogicalWhereWhenHow(BaseAgent):
         for label in self.skills:
             for seq in self.skills[label]:
                 s = self.skills[label][seq]
-                print(str(seq))
+                #print(str(seq))
 
                 constraints = []
                 constraints.append("avalue(A,B,anil)")
 
-                print(str(seq))
-                for match in re.finditer(r"'\?foa(?P<M>[0-9]+)'", str(seq)):
-                    v = chr(int(match.group("M")) + ord("B"))
-                    if v == "B":
-                        continue
-                    constraints.append("not(avalue(A," + v + ",anil))")
-                    constraints.append("not(avalue(A," + v + ",aplussign))")
-                    constraints.append("not(avalue(A," + v + ",amultsign))")
-                    constraints.append("not(avalue(A," + v + ",aequalsign))")
-                    constraints.append("not(avalue(A," + v + ",aquestionmark))")
-                    constraints.append("not(avalue(A," + v + ",aIspaceneedspacetospaceconvertspacethesespacefractionsspacebeforespacesolving))")
-                    
+                #print(str(seq))
+                #for match in re.finditer(r"'\?foa(?P<M>[0-9]+)'", str(seq)):
+                #    v = chr(int(match.group("M")) + ord("B"))
+                #    if v == "B":
+                #        continue
+                #    constraints.append("not(avalue(A," + v + ",anil))")
+                #    constraints.append("not(avalue(A," + v + ",aplussign))")
+                #    constraints.append("not(avalue(A," + v + ",amultsign))")
+                #    constraints.append("not(avalue(A," + v + ",aequalsign))")
+                #    constraints.append("not(avalue(A," + v + ",aquestionmark))")
+                #    constraints.append("not(avalue(A," + v + ",aIspaceneedspacetospaceconvertspacethesespacefractionsspacebeforespacesolving))")
+                #    
 
                 args = [chr(i + ord("B")) for i in 
                         range(len(s['where_classifier'].target_types)-1)]
@@ -106,14 +108,15 @@ class LogicalWhereWhenHow(BaseAgent):
 
                 for m in s['where_classifier'].get_matches(state,
                                                            constraints):
+                    #print("MATCH", m)
                     if isinstance(m, tuple):
                         mapping = {"?foa%i" % i: str(ele) for i, ele in enumerate(m)}
                     else:
                         mapping = {'?foa0': m}
-                    print('trying', m)
+                    #print('trying', m)
 
                     if state[('value', mapping['?foa0'])] != "":
-                        print('no selection')
+                        #print('no selection')
                         continue
 
                     limited_state = {}
@@ -135,12 +138,15 @@ class LogicalWhereWhenHow(BaseAgent):
                         vX[('value', foa)] = state[('value', mapping[foa])]
                     for attr, value in self.compute_features(vX, features):
                         vX[attr] = value
+                    #for foa in mapping:
+                    #    vX[('name', foa)] = state[('name', mapping[foa])]
+
                     vX = tup.undo_transform(vX)
 
-                    print("WHEN PREDICTION STATE")
-                    pprint(vX)
+                    #print("WHEN PREDICTION STATE")
+                    #pprint(vX)
                     when_pred = s['when_classifier'].predict([vX])[0]
-                    pprint(when_pred)
+                    #pprint(when_pred)
 
                     if when_pred == 0:
                         continue
@@ -169,6 +175,9 @@ class LogicalWhereWhenHow(BaseAgent):
                     #pprint(response)
                     return response
 
+                #import time
+                #time.sleep(5)
+
         return {}
 
     def train(self, state, features, functions, label, foas, selection, action,
@@ -196,7 +205,11 @@ class LogicalWhereWhenHow(BaseAgent):
 
         tup = Tuplizer()
         flt = Flattener()
+        #pprint(state)
         example['flat_state'] = flt.transform(tup.transform(state))
+        #pprint(example['flat_state'])
+        #import time
+        #time.sleep(1000)
 
         #pprint(example)
 
@@ -281,6 +294,8 @@ class LogicalWhereWhenHow(BaseAgent):
                 x = {attr: e['foa_values'][attr] for attr in e['foa_values']}
                 for attr, value in self.compute_features(x, features):
                     x[attr] = value
+                #for attr in e['foa_names']:
+                #    x[attr] = e['foa_names'][attr]
                 x = tup.undo_transform(x)
                 value_X.append(x)
 
