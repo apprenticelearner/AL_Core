@@ -1,4 +1,6 @@
 from pprint import pprint
+
+import numpy as np
 import inspect
 from itertools import permutations
 from itertools import product
@@ -34,7 +36,7 @@ class LogicalWhereWhenHow(BaseAgent):
     classifiers. How learning is a form of planner. 
     """
     #def __init__(self, where, when, how):
-    def __init__(self, when="pyibl"):
+    def __init__(self, when="pyibl", when_params=None ):
 
         #self.where = where
         #self.when = when
@@ -43,6 +45,7 @@ class LogicalWhereWhenHow(BaseAgent):
         self.where = MostSpecific
         #self.when = DecisionTreeClassifier
         self.when = when
+        self.when_params = when_params
         #self.when = GaussianNB
         #self.how = ActionPlanner(math_actions)
         self.skills = {}
@@ -105,10 +108,10 @@ class LogicalWhereWhenHow(BaseAgent):
                         vX[attr] = value
                     vX = tup.undo_transform(vX)
 
-                    print("WHEN PREDICTION STATE")
-                    pprint(vX)
+                    #print("WHEN PREDICTION STATE")
+                    #pprint(vX)
                     when_pred = s['when_classifier'].predict([vX])[0]
-                    pprint(when_pred)
+                    #pprint(when_pred)
 
                     if when_pred == 0:
                         continue
@@ -165,7 +168,6 @@ class LogicalWhereWhenHow(BaseAgent):
         tup = Tuplizer()
         flt = Flattener()
         example['flat_state'] = flt.transform(tup.transform(state))
-
         #pprint(example)
 
         if label not in self.skills:
@@ -219,7 +221,7 @@ class LogicalWhereWhenHow(BaseAgent):
                 self.skills[label][exp]['examples'] = []
                 self.skills[label][exp]['correct'] = []
                 where = self.where()
-                when = when_learners[self.when]()
+                when = when_learners[self.when](self.when_params)
                 #when = Pipeline([('dict_vect', DictVectorizer(sparse=False)), 
                 #                  ('clf', self.when())])
                 self.skills[label][exp]['where_classifier'] = where
@@ -253,10 +255,11 @@ class LogicalWhereWhenHow(BaseAgent):
                 #if example['label'] == "convert-different-num2":
                 #    print("CORRECTNESS:", e['correct'])
                 #    pprint(x)
-
             self.skills[label][exp]['where_classifier'].fit(T, structural_X, y)
             self.skills[label][exp]['when_classifier'].fit(value_X, y)
-
+            #self.skills[label][exp]['when_classifier'].ifit(value_X[-1], y[-1])
+ 	
+		
     def check(self, state, features, functions, selection, action, inputs):
         return False
 
