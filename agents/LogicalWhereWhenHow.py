@@ -1,4 +1,6 @@
 from pprint import pprint
+
+import numpy as np
 import inspect
 from itertools import product
 from itertools import combinations
@@ -38,7 +40,7 @@ class LogicalWhereWhenHow(BaseAgent):
     classifiers. How learning is a form of planner. 
     """
     #def __init__(self, where, when, how):
-    def __init__(self, when="decision tree"):
+    def __init__(self, when="pyibl", when_params=None):
 
         #self.where = where
         #self.when = when
@@ -49,6 +51,7 @@ class LogicalWhereWhenHow(BaseAgent):
         #self.where = Aleph
         #self.when = DecisionTreeClassifier
         self.when = when
+        self.when_params = when_params
         #self.when = GaussianNB
         #self.how = ActionPlanner(math_actions)
         self.skills = {}
@@ -207,6 +210,7 @@ class LogicalWhereWhenHow(BaseAgent):
         flt = Flattener()
         #pprint(state)
         example['flat_state'] = flt.transform(tup.transform(state))
+
         #pprint(example['flat_state'])
         #import time
         #time.sleep(1000)
@@ -264,7 +268,7 @@ class LogicalWhereWhenHow(BaseAgent):
                 self.skills[label][exp]['examples'] = []
                 self.skills[label][exp]['correct'] = []
                 where = self.where()
-                when = when_learners[self.when]()
+                when = when_learners[self.when](self.when_params)
                 #when = Pipeline([('dict_vect', DictVectorizer(sparse=False)), 
                 #                  ('clf', self.when())])
                 self.skills[label][exp]['where_classifier'] = where
@@ -302,10 +306,11 @@ class LogicalWhereWhenHow(BaseAgent):
                 #if example['label'] == "convert-different-num2":
                 #    print("CORRECTNESS:", e['correct'])
                 #    pprint(x)
-
             self.skills[label][exp]['where_classifier'].fit(T, structural_X, y)
             self.skills[label][exp]['when_classifier'].fit(value_X, y)
-
+            #self.skills[label][exp]['when_classifier'].ifit(value_X[-1], y[-1])
+ 	
+		
     def check(self, state, features, functions, selection, action, inputs):
         return False
 
