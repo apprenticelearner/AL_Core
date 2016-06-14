@@ -1,5 +1,7 @@
+import inspect
 from pprint import pprint
 from itertools import permutations
+from itertools import product
 
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.tree import DecisionTreeClassifier
@@ -13,7 +15,8 @@ from concept_formation.structure_mapper import get_component_names
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.action_planner import math_actions
-from ilp.foil import Foil
+#from ilp.foil import Foil
+from ilp.aleph import Aleph
 
 #import sys
 #sys.stdout = open('/home/anant/Documents/output.txt', 'w')
@@ -24,12 +27,24 @@ class LogicalWhenHow(BaseAgent):
     classifiers. How learning is a form of planner. 
     """
     def __init__(self):
-        self.when = Foil
+        self.when = Aleph
         self.how = ActionPlanner(math_actions)
         self.skills = {}
         self.examples = {}
 
-    def request(self, state):
+    def compute_features(self, state, features):
+        for feature in features:
+            num_args = len(inspect.getargspec(features[feature]).args)
+            if num_args < 1:
+                raise Exception("Features must accept at least 1 argument")
+            possible_args = [attr for attr in state]
+
+            for tupled_args in product(possible_args, repeat=num_args):
+                new_feature = (feature,) + tupled_args
+                values = [state[attr] for attr in tupled_args]
+                yield new_feature, features[feature](*values)
+
+    def request(self, state, features, functions):
         #print("REQUEST")
         #pprint(self.skills)
         ff = Flattener()
@@ -37,9 +52,11 @@ class LogicalWhenHow(BaseAgent):
 
         state = tup.transform(state)
         state = ff.transform(state)
+        for attr, value in self.compute_features(state, features):
+            state[attr] = value
         
         for label in self.skills:
-            for grounded_plan, plan in self.get_plan(label, state):
+            for grounded_plan, plan in self.get_plan(label, state, functions):
                 response = {}
                 response['label'] = label
                 response['selection'] = grounded_plan[2]
@@ -50,12 +67,20 @@ class LogicalWhenHow(BaseAgent):
 
         return {}
 
-    def get_plan(self, label, state):
-        act_plan = ActionPlanner(math_actions)
+    def get_plan(self, label, state, functions):
+        act_plan = ActionPlanner(functions)
 
         for seq in self.skills[label]:
             s = self.skills[label][seq]
-            for m in s['when_classifier'].get_matches(state):
+
+            # constraints for efficiency.
+            constraints = []
+            constraints.append("avalue(A,B,anil)")
+            for i in range(len(s['when_classifier'].target_types) - 2):
+                v = chr(i + ord("C"))
+                constraints.append("not(avalue(A," + v + ",anil))")
+
+            for m in s['when_classifier'].get_matches(state, constraints):
                 if isinstance(m, tuple):
                     mapping = {"?foa%i" % (i): v for i,v in enumerate(m)}
                 else:
@@ -63,10 +88,12 @@ class LogicalWhenHow(BaseAgent):
                 plan = self.rename_exp(seq, mapping)
                 #pprint(state)
                 #print(seq)
-                #print(m)
+                print(m)
                 #print(mapping)
                 #print(plan)
+
                 if state[('value', plan[2][1])] != "":
+                    print("SELECTION VALUE NOT NIL")
                     continue
 
                 try:
@@ -78,7 +105,8 @@ class LogicalWhenHow(BaseAgent):
                     #print("EXECPTION WITH", e)
                     continue
 
-    def train(self, state, label, foas, selection, action, inputs, correct):
+    def train(self, state, features, functions, label, foas, selection, action,
+              inputs, correct):
 
         # create example dict
         example = {}
@@ -92,7 +120,7 @@ class LogicalWhenHow(BaseAgent):
         tup = Tuplizer()
         flt = Flattener()
         example['flat_state'] = flt.transform(tup.transform(state))
-        pprint(example)
+        #pprint(example)
 
         if label not in self.skills:
             self.skills[label] = {}
@@ -117,12 +145,21 @@ class LogicalWhenHow(BaseAgent):
         # mark selection (so that we can identify it as empty 
         sai = tuple(sai)
 
-        act_plan = ActionPlanner(actions=math_actions)
+        act_plan = ActionPlanner(actions=functions)
         explanations = []
 
         # TODO need to update code for checking existing explanations
         print("TRYING PREV EXP", label, [l for l in self.skills])
-        for grounded_plan, plan in self.get_plan(label, example['flat_state']):
+
+        temp_state = {attr: example['flat_state'][attr] 
+                      for attr in example['flat_state']}
+        for attr, value in self.compute_features(temp_state, features):
+            temp_state[attr] = value
+
+        for grounded_plan, plan in self.get_plan(label, temp_state,
+                                                functions):
+            print("trying: ", plan)
+
             if grounded_plan == sai:
                 print("found existing explanation")
                 explanations.append(plan)
@@ -156,7 +193,14 @@ class LogicalWhenHow(BaseAgent):
             print()
             
             T = self.skills[label][new_exp]['args']
-            X = [e['flat_state'] for e in self.skills[label][new_exp]['examples']]
+
+            X = []
+            for e in self.skills[label][new_exp]['examples']:
+                x = {attr: e['flat_state'][attr] for attr in e['flat_state']}
+                for attr, value in self.compute_features(x, features):
+                    x[attr] = value
+                X.append(x)
+
             y = self.skills[label][new_exp]['correct']
 
             #print(T)
@@ -165,7 +209,7 @@ class LogicalWhenHow(BaseAgent):
             
             self.skills[label][new_exp]['when_classifier'].fit(T, X, y)
 
-    def check(self, state, selection, action, inputs):
+    def check(self, state, features, functions, selection, action, inputs):
         return False
 
     def rename_exp(self, exp, mapping):

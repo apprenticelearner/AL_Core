@@ -1,95 +1,580 @@
+from pprint import pprint
+from numbers import Number
 from subprocess import Popen
 from subprocess import PIPE
 from subprocess import STDOUT
 import re
 
-from ilp.base_ilp import BaseILP
+import pexpect
 
+from ilp.base_ilp import BaseILP
 
 class Foil(BaseILP):
 
-    def __init__(self, bind_objects=False, bind_values=True, closed_world=True,
-                max_tuples=100000):
-
-        # the name of the relation being learned
-        self.name = "target_relation"
-        self.example_name = "currr_ex"
-        self.arity = 1
-        self.types = ["E"]
-        self.type_names = {}
-        self.type_names["E"] = "exxx"
-        self.type_names["O"] = "objj"
-        self.type_names["V"] = "vall"
-
-        # lists of positive and negative tuples
-        self.pos = []
-        self.neg = []
-
-        # Examples
-        self.examples = set()
-
-        # Objects
-        self.objects = set()
-
-        # Values
-        self.values = set()
-
-        # the key is the name
-        # the value is a list of tuples
-        # aux relations only need positive examples, right?
-        self.aux_relations = {}
-        self.aux_rel_has_val = set()
+    def __init__(self, closed_world=True, max_tuples=100000,
+                 name="target_relation"):
+        """
+        The constructor. 
+        """
+        # Keywords used for constructing foil file (try not to conflict).
+        self.name = name
+        self.example_type = "E"
+        self.example_name = self.clean("curr_example")
+        self.example_keyword = "e"
 
         # whether or not to use closed world assumption
         self.closed_world = closed_world
-        self.bind_objects = bind_objects
-        self.bind_values = bind_values
         self.max_tuples = max_tuples
 
-        # rules for computing matches
-        self.rules = ""
+        # initialize all class variables
+        self.initialize()
 
-    def get_matches(self, X):
+    def initialize(self):
 
-        if self.rules == "":
-            return []
+        # the target relation types
+        self.target_types = None
+
+        # the states that tuples can occur in.
+        self.states = {}
+
+        # tuples for target relation
+        self.pos = set()
+        self.neg = set()
+
+        # the possible attr value types
+        # the val type "continuous" is reserved for numerical types
+        self.val_types = {}
+
+        # the aux relations and their type tuples
+        # also the pos tuples for aux relations
+        self.aux_relations = {}
+        self.pos_aux_tuples = {}
+
+        # String representation of learned rules
+        self.rules = set()
+
+    def fit(self, T, X, y):
+
+        # initialize all variables for learning
+        self.initialize()
+
+        # clean the input
+        T = [self.clean(t) for t in T]
+        X = [{self.clean(a): self.clean(x[a]) for a in x} for x in X]
+
+        self.val_types[self.example_type] = set()
+
+        for i, correct in enumerate(y):
+
+            # get the example id. 
+            state = frozenset(X[i].items())
+            if state not in self.states:
+                self.states[state] = len(self.states)
+            eid = self.states[state]
+
+            #example_id = "%s%i" % (self.example_keyword, i) 
+            example_id = "%s%i" % (self.example_keyword, eid) 
+            self.val_types[self.example_type].add(example_id)
+
+            # Get target relation tuples
+            if correct == 1:
+                self.pos.add((example_id,) + T[i])
+            else:
+                self.neg.add((example_id,) + T[i])
+
+            target_types = (self.example_type,)
+            for ai, v in enumerate(T[i]):
+                arg = "targetArg%i" % ai
+                target_types += (arg,)
+
+                if arg not in self.val_types:
+                    self.val_types[arg] = set()
+                self.val_types[arg].add(v)
+
+            if self.target_types is None:
+                self.target_types = target_types
+            else:
+                if self.target_types != target_types:
+                    raise Exception("All tuples should have same types")
+
+            ## Get all types and values
+            #for rel in X[i]:
+            #    if (not isinstance(X[i][rel], bool) and not
+            #          isinstance(X[i][rel], Number)):
+            #        # if not a boolean or number than add appropriate 
+            #        # attr-val type info
+            #        if isinstance(rel, str):
+            #            if rel not in self.val_types:
+            #                self.val_types[rel] = set()
+            #            self.val_types[rel].add(X[i][rel])
+            #        elif isinstance(rel, tuple):
+            #            if rel[0] not in self.val_types:
+            #                self.val_types[rel[0]] = set()
+            #            self.val_types[rel[0]].add(X[i][rel])
+            #        else:
+            #            raise Exception("attribute not string or tuple.")
+            #
+
+            # accumulate aux relation information
+            for rel in X[i]:
+                if isinstance(rel, str):
+                    arg = rel + "Val"
+                    if rel not in self.aux_relations:
+                        if arg not in self.val_types:
+                            self.val_types[arg] = set()
+
+                        if isinstance(X[i][rel], bool):
+                            self.aux_relations[rel] = (self.example_type,)
+                        else:
+                            self.aux_relations[rel] = (self.example_type, arg)
+
+                        self.pos_aux_tuples[rel] = set()
+                    if isinstance(X[i][rel], Number):
+                        self.val_types[arg] = "continuous"
+                    elif not isinstance(X[i][rel], bool):
+                        self.val_types[arg].add(str(X[i][rel]))
+                    self.pos_aux_tuples[rel].add((example_id, str(X[i][rel])))
+
+                elif isinstance(rel, tuple):
+                    tup_type = (self.example_type,)
+                    for ele_id, ele in enumerate(rel[1:]):
+                        arg = rel[0] + "Arg%i" % ele_id
+                        if arg not in self.val_types:
+                            self.val_types[arg] = set()
+                        tup_type += (arg,)
+
+                    if not isinstance(X[i][rel], bool):
+                        if rel[0] + "Val" not in self.val_types:
+                            self.val_types[rel[0] + "Val"] = set()
+                        tup_type += (rel[0] + "Val",)
+
+                    if rel[0] not in self.aux_relations:
+                        self.aux_relations[rel[0]] = tup_type
+                        self.pos_aux_tuples[rel[0]] = set()
+
+                    tup = (example_id,)
+                    for ai, attr in enumerate(rel[1:]):
+                        arg = rel[0] + "Arg%i" % ai
+                        if attr in X[i]:
+                            tup += (X[i][attr],)
+                            self.val_types[arg].add(X[i][attr])
+                        else:
+                            tup += (attr,)
+                            self.val_types[arg].add(attr)
+
+                    if not isinstance(X[i][rel], bool):
+                        tup += (str(X[i][rel]),)
+                        self.val_types[rel[0] + "Val"].add(str(X[i][rel]))
+
+                    self.pos_aux_tuples[rel[0]].add(tup)
+
+                else:
+                    raise Exception("attribute not string or tuple.")
+
+
+        data = ""
+
+        # combine types and rename to combined types
+        combined_types = {}
+        overlap = {}
+        for tt1 in self.val_types:
+            for tt2 in self.val_types:
+                if tt1 not in overlap:
+                    overlap[tt1] = set()
+                if tt1 == tt2: 
+                    continue
+                if (tt1 == self.example_type or tt2 == self.example_type):
+                    continue
+                if (self.val_types[tt1] == "continuous" and
+                    self.val_types[tt2] == "continuous"):
+                    overlap[tt1].add(tt2)
+                if (self.val_types[tt1] == "continuous" or
+                    self.val_types[tt2] == "continuous"):
+                    continue
+                if (len(self.val_types[tt1].intersection(self.val_types[tt2]))
+                    > 0):
+                    overlap[tt1].add(tt2)
+
+        #pprint(overlap)
+        num_types = 0
+
+        open_list = set(overlap)
+        closed_list = set()
+
+        while len(open_list) > 0:
+            inner_list = set()
+            new_t = "type%i" % num_types
+            num_types += 1
+            combined_types[new_t] = set()
+            inner_list.add(open_list.pop())
+
+            while len(inner_list) > 0:
+                curr_t = inner_list.pop()
+                combined_types[new_t].add(curr_t)
+                closed_list.add(curr_t)
+                for some_t in overlap[curr_t]:
+                    if some_t not in closed_list:
+                        inner_list.add(some_t)
+            open_list = open_list - closed_list
+
+        #pprint(combined_types)
+        self.type_mapping = {} 
+        for tt in self.val_types:
+            for ht in combined_types:
+                if tt in combined_types[ht]:
+                    self.type_mapping[tt] = ht
+                    break
+        #pprint(self.type_mapping)
+
+        printed_types = set()
+        for tt in self.val_types:
+            if self.type_mapping[tt] in printed_types:
+                continue
+
+            if tt == self.example_type:
+                data += "#" + self.type_mapping[tt] + ": "
+                vals = set()
+                for sub_t in combined_types[self.type_mapping[tt]]:
+                    for v in self.val_types[sub_t]:
+                        vals.add(v)
+                data += ",".join(["%s" % v for v in vals]) + ".\n"
+            elif self.val_types[tt] == "continuous":
+                data += "#" + self.type_mapping[tt] + ": " + self.val_types[tt] + ".\n"
+            else:
+                data += "#" + self.type_mapping[tt] + ": " 
+                vals = set()
+                for sub_t in combined_types[self.type_mapping[tt]]:
+                    for v in self.val_types[sub_t]:
+                        vals.add(v)
+                data += ",".join(["*%s" % v for v in vals]) + ".\n"
+            printed_types.add(self.type_mapping[tt])
+
+        data += "\n"
+        #print(data)
+
+        # rename target relation header to new types
+
+        # target relation header
+        data += self.name + "(" + ", ".join([self.type_mapping[tt] for tt in
+                                             self.target_types]) + ") " 
+        data += "".join(["#" for i in range(len(self.target_types))]) + "\n"
+
+        # positive examples
+        for t in self.pos:
+            data += ", ".join(t) + "\n"
+
+        if self.closed_world is False:
+            # negative examples
+            data += ";\n"
+            for t in self.neg:
+                data += ", ".join(t) + "\n"
+
+        data += ".\n"
+
+        # rename aux relation header to new types
+
+        # aux relations
+        for rel in self.aux_relations:
+            data += "*" + rel + "(" + ", ".join([self.type_mapping[tt] for tt in
+                                                 self.aux_relations[rel]]) + ")\n"
+
+            # the positive examples of relation
+            for t in self.pos_aux_tuples[rel]:
+                data += ", ".join(t) + "\n"
+
+            data += ".\n"
+
+        #print(data)
+
+        if self.closed_world is True:
+            # only need to do sophisticated sampling when using closed world.
+            num_neg_tuples = 1.0
+            for t in self.target_types:
+                vals = set()
+                for sub_t in combined_types[self.type_mapping[t]]:
+                    for v in self.val_types[sub_t]:
+                        vals.add(v)
+                num_neg_tuples *= len(vals)
+
+            num_pos_tuples = len(self.pos)
+            max_neg_tuples = self.max_tuples - num_pos_tuples
+
+            sample_size = min(10000, 10000 * ((max_neg_tuples-1) / num_neg_tuples))
+            sample_size = int(sample_size) / 100
+
+            #print("NUM_NEG: ", num_neg_tuples)
+            #print("MAX_NEG: ", max_neg_tuples)
+            #print("SAMPLE: ", sample_size)
+
+            # Create subprocess
+            #p = pexpect.spawn('ilp/FOIL6/foil6 -m %i -s %0.2f -a %0.2f' %
+            #                  (self.max_tuples, sample_size, 0.6))
+            p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, '-s %0.2f' %
+                       sample_size, '-d 20', '-w 20', '-l 20', 
+                       '-t 40'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+        else:
+            p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, 
+                       '-d 20', '-w 20', '-l 20', '-t 40'],
+                      stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+
+        # Send data to subprocess
+        output = p.communicate(input=data.encode("utf-8"))[0]
+
+        self.rules = set()
+
+        found = False
+            
+        # Process result
+        for line in output.decode().split("\n"):
+            #print(line)
+            if re.search("^Training Set Size will exceed tuple limit:", line):
+                raise Exception("Tuple limit exceeded, should never happen.")
+            #match = re.search('^' + self.name + ".+:-", line)
+            matches = re.findall("^" + self.name + "\(" +
+                                 ",".join(["(?P<arg%i>[^ ,()]+)" % i for i in
+                                           range(len(self.target_types))]) + "\)", line)
+            if matches:
+                found = True
+                rule = ""
+                #args = matches[0]
+                rule += re.sub("_[0-9]+", "_", 
+                                     re.sub("not\((?P<content>[^)]+)\)", 
+                                            "not \g<content>", line[:-1]))
+                
+                self.rules.add(rule)
+                
+                #first_arg = False
+                #if " :- " not in line:
+                #    rule += " :- "
+                #    first_arg = True
+
+                #ground_atoms = set()
+                #for tt in self.val_types:
+                #    if self.val_types[tt] != "continuous":
+                #        ground_atoms = ground_atoms.union(self.val_types[tt])
+
+                #for i, arg in enumerate(args):
+                #    if arg not in ground_atoms:
+                #        if not first_arg:
+                #            rule += ", "
+                #        else:
+                #            first_arg = False
+                #        rule += self.type_mapping[self.target_types[i]] + "(" + arg + ")"
+
+                #print('RULE2', rule)
+                #self.rules.add(rule)
+                ##self.rules += ".\n"
+        
+        #print("POS: ", len(self.pos))
+        #print("NEG: ", len(self.neg))
+        if self.closed_world is False and not found and len(self.pos) > len(self.neg):
+            rule = self.name + "(" + ",".join([chr(i + ord('A')) for i in range(len(self.target_types))]) + ") :- "
+            rule += ", ".join([self.type_mapping[t] + "(" + chr(i + ord('A')) + ")" for
+                               i,t in enumerate(self.target_types)])
+            self.rules.add(rule)
+            #self.rules += ".\n"
+
+        #print("LEARNED RULES")
+        #print(self.rules)
+
+    def get_matches(self, X, constraints=None):
+
+        if constraints is None:
+            constraints = []
+
+        if len(self.rules) == 0:
+            return
 
         X = {self.clean(a): self.clean(X[a]) for a in X}
 
-        vals = set()
-        objs = set()
-        rels = set()
+        val_types = {}
 
+        # get the type info
         for rel in X:
-            if isinstance(X[rel], bool):
-                rels.add((rel[0],) + (self.example_name,) + rel[1:])
+            if isinstance(rel, str):
+                arg = rel + "Val"
+                if not isinstance(X[rel], bool):
+                    if arg not in val_types:
+                        val_types[arg] = set()
+                    if not isinstance(X[rel], Number):
+                        val_types[arg].add(X[rel])
+            elif isinstance(rel, tuple):
+                for ele_id, ele in enumerate(rel[1:]):
+                    arg = rel[0] + "Arg%i" % ele_id
+                    if arg not in val_types:
+                        val_types[arg] = set()
+                    if ele in X:
+                        val_types[arg].add(X[ele])
+                    else:
+                        val_types[arg].add(ele)
+                if not isinstance(X[rel], bool):
+                    arg = rel[0] + "Val"
+                    if arg not in val_types:
+                        val_types[arg] = set()
+                    if not isinstance(X[rel], Number):
+                        val_types[arg].add(X[rel])
             else:
-                val = X[rel]
-                if val == "":
-                    val = "nil"
-                rels.add((rel[0],) + (self.example_name,) + rel[1:] + (val,))
-                vals.add(val)
+                raise Exception("attribute not string or tuple.")
 
-            for v in rel[1:]:
-                objs.add(v)
+        # add type info to logic program
+        #p.expect("\?- ")
+        #p.sendline("assert(type" + self.example_type + "(" + self.example_name
+        #           + ")).")
+        data = self.type_mapping[self.example_type] + "(" + self.example_name + ").\n"
 
-        data = self.type_names['E'] + "(" + self.example_name + ").\n"
-        data += "\n".join([self.type_names['V'] + "(%s)." % v for v in vals]) + "\n"
-        data += "\n".join([self.type_names['O'] + "(%s)." % v for v in objs]) + "\n"
-        data += "\n".join([r[0] + "(" + ",".join(r[1:]) + ")." for r in rels]) + "\n"
+        for tt in val_types:
+            if val_types[tt] != "continuous":
+                for val in val_types[tt]:
+                    if tt in self.type_mapping:
+                        data += self.type_mapping[tt] + "(" + val + ").\n"
+                    data += tt + "(" + val + ").\n"
 
-        data += self.rules
-        data += "#show %s/%i." % (self.name, self.arity)
+                    #p.expect("\?- ")
+                    #p.sendline("assert(type" + tt + "(" + val + ")).")
 
-        p = Popen(['clingo'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
-        output = p.communicate(input=data.encode("utf-8"))[0]
+        for tt in self.val_types:
+            if "targetArg" in tt:
+                if self.val_types[tt] != "continuous":
+                    for val in self.val_types[tt]:
+                        data += self.type_mapping[tt] + "(" + val + ").\n"
+                        #p.expect("\?- ")
+                        #p.sendline("assert(type" + tt + "(" + val + ")).")
+
+        # add aux relations to logic program
+        rel_dict = dict()
+        for rel in X:
+            if isinstance(rel, str):
+                rel_str = rel + "(" + self.example_name
+                if not isinstance(X[rel], bool):
+                    rel_str += ", " + str(X[rel]) 
+                rel_str += ").\n"
+
+                if rel not in rel_dict:
+                    rel_dict[rel] = set()
+                rel_dict[rel].add(rel_str)
+
+            elif isinstance(rel, tuple):
+                rel_str = rel[0] + "(" + self.example_name + ", " 
+                #data = "assert(" + rel[0] + "(" + self.example_name + ", " 
+                vals = [X[attr] if attr in X else attr for attr in rel[1:]]
+                rel_str += ", ".join(vals)
+                if not isinstance(X[rel], bool):
+                    rel_str += ", " + str(X[rel]) 
+                rel_str += ").\n"
+
+                if rel[0] not in rel_dict:
+                    rel_dict[rel[0]] = set()
+                rel_dict[rel[0]].add(rel_str)
+
+            else:
+                raise Exception("attribute not string or tuple.")
+
+        for rel in rel_dict:
+            for rel_str in rel_dict[rel]:
+                data += rel_str
+
+        for rule in self.rules:
+            # replace with appropriate prolog operators.
+            rule = re.sub(" (?P<first>\w+)<>(?P<second>\w+)", 
+                          " dif(\g<first>, \g<second>)", rule)
+            rule = re.sub(" not (?P<term>[\w,()]+),", 
+                          " not(\g<term>),", rule)
+            rule = rule.replace("<=", "=<")
+            data += rule + ".\n"
+
+        args = [chr(i + ord("B")) for i in
+                         range(len(self.target_types) - 1)]
+        all_args = [self.example_name] + args
+
+        bind_args = ['A'] + args
+        data += "bind_relation(" + ",".join(bind_args) + ") :- "
+        bind_body = [self.type_mapping[tt] + "(" + bind_args[i] + ")" 
+                     for i,tt in enumerate(self.target_types)]
+        bind_body = [self.name + "(" + ",".join(['A'] + args) + ")"] + bind_body
+
+        # user provided constraints
+        bind_body += constraints
+        data += ", ".join(bind_body)
+        data += ".\n" 
 
         #print(data)
-        #print(output.decode())
 
-        matches = re.findall(self.name + "\(" + self.example_name + "," + ",".join(["(?P<arg%i>[^ ,()]+)" % i for i in range(self.arity-1)]) + "\)", output.decode())
+        #print(data)
 
-        return [self.unclean(m) for m in matches]
+        outfile = open("foil_binding_lp.pl", 'w')
+        outfile.write(data)
+        outfile.close()
+
+        #p = PopenSpawn('swipl -q -s foil_binding_lp.pl', encoding="utf-8",
+        #               maxread=100000)
+        p = pexpect.spawn('swipl -q -s foil_binding_lp.pl', timeout=None,
+                          echo=False, encoding="utf-8", maxread=1000000,
+                          searchwindowsize=None)
+
+
+        p.expect("\?- ")
+
+        p.sendline("bind_relation(" + ", ".join(all_args) + ").")
+        
+        patterns = []
+        for arg in args:
+            patterns.append(arg + r" = " + r"(?P<" + arg + r">\w+)")
+        arg_pattern = r",[\r\n ]+".join(patterns)
+
+        mid_pattern = arg_pattern + r" "
+        end_pattern = arg_pattern + r"."
+
+        previous_matches = set()
+
+        resp = -1
+        while resp != 0:
+            if len(args) > 0:
+                try:
+                    resp = p.expect(["false.", "ERROR", "true.", mid_pattern,
+                                     end_pattern])
+                except Exception as e:
+                    print(e)
+                    print(p.buffer)
+                    print(p.before)
+            else:
+                resp = p.expect(["false.", "ERROR", "true."])
+
+            if resp == 1:
+                print(p)
+                print(p.buffer)
+                print(p.before)
+                print(data)
+                try:
+                    raise Exception("Error in prolog program")
+                except Exception:
+                    return
+            if resp == 2:
+                yield tuple()
+                return
+            elif resp == 3 or resp == 4:
+                mapping = {arg: p.match.group(arg) for arg in args}
+
+                m = tuple([self.unclean(self.get_val(a, mapping)) 
+                             for a in args])
+                if m not in previous_matches:
+                    yield m
+                    previous_matches.add(m)
+
+                if resp == 3:
+                    p.send(";")
+                else:
+                    return
+
+
+    def get_val(self, arg, mapping):
+        if arg not in mapping:
+            print(arg)
+            print(mapping)
+            raise Exception("arg not in mapping")
+        if mapping[arg] in mapping:
+            return self.get_val(mapping[arg], mapping)
+        else:
+            return mapping[arg]
 
     def unclean(self, x):
         if isinstance(x, tuple):
@@ -126,182 +611,3 @@ class Foil(BaseILP):
             return x
         else:
             return x
-        
-    def fit(self, T, X, y):
-
-        # preprocess
-        T = [self.clean(t) for t in T]
-        X = [{self.clean(a): self.clean(x[a]) for a in x} for x in X]
-
-        self.pos = []
-        self.neg = []
-        self.aux_relations = {}
-
-        for i, correct in enumerate(y):
-            example_id = "EXAMPLEID%i" % (i) 
-            self.examples.add(example_id)
-
-            # Get target tuple information
-            if correct == 1:
-                self.pos.append((example_id,) + T[i])
-            else:
-                self.neg.append((example_id,) + T[i])
-
-            #for e in T[i]:
-            #    self.values.add(e)
-
-            # Get aux relation information
-            for rel in X[i]:
-                if rel[0] not in self.aux_relations:
-                    self.aux_relations[rel[0]] = []
-
-                if isinstance(X[i][rel], bool):
-                    self.aux_relations[rel[0]].append((example_id,) + rel[1:])
-                else:
-                    val = X[i][rel]
-                    if val == "":
-                        val = "nil"
-                    self.aux_relations[rel[0]].append((example_id,) + rel[1:] +
-                                                     (val,))
-                    self.aux_rel_has_val.add(rel[0])
-                    self.values.add(val)
-
-                # Add values
-                for e in rel[1:]:
-                    self.objects.add(e)
-
-        self.types = ['E']
-        for e in T[0]:
-            if e in self.objects:
-                self.types.append("O")
-            elif e in self.values:
-                self.types.append("V")
-            else:
-                raise Exception("tuple element is not an object or value")
-
-        num_neg_tuples = 1.0
-        for t in self.types:
-            if t == "E":
-                num_neg_tuples *= len(self.examples)
-            elif t == "O":
-                num_neg_tuples *= len(self.objects)
-            elif t == "V":
-                num_neg_tuples *= len(self.values)
-
-        num_pos_tuples = len(self.pos)
-        max_neg_tuples = self.max_tuples - num_pos_tuples
-
-        sample_size = min(10000, 10000 * ((max_neg_tuples-1) / num_neg_tuples))
-        sample_size = int(sample_size) / 100
-
-        print("NUM_NEG: ", num_neg_tuples)
-        print("MAX_NEG: ", max_neg_tuples)
-        print("SAMPLE: ", sample_size)
-
-        # Create subprocess
-        p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, '-s %0.2f' %
-                   sample_size], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
-
-        # construct file.
-        # types and values
-        data = "#E: " + ",".join(["%s" % v for v in self.examples]) + ".\n"
-
-        if self.bind_objects:
-            data += "#O: " + ",".join(["*%s" % v for v in self.objects]) + ".\n"
-        else:
-            data += "#O: " + ",".join(["%s" % v for v in self.objects]) + ".\n"
-
-        if self.bind_values:
-            data += "#V: " + ",".join(["*%s" % v for v in self.values]) + ".\n\n"
-        else:
-            data += "#V: " + ",".join(["%s" % v for v in self.values]) + ".\n\n"
-
-        # target relation header
-        if len(self.pos) > 0 and len(self.pos[0]) > 0:
-            self.arity = len(self.pos[0])
-        elif len(self.neg) > 0 and len(self.neg[0]) > 0:
-            self.arity = len(self.neg[0])
-        data += self.name + "(" + ", ".join(self.types)
-        data += ") " + "".join(["#" for i in range(self.arity)]) + "\n"
-
-        # positive examples
-        for t in self.pos:
-            data += ", ".join(t) + "\n"
-
-        if self.closed_world is False:
-            # negative examples
-            data += ";\n"
-            for t in self.neg:
-                data += ", ".join(t) + "\n"
-
-        data += ".\n"
-
-        # aux relations
-        for rel in self.aux_relations:
-            arity = len(self.aux_relations[rel][0])
-            if rel in self.aux_rel_has_val:
-                data += "*" + rel + "(E, " + ", ".join(["O" for i in range(arity-2)]) + ", V"
-            else:
-                data += "*" + rel + "(E, " + ", ".join(["O" for i in range(arity-1)])
-            # aux relations don't always need alll values to be bound
-            data += ")\n"# " + "".join(["#" for i in range(arity)]) + "\n"
-
-            # the positive examples of relation
-            for t in self.aux_relations[rel]:
-                data += ", ".join(t) + "\n"
-            data += ".\n"
-
-        #print(data)
-
-        # Send data to subprocess
-        output = p.communicate(input=data.encode("utf-8"))[0]
-
-        self.rules = ""
-
-        type_info = [self.type_names[t] for t in self.types]
-
-        found = False
-            
-        # Process result
-        for line in output.decode().split("\n"):
-            print(line)
-            if re.search("^Training Set Size will exceed tuple limit:", line):
-                raise Exception("Tuple limit exceeded, should never happen.")
-            #match = re.search('^' + self.name + ".+:-", line)
-            matches = re.findall("^" + self.name + "\(" +
-                                 ",".join(["(?P<arg%i>[^ ,()]+)" % i for i in
-                                           range(self.arity)]) + "\)", line)
-            if matches:
-                found = True
-                args = matches[0]
-                self.rules += re.sub("_[0-9]+", "_", 
-                                     re.sub("not\((?P<content>[^)]+)\)", 
-                                            "not \g<content>", line[:-1]))
-                
-                first_arg = False
-                if " :- " not in line:
-                    self.rules += " :- "
-                    first_arg = True
-
-                ground_atoms = self.values.union(self.objects)
-                for i, arg in enumerate(args):
-                    if arg not in ground_atoms:
-                        if not first_arg:
-                            self.rules += ", "
-                        else:
-                            first_arg = False
-                        self.rules += type_info[i] + "(" + arg + ")"
-
-                self.rules += ".\n"
-        
-        print("POS: ", len(self.pos))
-        print("NEG: ", len(self.neg))
-        if not self.closed_world and not found and len(self.pos) > len(self.neg):
-            self.rules += self.name + "(" + ",".join([chr(i + ord('A')) for i in range(len(self.types))]) + ") :- "
-            self.rules += ", ".join([self.type_names[t] + "(" + chr(i +
-                                                                    ord('A')) +
-                                     ")" for i,t in enumerate(self.types)])
-            self.rules += ".\n"
-
-        print(self.rules)
-

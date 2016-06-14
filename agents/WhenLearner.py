@@ -1,3 +1,4 @@
+from pprint import pprint
 from copy import deepcopy
 from agents.pyibl import Agent
 
@@ -24,9 +25,6 @@ class CustomPipeline(Pipeline):
 		self.X.append(x)
 		self.y.append(y)
 		return self.fit(self.X, self.y)
-
-			
-		
 
 def DictVectWrapper(clf):
 	def fun(x=None):
@@ -101,6 +99,7 @@ class ScikitPyIBL(object):
             zero_situation = self.agent.situationDecision("0", tuple(x))
             one_situation = self.agent.situationDecision("1", tuple(x))
             result = self.agent.choose(zero_situation, one_situation)
+            pprint(tuple(x))
             print("Pred: ", result)
             print("Actual: ", self.y[i])
             if int(result) == self.y[i]:

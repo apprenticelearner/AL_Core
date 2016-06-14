@@ -2,8 +2,9 @@ from pprint import pprint
 
 import numpy as np
 import inspect
-from itertools import permutations
 from itertools import product
+from itertools import combinations
+import re
 
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
@@ -14,6 +15,9 @@ from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.WhenLearner import when_learners
 from ilp.most_specific import MostSpecific
+from ilp.aleph import Aleph
+from ilp.foil import Foil
+from ilp.ifoil import iFoil
 
 #decorator for pipeline
 
@@ -36,13 +40,15 @@ class LogicalWhereWhenHow(BaseAgent):
     classifiers. How learning is a form of planner. 
     """
     #def __init__(self, where, when, how):
-    def __init__(self, when="pyibl", when_params=None ):
+    def __init__(self, when="pyibl", when_params=None):
 
         #self.where = where
         #self.when = when
         #self.how = how
         #self.where = Foil
-        self.where = MostSpecific
+        #self.where = MostSpecific
+        self.where = iFoil
+        #self.where = Aleph
         #self.when = DecisionTreeClassifier
         self.when = when
         self.when_params = when_params
@@ -73,20 +79,47 @@ class LogicalWhereWhenHow(BaseAgent):
         state = tup.transform(state)
         state = ff.transform(state)
 
-        foa_state = {attr: state[attr] for attr in state 
-                     if (isinstance(attr, tuple) and attr[0] != "value") or 
-                     not isinstance(attr, tuple)}
+        #foa_state = {attr: state[attr] for attr in state 
+        #             if (isinstance(attr, tuple) and attr[0] != "value") or 
+        #             not isinstance(attr, tuple)}
         
         for label in self.skills:
             for seq in self.skills[label]:
                 s = self.skills[label][seq]
-                for m in s['where_classifier'].get_matches(foa_state):
+                #print(str(seq))
+
+                constraints = []
+                constraints.append("avalue(A,B,anil)")
+
+                #print(str(seq))
+                #for match in re.finditer(r"'\?foa(?P<M>[0-9]+)'", str(seq)):
+                #    v = chr(int(match.group("M")) + ord("B"))
+                #    if v == "B":
+                #        continue
+                #    constraints.append("not(avalue(A," + v + ",anil))")
+                #    constraints.append("not(avalue(A," + v + ",aplussign))")
+                #    constraints.append("not(avalue(A," + v + ",amultsign))")
+                #    constraints.append("not(avalue(A," + v + ",aequalsign))")
+                #    constraints.append("not(avalue(A," + v + ",aquestionmark))")
+                #    constraints.append("not(avalue(A," + v + ",aIspaceneedspacetospaceconvertspacethesespacefractionsspacebeforespacesolving))")
+                #    
+
+                args = [chr(i + ord("B")) for i in 
+                        range(len(s['where_classifier'].target_types)-1)]
+                for p in combinations(args, 2):
+                    constraints.append("dif(" + p[0] + "," + p[1] + ")")
+
+                for m in s['where_classifier'].get_matches(state,
+                                                           constraints):
+                    #print("MATCH", m)
                     if isinstance(m, tuple):
-                        mapping = {"?foa%i" % i: "?obj-" + str(ele) for i, ele in enumerate(m)}
+                        mapping = {"?foa%i" % i: str(ele) for i, ele in enumerate(m)}
                     else:
                         mapping = {'?foa0': m}
+                    #print('trying', m)
 
                     if state[('value', mapping['?foa0'])] != "":
+                        #print('no selection')
                         continue
 
                     limited_state = {}
@@ -98,6 +131,8 @@ class LogicalWhereWhenHow(BaseAgent):
                         grounded_plan = tuple([act_plan.execute_plan(ele, limited_state)
                                                    for ele in seq])
                     except Exception as e:
+                        print('plan could not execute')
+                        pprint(limited_state)
                         #print("EXECPTION WITH", e)
                         continue
 
@@ -106,6 +141,9 @@ class LogicalWhereWhenHow(BaseAgent):
                         vX[('value', foa)] = state[('value', mapping[foa])]
                     for attr, value in self.compute_features(vX, features):
                         vX[attr] = value
+                    #for foa in mapping:
+                    #    vX[('name', foa)] = state[('name', mapping[foa])]
+
                     vX = tup.undo_transform(vX)
 
                     #print("WHEN PREDICTION STATE")
@@ -140,6 +178,9 @@ class LogicalWhereWhenHow(BaseAgent):
                     #pprint(response)
                     return response
 
+                #import time
+                #time.sleep(5)
+
         return {}
 
     def train(self, state, features, functions, label, foas, selection, action,
@@ -153,7 +194,7 @@ class LogicalWhereWhenHow(BaseAgent):
         example['action'] = action
         example['inputs'] = inputs
         example['correct'] = correct
-        example['foa_args'] = tuple([foa.split("|")[1] for foa in foas])
+        example['foa_args'] = tuple(['?obj-' + foa.split("|")[1] for foa in foas])
         example['foa_names'] = {("name", "?foa%i" % i): foa.split("|")[1] for i,
                                  foa in enumerate(foas)}
         example['foa_values'] =  {("value", "?foa%i" % i): val.split("|")[2] for i, val in
@@ -167,7 +208,13 @@ class LogicalWhereWhenHow(BaseAgent):
 
         tup = Tuplizer()
         flt = Flattener()
+        #pprint(state)
         example['flat_state'] = flt.transform(tup.transform(state))
+
+        #pprint(example['flat_state'])
+        #import time
+        #time.sleep(1000)
+
         #pprint(example)
 
         if label not in self.skills:
@@ -242,6 +289,8 @@ class LogicalWhereWhenHow(BaseAgent):
             #pprint(T[0])
             #pprint(foa_state)
 
+            #structural_X = [e['flat_state'] for e in
+            #                self.skills[label][exp]['examples']]
             structural_X = [foa_state for t in T]
             
             value_X = []
@@ -249,6 +298,8 @@ class LogicalWhereWhenHow(BaseAgent):
                 x = {attr: e['foa_values'][attr] for attr in e['foa_values']}
                 for attr, value in self.compute_features(x, features):
                     x[attr] = value
+                #for attr in e['foa_names']:
+                #    x[attr] = e['foa_names'][attr]
                 x = tup.undo_transform(x)
                 value_X.append(x)
 
