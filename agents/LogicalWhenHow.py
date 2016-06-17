@@ -26,11 +26,11 @@ class LogicalWhenHow(BaseAgent):
     for the where, when, and how learning. Where and and When are both
     classifiers. How learning is a form of planner. 
     """
-    def __init__(self):
+    def __init__(self,how_params=None):
         self.when = Aleph
-        self.how = ActionPlanner(math_actions)
         self.skills = {}
         self.examples = {}
+        self.how_params = how_params
 
     def compute_features(self, state, features):
         for feature in features:
@@ -68,7 +68,7 @@ class LogicalWhenHow(BaseAgent):
         return {}
 
     def get_plan(self, label, state, functions):
-        act_plan = ActionPlanner(functions)
+        act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
 
         for seq in self.skills[label]:
             s = self.skills[label][seq]
@@ -145,7 +145,7 @@ class LogicalWhenHow(BaseAgent):
         # mark selection (so that we can identify it as empty 
         sai = tuple(sai)
 
-        act_plan = ActionPlanner(actions=functions)
+        act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
         explanations = []
 
         # TODO need to update code for checking existing explanations
@@ -165,7 +165,7 @@ class LogicalWhenHow(BaseAgent):
                 explanations.append(plan)
 
         if len(explanations) == 0:
-            explanations = act_plan.explain_sai(example['flat_state'], sai)
+            explanations = act_plan.explain_sai(example['flat_state'], sai,self.how_params)
 
         pprint(explanations)
 

@@ -174,22 +174,38 @@ class NoHeuristic(ActionPlannerProblem):
 
 class ActionPlanner:
 
-    def __init__(self, actions, epsilon=0.0, depth_limit=2):
+    def __init__(self, actions, act_params=None):
 
-        # Added these checks because I was getting weird behavior from the web
-        # API with things being strings when they shouldn't be        
-        if not isinstance(epsilon,float) or epsilon < 0.0:
-            raise ValueError("epsilon must be a float >= 0")
-        if not isinstance(depth_limit,int):
-            raise ValueError("depth_limit must be an integer")
+        
         self.actions = actions
-        self.epsilon = epsilon
-        self.depth_limit = depth_limit
+        self.act_params= {'epsilon':0.0,
+            'depth_limit':2,
+            'num_expl':1,
+            'time_limit':float('inf')}
+        
+        if act_params is not None:
+            if 'epsilon' in act_params:
+                if not isinstance(act_params['epsilon'],float) or act_params['epsilon'] < 0.0:
+                    raise ValueError("epsilon must be a float >= 0")
+                self.act_params['epsilon'] = act_params['epsilon']
+            if 'depth_limit' in act_params:
+                if not isinstance(act_params['depth_limit'],int):
+                    raise ValueError("depth_limit must be an integer")
+                self.act_params['depth_limit'] = act_params['depth_limit']
 
-    def explain_sai(self, state, sai, num_expl=1, time_limit=float('inf')):
+
+
+    def explain_sai(self, state, sai, act_params = None):
         """
         This function generates a number of explainations for a given observed SAI.
         """
+        if act_params is None:
+            num_expl = self.act_params['num_expl']
+            time_limit = self.act_params['time_limit']
+        else:
+            num_expl = act_params['num_expl'] if 'num_expl' in act_params else self.act_params['num_expl']
+            time_limit = act_params['time_limit'] if 'time_limit' in act_params else self.act_params['time_limit']
+
         # TODO I want to add similar checks to the parameters here but  I could
         # see arguments for negative or 0 values be code for unlimited.
         exps = [self.explain_value(state, ele, num_expl, time_limit) for ele in
