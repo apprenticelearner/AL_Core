@@ -191,7 +191,14 @@ class ActionPlanner:
                 if not isinstance(act_params['depth_limit'],int):
                     raise ValueError("depth_limit must be an integer")
                 self.act_params['depth_limit'] = act_params['depth_limit']
-
+            if 'num_expl' in act_params:
+                if not isinstance(act_params['num_expl'],int) or act_params['num_expl'] < 1:
+                    raise ValueError('num_expl must be an integer >= 1')   
+                self.act_params['num_expl'] = act_params['num_expl']
+            if 'time_limit' in act_params:
+                if not isinstance(act_params['time_limit'],float) or act_params['time_limit'] <= 0.0:
+                    raise ValueError('time_limit must be a float > 0.0')
+                self.act_params['time_limit'] = act_params['time_limit']
 
 
     def explain_sai(self, state, sai, act_params = None):
@@ -356,20 +363,15 @@ if __name__ == "__main__":
                'subtract': subtract, 
                'multiply': multiply, 
                'divide': divide }
-    epsilon = 0.85
-    ap = ActionPlanner(actions,epsilon)
+    act_params={'epsilon':0.85}
+    ap = ActionPlanner(actions,act_params)
 
     s = {('value', 'v1'): -1.03}
     explain = -2.05
-    
-    #plan = ap.explain_value(s, explain)
-
-    #print(plan)
-    #print(execute_plan(plan, s, actions))
 
     extra = {}
     extra['actions'] = actions
-    extra['epsilon'] = epsilon
+    extra['epsilon'] = act_params['epsilon']
     extra['tested'] = set()
 
     problem = ActionPlannerProblem((tuple(s.items()), None, explain), extra=extra)
@@ -378,13 +380,5 @@ if __name__ == "__main__":
     #print(s)
     def cost_limited(problem):
         return best_first_search(problem, cost_limit=4)
-
-    #count = 0
-    #for sol in cost_limited(problem):
-    #    state, chosen, goal = sol.state
-    #    print(chosen, sol.cost())
-    #    count += 1
-    #    #if count > 10:
-    #    #    break
 
     compare_searches([problem, problem2], [cost_limited])
