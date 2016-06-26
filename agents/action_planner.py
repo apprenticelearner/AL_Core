@@ -10,7 +10,6 @@ from __future__ import absolute_import
 from __future__ import division
 from itertools import product
 import inspect
-from random import choice
 from numbers import Number
 from time import time
 
@@ -199,15 +198,8 @@ class ActionPlanner:
         """
         This function generates a number of explainations for a given observed SAI.
         """
-        if act_params is None:
-            num_expl = self.act_params['num_expl']
-            time_limit = self.act_params['time_limit']
-        else:
-            num_expl = act_params['num_expl'] if 'num_expl' in act_params else self.act_params['num_expl']
-            time_limit = act_params['time_limit'] if 'time_limit' in act_params else self.act_params['time_limit']
-
-        # TODO I want to add similar checks to the parameters here but  I could
-        # see arguments for negative or 0 values be code for unlimited.
+        num_expl = self.act_params['num_expl']
+        time_limit = self.act_params['time_limit']
         exps = [self.explain_value(state, ele, num_expl, time_limit) for ele in
                 sai[2:]]
         return [sai[0:2] + inp for inp in product(*exps)]
@@ -220,8 +212,9 @@ class ActionPlanner:
         
         extra = {}
         extra["actions"] = self.actions
-        extra["epsilon"] = self.epsilon
+        extra["epsilon"] = self.act_params['epsilon']
         extra['tested'] = set()
+        depth_limit = self.act_params['depth_limit']
 
         state = {k:state[k] for k in state if k[0] != '_'}
 
@@ -232,7 +225,7 @@ class ActionPlanner:
         #print ("EXPLAINING ", value)
         s_time = time()
         try:
-            for solution in best_first_search(problem, cost_limit=self.depth_limit):
+            for solution in best_first_search(problem, cost_limit=depth_limit):
                 #print(solution)
                 if len(solution.path()) > 0:
                     state, chosen, goal = solution.state
