@@ -40,7 +40,7 @@ class LogicalWhereWhenHow(BaseAgent):
     classifiers. How learning is a form of planner. 
     """
     #def __init__(self, where, when, how):
-    def __init__(self, when="pyibl", when_params=None):
+    def __init__(self, when="pyibl", when_params=None, how_params=None):
 
         #self.where = where
         #self.when = when
@@ -52,6 +52,7 @@ class LogicalWhereWhenHow(BaseAgent):
         #self.when = DecisionTreeClassifier
         self.when = when
         self.when_params = when_params
+        self.how_params = how_params
         #self.when = GaussianNB
         #self.how = ActionPlanner(math_actions)
         self.skills = {}
@@ -74,7 +75,7 @@ class LogicalWhereWhenHow(BaseAgent):
         #pprint(self.skills)
         ff = Flattener()
         tup = Tuplizer()
-        act_plan = ActionPlanner(functions)
+        act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
 
         state = tup.transform(state)
         state = ff.transform(state)
@@ -240,7 +241,7 @@ class LogicalWhereWhenHow(BaseAgent):
         # mark selection (so that we can identify it as empty 
         sai = tuple(sai)
 
-        act_plan = ActionPlanner(actions=functions)
+        act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
         explanations = []
 
         for exp in self.skills[label]:
@@ -256,7 +257,7 @@ class LogicalWhereWhenHow(BaseAgent):
             pass
 
         if len(explanations) == 0:
-            explanations = act_plan.explain_sai(example['limited_state'], sai)
+            explanations = act_plan.explain_sai(example['limited_state'], sai,act_params=self.how_params)
 
         #print("EXPLANATIONS")
         #pprint(explanations)

@@ -10,7 +10,6 @@ from __future__ import absolute_import
 from __future__ import division
 from itertools import product
 import inspect
-from random import choice
 from numbers import Number
 from time import time
 
@@ -174,24 +173,40 @@ class NoHeuristic(ActionPlannerProblem):
 
 class ActionPlanner:
 
-    def __init__(self, actions, epsilon=0.0, depth_limit=2):
+    def __init__(self, actions, act_params=None):
 
-        # Added these checks because I was getting weird behavior from the web
-        # API with things being strings when they shouldn't be        
-        if not isinstance(epsilon,float) or epsilon < 0.0:
-            raise ValueError("epsilon must be a float >= 0")
-        if not isinstance(depth_limit,int):
-            raise ValueError("depth_limit must be an integer")
+        
         self.actions = actions
-        self.epsilon = epsilon
-        self.depth_limit = depth_limit
+        self.act_params= {'epsilon':0.0,
+            'depth_limit':2,
+            'num_expl':1,
+            'time_limit':float('inf')}
+        
+        if act_params is not None:
+            if 'epsilon' in act_params:
+                if not isinstance(act_params['epsilon'],float) or act_params['epsilon'] < 0.0:
+                    raise ValueError("epsilon must be a float >= 0")
+                self.act_params['epsilon'] = act_params['epsilon']
+            if 'depth_limit' in act_params:
+                if not isinstance(act_params['depth_limit'],int):
+                    raise ValueError("depth_limit must be an integer")
+                self.act_params['depth_limit'] = act_params['depth_limit']
+            if 'num_expl' in act_params:
+                if not isinstance(act_params['num_expl'],int) or act_params['num_expl'] < 1:
+                    raise ValueError('num_expl must be an integer >= 1')   
+                self.act_params['num_expl'] = act_params['num_expl']
+            if 'time_limit' in act_params:
+                if not isinstance(act_params['time_limit'],float) or act_params['time_limit'] <= 0.0:
+                    raise ValueError('time_limit must be a float > 0.0')
+                self.act_params['time_limit'] = act_params['time_limit']
 
-    def explain_sai(self, state, sai, num_expl=1, time_limit=float('inf')):
+
+    def explain_sai(self, state, sai, act_params = None):
         """
         This function generates a number of explainations for a given observed SAI.
         """
-        # TODO I want to add similar checks to the parameters here but  I could
-        # see arguments for negative or 0 values be code for unlimited.
+        num_expl = self.act_params['num_expl']
+        time_limit = self.act_params['time_limit']
         exps = [self.explain_value(state, ele, num_expl, time_limit) for ele in
                 sai[2:]]
         return [sai[0:2] + inp for inp in product(*exps)]
@@ -204,8 +219,9 @@ class ActionPlanner:
         
         extra = {}
         extra["actions"] = self.actions
-        extra["epsilon"] = self.epsilon
+        extra["epsilon"] = self.act_params['epsilon']
         extra['tested'] = set()
+        depth_limit = self.act_params['depth_limit']
 
         state = {k:state[k] for k in state if k[0] != '_'}
 
@@ -216,7 +232,7 @@ class ActionPlanner:
         #print ("EXPLAINING ", value)
         s_time = time()
         try:
-            for solution in best_first_search(problem, cost_limit=self.depth_limit):
+            for solution in best_first_search(problem, cost_limit=depth_limit):
                 #print(solution)
                 if len(solution.path()) > 0:
                     state, chosen, goal = solution.state
@@ -347,20 +363,15 @@ if __name__ == "__main__":
                'subtract': subtract, 
                'multiply': multiply, 
                'divide': divide }
-    epsilon = 0.85
-    ap = ActionPlanner(actions,epsilon)
+    act_params={'epsilon':0.85}
+    ap = ActionPlanner(actions,act_params)
 
     s = {('value', 'v1'): -1.03}
     explain = -2.05
-    
-    #plan = ap.explain_value(s, explain)
-
-    #print(plan)
-    #print(execute_plan(plan, s, actions))
 
     extra = {}
     extra['actions'] = actions
-    extra['epsilon'] = epsilon
+    extra['epsilon'] = act_params['epsilon']
     extra['tested'] = set()
 
     problem = ActionPlannerProblem((tuple(s.items()), None, explain), extra=extra)
@@ -369,13 +380,5 @@ if __name__ == "__main__":
     #print(s)
     def cost_limited(problem):
         return best_first_search(problem, cost_limit=4)
-
-    #count = 0
-    #for sol in cost_limited(problem):
-    #    state, chosen, goal = sol.state
-    #    print(chosen, sol.cost())
-    #    count += 1
-    #    #if count > 10:
-    #    #    break
 
     compare_searches([problem, problem2], [cost_limited])
