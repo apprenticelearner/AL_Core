@@ -11,6 +11,7 @@ from concept_formation.preprocessor import Tuplizer
 #from concept_formation.structure_mapper import rename_flat
 from concept_formation.structure_mapper import get_component_names
 
+from agents.utils import tup_sai
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.WhenLearner import when_learners
@@ -226,20 +227,7 @@ class LogicalWhereWhenHow(BaseAgent):
             self.examples[label] = []
         self.examples[label].append(example)
 
-        sai = []
-        sai.append('sai')
-        sai.append(action)
-        sai.append(selection)
-
-        if inputs is None:
-            pass
-        elif isinstance(inputs, list):
-            sai.extend(inputs)
-        else:
-            sai.append(inputs)
-
-        # mark selection (so that we can identify it as empty 
-        sai = tuple(sai)
+        sai = tup_sai(selection,action,inputs)
 
         act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
         explanations = []

@@ -267,6 +267,27 @@ class ActionPlanner:
 
         return actions[action](*args)
 
+    def compare_plan(self, plan, sai, state):
+        """
+        Given an general plan, a specific sai, and a state return True if the
+        plan would generate the sai in the context of the state.
+        """
+        if len(plan) != len(sai):
+            return False
+
+        plan = self.execute_plan(plan,state)
+
+        for i in range(len(plan)):
+            if ((not isinstance(plan[i], bool) and isinstance(plan[i], Number)) and 
+                (not isinstance(sai[i], bool) and isinstance(sai[i], Number))):
+                if abs(plan[i] - sai[i]) > self.act_params['epsilon']:
+                    return False
+            elif plan[i] != sai[i]:
+                return False
+        return True
+
+
+
 #def car(x):
 #    if isinstance(x, str) and len(x) > 1:
 #        return x[0]
