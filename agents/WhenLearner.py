@@ -12,50 +12,76 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from concept_formation.cobweb3 import Cobweb3Tree
+from ilp.foil import Foil
 import numpy as np
 
 # cobweb, pyibl, nearest neighbor, logistic regression
 
 class CustomPipeline(Pipeline):
-	def ifit(self, x, y):
-		if not hasattr(self, 'X'):
-			self.X = []
-		if not hasattr(self, 'y'):
-			self.y = []
-		self.X.append(x)
-		self.y.append(y)
-		return self.fit(self.X, self.y)
+        def ifit(self, x, y):
+                if not hasattr(self, 'X'):
+                        self.X = []
+                if not hasattr(self, 'y'):
+                        self.y = []
+                self.X.append(x)
+                self.y.append(y)
+                return self.fit(self.X, self.y)
+
+def iFitWrapper(clf):
+        def fun(x=None):
+                if x is None:
+                        return CustomPipeline([('clf', clf())])
+                else:
+                        return CustomPipeline([('clf', clf(**x))])
+
+        return fun
 
 def DictVectWrapper(clf):
-	def fun(x=None):
-		if x is None:
-			return CustomPipeline([('dict vect', DictVectorizer(sparse=False)), ('clf', clf())])
-		else:
-			return CustomPipeline([('dict vect', DictVectorizer(sparse=False)), ('clf', clf(**x))])
+        def fun(x=None):
+                if x is None:
+                        return CustomPipeline([('dict vect', DictVectorizer(sparse=False)), ('clf', clf())])
+                else:
+                        return CustomPipeline([('dict vect', DictVectorizer(sparse=False)), ('clf', clf(**x))])
 
-	return fun
+        return fun
+
+class ScikitFoil(object):
+
+        def __init__(self, params=None):
+                if params is None:
+                        self.foil = Foil()
+                else:
+                        self.foil = Foil(**params)
+
+        def fit(self, X, y):
+                T = [tuple() for x in X] 
+                self.foil.fit(T, X, y)
+
+        def predict(self, X):
+                yh = [1 if self.foil.get_matches(x) == tuple() else 0 for x in X]
+                return np.array(yh)
 
 class ScikitCobweb(object):
 
-	def __init__(self, params=None):
-		if params is None:
-			self.tree = Cobweb3Tree()
-		else:
-			self.tree = Cobweb3Tree(**params)
+        def __init__(self, params=None):
+                if params is None:
+                        self.tree = Cobweb3Tree()
+                else:
+                        self.tree = Cobweb3Tree(**params)
 
-	def ifit(self, x, y):
-		x = deepcopy(x)
-		x['y_label'] = y
-		self.tree.ifit(x)
-	
-	def fit(self, X, y):
-		X = deepcopy(X)
-		for i, x in enumerate(X):
-			x['y_label'] = "%i" % y[i]
-		self.tree.fit(X, randomize_first=False)
+        def ifit(self, x, y):
+                x = deepcopy(x)
+                x['y_label'] = y
+                self.tree.ifit(x)
+        
+        def fit(self, X, y):
+                X = deepcopy(X)
+                for i, x in enumerate(X):
+                        x['y_label'] = "%i" % y[i]
+                self.tree.fit(X, randomize_first=False)
 
-	def predict(self, X):
-		return np.array([int(self.tree.categorize(x).predict('y_label')) for x in X])
+        def predict(self, X):
+                return np.array([int(self.tree.categorize(x).predict('y_label')) for x in X])
 
 class ScikitPyIBL(object):
 
@@ -79,7 +105,7 @@ class ScikitPyIBL(object):
             self.X = [] 
         if 'y' not in self:
             self.y = [] 
-        self.X.append(x)	
+        self.X.append(x)        
         self.y.append(y)
 
     def fit(self, X, y):
@@ -123,80 +149,80 @@ class ScikitPyIBL(object):
 
 class CustomLogisticRegression(LogisticRegression):
 
-	def fit(self, X, y):
-		self.is_single_class = False
-		if len(set(y)) == 1:
-			self.is_single_class = True
-			self.single_label = y[0]
-			return self
-		else:
-			return super(CustomLogisticRegression, self).fit(X,y)
+        def fit(self, X, y):
+                self.is_single_class = False
+                if len(set(y)) == 1:
+                        self.is_single_class = True
+                        self.single_label = y[0]
+                        return self
+                else:
+                        return super(CustomLogisticRegression, self).fit(X,y)
 
-	def predict(self, X):
-		if self.is_single_class:
-			return np.array([self.single_label for x in X])
-		else:
-			return super(CustomLogisticRegression, self).predict(X)
+        def predict(self, X):
+                if self.is_single_class:
+                        return np.array([self.single_label for x in X])
+                else:
+                        return super(CustomLogisticRegression, self).predict(X)
 
 
 class CustomSVM(SVC):
 
-	def fit(self, X, y):
-		self.is_single_class = False
-		if len(set(y)) == 1:
-			self.is_single_class = True
-			self.single_label = y[0]
-			return self
-		else:
-			return super(CustomSVM, self).fit(X,y)
+        def fit(self, X, y):
+                self.is_single_class = False
+                if len(set(y)) == 1:
+                        self.is_single_class = True
+                        self.single_label = y[0]
+                        return self
+                else:
+                        return super(CustomSVM, self).fit(X,y)
 
-	def predict(self, X):
-		if self.is_single_class:
-			return np.array([self.single_label for x in X])
-		else:
-			return super(CustomSVM, self).predict(X)
+        def predict(self, X):
+                if self.is_single_class:
+                        return np.array([self.single_label for x in X])
+                else:
+                        return super(CustomSVM, self).predict(X)
 
 
 class CustomSGD(SGDClassifier):
-	
-		
-	
-	def fit(self, X, y):
-		
-		self.is_single_class = False
-		if len(set(y)) == 1:
-			self.is_single_class = True
-			self.single_label = y[0]
-			return self
-		else:
-			return super(CustomSGD, self).fit(X, y)
+        
+                
+        
+        def fit(self, X, y):
+                
+                self.is_single_class = False
+                if len(set(y)) == 1:
+                        self.is_single_class = True
+                        self.single_label = y[0]
+                        return self
+                else:
+                        return super(CustomSGD, self).fit(X, y)
 
-	def predict(self, X):
-		if self.is_single_class:
-			return np.array([self.single_label for x in X])
-		else:
-			return np.array(super(CustomSGD, self).predict(X))
+        def predict(self, X):
+                if self.is_single_class:
+                        return np.array([self.single_label for x in X])
+                else:
+                        return np.array(super(CustomSGD, self).predict(X))
 
 
 class CustomKNeighborsClassifier(KNeighborsClassifier):
-	
-	def fit(self, X, y):
-		self.is_sample_less = False
-		if len(y) < self.n_neighbors :
-			self.is_sample_less = True
-			if sum(y) >= len(y)-sum(y): 
-				self.prediction = 1
-			else:
-				self.prediction = 0
-			return self
-		else:
-			return super(CustomKNeighborsClassifier, self).fit(X,y)
+        
+        def fit(self, X, y):
+                self.is_sample_less = False
+                if len(y) < self.n_neighbors :
+                        self.is_sample_less = True
+                        if sum(y) >= len(y)-sum(y): 
+                                self.prediction = 1
+                        else:
+                                self.prediction = 0
+                        return self
+                else:
+                        return super(CustomKNeighborsClassifier, self).fit(X,y)
 
-	def predict(self, X):
-		if self.is_sample_less:
-			return np.array([int(self.prediction) for x in X])
-		else:
-			return super(CustomKNeighborsClassifier, self).predict(X)
+        def predict(self, X):
+                if self.is_sample_less:
+                        return np.array([int(self.prediction) for x in X])
+                else:
+                        return super(CustomKNeighborsClassifier, self).predict(X)
 
 
 parameters_nearest = {'n_neighbors':3}
@@ -215,6 +241,7 @@ when_learners['sgd'] = DictVectWrapper(CustomSGD)
 
 when_learners['cobweb'] = ScikitCobweb
 when_learners['pyibl'] = DictVectWrapper(ScikitPyIBL)
+when_learners['foil'] = iFitWrapper(ScikitFoil)
 
 #clf_class = Wrapper(GaussianNB)
 #clf = clf_class()
