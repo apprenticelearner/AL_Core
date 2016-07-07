@@ -58,7 +58,8 @@ class ScikitFoil(object):
                 self.foil.fit(T, X, y)
 
         def predict(self, X):
-                yh = [1 if self.foil.get_matches(x) == tuple() else 0 for x in X]
+                yh = [1 if len([m for m in self.foil.get_matches(x)]) > 0 else 0
+                      for x in X]
                 return np.array(yh)
 
 class ScikitCobweb(object):
