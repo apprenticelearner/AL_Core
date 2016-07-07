@@ -1,7 +1,7 @@
 # Vanilla makefile for distribution
 # You may need to set local c compiler options
 
-CFLAGS = -g
+CFLAGS = -g -std=c99
  
 .SUFFIXES: .o .c .l .ln
 
