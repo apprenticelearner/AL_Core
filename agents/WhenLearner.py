@@ -12,7 +12,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from concept_formation.cobweb3 import Cobweb3Tree
-from ilp.foil import Foil
+from ilp.foil_classifier import FoilClassifier
 import numpy as np
 
 # cobweb, pyibl, nearest neighbor, logistic regression
@@ -49,17 +49,15 @@ class ScikitFoil(object):
 
         def __init__(self, params=None):
                 if params is None:
-                        self.foil = Foil()
+                        self.foil = FoilClassifier()
                 else:
-                        self.foil = Foil(**params)
+                        self.foil = FoilClassifier(**params)
 
         def fit(self, X, y):
-                T = [tuple() for x in X] 
-                self.foil.fit(T, X, y)
+                self.foil.fit(X, y)
 
         def predict(self, X):
-                yh = [1 if len([m for m in self.foil.get_matches(x)]) > 0 else 0
-                      for x in X]
+                yh = self.foil.predict(X)
                 return np.array(yh)
 
 class ScikitCobweb(object):
