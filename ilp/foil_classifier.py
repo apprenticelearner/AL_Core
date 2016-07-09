@@ -11,7 +11,7 @@ from ilp.base_ilp import BaseILP
 
 class FoilClassifier(BaseILP):
 
-    def __init__(self, closed_world=True, max_tuples=100000,
+    def __init__(self, closed_world=False, max_tuples=100000,
                  name="target_relation"):
         """
         The constructor for the Foil classifier. Closed world specifies whether
@@ -181,9 +181,7 @@ class FoilClassifier(BaseILP):
             not found and len(self.pos) > len(self.neg)):
             rule = self.name 
             rule += "(" + ",".join([chr(i + ord('A')) for i in
-                                    range(len(self.target_types))]) + ") :- "
-            rule += ", ".join([t + "(" + chr(i + ord('A')) + ")" 
-                               for t in self.target_types])
+                                    range(len(self.target_attrs))]) + ")"
             self.rules.add(rule)
 
         #print("LEARNED RULES")
