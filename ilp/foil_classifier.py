@@ -14,119 +14,128 @@ class FoilClassifier(BaseILP):
     def __init__(self, closed_world=True, max_tuples=100000,
                  name="target_relation"):
         """
-        The constructor. 
+        The constructor for the Foil classifier. Closed world specifies whether
+        only the positive examples should be used, and the complete set of
+        implicit negatives is used. Max tuples specifies the maximum number of
+        implicit negatives to use. If the number of implicit negatives exceeds
+        the provided value then sampling will be used to randomly select a
+        subset of negative examples.
         """
         # Keywords used for constructing foil file (try not to conflict).
         self.name = name
 
+        # The prefix for the type names 
+        self.type_prefix = "T"
+
         # whether or not to use closed world assumption
         self.closed_world = closed_world
+
+        # the maximum number of tuples for foil
         self.max_tuples = max_tuples
 
         # initialize all class variables
         self.initialize()
 
     def initialize(self):
-
+        """
+        Initialize all of the variables used by the classifier.
+        """
         # tuples for target relation
         self.pos = list()
         self.neg = list()
 
-        # the possible attr value types
-        # the val type "continuous" is reserved for numerical types
-        self.target_types = []
-        self.val_types = {}
+        # The values for each type.
+        self.type_values = {}
 
-        # the aux relations and their type tuples
-        # also the pos tuples for aux relations
-        self.aux_relations = {}
-        self.pos_aux_tuples = {}
+        # the type identifiers for the target relation
+        self.target_attrs = []
 
-        # String representation of learned rules
+        # a mapping from target attrs to type shortnames
+        self.attr_type = {}
+
+        # Prolog string representation of learned rules
         self.rules = set()
 
     def fit(self, X, y):
+        """
+        Fit the FOIL classifier (i.e., learn a set of rules to cover the
+        positive examples but not the negative examples. 
 
+        X is a list of dictionaries of attribute values.
+        y is a list of 0 or 1 class labels. 
+        """
         # initialize all variables for learning
         self.initialize()
 
         # clean the input
         X = [{self.clean(a): self.clean(x[a]) for a in x} for x in X]
 
+        # Collect attribute and value information
         for x in X:
             for attr in x:
-                if not isinstance(attr, tuple):
-                    if attr not in self.val_types:
-                        self.val_types[attr] = set()
-                    if isinstance(x[attr], Number):
-                        self.val_types[attr].add('continuous')
-                    else:
-                        self.val_types[attr].add("*" + x[attr])
+                if attr not in self.type_values:
+                    self.type_values[attr] = set()
+                if isinstance(x[attr], bool):
+                    self.type_values[attr].add("*" + str(x[attr]))
+                elif isinstance(x[attr], Number):
+                    self.type_values[attr].add('continuous')
+                    if len(self.type_values[attr]) > 1:
+                        raise Exception("Cannot mix numeric (continuous) and nominal types")
+                else:
+                    self.type_values[attr].add("*" + x[attr])
 
-        self.target_types = list(set(self.val_types.keys()))
-        self.target_types.sort()
+        # Build attr-type mappings
+        self.target_attrs = list(set(self.type_values.keys()))
+        self.attr_type = {a: self.type_prefix + str(i)
+                           for i,a in enumerate(self.target_attrs)}
 
-        # do something to find auxillery relations
-
+        # Build tuples
         for i, correct in enumerate(y):
-
-            e = tuple([str(X[i][attr]) if attr in X[i] else '?' for attr in
-                       self.target_types])
-            #print(e)
-
-            # Get target relation tuples
+            t = tuple([str(X[i][attr]) if attr in X[i] else '?' for attr in
+                       self.target_attrs])
             if correct == 1:
-                self.pos.append(e)
+                self.pos.append(t)
             else:
-                self.neg.append(e)
+                self.neg.append(t)
 
-            # do something to collect auxillary relations info
-
+        # construct foil data
         data = ""
 
-        for tt in self.val_types:
-            data += "#" + tt + ": " + ", ".join(self.val_types[tt]) + ".\n"
-
+        for tt in self.type_values:
+            data += "#" + self.attr_type[tt] + ": "
+            data += ", ".join(self.type_values[tt]) + ".\n"
         data += "\n"
-        # rename target relation header to new types
 
         # target relation header
-        data += self.name + "(" + ", ".join(self.target_types) + ")\n" 
-
-        # positive examples
-        for t in self.pos:
-            data += ", ".join(t) + "\n"
+        data += self.name + "(" + ", ".join([self.attr_type[a] for a in
+                                             self.target_attrs]) + ")\n" 
 
         if self.closed_world is False:
-            # negative examples
+            # include all positive and negative examples
+            for t in self.pos:
+                data += ", ".join(t) + "\n"
             data += ";\n"
             for t in self.neg:
                 data += ", ".join(t) + "\n"
 
+        else:
+            # only include positive examples
+            for t in set(self.pos):
+                data += ", ".join(t) + "\n"
+
         data += ".\n"
 
-        # TODO add the aux relation info
-        # aux relations
-        #for rel in self.aux_relations:
-        #    data += "*" + rel + "(" + ", ".join([self.type_mapping[tt] for tt in
-        #                                         self.aux_relations[rel]]) + ")\n"
-
-        #    # the positive examples of relation
-        #    for t in self.pos_aux_tuples[rel]:
-        #        data += ", ".join(t) + "\n"
-
-        #    data += ".\n"
-
-        print(data)
+        #print(data)
 
         if self.closed_world is True:
             # only need to do sophisticated sampling when using closed world.
             num_neg_tuples = 1.0
-            for t in self.target_types:
+            for t in self.target_attrs:
                 vals = set()
-                for v in self.val_types[t]:
-                    if v != "continuous":
-                        vals.add(v)
+                for v in self.type_values[t]:
+                    if v == "continuous":
+                        raise Exception("Cannot use closed world with continuous types.")
+                    vals.add(v)
                 num_neg_tuples *= len(vals)
 
             num_pos_tuples = len(self.pos)
@@ -139,9 +148,6 @@ class FoilClassifier(BaseILP):
             #print("MAX_NEG: ", max_neg_tuples)
             #print("SAMPLE: ", sample_size)
 
-            # Create subprocess
-            #p = pexpect.spawn('ilp/FOIL6/foil6 -m %i -s %0.2f -a %0.2f' %
-            #                  (self.max_tuples, sample_size, 0.6))
             p = Popen(['ilp/FOIL6/foil6', '-m %i' % self.max_tuples, '-s %0.2f' %
                        sample_size], stdout=PIPE, stdin=PIPE, stderr=STDOUT)
         else:
@@ -157,80 +163,46 @@ class FoilClassifier(BaseILP):
             
         # Process result
         for line in output.decode().split("\n"):
-            print(line)
+            #print(line)
             if re.search("^Training Set Size will exceed tuple limit:", line):
                 raise Exception("Tuple limit exceeded, should never happen.")
-            #match = re.search('^' + self.name + ".+:-", line)
             matches = re.findall("^" + self.name + "\(" +
                                  ",".join(["(?P<arg%i>[^ ,()]+)" % i for i in
-                                           range(len(self.target_types))]) + "\)", line)
+                                           range(len(self.target_attrs))]) +
+                                 "\)", line)
             if matches:
                 found = True
-                rule = line[:-1]
-                #rule += re.sub("_[0-9]+", "_", 
-                #                     re.sub("not\((?P<content>[^)]+)\)", 
-                #                            "not \g<content>", line[:-1]))
-                
-                self.rules.add(rule)
-                
+                self.rules.add(line[:-1])
+
         
         #print("POS: ", len(self.pos))
         #print("NEG: ", len(self.neg))
-        if self.closed_world is False and not found and len(self.pos) > len(self.neg):
+        if (self.closed_world is False and 
+            not found and len(self.pos) > len(self.neg)):
             rule = self.name 
             rule += "(" + ",".join([chr(i + ord('A')) for i in
                                     range(len(self.target_types))]) + ") :- "
             rule += ", ".join([t + "(" + chr(i + ord('A')) + ")" 
                                for t in self.target_types])
             self.rules.add(rule)
-            #self.rules += ".\n"
 
-        print("LEARNED RULES")
-        print(self.rules)
+        #print("LEARNED RULES")
+        #print(self.rules)
 
     def predict(self, X):
 
         if len(self.rules) == 0:
             return [0 for x in X]
 
-        # maybe update aux relation here
-
+        # Construct prolog data
         data = ""
-
-        #for tt in self.val_types:
-        #    if self.val_types[tt] != "continuous":
-        #        for val in self.val_types[tt]:
-        #            data += tt + "(" + val[1:] + ").\n"
-
-                    #p.expect("\?- ")
-                    #p.sendline("assert(type" + tt + "(" + val + ")).")
-
-        # add aux relations to logic program.
 
         for rule in self.rules:
             # replace with appropriate prolog operators.
             rule = re.sub(" (?P<first>\w+)<>(?P<second>\w+)", 
                           " dif(\g<first>, \g<second>)", rule)
-            #rule = re.sub(" not (?P<term>[\w,()]+),", 
-            #              " not(\g<term>),", rule)
             rule = rule.replace("<=", "=<")
             data += rule + ".\n"
-
-        #args = [chr(i + ord("A")) for i in
-        #                 range(len(self.target_types))]
-
-        #bind_args = ['A'] + args
-        #data += "bind_relation(" + ",".join(bind_args) + ") :- "
-        #bind_body = [self.type_mapping[tt] + "(" + bind_args[i] + ")" 
-        #             for i,tt in enumerate(self.target_types)]
-        #bind_body = [self.name + "(" + ",".join(['A'] + args) + ")"] + bind_body
-
-        ## user provided constraints
-        #bind_body += constraints
-        #data += ", ".join(bind_body)
-        #data += ".\n" 
-
-        print(data)
 
         #print(data)
 
@@ -250,7 +222,7 @@ class FoilClassifier(BaseILP):
         yh = []
         for x in X:
             e = tuple([str(x[attr]) if attr in x else '_' for attr in
-                       self.target_types])
+                       self.target_attrs])
 
             p.sendline(self.name + "(" + ", ".join(e) + ").")
             resp = p.expect(["false.", "true."])
