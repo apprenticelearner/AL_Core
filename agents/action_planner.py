@@ -15,10 +15,10 @@ from time import time
 
 import numpy as np
 
-from py_search.search import Node
-from py_search.search import Problem
-from py_search.search import best_first_search
-from py_search.search import compare_searches
+from py_search.base import Node
+from py_search.base import Problem
+from py_search.informed import best_first_search
+from py_search.utils import compare_searches
 
 
 def levenshtein(source, target):
@@ -64,7 +64,7 @@ def levenshtein(source, target):
 
 class ActionPlannerProblem(Problem):
 
-    def successor(self, node):
+    def successors(self, node):
         state, chosen, goal = node.state
         actions = node.extra["actions"]
         tested = node.extra['tested']
@@ -225,7 +225,7 @@ class ActionPlanner:
 
         state = {k:state[k] for k in state if k[0] != '_'}
 
-        problem = ActionPlannerProblem((tuple(state.items()), None, value),extra)
+        problem = ActionPlannerProblem((tuple(state.items()), None, value), extra=extra)
 
         explanations = []
         
