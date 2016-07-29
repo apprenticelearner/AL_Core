@@ -175,7 +175,6 @@ class ActionPlanner:
 
     def __init__(self, actions, act_params=None):
 
-        
         self.actions = actions
         self.act_params= {'epsilon':0.0,
             'depth_limit':2,
@@ -266,6 +265,30 @@ class ActionPlanner:
         action = plan[0]
 
         return actions[action](*args)
+
+    def is_sais_equal(self, sai1, sai2):
+        """
+        Given two sais, this tells you if they are equal, taking into account
+        that two floats might be within epsilon of one another.
+
+        >>> ap = ActionPlanner({})
+        >>> ap.is_sais_equal(('sai', 'update', 3), ('sai', 'update', 3))
+        True
+        >>> ap.is_sais_equal(('sai', 'update', 1), ('sai', 'update', 3))
+        False
+
+        """
+        if len(sai1) != len(sai2):
+            return False
+
+        for i in range(len(sai1)):
+            if ((not isinstance(sai1[i], bool) and isinstance(sai1[i], Number)) and 
+                (not isinstance(sai2[i], bool) and isinstance(sai2[i], Number))):
+                if abs(sai1[i] - sai2[i]) > self.act_params['epsilon']:
+                    return False
+            elif sai1[i] != sai2[i]:
+                return False
+        return True
 
     def compare_plan(self, plan, sai, state):
         """
