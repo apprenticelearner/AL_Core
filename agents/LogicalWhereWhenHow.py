@@ -11,6 +11,8 @@ from concept_formation.preprocessor import Tuplizer
 #from concept_formation.structure_mapper import rename_flat
 from concept_formation.structure_mapper import get_component_names
 
+from agents.utils import tup_sai
+from agents.utils import compute_features
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.WhenLearner import when_learners
@@ -58,18 +60,7 @@ class LogicalWhereWhenHow(BaseAgent):
         self.skills = {}
         self.examples = {}
 
-    def compute_features(self, state, features):
-        for feature in features:
-            num_args = len(inspect.getargspec(features[feature]).args)
-            if num_args < 1:
-                raise Exception("Features must accept at least 1 argument")
-            possible_args = [attr for attr in state]
-
-            for tupled_args in product(possible_args, repeat=num_args):
-                new_feature = (feature,) + tupled_args
-                values = [state[attr] for attr in tupled_args]
-                yield new_feature, features[feature](*values)
-
+   
     def request(self, state, features, functions):
         #print("REQUEST")
         #pprint(self.skills)
@@ -140,8 +131,9 @@ class LogicalWhereWhenHow(BaseAgent):
                     vX = {}
                     for foa in mapping:
                         vX[('value', foa)] = state[('value', mapping[foa])]
-                    for attr, value in self.compute_features(vX, features):
-                        vX[attr] = value
+                    vX.update(compute_features(vX,features))
+                    # for attr, value in self.compute_features(vX, features):
+                    #     vX[attr] = value
                     #for foa in mapping:
                     #    vX[('name', foa)] = state[('name', mapping[foa])]
 
@@ -226,31 +218,22 @@ class LogicalWhereWhenHow(BaseAgent):
             self.examples[label] = []
         self.examples[label].append(example)
 
-        sai = []
-        sai.append('sai')
-        sai.append(action)
-        sai.append(selection)
-
-        if inputs is None:
-            pass
-        elif isinstance(inputs, list):
-            sai.extend(inputs)
-        else:
-            sai.append(inputs)
-
-        # mark selection (so that we can identify it as empty 
-        sai = tuple(sai)
+        sai = tup_sai(selection,action,inputs)
 
         act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
         explanations = []
 
         for exp in self.skills[label]:
             try:
-                grounded_plan = tuple([act_plan.execute_plan(ele, example['limited_state'])
-                                           for ele in exp])
-                if grounded_plan == sai:
-                    #print("found existing explanation")
-                    explanations.append(exp)
+                for ele in exp:
+                    if act_plan.compare_plan(ele,sai,example['limited_space']):
+                        explanations.append(act_plan.execute_plan(ele,example['limited_state']))
+
+                # grounded_plan = tuple([act_plan.execute_plan(ele, example['limited_state'])
+                #                            for ele in exp])
+                # if grounded_plan == sai:
+                #     #print("found existing explanation")
+                #     explanations.append(exp)
             except Exception as e:
                 #print("EXECPTION WITH", e)
                 continue
@@ -297,8 +280,9 @@ class LogicalWhereWhenHow(BaseAgent):
             value_X = []
             for e in self.skills[label][exp]['examples']:
                 x = {attr: e['foa_values'][attr] for attr in e['foa_values']}
-                for attr, value in self.compute_features(x, features):
-                    x[attr] = value
+                x.update(compute_features(x,features))
+                #for attr, value in self.compute_features(x, features):
+                #    x[attr] = value
                 #for attr in e['foa_names']:
                 #    x[attr] = e['foa_names'][attr]
                 x = tup.undo_transform(x)
