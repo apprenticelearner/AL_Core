@@ -56,6 +56,9 @@ class FoilClassifier(BaseILP):
         # Prolog string representation of learned rules
         self.rules = set()
 
+    def __repr__(self):
+        return repr(self.rules)
+
     def fit(self, X, y):
         """
         Fit the FOIL classifier (i.e., learn a set of rules to cover the
