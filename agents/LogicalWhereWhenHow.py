@@ -142,6 +142,7 @@ class LogicalWhereWhenHow(BaseAgent):
                     #print("WHEN PREDICTION STATE")
                     #pprint(vX)
                     when_pred = s['when_classifier'].predict([vX])[0]
+                    #print(label, seq, s['when_classifier'])
                     #pprint(when_pred)
 
                     if when_pred == 0:
@@ -224,20 +225,19 @@ class LogicalWhereWhenHow(BaseAgent):
         explanations = []
 
         for exp in self.skills[label]:
+            #print("CHECKING EXPLANATION", exp)
             try:
-                for ele in exp:
-                    if act_plan.compare_plan(ele,sai,example['limited_space']):
-                        explanations.append(act_plan.execute_plan(ele,example['limited_state']))
-
-                # grounded_plan = tuple([act_plan.execute_plan(ele, example['limited_state'])
-                #                            for ele in exp])
-                # if grounded_plan == sai:
-                #     #print("found existing explanation")
-                #     explanations.append(exp)
+                grounded_plan = tuple([act_plan.execute_plan(ele, 
+                                        example['limited_state']) 
+                                       for ele in exp])
+                pprint(grounded_plan)
+                pprint(sai)
+                if act_plan.is_sais_equal(grounded_plan, sai):
+                    #print("found existing explanation")
+                    explanations.append(exp)
             except Exception as e:
                 #print("EXECPTION WITH", e)
                 continue
-            pass
 
         if len(explanations) == 0:
             explanations = act_plan.explain_sai(example['limited_state'], sai,act_params=self.how_params)
