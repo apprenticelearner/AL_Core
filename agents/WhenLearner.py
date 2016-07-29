@@ -53,6 +53,9 @@ class ScikitFoil(object):
                 else:
                         self.foil = FoilClassifier(**params)
 
+        def __repr__(self):
+            return repr(self.foil)  
+
         def fit(self, X, y):
                 self.foil.fit(X, y)
 
