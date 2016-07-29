@@ -42,14 +42,14 @@ class LogicalWhereWhenHow(BaseAgent):
     classifiers. How learning is a form of planner. 
     """
     #def __init__(self, where, when, how):
-    def __init__(self, when="pyibl", when_params=None, how_params=None):
+    def __init__(self, when="foil", when_params=None, how_params=None):
 
         #self.where = where
         #self.when = when
         #self.how = how
         #self.where = Foil
-        #self.where = MostSpecific
-        self.where = iFoil
+        self.where = MostSpecific
+        #self.where = iFoil
         #self.where = Aleph
         #self.when = DecisionTreeClassifier
         self.when = when
