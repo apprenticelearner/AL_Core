@@ -16,14 +16,14 @@ from agents.utils import compute_features
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.WhenLearner import when_learners
+from agents.HowLearner import IncrementalMany
+from agents.HowLearner import SimStudentHow
 from ilp.most_specific import MostSpecific
 from ilp.aleph import Aleph
 from ilp.foil import Foil
 from ilp.ifoil import iFoil
 
 #decorator for pipeline
-
-
 #dictionary for when with pipeline stuff
 #logistic regression(error check)
 #svm(basically svc with kernels)
@@ -43,10 +43,10 @@ class LogicalWhereWhenHow(BaseAgent):
     """
     #def __init__(self, where, when, how):
     def __init__(self, when="foil", when_params=None, how_params=None):
-
         #self.where = where
         #self.when = when
-        #self.how = how
+        #self.how = IncrementalMany
+        self.how = SimStudentHow
         #self.where = Foil
         self.where = MostSpecific
         #self.where = iFoil
@@ -123,8 +123,8 @@ class LogicalWhereWhenHow(BaseAgent):
                         grounded_plan = tuple([act_plan.execute_plan(ele, limited_state)
                                                    for ele in seq])
                     except Exception as e:
-                        print('plan could not execute')
-                        pprint(limited_state)
+                        #print('plan could not execute')
+                        #pprint(limited_state)
                         #print("EXECPTION WITH", e)
                         continue
 
@@ -221,6 +221,15 @@ class LogicalWhereWhenHow(BaseAgent):
 
         sai = tup_sai(selection,action,inputs)
 
+        how = self.how(functions=functions, how_params=self.how_params)
+        how_result = how.fit(self.examples[label])
+        print(len(self.examples[label]))
+        for exp in how_result:
+            correctness = [e['correct'] for e in how_result[exp]]
+            print(label, len(correctness), sum(correctness) /
+                  len(correctness) , exp)
+        print()
+
         act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
         explanations = []
 
@@ -230,8 +239,6 @@ class LogicalWhereWhenHow(BaseAgent):
                 grounded_plan = tuple([act_plan.execute_plan(ele, 
                                         example['limited_state']) 
                                        for ele in exp])
-                pprint(grounded_plan)
-                pprint(sai)
                 if act_plan.is_sais_equal(grounded_plan, sai):
                     #print("found existing explanation")
                     explanations.append(exp)
@@ -240,7 +247,7 @@ class LogicalWhereWhenHow(BaseAgent):
                 continue
 
         if len(explanations) == 0:
-            explanations = act_plan.explain_sai(example['limited_state'], sai,act_params=self.how_params)
+            explanations = act_plan.explain_sai(example['limited_state'], sai)
 
         #print("EXPLANATIONS")
         #pprint(explanations)
