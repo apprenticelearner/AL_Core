@@ -59,7 +59,6 @@ class LogicalWhereWhenHow(BaseAgent):
         #self.how = ActionPlanner(math_actions)
         self.skills = {}
         self.examples = {}
-
    
     def request(self, state, features, functions):
         #print("REQUEST")
@@ -74,106 +73,114 @@ class LogicalWhereWhenHow(BaseAgent):
         #foa_state = {attr: state[attr] for attr in state 
         #             if (isinstance(attr, tuple) and attr[0] != "value") or 
         #             not isinstance(attr, tuple)}
-        
+
+        skills = []
         for label in self.skills:
             for seq in self.skills[label]:
-                s = self.skills[label][seq]
-                #print(str(seq))
+                corrects = self.skills[label][seq]['correct']
+                accuracy = sum(corrects) / len(corrects)
+                s = (accuracy, len(corrects), label, seq)
+                skills.append(s)
+        skills.sort(reverse=True)
+        
+        for _,_,label,seq in skills:
+            s = self.skills[label][seq]
+            #print(str(seq))
 
-                constraints = []
-                constraints.append("avalue(A,B,anil)")
+            constraints = []
+            constraints.append("avalue(A,B,anil)")
 
-                #print(str(seq))
-                #for match in re.finditer(r"'\?foa(?P<M>[0-9]+)'", str(seq)):
-                #    v = chr(int(match.group("M")) + ord("B"))
-                #    if v == "B":
-                #        continue
-                #    constraints.append("not(avalue(A," + v + ",anil))")
-                #    constraints.append("not(avalue(A," + v + ",aplussign))")
-                #    constraints.append("not(avalue(A," + v + ",amultsign))")
-                #    constraints.append("not(avalue(A," + v + ",aequalsign))")
-                #    constraints.append("not(avalue(A," + v + ",aquestionmark))")
-                #    constraints.append("not(avalue(A," + v + ",aIspaceneedspacetospaceconvertspacethesespacefractionsspacebeforespacesolving))")
-                #    
+            #print(str(seq))
+            #for match in re.finditer(r"'\?foa(?P<M>[0-9]+)'", str(seq)):
+            #    v = chr(int(match.group("M")) + ord("B"))
+            #    if v == "B":
+            #        continue
+            #    constraints.append("not(avalue(A," + v + ",anil))")
+            #    constraints.append("not(avalue(A," + v + ",aplussign))")
+            #    constraints.append("not(avalue(A," + v + ",amultsign))")
+            #    constraints.append("not(avalue(A," + v + ",aequalsign))")
+            #    constraints.append("not(avalue(A," + v + ",aquestionmark))")
+            #    constraints.append("not(avalue(A," + v + ",aIspaceneedspacetospaceconvertspacethesespacefractionsspacebeforespacesolving))")
+            #    
 
-                args = [chr(i + ord("B")) for i in 
-                        range(len(s['where_classifier'].target_types)-1)]
-                for p in combinations(args, 2):
-                    constraints.append("dif(" + p[0] + "," + p[1] + ")")
+            args = [chr(i + ord("B")) for i in 
+                    range(len(s['where_classifier'].target_types)-1)]
+            for p in combinations(args, 2):
+                constraints.append("dif(" + p[0] + "," + p[1] + ")")
 
-                for m in s['where_classifier'].get_matches(state,
-                                                           constraints):
-                    #print("MATCH", m)
-                    if isinstance(m, tuple):
-                        mapping = {"?foa%i" % i: str(ele) for i, ele in enumerate(m)}
-                    else:
-                        mapping = {'?foa0': m}
-                    #print('trying', m)
+            for m in s['where_classifier'].get_matches(state,
+                                                       constraints):
+                #print("MATCH", m)
+                if isinstance(m, tuple):
+                    mapping = {"?foa%i" % i: str(ele) for i, ele in enumerate(m)}
+                else:
+                    mapping = {'?foa0': m}
+                #print('trying', m)
 
-                    if state[('value', mapping['?foa0'])] != "":
-                        #print('no selection')
-                        continue
+                if state[('value', mapping['?foa0'])] != "":
+                    #print('no selection')
+                    continue
 
-                    limited_state = {}
-                    for foa in mapping:
-                        limited_state[('name', foa)] = state[('name', mapping[foa])]
-                        limited_state[('value', foa)] = state[('value', mapping[foa])]
-                                
-                    try:
-                        grounded_plan = tuple([act_plan.execute_plan(ele, limited_state)
-                                                   for ele in seq])
-                    except Exception as e:
-                        #print('plan could not execute')
-                        #pprint(limited_state)
-                        #print("EXECPTION WITH", e)
-                        continue
-
-                    vX = {}
-                    for foa in mapping:
-                        vX[('value', foa)] = state[('value', mapping[foa])]
-                    vX.update(compute_features(vX,features))
-                    # for attr, value in self.compute_features(vX, features):
-                    #     vX[attr] = value
-                    #for foa in mapping:
-                    #    vX[('name', foa)] = state[('name', mapping[foa])]
-
-                    vX = tup.undo_transform(vX)
-
-                    #print("WHEN PREDICTION STATE")
-                    #pprint(vX)
-                    when_pred = s['when_classifier'].predict([vX])[0]
-                    #print(label, seq, s['when_classifier'])
-                    #pprint(when_pred)
-
-                    if when_pred == 0:
-                        continue
-                   
-                    #print("FOUND SKILL MATCH!")
+                limited_state = {}
+                for foa in mapping:
+                    limited_state[('name', foa)] = state[('name', mapping[foa])]
+                    limited_state[('value', foa)] = state[('value', mapping[foa])]
+                            
+                try:
+                    grounded_plan = tuple([act_plan.execute_plan(ele, limited_state)
+                                               for ele in seq])
+                except Exception as e:
+                    #print('plan could not execute')
                     #pprint(limited_state)
-                    #pprint(seq)
-                    #pprint(grounded_plan)
-                        
-                    response = {}
-                    response['label'] = label
-                    response['selection'] = grounded_plan[2]
-                    response['action'] = grounded_plan[1]
-                    response['inputs'] = list(grounded_plan[3:])
-                    response['foas'] = []
-                    #response['foas'].append("|" +
-                    #                        limited_state[("name", "?foa0")] +
-                    #                        "|" + grounded_plan[3]) 
-                    for i in range(1,len(mapping)):
-                        response['foas'].append("|" +
-                                                limited_state[("name", "?foa%i" % i)]
-                                                +
-                                                "|" +
-                                                limited_state[('value', "?foa%i" % i)]) 
+                    #print("EXECPTION WITH", e)
+                    continue
 
-                    #pprint(response)
-                    return response
+                vX = {}
+                for foa in mapping:
+                    vX[('value', foa)] = state[('value', mapping[foa])]
+                vX.update(compute_features(vX,features))
+                # for attr, value in self.compute_features(vX, features):
+                #     vX[attr] = value
+                #for foa in mapping:
+                #    vX[('name', foa)] = state[('name', mapping[foa])]
 
-                #import time
-                #time.sleep(5)
+                vX = tup.undo_transform(vX)
+
+                #print("WHEN PREDICTION STATE")
+                #pprint(vX)
+                when_pred = s['when_classifier'].predict([vX])[0]
+                #print(label, seq, s['when_classifier'])
+                #pprint(when_pred)
+
+                if when_pred == 0:
+                    continue
+               
+                #print("FOUND SKILL MATCH!")
+                #pprint(limited_state)
+                #pprint(seq)
+                #pprint(grounded_plan)
+                    
+                response = {}
+                response['label'] = label
+                response['selection'] = grounded_plan[2]
+                response['action'] = grounded_plan[1]
+                response['inputs'] = list(grounded_plan[3:])
+                response['foas'] = []
+                #response['foas'].append("|" +
+                #                        limited_state[("name", "?foa0")] +
+                #                        "|" + grounded_plan[3]) 
+                for i in range(1,len(mapping)):
+                    response['foas'].append("|" +
+                                            limited_state[("name", "?foa%i" % i)]
+                                            +
+                                            "|" +
+                                            limited_state[('value', "?foa%i" % i)]) 
+
+                #pprint(response)
+                return response
+
+            #import time
+            #time.sleep(5)
 
         return {}
 
@@ -230,44 +237,49 @@ class LogicalWhereWhenHow(BaseAgent):
                   len(correctness) , exp)
         print()
 
-        act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
-        explanations = []
+        #act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
+        #explanations = []
 
-        for exp in self.skills[label]:
-            #print("CHECKING EXPLANATION", exp)
-            try:
-                grounded_plan = tuple([act_plan.execute_plan(ele, 
-                                        example['limited_state']) 
-                                       for ele in exp])
-                if act_plan.is_sais_equal(grounded_plan, sai):
-                    #print("found existing explanation")
-                    explanations.append(exp)
-            except Exception as e:
-                #print("EXECPTION WITH", e)
-                continue
+        #for exp in self.skills[label]:
+        #    #print("CHECKING EXPLANATION", exp)
+        #    try:
+        #        grounded_plan = tuple([act_plan.execute_plan(ele, 
+        #                                example['limited_state']) 
+        #                               for ele in exp])
+        #        if act_plan.is_sais_equal(grounded_plan, sai):
+        #            #print("found existing explanation")
+        #            explanations.append(exp)
+        #    except Exception as e:
+        #        #print("EXECPTION WITH", e)
+        #        continue
 
-        if len(explanations) == 0:
-            explanations = act_plan.explain_sai(example['limited_state'], sai)
+        #if len(explanations) == 0:
+        #    explanations = act_plan.explain_sai(example['limited_state'], sai)
 
-        #print("EXPLANATIONS")
-        #pprint(explanations)
+        ##print("EXPLANATIONS")
+        ##pprint(explanations)
 
-        for exp in explanations:
-            if exp not in self.skills[label]:
-                self.skills[label][exp] = {}
-                self.skills[label][exp]['args'] = []
-                self.skills[label][exp]['examples'] = []
-                self.skills[label][exp]['correct'] = []
-                where = self.where()
-                when = when_learners[self.when](self.when_params)
-                #when = Pipeline([('dict_vect', DictVectorizer(sparse=False)), 
-                #                  ('clf', self.when())])
-                self.skills[label][exp]['where_classifier'] = where
-                self.skills[label][exp]['when_classifier'] = when
+        # first delete old skill description
+        del self.skills[label]
+        self.skills[label] = {}
 
-            self.skills[label][exp]['args'].append(example['foa_args'])
-            self.skills[label][exp]['examples'].append(example)
-            self.skills[label][exp]['correct'].append(int(example['correct']))
+        # build new skill descriptions
+        for exp in how_result:
+            self.skills[label][exp] = {}
+            self.skills[label][exp]['args'] = []
+            self.skills[label][exp]['examples'] = []
+            self.skills[label][exp]['correct'] = []
+            where = self.where()
+            when = when_learners[self.when](self.when_params)
+            #when = Pipeline([('dict_vect', DictVectorizer(sparse=False)), 
+            #                  ('clf', self.when())])
+            self.skills[label][exp]['where_classifier'] = where
+            self.skills[label][exp]['when_classifier'] = when
+
+            for e in how_result[exp]:
+                self.skills[label][exp]['args'].append(e['foa_args'])
+                self.skills[label][exp]['examples'].append(e)
+                self.skills[label][exp]['correct'].append(int(e['correct']))
 
             T = self.skills[label][exp]['args']
             y = self.skills[label][exp]['correct']
