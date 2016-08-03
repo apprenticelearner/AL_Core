@@ -199,8 +199,37 @@ class ActionPlanner:
                     raise ValueError('time_limit must be a float > 0.0')
                 self.act_params['time_limit'] = act_params['time_limit']
 
+    def explain_sai_iter(self, state, sai):
+        """
+        Returns an iterator to explanations for a given SAI in the provided
+        state
+        """
+        already_found = set()
+        
+        inp_exps = [[] for ele in sai[2:]]
+        inp_iters = [self.explain_value_iter(state, ele) for ele in sai[2:]]
 
-    def explain_sai(self, state, sai, act_params = None):
+        found = True
+        
+        while found:
+            found=False
+
+            for i,it in enumerate(inp_iters):
+                try:
+                    value_exp = next(it)
+                    inp_exps[i].append(value_exp)
+                    found=True
+                except StopIteration:
+                    pass
+
+            if found:
+                for exp in [sai[0:2] + inp for inp in product(*inp_exps)]:
+                    if exp in already_found:
+                        continue
+                    already_found.add(exp)
+                    yield exp
+
+    def explain_sai(self, state, sai):
         """
         This function generates a number of explainations for a given observed SAI.
         """
@@ -210,12 +239,34 @@ class ActionPlanner:
                 sai[2:]]
         return [sai[0:2] + inp for inp in product(*exps)]
 
+
+    def explain_value_iter(self, state, value):
+        """
+        Returns an iterator for explainations of the provided value in the
+        provided state.
+        """
+        extra = {}
+        extra["actions"] = self.actions
+        extra["epsilon"] = self.act_params['epsilon']
+        extra['tested'] = set()
+        depth_limit = self.act_params['depth_limit']
+        state = {k:state[k] for k in state if k[0] != '_'}
+        problem = ActionPlannerProblem((tuple(state.items()), 
+                                        None, value), extra=extra)
+        try:
+            for solution in best_first_search(problem, cost_limit=depth_limit):
+                state, chosen, goal = solution.state
+                yield chosen[0]
+        except StopIteration:
+            pass
+
+        yield str(value)
+
     def explain_value(self, state, value, num_expl=1, time_limit=float('inf')):
         """ 
         This function uses a planner compute the given value from the current
         state. The function returns a plan.
         """
-        
         extra = {}
         extra["actions"] = self.actions
         extra["epsilon"] = self.act_params['epsilon']
