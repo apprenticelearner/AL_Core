@@ -57,7 +57,55 @@ class FoilClassifier(BaseILP):
         self.rules = set()
 
     def __repr__(self):
-        return repr(self.rules)
+        key = {chr(i + ord('A')): self.target_attrs[i] 
+               for i in range(len(self.target_attrs))}
+
+        for v in key:
+            key[v] = self.unclean(key[v])
+
+        rules = set()
+        if len(self.rules) == 0:
+            rules.add("FALSE")
+
+        for r in self.rules:
+            if ":-" in r:
+                new_r = r.split(" :- ")[1]
+                new_r = new_r.split(", ")
+                new_new_r = []
+                for sub in new_r:
+                    if "<>" in sub:
+                        sub = "<>".join([self.unclean(e) if e not in key else key[e] 
+                                         for e in sub.split("<>")])
+                        new_new_r.append(sub)
+                    else:
+                        new_new_r.append(sub)
+                        print("MAKE SURE THIS IS BEING HANDLED RIGHT")
+                        raise Exception("What is this?: %s" % sub)
+
+                # assume that foa0 must be nil
+                new_new_r.append(("('value', '?foa0')<>''"))
+                new_r = " and ".join(new_new_r)
+            else:
+                new_r = []
+                sub = r[16:-1].split(",")
+                for i in range(len(self.target_attrs)):
+                    if sub[i] != chr(i + ord('A')):
+                        arg = self.unclean(self.target_attrs[i])
+                        if sub[i] in key:
+                            val = key[sub[i]]
+                        else:
+                            val = self.unclean(sub[i])
+                        new_r.append("%s==%s" % (arg, val))
+                # assume that foa0 must be nil
+                new_r.append(("('value', '?foa0')<>''"))
+                new_r = " and ".join(new_r)
+
+            rules.add(new_r)
+
+        rules = ["(" + r + ")" for r in rules]
+        rules = " or ".join(rules)
+
+        return repr(rules)
 
     def fit(self, X, y):
         """
