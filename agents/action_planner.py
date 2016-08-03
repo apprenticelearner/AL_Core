@@ -306,6 +306,9 @@ class ActionPlanner:
         actions = self.actions
 
         if plan in state:
+            if state[plan] == "":
+                print("WHAT IS GOING ON HERE, SHOULDN'T BE EMPTY (action_planner.exectue_plan)")
+                raise Exception("Cannot use empty state elements as values")
             return state[plan]
 
         if not isinstance(plan, tuple):
