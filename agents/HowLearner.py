@@ -1,12 +1,11 @@
 from pprint import pprint
 
-from agents.action_planner import ActionPlanner
 from agents.utils import tup_sai
 
 class IncrementalMany(object):
 
-    def __init__(self, functions, how_params):
-        self.planner = ActionPlanner(actions=functions,act_params=how_params)
+    def __init__(self, planner):
+        self.planner = planner
         self.explanations = {}
         self.examples = []
 
@@ -58,22 +57,6 @@ class IncrementalMany(object):
             if e not in self.explanations[exp1]:
                 return False
         return True
-
-    #def ifit(self, example):
-    #    found = False
-    #    for exp in self.explanations:
-    #        if self.explains(exp, example):
-    #            found = True
-    #            self.explanations[exp].append(example)
-    #    
-    #    if not found:
-    #        sai = tup_sai(example['selection'], example['action'],
-    #                      example['inputs'])
-    #        exp = tuple(self.planner.explain_sai(example['limited_state'],
-    #                                             sai))
-    #        self.explanations[exp[0]] = [example]
-
-    #    return self.explanations
 
     def fit(self, examples):
         self.explanations = {}
@@ -141,3 +124,7 @@ class SimStudentHow(IncrementalMany):
         self.examples.append(example)
         self.remove_subsumed()
         return self.explanations
+
+how_learners = {}
+how_learners['incremental'] = IncrementalMany
+how_learners['simstudent'] = SimStudentHow
