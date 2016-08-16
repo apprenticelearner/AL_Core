@@ -6,7 +6,6 @@ from itertools import product
 from itertools import combinations
 import re
 from random import random
-from random import uniform
 from random import choice
 
 from concept_formation.preprocessor import Flattener
@@ -17,6 +16,7 @@ from concept_formation.structure_mapper import get_component_names
 from agents.utils import tup_sai
 from agents.utils import gen_varnames
 from agents.utils import compute_features
+from agents.utils import weighted_choice
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.WhenLearner import when_learners
@@ -25,16 +25,6 @@ from ilp.most_specific import MostSpecific
 from ilp.aleph import Aleph
 from ilp.foil import Foil
 from ilp.ifoil import iFoil
-
-def weighted_choice(choices):
-   total = sum(w for c, w in choices)
-   r = uniform(0, total)
-   upto = 0
-   for c, w in choices:
-      if upto + w >= r:
-         return c, w
-      upto += w
-   assert False, "Shouldn't get here"
 
 class LogicalWhereWhenHow(BaseAgent):
     """
