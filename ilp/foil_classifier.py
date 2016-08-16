@@ -8,6 +8,7 @@ import re
 import pexpect
 
 from ilp.base_ilp import BaseILP
+from agents.utils import gen_varnames
 
 class FoilClassifier(BaseILP):
 
@@ -57,8 +58,10 @@ class FoilClassifier(BaseILP):
         self.rules = set()
 
     def __repr__(self):
-        key = {chr(i + ord('A')): self.target_attrs[i] 
-               for i in range(len(self.target_attrs))}
+        key = {v: self.target_attrs[i] 
+               for i,v in enumerate(gen_varnames(end=len(self.target_attrs)))}
+        #key = {chr(i + ord('A')): self.target_attrs[i] 
+        #       for i in range(len(self.target_attrs))}
 
         for v in key:
             key[v] = self.unclean(key[v])
@@ -68,38 +71,35 @@ class FoilClassifier(BaseILP):
             rules.add("FALSE")
 
         for r in self.rules:
+            new = []
             if ":-" in r:
                 new_r = r.split(" :- ")[1]
                 new_r = new_r.split(", ")
-                new_new_r = []
+                new = []
                 for sub in new_r:
                     if "<>" in sub:
                         sub = "<>".join([self.unclean(e) if e not in key else key[e] 
                                          for e in sub.split("<>")])
-                        new_new_r.append(sub)
+                        new.append(sub)
                     else:
-                        new_new_r.append(sub)
+                        new.append(sub)
                         print("MAKE SURE THIS IS BEING HANDLED RIGHT")
                         raise Exception("What is this?: %s" % sub)
+                r = r.split(" :- ")[0]
 
-                # assume that foa0 must be nil
-                new_new_r.append(("('value', '?foa0')<>''"))
-                new_r = " and ".join(new_new_r)
-            else:
-                new_r = []
-                sub = r[16:-1].split(",")
-                for i in range(len(self.target_attrs)):
-                    if sub[i] != chr(i + ord('A')):
-                        arg = self.unclean(self.target_attrs[i])
-                        if sub[i] in key:
-                            val = key[sub[i]]
-                        else:
-                            val = self.unclean(sub[i])
-                        new_r.append("%s==%s" % (arg, val))
-                # assume that foa0 must be nil
-                new_r.append(("('value', '?foa0')<>''"))
-                new_r = " and ".join(new_r)
-
+            sub = r[16:-1].split(",")
+            for i,v in enumerate(gen_varnames(end=len(self.target_attrs))):
+            #for i in range(len(self.target_attrs)):
+                if sub[i] != v:
+                    arg = self.unclean(self.target_attrs[i])
+                    if sub[i] in key:
+                        val = key[sub[i]]
+                    else:
+                        val = self.unclean(sub[i])
+                    new.append("%s==%s" % (arg, val))
+            # assume that foa0 must be nil
+            new.append(("('value', '?foa0')==''"))
+            new_r = " and ".join(new)
             rules.add(new_r)
 
         rules = ["(" + r + ")" for r in rules]
@@ -126,9 +126,7 @@ class FoilClassifier(BaseILP):
             for attr in x:
                 if attr not in self.type_values:
                     self.type_values[attr] = set()
-                if isinstance(x[attr], bool):
-                    self.type_values[attr].add("*" + str(x[attr]))
-                elif isinstance(x[attr], Number):
+                if isinstance(x[attr], Number):
                     self.type_values[attr].add('continuous')
                     if len(self.type_values[attr]) > 1:
                         raise Exception("Cannot mix numeric (continuous) and nominal types")
@@ -177,6 +175,12 @@ class FoilClassifier(BaseILP):
         data += ".\n"
 
         #print(data)
+
+        #print([self.unclean(e) for e in self.target_attrs])
+        #for t in self.pos:
+        #    print("+ : ", t)
+        #for t in self.neg:
+        #    print("- : ", t)
 
         if self.closed_world is True:
             # only need to do sophisticated sampling when using closed world.
@@ -231,8 +235,10 @@ class FoilClassifier(BaseILP):
         if (self.closed_world is False and 
             not found and len(self.pos) > len(self.neg)):
             rule = self.name 
-            rule += "(" + ",".join([chr(i + ord('A')) for i in
-                                    range(len(self.target_attrs))]) + ")"
+            rule += "(" + ",".join([v for v in
+                                    gen_varnames(end=len(self.target_attrs))]) + ")"
+            #rule += "(" + ",".join([chr(i + ord('A')) for i in
+            #                        range(len(self.target_attrs))]) + ")"
             self.rules.add(rule)
 
         #print("LEARNED RULES")
@@ -273,6 +279,7 @@ class FoilClassifier(BaseILP):
             e = tuple([str(x[attr]) if attr in x else '_' for attr in
                        self.target_attrs])
 
+            #print(self.name + "(" + ", ".join(e) + ").")
             p.sendline(self.name + "(" + ", ".join(e) + ").")
             resp = p.expect(["false.", "true."])
 
@@ -287,6 +294,8 @@ class FoilClassifier(BaseILP):
         if isinstance(x, tuple):
             return tuple(self.unclean(ele) for ele in x)
         elif isinstance(x, str):
+            x = x.replace("rightparen", ')')
+            x = x.replace("leftparen", '(')
             x = x.replace("multsign", "*")
             x = x.replace("equalsign", "=")
             x = x.replace("underscore", "_")
@@ -294,8 +303,10 @@ class FoilClassifier(BaseILP):
             x = x.replace("plussign", "+")
             x = x.replace("space", " ")
             x = x.replace("questionmark", "?")
-            x = x.replace("leftparen", '(')
-            x = x.replace("rightparen", ')')
+            x = x.replace("period", ".")
+            x = x.replace("apostrophe", "'")
+            x = x.replace("quote", '"')
+            x = x.replace("backslash", "\\")
             x = x[1:]
             if x == "nil":
                 x == ""
@@ -306,9 +317,15 @@ class FoilClassifier(BaseILP):
     def clean(self, x):
         if isinstance(x, tuple):
             return tuple(self.clean(ele) for ele in x)
-        elif isinstance(x, str):
+        elif isinstance(x, str) or isinstance(x, bool):
+            if isinstance(x, bool):
+                x = str(x)
             if x == "":
                 x = "nil"
+            x = x.replace("\\", "backslash")
+            x = x.replace('"', "quote")
+            x = x.replace("'", "apostrophe")
+            x = x.replace(".", "period")
             x = x.replace("?", "questionmark")
             x = x.replace(" ", "space")
             x = x.replace("+", "plussign")
