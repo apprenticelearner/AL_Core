@@ -20,7 +20,6 @@ from py_search.base import Problem
 from py_search.informed import best_first_search
 from py_search.utils import compare_searches
 
-
 def levenshtein(source, target):
     """ 
     The levenshtein edit distance, code take from here: 
@@ -173,9 +172,8 @@ class NoHeuristic(ActionPlannerProblem):
 
 class ActionPlanner:
 
-    def __init__(self, actions, act_params=None):
-
-        self.actions = actions
+    def __init__(self, action_set, act_params=None):
+        self.action_set = action_set
         self.act_params= {'epsilon':0.0,
             'depth_limit':2,
             'num_expl':1,
@@ -246,7 +244,7 @@ class ActionPlanner:
         provided state.
         """
         extra = {}
-        extra["actions"] = self.actions
+        extra["actions"] = self.action_set.get_function_dict()
         extra["epsilon"] = self.act_params['epsilon']
         extra['tested'] = set()
         depth_limit = self.act_params['depth_limit']
@@ -268,7 +266,7 @@ class ActionPlanner:
         state. The function returns a plan.
         """
         extra = {}
-        extra["actions"] = self.actions
+        extra["actions"] = self.action_set.get_function_dict()
         extra["epsilon"] = self.act_params['epsilon']
         extra['tested'] = set()
         depth_limit = self.act_params['depth_limit']
@@ -303,11 +301,10 @@ class ActionPlanner:
 
     def execute_plan(self, plan, state):
         
-        actions = self.actions
+        actions = self.action_set.get_function_dict()
 
         if plan in state:
             if state[plan] == "":
-                print("WHAT IS GOING ON HERE, SHOULDN'T BE EMPTY (action_planner.exectue_plan)")
                 raise Exception("Cannot use empty state elements as values")
             return state[plan]
 
