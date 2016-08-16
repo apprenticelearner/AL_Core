@@ -13,6 +13,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from concept_formation.cobweb3 import Cobweb3Tree
+from concept_formation.trestle import TrestleTree
 
 from ilp.foil_classifier import FoilClassifier
 
@@ -72,6 +73,28 @@ class ScikitFoil(object):
         yh = self.foil.predict(X)
         return np.array(yh)
 
+class ScikitTrestle(object):
+
+    def __init__(self, params=None):
+        if params is None:
+            self.tree = TrestleTree()
+        else:
+            self.tree = TrestleTree(**params)
+
+    def ifit(self, x, y):
+        x = deepcopy(x)
+        x['y_label'] = "%i" % y
+        self.tree.ifit(x)
+    
+    def fit(self, X, y):
+        X = deepcopy(X)
+        for i, x in enumerate(X):
+            x['y_label'] = "%i" % y[i]
+        self.tree.fit(X, randomize_first=False)
+
+    def predict(self, X):
+        return np.array([int(self.tree.categorize(x).predict('y_label')) for x in X])
+
 class ScikitCobweb(object):
 
     def __init__(self, params=None):
@@ -82,7 +105,7 @@ class ScikitCobweb(object):
 
     def ifit(self, x, y):
         x = deepcopy(x)
-        x['y_label'] = y
+        x['y_label'] = "%i" % y
         self.tree.ifit(x)
     
     def fit(self, X, y):
@@ -247,6 +270,7 @@ when_learners['svm'] = DictVectWrapper(CustomSVM)
 when_learners['sgd'] = DictVectWrapper(CustomSGD)
 
 when_learners['cobweb'] = ScikitCobweb
+when_learners['trestle'] = ScikitTrestle
 when_learners['pyibl'] = DictVectWrapper(ScikitPyIBL)
 when_learners['foil'] = iFitWrapper(ScikitFoil)
 
