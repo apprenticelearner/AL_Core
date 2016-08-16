@@ -5,6 +5,9 @@ import inspect
 from itertools import product
 from itertools import combinations
 import re
+from random import random
+from random import uniform
+from random import choice
 
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
@@ -12,28 +15,26 @@ from concept_formation.preprocessor import Tuplizer
 from concept_formation.structure_mapper import get_component_names
 
 from agents.utils import tup_sai
+from agents.utils import gen_varnames
 from agents.utils import compute_features
 from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.WhenLearner import when_learners
-from agents.HowLearner import IncrementalMany
-from agents.HowLearner import SimStudentHow
+from agents.HowLearner import how_learners
 from ilp.most_specific import MostSpecific
 from ilp.aleph import Aleph
 from ilp.foil import Foil
 from ilp.ifoil import iFoil
 
-#decorator for pipeline
-#dictionary for when with pipeline stuff
-#logistic regression(error check)
-#svm(basically svc with kernels)
-#SGD classifier
-#nearest neighbours classification
-#Any Ensemble classifier
-
-#Pyibl prepopulate, chose
-
-#Concept_formation(Cobweb)
+def weighted_choice(choices):
+   total = sum(w for c, w in choices)
+   r = uniform(0, total)
+   upto = 0
+   for c, w in choices:
+      if upto + w >= r:
+         return c, w
+      upto += w
+   assert False, "Shouldn't get here"
 
 class LogicalWhereWhenHow(BaseAgent):
     """
@@ -41,51 +42,64 @@ class LogicalWhereWhenHow(BaseAgent):
     for the where, when, and how learning. Where and and When are both
     classifiers. How learning is a form of planner. 
     """
-    #def __init__(self, where, when, how):
-    def __init__(self, when="foil", when_params=None, how_params=None):
-        #self.where = where
-        #self.when = when
-        #self.how = IncrementalMany
-        self.how = SimStudentHow
+    def __init__(self, action_set, when="foil", how="simstudent",
+                 when_params=None, how_params=None):
+
+        self.action_set = action_set
+        self.planner = ActionPlanner(action_set, act_params=how_params)
+
+        self.how = how_learners[how]
+        self.how_instances = {}
+
         #self.where = Foil
         self.where = MostSpecific
         #self.where = iFoil
         #self.where = Aleph
-        #self.when = DecisionTreeClassifier
+
         self.when = when
         self.when_params = when_params
-        self.how_params = how_params
-        #self.when = GaussianNB
-        #self.how = ActionPlanner(math_actions)
+
         self.skills = {}
         self.examples = {}
-   
-    def request(self, state, features, functions):
+
+    def request(self, state):
         #print("REQUEST")
-        #pprint(self.skills)
         ff = Flattener()
         tup = Tuplizer()
-        act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
 
         state = tup.transform(state)
         state = ff.transform(state)
+        pprint(state)
 
         #foa_state = {attr: state[attr] for attr in state 
         #             if (isinstance(attr, tuple) and attr[0] != "value") or 
         #             not isinstance(attr, tuple)}
 
+        # This is basically conflict resolution here.
         skills = []
         for label in self.skills:
             for seq in self.skills[label]:
                 corrects = self.skills[label][seq]['correct']
                 accuracy = sum(corrects) / len(corrects)
-                s = (accuracy, len(corrects), label, seq)
+                s = ((label, seq), accuracy)
+                #s = (random(), len(corrects), label, seq)
                 skills.append(s)
         skills.sort(reverse=True)
-        
-        for _,_,label,seq in skills:
-            s = self.skills[label][seq]
+
+        #for _,_,label,seq in skills:
+            #s = self.skills[label][seq]
             #print(str(seq))
+        
+        while len(skills) > 0:
+            # probability matching (with accuracy) conflict resolution
+            (label, seq), accuracy = weighted_choice(skills)
+
+            # random conflict resolution
+            #(label, seq), accuracy = choice(skills)
+
+            skills.remove(((label, seq), accuracy))
+
+            s = self.skills[label][seq]
 
             constraints = []
             constraints.append("avalue(A,B,anil)")
@@ -103,8 +117,10 @@ class LogicalWhereWhenHow(BaseAgent):
             #    constraints.append("not(avalue(A," + v + ",aIspaceneedspacetospaceconvertspacethesespacefractionsspacebeforespacesolving))")
             #    
 
-            args = [chr(i + ord("B")) for i in 
-                    range(len(s['where_classifier'].target_types)-1)]
+            args = [v for v in gen_varnames(start=2,
+                                            end=len(s['where_classifier'].target_types)-1)]
+            #args = [chr(i + ord("B")) for i in 
+            #        range(len(s['where_classifier'].target_types)-1)]
             for p in combinations(args, 2):
                 constraints.append("dif(" + p[0] + "," + p[1] + ")")
 
@@ -125,10 +141,10 @@ class LogicalWhereWhenHow(BaseAgent):
                 for foa in mapping:
                     limited_state[('name', foa)] = state[('name', mapping[foa])]
                     limited_state[('value', foa)] = state[('value', mapping[foa])]
-                            
+
                 try:
-                    grounded_plan = tuple([act_plan.execute_plan(ele, limited_state)
-                                               for ele in seq])
+                    grounded_plan = tuple([self.planner.execute_plan(ele,
+                                            limited_state) for ele in seq])
                 except Exception as e:
                     #print('plan could not execute')
                     #pprint(limited_state)
@@ -138,7 +154,7 @@ class LogicalWhereWhenHow(BaseAgent):
                 vX = {}
                 for foa in mapping:
                     vX[('value', foa)] = state[('value', mapping[foa])]
-                vX.update(compute_features(vX,features))
+                vX.update(compute_features(vX,self.action_set.get_feature_dict()))
                 # for attr, value in self.compute_features(vX, features):
                 #     vX[attr] = value
                 #for foa in mapping:
@@ -155,6 +171,7 @@ class LogicalWhereWhenHow(BaseAgent):
                 if when_pred == 0:
                     continue
                
+                pprint(limited_state)
                 #print("FOUND SKILL MATCH!")
                 #pprint(limited_state)
                 #pprint(seq)
@@ -184,7 +201,7 @@ class LogicalWhereWhenHow(BaseAgent):
 
         return {}
 
-    def train(self, state, features, functions, label, foas, selection, action,
+    def train(self, state, label, foas, selection, action,
               inputs, correct):
 
         # create example dict
@@ -226,10 +243,10 @@ class LogicalWhereWhenHow(BaseAgent):
             self.examples[label] = []
         self.examples[label].append(example)
 
-        sai = tup_sai(selection,action,inputs)
-
-        how = self.how(functions=functions, how_params=self.how_params)
-        how_result = how.fit(self.examples[label])
+        if label not in self.how_instances:
+            self.how_instances[label] = self.how(planner=self.planner)
+        #how = self.how(functions=functions, how_params=self.how_params)
+        how_result = self.how_instances[label].ifit(example)
         print(len(self.examples[label]))
         for exp in how_result:
             correctness = [e['correct'] for e in how_result[exp]]
@@ -299,7 +316,7 @@ class LogicalWhereWhenHow(BaseAgent):
             value_X = []
             for e in self.skills[label][exp]['examples']:
                 x = {attr: e['foa_values'][attr] for attr in e['foa_values']}
-                x.update(compute_features(x,features))
+                x.update(compute_features(x,self.action_set.get_feature_dict()))
                 #for attr, value in self.compute_features(x, features):
                 #    x[attr] = value
                 #for attr in e['foa_names']:
@@ -312,9 +329,10 @@ class LogicalWhereWhenHow(BaseAgent):
                 #    pprint(x)
             self.skills[label][exp]['where_classifier'].fit(T, structural_X, y)
             self.skills[label][exp]['when_classifier'].fit(value_X, y)
+            print(self.skills[label][exp]['when_classifier'])
             #self.skills[label][exp]['when_classifier'].ifit(value_X[-1], y[-1])
  	
 		
-    def check(self, state, features, functions, selection, action, inputs):
+    def check(self, state, selection, action, inputs):
         return False
 
