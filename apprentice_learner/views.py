@@ -57,6 +57,7 @@ def create(request):
         args = data['args']
 
     try:
+        args['action_set'] = action_set
         instance = agents[data['agent_type']](**args)
         agent = Agent(instance=instance, action_set=action_set)
         agent.save()
@@ -91,10 +92,7 @@ def request(request, agent_id):
         agent.inc_request()
         agent.save()
 
-        features = agent.get_feature_dict()
-        functions = agent.get_function_dict()
-
-        response = agent.instance.request(data['state'], features, functions)
+        response = agent.instance.request(data['state'])
         return HttpResponse(json.dumps(response))
 
     except Exception as e:
@@ -137,12 +135,9 @@ def train(request, agent_id):
         agent = Agent.objects.get(id=agent_id)
         agent.inc_train()
 
-        features = agent.get_feature_dict()
-        functions = agent.get_function_dict()
-
-        agent.instance.train(data['state'], features, functions, data['label'],
-                             data['foas'], data['selection'], data['action'],
-                             data['inputs'], data['correct'])
+        agent.instance.train(data['state'], data['label'], data['foas'],
+                             data['selection'], data['action'], data['inputs'],
+                             data['correct'])
         agent.save()
         return HttpResponse("OK")
 
@@ -177,11 +172,7 @@ def check(request, agent_id):
 
         response = {}
 
-        features = agent.get_feature_dict()
-        functions = agent.get_function_dict()
-
-        response['correct'] = agent.instance.check(data['state'], features,
-                                                   functions,
+        response['correct'] = agent.instance.check(data['state'], 
                                                    data['selection'],
                                                    data['action'],
                                                    data['inputs'])
