@@ -47,6 +47,7 @@ def compute_features(state, features):
         num_args = len(inspect.getargspec(features[feature]).args)
         if num_args < 1:
             raise Exception("Features must accept at least 1 argument")
+
         possible_args = [attr for attr in original_state]
 
         for tupled_args in product(possible_args, repeat=num_args):
