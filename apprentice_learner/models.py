@@ -15,6 +15,22 @@ class ActionSet(models.Model):
     functions = models.ManyToManyField(PyFunction, blank=True,
                                       related_name="function_action_sets")
 
+    def get_feature_dict(self):
+        features = {}
+        for feature in self.features.all():
+            temp = {}
+            exec(feature.fun_def, temp)
+            features[feature.name] = temp[feature.name]
+        return features
+
+    def get_function_dict(self):
+        functions = {}
+        for function in self.functions.all():
+            temp = {}
+            exec(function.fun_def, temp)
+            functions[function.name] = temp[function.name]
+        return functions
+
     def __str__(self):
         return self.name
 
@@ -28,22 +44,6 @@ class Agent(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
 
-    def get_feature_dict(self):
-        features = {}
-        for feature in self.action_set.features.all():
-            temp = {}
-            exec(feature.fun_def, temp)
-            features[feature.name] = temp[feature.name]
-        return features
-
-    def get_function_dict(self):
-        functions = {}
-        for function in self.action_set.functions.all():
-            temp = {}
-            exec(function.fun_def, temp)
-            functions[function.name] = temp[function.name]
-        return functions
-
     def inc_request(self):
         self.num_request = self.num_request + 1
 
@@ -54,7 +54,24 @@ class Agent(models.Model):
         self.num_check = self.num_check + 1
 
     def __str__(self):
-        return "Agent %i - %s" % (self.id, self.name)
+        skills = {} 
+
+        try:
+            sd = self.instance.skills
+            for label in sd:
+                for i, how in enumerate(sd[label]):
+                    name = label
+                    if i > 0:
+                        name = "%s-%i" % (label, i+1)
+                    skills[name] = {}
+                    skills[name]['where'] = sd[label][how]['where_classifier']
+                    skills[name]['when'] = sd[label][how]['when_classifier']
+                    skills[name]['how'] = how
+
+        except:
+            pass
+
+        return "Agent %i - %s : %s" % (self.id, self.name, skills)
 
     class Meta:
         ordering = ('-updated',)

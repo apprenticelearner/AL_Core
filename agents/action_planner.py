@@ -15,11 +15,10 @@ from time import time
 
 import numpy as np
 
-from py_search.search import Node
-from py_search.search import Problem
-from py_search.search import best_first_search
-from py_search.search import compare_searches
-
+from py_search.base import Node
+from py_search.base import Problem
+from py_search.informed import best_first_search
+from py_search.utils import compare_searches
 
 def levenshtein(source, target):
     """ 
@@ -64,7 +63,7 @@ def levenshtein(source, target):
 
 class ActionPlannerProblem(Problem):
 
-    def successor(self, node):
+    def successors(self, node):
         state, chosen, goal = node.state
         actions = node.extra["actions"]
         tested = node.extra['tested']
@@ -173,10 +172,8 @@ class NoHeuristic(ActionPlannerProblem):
 
 class ActionPlanner:
 
-    def __init__(self, actions, act_params=None):
-
-        
-        self.actions = actions
+    def __init__(self, action_set, act_params=None):
+        self.action_set = action_set
         self.act_params= {'epsilon':0.0,
             'depth_limit':2,
             'num_expl':1,
@@ -200,8 +197,37 @@ class ActionPlanner:
                     raise ValueError('time_limit must be a float > 0.0')
                 self.act_params['time_limit'] = act_params['time_limit']
 
+    def explain_sai_iter(self, state, sai):
+        """
+        Returns an iterator to explanations for a given SAI in the provided
+        state
+        """
+        already_found = set()
+        
+        inp_exps = [[] for ele in sai[2:]]
+        inp_iters = [self.explain_value_iter(state, ele) for ele in sai[2:]]
 
-    def explain_sai(self, state, sai, act_params = None):
+        found = True
+        
+        while found:
+            found=False
+
+            for i,it in enumerate(inp_iters):
+                try:
+                    value_exp = next(it)
+                    inp_exps[i].append(value_exp)
+                    found=True
+                except StopIteration:
+                    pass
+
+            if found:
+                for exp in [sai[0:2] + inp for inp in product(*inp_exps)]:
+                    if exp in already_found:
+                        continue
+                    already_found.add(exp)
+                    yield exp
+
+    def explain_sai(self, state, sai):
         """
         This function generates a number of explainations for a given observed SAI.
         """
@@ -211,21 +237,43 @@ class ActionPlanner:
                 sai[2:]]
         return [sai[0:2] + inp for inp in product(*exps)]
 
+
+    def explain_value_iter(self, state, value):
+        """
+        Returns an iterator for explainations of the provided value in the
+        provided state.
+        """
+        extra = {}
+        extra["actions"] = self.action_set.get_function_dict()
+        extra["epsilon"] = self.act_params['epsilon']
+        extra['tested'] = set()
+        depth_limit = self.act_params['depth_limit']
+        state = {k:state[k] for k in state if k[0] != '_'}
+        problem = ActionPlannerProblem((tuple(state.items()), 
+                                        None, value), extra=extra)
+        try:
+            for solution in best_first_search(problem, cost_limit=depth_limit):
+                state, chosen, goal = solution.state
+                yield chosen[0]
+        except StopIteration:
+            pass
+
+        yield str(value)
+
     def explain_value(self, state, value, num_expl=1, time_limit=float('inf')):
         """ 
         This function uses a planner compute the given value from the current
         state. The function returns a plan.
         """
-        
         extra = {}
-        extra["actions"] = self.actions
+        extra["actions"] = self.action_set.get_function_dict()
         extra["epsilon"] = self.act_params['epsilon']
         extra['tested'] = set()
         depth_limit = self.act_params['depth_limit']
 
         state = {k:state[k] for k in state if k[0] != '_'}
 
-        problem = ActionPlannerProblem((tuple(state.items()), None, value),extra)
+        problem = ActionPlannerProblem((tuple(state.items()), None, value), extra=extra)
 
         explanations = []
         
@@ -253,9 +301,11 @@ class ActionPlanner:
 
     def execute_plan(self, plan, state):
         
-        actions = self.actions
+        actions = self.action_set.get_function_dict()
 
         if plan in state:
+            if state[plan] == "":
+                raise Exception("Cannot use empty state elements as values")
             return state[plan]
 
         if not isinstance(plan, tuple):
@@ -267,6 +317,30 @@ class ActionPlanner:
 
         return actions[action](*args)
 
+    def is_sais_equal(self, sai1, sai2):
+        """
+        Given two sais, this tells you if they are equal, taking into account
+        that two floats might be within epsilon of one another.
+
+        >>> ap = ActionPlanner({})
+        >>> ap.is_sais_equal(('sai', 'update', 3), ('sai', 'update', 3))
+        True
+        >>> ap.is_sais_equal(('sai', 'update', 1), ('sai', 'update', 3))
+        False
+
+        """
+        if len(sai1) != len(sai2):
+            return False
+
+        for i in range(len(sai1)):
+            if ((not isinstance(sai1[i], bool) and isinstance(sai1[i], Number)) and 
+                (not isinstance(sai2[i], bool) and isinstance(sai2[i], Number))):
+                if abs(sai1[i] - sai2[i]) > self.act_params['epsilon']:
+                    return False
+            elif sai1[i] != sai2[i]:
+                return False
+        return True
+
     def compare_plan(self, plan, sai, state):
         """
         Given an general plan, a specific sai, and a state return True if the
@@ -277,7 +351,7 @@ class ActionPlanner:
 
         plan = self.execute_plan(plan,state)
 
-        for i in range(len(plan)):
+        for i in range(1,len(plan)):
             if ((not isinstance(plan[i], bool) and isinstance(plan[i], Number)) and 
                 (not isinstance(sai[i], bool) and isinstance(sai[i], Number))):
                 if abs(plan[i] - sai[i]) > self.act_params['epsilon']:
@@ -285,8 +359,6 @@ class ActionPlanner:
             elif plan[i] != sai[i]:
                 return False
         return True
-
-
 
 #def car(x):
 #    if isinstance(x, str) and len(x) > 1:
