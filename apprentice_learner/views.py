@@ -2,7 +2,7 @@ import json
 import traceback
 
 from django.views.decorators.csrf import csrf_exempt
-from django.shortcuts import redirect, get_object_or_404
+from django.shortcuts import redirect, get_list_or_404
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
@@ -102,7 +102,7 @@ def request(request, agent_id):
 
 @csrf_exempt
 def request_by_name(http_request, agent_name):
-    agent = get_object_or_404(Agent,name=agent_name)
+    agent = get_list_or_404(Agent,name=agent_name)[0]
     return request(http_request,agent.id)
 
 @csrf_exempt
@@ -153,7 +153,7 @@ def train(request, agent_id):
 
 @csrf_exempt
 def train_by_name(request, agent_name):
-    agent = get_object_or_404(Agent,name=agent_name)
+    agent = get_list_or_404(Agent,name=agent_name)[0]
     return train(request,agent.id)
 
 @csrf_exempt
@@ -195,5 +195,5 @@ def check(request, agent_id):
 
 @csrf_exempt
 def check_by_name(request, agent_name):
-    agent = get_object_or_404(Agent,name=agent_name)
+    agent = get_list_or_404(Agent,name=agent_name)[0]
     return check(request,agent.id)
