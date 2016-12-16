@@ -60,8 +60,18 @@ def create(request):
         args['action_set'] = action_set
         instance = agents[data['agent_type']](**args)
         agent = Agent(instance=instance, action_set=action_set)
+        agent = Agent.objects.first()
+        print(agent)
+        agent.pk = None
         agent.save()
         ret_data = {'agent_id': str(agent.id)}
+
+        # ORIGINAL VERSION
+        # args['action_set'] = action_set
+        # instance = agents[data['agent_type']](**args)
+        # agent = Agent(instance=instance, action_set=action_set)
+        # agent.save()
+        # ret_data = {'agent_id': str(agent.id)}
 
     except Exception as e:
         print("Failed to create agent", e)

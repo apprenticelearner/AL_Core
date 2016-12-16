@@ -32,7 +32,7 @@ class LogicalWhereWhenHow(BaseAgent):
     for the where, when, and how learning. Where and and When are both
     classifiers. How learning is a form of planner. 
     """
-    def __init__(self, action_set, when="foil", how="simstudent",
+    def __init__(self, action_set, when="decision tree", how="simstudent",
                  when_params=None, how_params=None):
 
         self.action_set = action_set
