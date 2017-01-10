@@ -256,7 +256,6 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
         else:
             return super(CustomKNeighborsClassifier, self).predict(X)
 
-
 parameters_nearest = {'n_neighbors':3}
 parameters_sgd = {'loss' : 'perceptron'}
 

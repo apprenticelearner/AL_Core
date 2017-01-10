@@ -1,5 +1,3 @@
-from concept_formation.structure_mapper import contains_component
-
 
 class PatternMatcher:
 
@@ -10,55 +8,68 @@ class PatternMatcher:
 
         for v in self.variables:
             for p in pattern:
-                if contains_component(v, p):
+                if self.occur_check(v, p, {}):
                     self.var_pattern.add(p)
 
         self.not_var_pattern = self.pattern - self.var_pattern
 
     def is_variable(self, x):
         """
-        Checks if x is a variable, i.e., a string that starts with ?
+        Checks if the provided expression x is a variable, i.e., a string that
+        starts with ?.
+
+        >>> pm = PatternMatcher({}, [])
+        >>> pm.is_variable('?x')
+        True
+        >>> pm.is_variable('x')
+        False
         """
         return isinstance(x, str) and len(x) > 0 and x[0] == "?"
 
-    def first(self, iterable, default=None):
-        """
-        Return the first element of an iterable or the next element of a
-        generator; or default.
-        """
-        try:
-            return iterable[0]
-        except IndexError:
-            return default
-        except TypeError:
-            return next(iterable, default)
-
     def occur_check(self, var, x, s):
         """
-        Check if x contains var, after using s. This prevents binding a
-        variable to an expression that contains the variable in an infinite
-        loop. 
+        Check if x contains var, after using substition s. This prevents
+        binding a variable to an expression that contains the variable in an
+        infinite loop.
+
+        >>> pm = PatternMatcher({}, [])
+        >>> pm.occur_check('?x', '?x', {})
+        True
+        >>> pm.occur_check('?x', '?y', {'?y':'?x'})
+        True
+        >>> pm.occur_check('?x', '?y', {'?y':'?z'})
+        False
+        >>> pm.occur_check('?x', '?y', {'?y':'?z', '?z':'?x'})
+        True
+        >>> pm.occur_check('?x', ('relation', '?x'), {})
+        True
+        >>> pm.occur_check('?x', ('relation', ('relation2', '?x')), {})
+        True
+        >>> pm.occur_check('?x', ('relation', ('relation2', '?y')), {})
+        False
         """
         if var == x:
             return True
         elif self.is_variable(x) and x in s:
             return self.occur_check(var, s[x], s)
-        elif isinstance(x, tuple):
-            return (self.occur_check(var, x[0], s) or
-                    self.occur_check(var, list(x[1:]), s))
         elif isinstance(x, (list, tuple)):
-            return self.first(e for e in x if self.occur_check(var, e, s))
+            for e in x:
+                if self.occur_check(var, e, s):
+                    return True
+            return False
         else:
             return False
 
     def subst(self, s, x):
         """
         Substitute the substitution s into the expression x.
-        >>> subst({x: 42, y:0}, F(x) + y)
-        (F(42) + 0)
+
+        >>> pm = PatternMatcher({}, [])
+        >>> pm.subst({'?x': 42, '?y':0}, ('+', ('F', '?x'), '?y'))
+        ('+', ('F', 42), 0)
         """
         if isinstance(x, tuple):
-            return tuple([self.subst(s, xi) for xi in x])
+            return tuple(self.subst(s, xi) for xi in x)
         elif self.is_variable(x):
             return s.get(x, x)
         else:
@@ -85,8 +96,8 @@ class PatternMatcher:
 
     def unify(self, x, y, s):
         """
-        Unify expressions x and y. Return a mapping that will make x and y
-        equal or None.
+        Unify expressions x and y. Return a mapping (a dict) that will make x
+        and y equal or, if this is not possible, then it returns None.
         """
         if s is None:
             return None
@@ -104,13 +115,13 @@ class PatternMatcher:
         else:
             return None
 
-    def first_string(self, s):
+    def extract_first_string(self, s):
         """
         Extracts the first string from a tuple, it wraps it with parens to keep
         track of the depth of the constant within the relation.
         """
         if isinstance(s, tuple):
-            return '(' + str(self.first_string(s[0])) + ")"
+            return '(' + str(self.extract_first_string(s[0])) + ")"
         return s
 
     def match(self, state):
@@ -124,7 +135,7 @@ class PatternMatcher:
         index = {}
         for ele in state:
             pred = ele[0][0]
-            first = self.first_string(ele[0][1])
+            first = self.extract_first_string(ele[0][1])
 
             if pred not in index:
                 index[pred] = {}
@@ -157,7 +168,7 @@ class PatternMatcher:
             ps = []
             for p in pattern:
                 pred = p[0][0]
-                first = self.first_string(self.subst(substitution, p[0][1]))
+                first = self.extract_first_string(self.subst(substitution, p[0][1]))
                 if self.is_variable(first):
                     first = '?'
                 count = len(index[pred].get(first, []))
@@ -167,7 +178,7 @@ class PatternMatcher:
 
             ele = ps[0][1]
             pred = ele[0][0]
-            first = self.first_string(self.subst(substitution, ele[0][1]))
+            first = self.extract_first_string(self.subst(substitution, ele[0][1]))
             if self.is_variable(first):
                 first = '?'
 

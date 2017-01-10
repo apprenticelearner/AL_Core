@@ -53,7 +53,10 @@ def compute_features(state, features):
         for tupled_args in product(possible_args, repeat=num_args):
             new_feature = (feature,) + tupled_args
             values = [state[attr] for attr in tupled_args]
-            yield new_feature, features[feature](*values)
+            try:
+                yield new_feature, features[feature](*values)
+            except Exception as e:
+                pass
 
 def parse_foas(foas):
     return [{'name':foa.split('|')[1],'value':foa.split('|')[2]} for foa in foas]

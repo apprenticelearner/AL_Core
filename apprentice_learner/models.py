@@ -73,8 +73,31 @@ class Agent(models.Model):
 
         return "Agent %i - %s : %s" % (self.id, self.name, skills)
 
+    def generate_trees(self):
+        import pydotplus
+        from sklearn import tree
+        from sklearn.externals.six import StringIO
+        
+        for label in self.instance.skills:
+            for n, how in enumerate(self.instance.skills[label]):
+                pipeline = self.instance.skills[label][how]['when_classifier']
+
+                dv = pipeline.steps[0][1]
+                dt = pipeline.steps[1][1]
+
+                dot_data = StringIO()
+                tree.export_graphviz(dt, out_file=dot_data,
+                                     feature_names=dv.feature_names_,
+                                     class_names=["Don't Fire Rule",
+                                                  "Fire Rule"],
+                                     filled=True, rounded=True,
+                                     special_characters=True) 
+                graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
+                graph.write_png("decisiontrees/%s-%i.png" % (label, n))
+
     class Meta:
         ordering = ('-updated',)
+
    
     # user specified domain
     # owner
