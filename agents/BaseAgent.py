@@ -6,7 +6,7 @@ class BaseAgent(object):
     def __init__(self):
         pass
 
-    def request(self, state, features, functions):
+    def request(self, state):
         """
         Accepts a JSON object representing the state.
 
@@ -14,16 +14,18 @@ class BaseAgent(object):
         """
         raise NotImplementedError("request function not implemented")
 
-    def train(self, state, features, functions, label, foas, selection, action, inputs, correct):
+    def train(self, state, skill_label, foas, selection, action, inputs,
+              correct):
         """
         Accepts a JSON object representing the state, a string representing the
-        selection, a string representing the action, list of strings
-        representing the inputs, and a boolean correctness.
+        skill label, a list of strings representing the foas, a string
+        representing the selection, a string representing the action, list of
+        strings representing the inputs, and a boolean correctness.
         """
 
         raise NotImplementedError("train function not implemented")
 
-    def check(self, state, features, functions, selection, action, inputs):
+    def check(self, state, selection, action, inputs):
         """
         Accepts a JSON object representing the state, a string representing the
         selection, a string representing the action, list of strings
