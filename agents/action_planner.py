@@ -349,7 +349,12 @@ class ActionPlanner:
         if len(plan) != len(sai):
             return False
 
-        plan = self.execute_plan(plan,state)
+        plan = tuple([self.execute_plan(ele, state) for ele in plan])
+
+        print('COMPARING')
+        print(sai)
+        print(plan)
+        print('DONE COMPARING')
 
         for i in range(1,len(plan)):
             if ((not isinstance(plan[i], bool) and isinstance(plan[i], Number)) and 

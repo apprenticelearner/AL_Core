@@ -14,11 +14,13 @@ from agents.Dummy import Dummy
 from agents.WhereWhenHow import WhereWhenHow
 from agents.LogicalWhenHow import LogicalWhenHow
 from agents.LogicalWhereWhenHow import LogicalWhereWhenHow
+from agents.TrestleHow import TrestleHow
 
 agents = {'Dummy': Dummy,
           'WhereWhenHow': WhereWhenHow,
           'LogicalWhenHow': LogicalWhenHow,
-          'LogicalWhereWhenHow': LogicalWhereWhenHow}
+          'LogicalWhereWhenHow': LogicalWhereWhenHow,
+          'TrestleHow': TrestleHow}
 
 @csrf_exempt
 def create(request):
