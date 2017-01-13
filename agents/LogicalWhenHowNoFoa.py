@@ -1,104 +1,171 @@
-import inspect
 from pprint import pprint
-from itertools import permutations
-from itertools import product
-
-from sklearn.feature_extraction import DictVectorizer
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.pipeline import Pipeline
+from random import random
 
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
-#from concept_formation.structure_mapper import rename_flat
-from concept_formation.structure_mapper import get_component_names
+from concept_formation.trestle import TrestleTree
+from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
-from agents.action_planner import ActionPlanner
-from agents.action_planner import math_actions
-#from ilp.foil import Foil
-from ilp.aleph import Aleph
+from ilp.most_specific import SimStudentWhere
+from ilp.fo_planner import FoPlanner
+# from ilp.fo_planner import Operator
+from ilp.fo_planner import arith_rules
 
-#import sys
-#sys.stdout = open('/home/anant/Documents/output.txt', 'w')
+
 class LogicalWhenHow(BaseAgent):
     """
-    This is the basis for the 3 learning phase model. It accepts three classes
-    for the where, when, and how learning. Where and and When are both
-    classifiers. How learning is a form of planner. 
+    This is the basis for the 2 mechanism model.
     """
-    def __init__(self):
-        self.when = Aleph 
-        self.how = ActionPlanner(math_actions)
+    def __init__(self, action_set):
+        self.where = SimStudentWhere
+        self.when = TrestleTree
         self.skills = {}
         self.examples = {}
 
-    def compute_features(self, state, features):
-        for feature in features:
-            num_args = len(inspect.getargspec(features[feature]).args)
-            if num_args < 1:
-                raise Exception("Features must accept at least 1 argument")
-            possible_args = [attr for attr in state]
-
-            for tupled_args in product(possible_args, repeat=num_args):
-                new_feature = (feature,) + tupled_args
-                values = [state[attr] for attr in tupled_args]
-                yield new_feature, features[feature](*values)
-
-    def request(self, state, features, functions):
-        #print("REQUEST")
-        #pprint(self.skills)
-        ff = Flattener()
+    def request(self, state):
         tup = Tuplizer()
+        flt = Flattener()
 
-        state = tup.transform(state)
-        state = ff.transform(state)
-        for attr, value in self.compute_features(state, features):
-            state[attr] = value
-        
+        state = flt.transform(tup.transform(state))
+        new = {}
+        for attr in state:
+            if (isinstance(attr, tuple) and attr[0] == 'value'):
+                new[('editable', attr[1])] = state[attr] == ''
+                for attr2 in state:
+                    if (isinstance(attr2, tuple) and attr2[0] == 'value'):
+                        if (attr2 == attr or attr < attr2 or state[attr] == ""
+                            or state[attr2] == ""):
+                            continue
+                        if (state[attr] == state[attr2]):
+                            new[('eq', attr, attr2)] = True
+        state.update(new)
+
+        # compute features
+
+        # for attr, value in self.compute_features(state):
+        #     state[attr] = value
+
+        skillset = []
         for label in self.skills:
-            for grounded_plan, plan in self.get_plan(label, state, functions):
+            for exp in self.skills[label]:
+                skillset.append((len(self.skills[label][exp]['where']),
+                                 random(), label, exp,
+                                 self.skills[label][exp]))
+        skillset.sort(reverse=True)
+
+        pprint(skillset)
+
+        # used for grounding out plans, don't need to build up each time.
+        kb = FoPlanner([(self.ground(a),
+                         state[a].replace('?', 'QM') if
+                         isinstance(state[a], str) else
+                         state[a])
+                        for a in state], arith_rules)
+        # print(kb)
+
+        for _, _, label, exp, skill in skillset:
+            for m in skill['where'].get_matches(state):
+                print("MATCH FOUND", label, m)
+                vmapping = {'?foa' + str(i): ele for i, ele in enumerate(m)}
+                mapping = {'foa' + str(i): ele for i, ele in enumerate(m)}
+
+                r_exp = list(rename_flat({exp: True}, vmapping))[0]
+                r_state = rename_flat(state, {mapping[a]: a for a in mapping})
+
+                # pprint(r_state)
+
+                # pprint(r_state)
+
+                if not skill['when'].categorize(r_state).predict('correct'):
+                    continue
+
+                rg_exp = []
+                for ele in r_exp:
+                    if isinstance(ele, tuple):
+                        for vm in kb.fc_query([(self.ground(ele), '?v')],
+                                              max_depth=0):
+                            rg_exp.append(vm['?v'])
+                            break
+                    else:
+                        rg_exp.append(ele)
+
+                if len(rg_exp) != len(r_exp):
+                    continue
+
+                # pprint(r_exp)
+                # pprint(rg_exp)
+
+                assert self.explains_sai(kb, r_exp, rg_exp)
+
                 response = {}
                 response['label'] = label
-                response['selection'] = grounded_plan[2]
-                response['action'] = grounded_plan[1]
-                response['inputs'] = list(grounded_plan[3:])
+                response['selection'] = rg_exp[1]
+                response['action'] = rg_exp[2]
+                response['inputs'] = list(rg_exp[3:])
                 response['foas'] = []
+                # pprint(response)
                 return response
 
         return {}
 
-    def get_plan(self, label, state, functions):
-        act_plan = ActionPlanner(functions)
+    def ground(self, arg):
+        if isinstance(arg, tuple):
+            return tuple(self.ground(e) for e in arg)
+        elif isinstance(arg, str):
+            return arg.replace('?', 'QM')
+        else:
+            return arg
 
-        for seq in self.skills[label]:
-            s = self.skills[label][seq]
-            for m in s['when_classifier'].get_matches(state):
-                if isinstance(m, tuple):
-                    mapping = {"?foa%i" % (i): v for i,v in enumerate(m)}
-                else:
-                    mapping = {"?foa0": m}
-                plan = self.rename_exp(seq, mapping)
-                #pprint(state)
-                #print(seq)
-                print(m)
-                #print(mapping)
-                #print(plan)
+    def unground(self, arg):
+        if isinstance(arg, tuple):
+            return tuple(self.unground(e) for e in arg)
+        elif isinstance(arg, str):
+            return arg.replace('QM', '?')
+        else:
+            return arg
 
-                if state[('value', plan[2][1])] != "":
-                    print("SELECTION VALUE NOT NIL")
-                    continue
+    def replace_vars(self, arg, i=0):
+        if isinstance(arg, tuple):
+            l = []
+            for e in arg:
+                replaced, i = self.replace_vars(e, i)
+                l.append(replaced)
+            return tuple(l), i
+        elif isinstance(arg, str) and len(arg) > 0 and arg[0] == '?':
+            return '?foa%s' % (str(i)), i+1
+        else:
+            return arg, i
 
-                try:
-                    grounded_plan = tuple([act_plan.execute_plan(ele, state)
-                                               for ele in plan])
-                    yield grounded_plan, plan
+    def get_vars(self, arg):
+        if isinstance(arg, tuple):
+            l = []
+            for e in arg:
+                for v in self.get_vars(e):
+                    if v not in l:
+                        l.append(v)
+            return l
+            # return [v for e in arg for v in self.get_vars(e)]
+        elif isinstance(arg, str) and len(arg) > 0 and arg[0] == '?':
+            return [arg]
+        else:
+            return []
 
-                except Exception as e:
-                    #print("EXECPTION WITH", e)
-                    continue
+    def explains_sai(self, kb, exp, sai):
+        if len(exp) != len(sai):
+            return
 
-    def train(self, state, features, functions, label, foas, selection, action,
-              inputs, correct):
+        goals = []
+        for i, e in enumerate(exp):
+            if e == sai[i]:
+                continue
+            else:
+                goals.append((e, sai[i]))
+
+        for m in kb.fc_query(goals, max_depth=1):
+            yield m
+
+    def train(self, state, label, foas, selection, action, inputs, correct):
 
         # create example dict
         example = {}
@@ -112,126 +179,104 @@ class LogicalWhenHow(BaseAgent):
         tup = Tuplizer()
         flt = Flattener()
         example['flat_state'] = flt.transform(tup.transform(state))
-        #pprint(example)
+        new = {}
+        for attr in example['flat_state']:
+            if (isinstance(attr, tuple) and attr[0] == 'value'):
+                new[('editable', attr[1])] = example['flat_state'][attr] == ''
+
+                for attr2 in example['flat_state']:
+                    if (isinstance(attr2, tuple) and attr2[0] == 'value'):
+                        if (attr2 == attr or attr < attr2 or
+                            example['flat_state'][attr] == "" or
+                            example['flat_state'][attr2] == ""):
+                            continue
+                        if (example['flat_state'][attr] == example['flat_state'][attr2]):
+                            new[('eq', attr, attr2)] = True
+
+        example['flat_state'].update(new)
+
+        # pprint(example['flat_state'])
 
         if label not in self.skills:
             self.skills[label] = {}
 
-        # add example to examples
-        if label not in self.examples:
-            self.examples[label] = []
-        self.examples[label].append(example)
+        explainations = []
 
-        sai = []
-        sai.append('sai')
-        sai.append(action)
-        sai.append(selection)
+        # the base explaination (the constants)
+        sai = ('sai', selection, action, *inputs)
 
-        if inputs is None:
-            pass
-        elif isinstance(inputs, list):
-            sai.extend(inputs)
-        else:
-            sai.append(inputs)
+        # Need to do stuff with features here too.
+        kb = FoPlanner([(self.ground(a),
+                         example['flat_state'][a].replace('?', 'QM') if
+                         isinstance(example['flat_state'][a], str) else
+                         example['flat_state'][a])
+                        for a in example['flat_state']], arith_rules)
 
-        # mark selection (so that we can identify it as empty 
-        sai = tuple(sai)
+        for exp in self.skills[label]:
+            kb = FoPlanner([(self.ground(a),
+                             example['flat_state'][a].replace('?', 'QM') if
+                             isinstance(example['flat_state'][a], str) else
+                             example['flat_state'][a])
+                            for a in example['flat_state']], arith_rules)
+            for m in self.explains_sai(kb, exp, sai):
+                r_exp = self.unground(list(rename_flat({exp: True}, m))[0])
+                # print("COVERED", r_exp)
+                explainations.append(r_exp)
 
-        act_plan = ActionPlanner(actions=functions)
-        explanations = []
+        kb = FoPlanner([(self.ground(a),
+                         example['flat_state'][a].replace('?', 'QM') if
+                         isinstance(example['flat_state'][a], str) else
+                         example['flat_state'][a])
+                        for a in example['flat_state']], arith_rules)
 
-        # TODO need to update code for checking existing explanations
-        print("TRYING PREV EXP", label, [l for l in self.skills])
+        if len(explainations) == 0:
+            selection_exp = selection
+            for sel_match in kb.fc_query([('?selection', selection)], 
+                                         max_depth=0):
+                selection_exp = sel_match['?selection']
+                break
 
-        temp_state = {attr: example['flat_state'][attr] 
-                      for attr in example['flat_state']}
-        for attr, value in self.compute_features(temp_state, features):
-            temp_state[attr] = value
+            input_exps = []
+            for iv in example['inputs']:
+                input_exp = iv
+                for iv_m in kb.fc_query([('?input', iv)], max_depth=1):
+                    input_exp = iv_m['?input']
+                    break
+                input_exps.append(input_exp)
 
-        for grounded_plan, plan in self.get_plan(label, temp_state,
-                                                functions):
-            print("trying: ", plan)
+            explainations.append(self.unground(('sai', selection_exp, action,
+                                                *input_exps)))
 
-            if grounded_plan == sai:
-                print("found existing explanation")
-                explanations.append(plan)
+        for exp in explainations:
+            args = self.get_vars(exp)
+            foa_vmapping = {field: '?foa%s' % j
+                            for j, field in enumerate(args)}
+            foa_mapping = {field: 'foa%s' % j for j, field in enumerate(args)}
+            x = rename_flat({exp: True}, foa_vmapping)
+            r_exp = list(x)[0]
+            # r_exp = self.replace_vars(exp)
+            # print("REPLACED")
+            # print(exp)
+            # print(r_exp)
 
-        if len(explanations) == 0:
-            explanations = act_plan.explain_sai(example['flat_state'], sai)
+            if r_exp not in self.skills[label]:
+                self.skills[label][r_exp] = {}
+                self.skills[label][r_exp]['where'] = self.where()
+                self.skills[label][r_exp]['when'] = self.when()
 
-        pprint(explanations)
+            self.skills[label][r_exp]['where'].ifit(args,
+                                                    example['flat_state'],
+                                                    example['correct'])
 
-        for exp in explanations:
-            new_exp, args = self.arg_exp(exp)
-            print(exp)
-            print(new_exp)
-            #print(args)
+            # TODO
+            # Need to add computed features.
+            # need to rename example with foa's that are not variables
+            x = rename_flat(example['flat_state'], foa_mapping)
+            x['correct'] = example['correct']
+            self.skills[label][r_exp]['when'].ifit(x)
 
-            if new_exp not in self.skills[label]:
-                self.skills[label][new_exp] = {}
-                self.skills[label][new_exp]['args'] = []
-                self.skills[label][new_exp]['examples'] = []
-                self.skills[label][new_exp]['correct'] = []
-                when = self.when()
-                self.skills[label][new_exp]['when_classifier'] = when
+        # check for subsuming explainations (alternatively we could probably
+        # just order the explainations by how many examples they cover
 
-            self.skills[label][new_exp]['args'].append(args)
-            self.skills[label][new_exp]['examples'].append(example)
-            self.skills[label][new_exp]['correct'].append(int(example['correct']))
-
-            print("exp pos: ", (sum(self.skills[label][new_exp]['correct'])))
-            print("exp neg: ", (len(self.skills[label][new_exp]['correct']) -
-                                sum(self.skills[label][new_exp]['correct'])))
-            print()
-            
-            T = self.skills[label][new_exp]['args']
-
-            X = []
-            for e in self.skills[label][new_exp]['examples']:
-                x = {attr: e['flat_state'][attr] for attr in e['flat_state']}
-                for attr, value in self.compute_features(x, features):
-                    x[attr] = value
-                X.append(x)
-
-            y = self.skills[label][new_exp]['correct']
-
-            #print(T)
-            #print(X)
-            #print(y)
-            
-            self.skills[label][new_exp]['when_classifier'].fit(T, X, y)
-
-    def check(self, state, features, functions, selection, action, inputs):
+    def check(self, state, selection, action, inputs):
         return False
-
-    def rename_exp(self, exp, mapping):
-        new_exp = []
-        for ele in exp:
-            if isinstance(ele, tuple):
-                new_exp.append(self.rename_exp(ele, mapping))
-            elif ele in mapping:
-                new_exp.append(mapping[ele])
-            else:
-                new_exp.append(ele)
-        return tuple(new_exp)
-
-    def arg_exp(self, exp, count=0):
-        # TODO need to check if FOA already exists for eahc obj and use prev
-        # foa
-        new_exp = []
-        args = []
-        for ele in exp:
-            if isinstance(ele, tuple):
-                sub_exp, sub_args = self.arg_exp(ele, count)
-                new_exp.append(sub_exp)
-                args += list(sub_args)
-                count += len(sub_args)
-            elif isinstance(ele, str) and ele[0] == "?":
-                new_exp.append("?foa%i" % count)
-                args.append(ele)
-                count += 1
-            else:
-                new_exp.append(ele)
-
-        return tuple(new_exp), tuple(args)
-
