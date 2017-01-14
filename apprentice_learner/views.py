@@ -12,7 +12,7 @@ from apprentice_learner.models import ActionSet
 from apprentice_learner.models import Agent
 from agents.Dummy import Dummy
 from agents.WhereWhenHow import WhereWhenHow
-from agents.LogicalWhenHow import LogicalWhenHow
+from agents.LogicalWhenHowNoFoa import LogicalWhenHow
 from agents.LogicalWhereWhenHow import LogicalWhereWhenHow
 from agents.TrestleHow import TrestleHow
 
@@ -123,10 +123,12 @@ def train(request, agent_id):
             return HttpResponseBadRequest("request body missing 'state'")
         if 'label' not in data:
             print("request body missing 'label'")
-            return HttpResponseBadRequest("request body missing 'label'")
+            data['label'] = 'NO_LABEL'
+            # return HttpResponseBadRequest("request body missing 'label'")
         if 'foas' not in data:
             print("request body missing 'foas'")
-            return HttpResponseBadRequest("request body missing 'foas'")
+            data['foas'] = {}
+            # return HttpResponseBadRequest("request body missing 'foas'")
         if 'selection' not in data:
             print("request body missing 'selection'")
             return HttpResponseBadRequest("request body missing 'selection'")
