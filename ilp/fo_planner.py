@@ -11,6 +11,17 @@ from py_search.informed import best_first_search
 from py_search.utils import compare_searches
 
 
+def index_key(fact):
+    """
+    Generates the key values necessary to look up the given fact in the index.
+    """
+    if not isinstance(fact, tuple):
+        return fact, None
+    if len(fact) == 1:
+        return extract_first_string(fact[0]), None
+    return extract_first_string(fact[0]), extract_first_string(fact[1])
+
+
 def extract_first_string(s):
     """
     Extracts the first string from a tuple, it wraps it with parens to keep
@@ -18,6 +29,8 @@ def extract_first_string(s):
     """
     if isinstance(s, tuple):
         return '(' + str(extract_first_string(s[0])) + ")"
+    if is_variable(s):
+        return '?'
     return s
 
 
@@ -152,38 +165,21 @@ def pattern_match(pattern, index, substitution):
         ps = []
         for p in pattern:
             new_p = subst(substitution, p)
-            string_iter = extract_strings(new_p)
-            pred = next(string_iter)
-
-            try:
-                first = next(string_iter)
-            except StopIteration:
-                first = None
-
-            if is_variable(first):
-                first = '?'
+            first, second = index_key(new_p)
+            # print(first, second)
 
             count = 0
-            if pred in index:
-                count = len(index[pred].get(first, []))
+            if first in index:
+                count = len(index[first].get(second, []))
             ps.append((count, random(), p))
 
         ps.sort()
         ele = ps[0][2]
         new_ele = subst(substitution, ps[0][2])
-        string_iter = extract_strings(new_ele)
-        pred = next(string_iter)
+        first, second = index_key(new_ele)
 
-        try:
-            first = next(string_iter)
-        except StopIteration:
-            first = None
-
-        if is_variable(first):
-            first = '?'
-
-        if pred in index and first in index[pred]:
-            for s in index[pred][first]:
+        if first in index and second in index[first]:
+            for s in index[first][second]:
                 new_sub = unify(ele, s, substitution)
                 if new_sub is not None:
                     for inner in pattern_match([p for p in pattern
@@ -199,22 +195,30 @@ def build_index(facts):
     """
     index = {}
     for fact in facts:
-        string_iter = extract_strings(fact)
-        pred = next(string_iter)
 
-        try:
-            first = next(string_iter)
-        except StopIteration:
-            first = None
+        first, second = index_key(fact)
 
-        if pred not in index:
-            index[pred] = {}
-            index[pred]['?'] = []
-        if first not in index[pred]:
-            index[pred][first] = []
-        if first is not None:
-            index[pred]['?'].append(fact)
-        index[pred][first].append(fact)
+        if '?' not in index:
+            index['?'] = {}
+        if '?' not in index['?']:
+            index['?']['?'] = []
+
+        if first not in index:
+            index[first] = {}
+            index[first]['?'] = []
+
+        if second not in index['?']:
+            index['?'][second] = []
+
+        if second not in index[first]:
+            index[first][second] = []
+
+        index[first][second].append(fact)
+        index['?'][second].append(fact)
+        if second is not None:
+            index[first]['?'].append(fact)
+            index['?']['?'].append(fact)
+
     return index
 
 
@@ -285,7 +289,8 @@ class FC_Problem(Problem):
                                 relevant_facts.add(e)
                                 for m in pattern_match(goals,
                                         build_index(relevant_facts), sub):
-                                    #print("Level: %i, # Operators: %i" % (depth, count))
+                                    # print("Level: %i, # Operators: %i" %
+                                    # (depth, count))
                                     return depth
 
                     new.update(effects)
@@ -357,24 +362,30 @@ class FoPlanner:
         return '?gensym%i' % self._gensym_counter
 
     def add_fact(self, fact):
+
         self.facts.add(fact)
+        first, second = index_key(fact)
 
-        string_iter = extract_strings(fact)
-        pred = next(string_iter)
+        if '?' not in self.index:
+            self.index['?'] = {}
+        if '?' not in self.index['?']:
+            self.index['?']['?'] = []
 
-        try:
-            first = next(string_iter)
-        except StopIteration:
-            first = None
+        if first not in self.index:
+            self.index[first] = {}
+            self.index[first]['?'] = []
 
-        if pred not in self.index:
-            self.index[pred] = {}
-            self.index[pred]['?'] = []
-        if first not in self.index[pred]:
-            self.index[pred][first] = []
-        if first is not None:
-            self.index[pred]['?'].append(fact)
-        self.index[pred][first].append(fact)
+        if second not in self.index['?']:
+            self.index['?'][second] = []
+
+        if second not in self.index[first]:
+            self.index[first][second] = []
+
+        self.index[first][second].append(fact)
+        self.index['?'][second].append(fact)
+        if second is not None:
+            self.index[first]['?'].append(fact)
+            self.index['?']['?'].append(fact)
 
     def add_operator(self, operator):
         """
@@ -410,6 +421,33 @@ class FoPlanner:
         augmented in the future to check renamings of variables too.
         """
         return fact in self.facts
+
+    def fc_infer(self, depth=1):
+        for o in self.operators:
+            if len(o.delete_effects) > 0:
+                raise Exception("Cannot fc_infer with delete effects.")
+
+        new = set([1])
+        count = 0
+
+        while len(new) > 0 and depth > 0:
+            new = set()
+            # could optimize here to only iterate over operators that bind with
+            # facts in prev.
+            for o in self.operators:
+                for m in o.match(self.index):
+                    count += 1
+                    try:
+                        effects = set([execute_functions(subst(m, f))
+                                       for f in o.add_effects]) - self.facts
+                    except:
+                        continue
+
+                    new.update(effects)
+
+            for f in new:
+                self.add_fact(f)
+            depth -= 1
 
     def fc_query(self, goals, max_depth=5):
         """
@@ -447,7 +485,7 @@ class FoPlanner:
                             if sub is None:
                                 break
                             relevant_facts.add(e)
-                            print(sub)
+                            # print(sub)
                             for m in pattern_match(goals,
                                                    build_index(relevant_facts),
                                                    sub):
@@ -455,7 +493,7 @@ class FoPlanner:
 
                     new.update(effects)
 
-            for f in new-self.facts:
+            for f in new:
                 self.add_fact(f)
             depth += 1
 
@@ -567,6 +605,41 @@ class Operator:
                 break
 
 
+add_rule = Operator(('Add', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv'),
+                     (lambda x, y: int(x) <= int(y), '?xv', '?yv')],
+                    [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
+                      (lambda x, y: str(int(x) + int(y)), '?xv', '?yv'))])
+
+sub_rule = Operator(('Subtract', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv')],
+                    [(('value', ('Subtract', ('value', '?x'),
+                                 ('value', '?y'))),
+                      (lambda x, y: str(int(x) - int(y)), '?xv', '?yv'))])
+
+mult_rule = Operator(('Multiply', '?x', '?y'),
+                     [(('value', '?x'), '?xv'),
+                      (('value', '?y'), '?yv'),
+                      (lambda x, y: int(x) <= int(y), '?xv', '?yv')],
+                     [(('value', ('Multiply', ('value', '?x'),
+                                  ('value', '?y'))),
+                       (lambda x, y: str(int(x) * int(y)), '?xv', '?yv'))])
+
+div_rule = Operator(('Divide', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv')],
+                    [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
+                      (lambda x, y: str(int(x) / int(y)), '?xv', '?yv'))])
+
+equal_rule = Operator(('Equal', '?x', '?y'),
+                      [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
+                       (lambda x, y: x == y, '?xv', '?yv')],
+                      [('Equal', '?x', '?y')])
+
+arith_rules = [equal_rule, add_rule, sub_rule, mult_rule, div_rule]
+
 if __name__ == "__main__":
 
     # criminal_rule = Operator(('Criminal', '?x'), [('Criminal', '?x')], [],
@@ -612,56 +685,22 @@ if __name__ == "__main__":
     #     print("Found solution", solution)
     #     break
 
-    add_rule = Operator(('Add', '?x', '?y'),
-                        [(('Value', '?x'), '?xv'),
-                         (isinstance, '?xv', int),
-                         (isinstance, '?yv', int),
-                         (lambda x, y: x <= y, '?xv', '?yv'),
-                         (('Value', '?y'), '?yv')],
-                        [(('Value', ('Add', '?x', '?y')),
-                          (lambda x, y: x + y, '?xv', '?yv'))])
-
-    sub_rule = Operator(('Subtract', '?x', '?y'),
-                        [(('Value', '?x'), '?xv'),
-                         (isinstance, '?xv', int),
-                         (isinstance, '?yv', int),
-                         (('Value', '?y'), '?yv')],
-                        [(('Value', ('Subtract', '?x', '?y')),
-                          (lambda x, y: x - y, '?xv', '?yv'))])
-
-    mult_rule = Operator(('Multiply', '?x', '?y'),
-                         [(('Value', '?x'), '?xv'),
-                          (isinstance, '?xv', int),
-                          (isinstance, '?yv', int),
-                          (lambda x, y: x <= y, '?xv', '?yv'),
-                          (('Value', '?y'), '?yv')],
-                         [(('Value', ('Multiply', '?x', '?y')),
-                           (lambda x, y: x * y, '?xv', '?yv'))])
-
-    div_rule = Operator(('Divide', '?x', '?y'),
-                        [(('Value', '?x'), '?xv'),
-                         (isinstance, '?xv', int),
-                         (isinstance, '?yv', int),
-                         (('Value', '?y'), '?yv')],
-                        [(('Value', ('Divide', '?x', '?y')),
-                          (lambda x, y: x / y, '?xv', '?yv'))])
-
-    facts = [(('Value', 'cell1'), 1),
-             (('Value', 'cell2'), 2),
-             (('Value', 'cell3'), 3),
-             (('Value', 'cell4'), 5),
-             (('Value', 'cell5'), 7),
-             (('Value', 'cell6'), 11),
-             (('Value', 'cell7'), 13),
-             (('Value', 'cell8'), 17)]
-    kb = FoPlanner(facts, [mult_rule, add_rule, sub_rule, div_rule])
+    facts = [(('value', 'cell1'), '1'),
+             (('value', 'cell2'), '2'),
+             (('value', 'cell3'), '3'),
+             (('value', 'cell4'), '5'),
+             (('value', 'cell5'), '7'),
+             (('value', 'cell6'), '11'),
+             (('value', 'cell7'), '13'),
+             (('value', 'cell8'), '17')]
+    kb = FoPlanner(facts, arith_rules)
 
     import timeit
 
     start_time = timeit.default_timer()
 
     found = False
-    for solution in kb.fc_plan([(('Value', '?a'), 105)]):
+    for solution in kb.fc_plan([('?a', '105')]):
         for m in pattern_match(solution.state[1], solution.extra[1], {}):
             elapsed = timeit.default_timer() - start_time
             found = True
@@ -674,7 +713,7 @@ if __name__ == "__main__":
             break
 
     start_time = timeit.default_timer()
-    for m in kb.fc_query([(('Value', '?a'), 17017)]):
+    for m in kb.fc_query([('?a', '105')]):
         elapsed = timeit.default_timer() - start_time
         print("Found solution %0.4f" % elapsed)
         print(m)
