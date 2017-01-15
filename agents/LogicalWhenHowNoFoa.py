@@ -8,10 +8,12 @@ from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
 from ilp.most_specific import SimStudentWhere
+from ilp.most_specific import MostSpecific
 from ilp.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
 from ilp.fo_planner import arith_rules
 
+search_depth = 1
 
 class LogicalWhenHow(BaseAgent):
     """
@@ -19,6 +21,7 @@ class LogicalWhenHow(BaseAgent):
     """
     def __init__(self, action_set):
         self.where = SimStudentWhere
+        # self.where = MostSpecific
         self.when = TrestleTree
         self.skills = {}
         self.examples = {}
@@ -66,7 +69,11 @@ class LogicalWhenHow(BaseAgent):
 
         for _, _, label, exp, skill in skillset:
             for m in skill['where'].get_matches(state):
-                print("MATCH FOUND", label, m)
+                if len(m) != len(set(m)):
+                    print("GENERATED MATCH WITH TWO VARS BOUND TO SAME THING")
+                    continue
+                    
+                print("MATCH FOUND", label, exp, m)
                 vmapping = {'?foa' + str(i): ele for i, ele in enumerate(m)}
                 mapping = {'foa' + str(i): ele for i, ele in enumerate(m)}
 
@@ -77,26 +84,40 @@ class LogicalWhenHow(BaseAgent):
 
                 # pprint(r_state)
 
-                if not skill['when'].categorize(r_state).predict('correct'):
+                print("predicting")
+                c = skill['when'].categorize(r_state)
+                # pprint(c.av_counts)
+                print(c.predict('correct'))
+
+                if not c.predict('correct'):
+                    print("predicting FAIL")
                     continue
+                print("predicting FIRE")
 
                 rg_exp = []
                 for ele in r_exp:
                     if isinstance(ele, tuple):
+                        kb = FoPlanner([(self.ground(a),
+                                         state[a].replace('?', 'QM') if
+                                         isinstance(state[a], str) else
+                                         state[a])
+                                        for a in state], arith_rules)
                         for vm in kb.fc_query([(self.ground(ele), '?v')],
-                                              max_depth=0):
+                                              max_depth=search_depth):
                             rg_exp.append(vm['?v'])
                             break
                     else:
                         rg_exp.append(ele)
 
                 if len(rg_exp) != len(r_exp):
+                    print("FAILED TO FIRE RULE")
+                    print(rg_exp, 'from', r_exp)
                     continue
 
                 # pprint(r_exp)
                 # pprint(rg_exp)
 
-                assert self.explains_sai(kb, r_exp, rg_exp)
+                # assert self.explains_sai(kb, r_exp, rg_exp)
 
                 response = {}
                 response['label'] = label
@@ -154,6 +175,7 @@ class LogicalWhenHow(BaseAgent):
     def explains_sai(self, kb, exp, sai):
         if len(exp) != len(sai):
             return
+        # print('trying', exp, 'with', sai)
 
         goals = []
         for i, e in enumerate(exp):
@@ -162,8 +184,15 @@ class LogicalWhenHow(BaseAgent):
             else:
                 goals.append((e, sai[i]))
 
-        for m in kb.fc_query(goals, max_depth=1):
+        # print(goals)
+
+        for m in kb.fc_query(goals, max_depth=search_depth):
             yield m
+
+        # for f in kb.facts:
+        #     if isinstance(f[0], tuple) and f[0][0] == 'value':
+        #         print(f)
+        # print(kb.facts)
 
     def train(self, state, label, foas, selection, action, inputs, correct):
 
@@ -206,11 +235,11 @@ class LogicalWhenHow(BaseAgent):
         sai = ('sai', selection, action, *inputs)
 
         # Need to do stuff with features here too.
-        kb = FoPlanner([(self.ground(a),
-                         example['flat_state'][a].replace('?', 'QM') if
-                         isinstance(example['flat_state'][a], str) else
-                         example['flat_state'][a])
-                        for a in example['flat_state']], arith_rules)
+        # kb = FoPlanner([(self.ground(a),
+        #                  example['flat_state'][a].replace('?', 'QM') if
+        #                  isinstance(example['flat_state'][a], str) else
+        #                  example['flat_state'][a])
+        #                 for a in example['flat_state']], arith_rules)
 
         for exp in self.skills[label]:
             kb = FoPlanner([(self.ground(a),
@@ -219,27 +248,33 @@ class LogicalWhenHow(BaseAgent):
                              example['flat_state'][a])
                             for a in example['flat_state']], arith_rules)
             for m in self.explains_sai(kb, exp, sai):
+                print("COVERED", exp, m)
                 r_exp = self.unground(list(rename_flat({exp: True}, m))[0])
-                # print("COVERED", r_exp)
                 explainations.append(r_exp)
 
-        kb = FoPlanner([(self.ground(a),
-                         example['flat_state'][a].replace('?', 'QM') if
-                         isinstance(example['flat_state'][a], str) else
-                         example['flat_state'][a])
-                        for a in example['flat_state']], arith_rules)
-
         if len(explainations) == 0:
+            kb = FoPlanner([(self.ground(a),
+                             example['flat_state'][a].replace('?', 'QM') if
+                             isinstance(example['flat_state'][a], str) else
+                             example['flat_state'][a])
+                            for a in example['flat_state']], arith_rules)
+
             selection_exp = selection
-            for sel_match in kb.fc_query([('?selection', selection)], 
-                                         max_depth=0):
+            for sel_match in kb.fc_query([('?selection', selection)],
+                                         max_depth=search_depth):
                 selection_exp = sel_match['?selection']
                 break
 
             input_exps = []
             for iv in example['inputs']:
+                kb = FoPlanner([(self.ground(a),
+                                 example['flat_state'][a].replace('?', 'QM') if
+                                 isinstance(example['flat_state'][a], str) else
+                                 example['flat_state'][a])
+                                for a in example['flat_state']], arith_rules)
                 input_exp = iv
-                for iv_m in kb.fc_query([('?input', iv)], max_depth=1):
+                for iv_m in kb.fc_query([('?input', iv)],
+                                        max_depth=search_depth):
                     input_exp = iv_m['?input']
                     break
                 input_exps.append(input_exp)
@@ -264,16 +299,21 @@ class LogicalWhenHow(BaseAgent):
                 self.skills[label][r_exp]['where'] = self.where()
                 self.skills[label][r_exp]['when'] = self.when()
 
+            print('where learning')
             self.skills[label][r_exp]['where'].ifit(args,
                                                     example['flat_state'],
                                                     example['correct'])
+            print('done where learning')
 
             # TODO
             # Need to add computed features.
             # need to rename example with foa's that are not variables
             x = rename_flat(example['flat_state'], foa_mapping)
             x['correct'] = example['correct']
+
+            print('ifitting')
             self.skills[label][r_exp]['when'].ifit(x)
+            print('done ifitting')
 
         # check for subsuming explainations (alternatively we could probably
         # just order the explainations by how many examples they cover
