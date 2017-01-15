@@ -1,5 +1,6 @@
 from pprint import pprint
 from random import random
+from math import isclose
 
 from py_search.base import Problem
 from py_search.base import Node
@@ -31,6 +32,8 @@ def extract_first_string(s):
         return '(' + str(extract_first_string(s[0])) + ")"
     if is_variable(s):
         return '?'
+    if isinstance(s, (int, float)):
+        return '#NUM'
     return s
 
 
@@ -130,7 +133,7 @@ def unify_var(var, x, s):
         return extend(s, var, x)
 
 
-def unify(x, y, s):
+def unify(x, y, s, epsilon=0.0):
     """
     Unify expressions x and y. Return a mapping (a dict) that will make x
     and y equal or, if this is not possible, then it returns None.
@@ -139,9 +142,11 @@ def unify(x, y, s):
     {'?a': 'cell1'}
     """
     # TODO write tests
+    # print(x, y, epsilon)
+
     if s is None:
         return None
-    if x == y:
+    if (x == y or (isinstance(x, (int, float)) and isinstance(y, (int, float)) and isclose(x, y, abs_tol=epsilon))):
         return s
     elif is_variable(x):
         return unify_var(x, y, s)
@@ -151,12 +156,12 @@ def unify(x, y, s):
           isinstance(y, tuple) and len(x) == len(y)):
         if not x:
             return s
-        return unify(x[1:], y[1:], unify(x[0], y[0], s))
+        return unify(x[1:], y[1:], unify(x[0], y[0], s, epsilon), epsilon)
     else:
         return None
 
 
-def pattern_match(pattern, index, substitution):
+def pattern_match(pattern, index, substitution, epsilon=0.0):
     """
     Find substitutions that yield a match of the pattern against the provided
     index. If no match is found then it returns None.
@@ -166,7 +171,6 @@ def pattern_match(pattern, index, substitution):
         for p in pattern:
             new_p = subst(substitution, p)
             first, second = index_key(new_p)
-            # print(first, second)
 
             count = 0
             if first in index:
@@ -180,10 +184,10 @@ def pattern_match(pattern, index, substitution):
 
         if first in index and second in index[first]:
             for s in index[first][second]:
-                new_sub = unify(ele, s, substitution)
+                new_sub = unify(ele, s, substitution, epsilon)
                 if new_sub is not None:
                     for inner in pattern_match([p for p in pattern
-                                                if p != ele], index, new_sub):
+                                                if p != ele], index, new_sub, epsilon):
                         yield inner
     else:
         yield substitution
@@ -255,12 +259,12 @@ class FC_Problem(Problem):
         distance until all of the goals are reachable.
         """
         state, goals = node.state
-        operators, _ = node.extra
+        operators, _, epsilon = node.extra
 
         facts = set(state)
         index = build_index(facts)
 
-        for m in pattern_match(goals, index, {}):
+        for m in pattern_match(goals, index, {}, epsilon):
             return 0
 
         depth = 0
@@ -274,7 +278,7 @@ class FC_Problem(Problem):
             # could optimize here to only iterate over operators that bind with
             # facts in prev.
             for o in operators:
-                for m in o.match(index):
+                for m in o.match(index, epsilon):
                     count += 1
                     try:
                         effects = set([execute_functions(subst(m, f))
@@ -284,11 +288,11 @@ class FC_Problem(Problem):
 
                     for e in effects:
                         for g in goals:
-                            sub = unify(g, e, {})
+                            sub = unify(g, e, {}, epsilon)
                             if sub is not None:
                                 relevant_facts.add(e)
                                 for m in pattern_match(goals,
-                                        build_index(relevant_facts), sub):
+                                        build_index(relevant_facts), sub, epsilon):
                                     # print("Level: %i, # Operators: %i" %
                                     # (depth, count))
                                     return depth
@@ -305,22 +309,28 @@ class FC_Problem(Problem):
 
     def successors(self, node):
         state, goals = node.state
-        operators, index = node.extra
+        operators, index, epsilon = node.extra
 
         for o in operators:
-            for m in o.match(index):
+            # print(o.name)
+            for m in o.match(index, epsilon):
+                # print(m)
                 try:
                     adds = frozenset([execute_functions(subst(m, f))
                                       for f in o.add_effects])
+                    # print("adds", adds)
                     dels = frozenset([execute_functions(subst(m, f))
                                       for f in o.delete_effects])
+                    # print("dels", dels)
                 except:
                     continue
 
                 new_state = state - dels
+                dl = len(new_state)
                 new_state = new_state | adds
+                al = len(new_state)
 
-                if len(new_state) == len(state):
+                if dl == len(state) and al == dl:
                     # added nothing
                     continue
 
@@ -329,12 +339,12 @@ class FC_Problem(Problem):
 
                 yield Node((new_state, goals), node, action,
                            node.cost() + 1,
-                           (operators, new_index))
+                           (operators, new_index,epsilon))
 
     def goal_test(self, node):
-        _, index = node.extra
+        _, index, epsilon = node.extra
         state, goals = node.state
-        for m in pattern_match(goals, index, {}):
+        for m in pattern_match(goals, index, {}, epsilon):
             return True
         return False
 
@@ -422,7 +432,7 @@ class FoPlanner:
         """
         return fact in self.facts
 
-    def fc_infer(self, depth=1):
+    def fc_infer(self, depth=1, epsilon=0.0):
         for o in self.operators:
             if len(o.delete_effects) > 0:
                 raise Exception("Cannot fc_infer with delete effects.")
@@ -435,7 +445,7 @@ class FoPlanner:
             # could optimize here to only iterate over operators that bind with
             # facts in prev.
             for o in self.operators:
-                for m in o.match(self.index):
+                for m in o.match(self.index, epsilon):
                     count += 1
                     try:
                         effects = set([execute_functions(subst(m, f))
@@ -449,7 +459,7 @@ class FoPlanner:
                 self.add_fact(f)
             depth -= 1
 
-    def fc_query(self, goals, max_depth=5):
+    def fc_query(self, goals, max_depth=5, epsilon=0.0):
         """
         Accepts a single goal and querys for it using breadth-first forward
         chaining.
@@ -458,7 +468,7 @@ class FoPlanner:
             if len(o.delete_effects) > 0:
                 raise Exception("Cannot fc_query with delete effects.")
 
-        for m in pattern_match(goals, self.index, {}):
+        for m in pattern_match(goals, self.index, {}, epsilon):
             yield m
 
         depth = 0
@@ -471,7 +481,7 @@ class FoPlanner:
             # could optimize here to only iterate over operators that bind with
             # facts in prev.
             for o in self.operators:
-                for m in o.match(self.index):
+                for m in o.match(self.index, epsilon):
                     count += 1
                     try:
                         effects = set([execute_functions(subst(m, f))
@@ -481,14 +491,14 @@ class FoPlanner:
 
                     for e in effects:
                         for g in goals:
-                            sub = unify(g, e, {})
+                            sub = unify(g, e, {}, epsilon)
                             if sub is None:
                                 break
                             relevant_facts.add(e)
                             # print(sub)
                             for m in pattern_match(goals,
                                                    build_index(relevant_facts),
-                                                   sub):
+                                                   sub, epsilon):
                                 yield m
 
                     new.update(effects)
@@ -499,7 +509,7 @@ class FoPlanner:
 
         return
 
-    def fc_plan(self, goals, max_depth=5):
+    def fc_plan(self, goals, max_depth=5, epsilon=0.0):
         """
         A strategy of expanding forward from the initial state.
         """
@@ -507,13 +517,13 @@ class FoPlanner:
 
         fc_problem = FC_Problem(initial=(frozenset(self.facts),
                                          frozenset(goals)),
-                                extra=(self.operators, index))
+                                extra=(self.operators, index, epsilon))
 
         # compare_searches([fc_problem], [iterative_deepening_search,
         #                                 best_first_search])
 
         for solution in iterative_deepening_search(fc_problem,
-                                                   max_depth_limit=max_depth):
+                                                   max_depth_limit=max_depth+1):
             yield solution
 
 
@@ -563,15 +573,15 @@ class Operator:
     def __repr__(self):
         return str(self)
 
-    def match(self, index):
+    def match(self, index, epsilon=0.0):
         """
         Given a state, return all of the bindings of the current pattern that
         produce a valid match.
         """
-        for head_match in pattern_match(self.head_conditions, index, {}):
+        for head_match in pattern_match(self.head_conditions, index, {}, epsilon):
 
             for full_match in pattern_match(self.non_head_conditions, index,
-                                            head_match):
+                                            head_match, epsilon):
 
                 neg_fun_fail = False
                 for foo in self.function_conditions:
@@ -589,7 +599,7 @@ class Operator:
                     break
 
                 for neg_ele in self.negative_conditions:
-                    for nm in pattern_match([neg_ele], index, full_match):
+                    for nm in pattern_match([neg_ele], index, full_match, epsilon):
                         neg_fun_fail = True
                         break
                     if neg_fun_fail is True:
@@ -737,39 +747,43 @@ if __name__ == "__main__":
     #     print("Found solution", solution)
     #     break
 
-    facts = [(('value', 'cell1'), '1'),
-             (('value', 'cell2'), '2'),
-             (('value', 'cell3'), '3'),
-             (('value', 'cell4'), '5'),
-             (('value', 'cell5'), '7'),
-             (('value', 'cell6'), '11'),
-             (('value', 'cell7'), '13'),
-             (('value', 'cell8'), '17')]
-    kb = FoPlanner(facts, arith_rules)
+    facts = [(('y', 'cell1'), 1),
+             (('y', 'cell2'), 2),
+             (('value', 'cell3'), 3),
+             (('value', 'cell4'), 5),
+             (('value', 'cell5'), 7),
+             (('value', 'cell6'), 11),
+             (('value', 'cell7'), 13),
+             (('value', 'cell8'), 17)]
+    kb = FoPlanner(facts, rb_rules)
 
     import timeit
 
     start_time = timeit.default_timer()
 
     found = False
-    for solution in kb.fc_plan([('?a', '105')]):
-        for m in pattern_match(solution.state[1], solution.extra[1], {}):
-            elapsed = timeit.default_timer() - start_time
+    print("plan")
+    for solution in kb.fc_plan([('?a', 2.6)],epsilon=0.101, max_depth=2):
+        elapsed = timeit.default_timer() - start_time
+        print("Found solution, %0.4f" % elapsed)
+        print(solution.path())
+        for m in pattern_match(solution.state[1], solution.extra[1], {}, epsilon=0.101):
             found = True
-            print("Found solution, %0.4f" % elapsed)
             print(m)
-            print(solution.path())
             print()
             break
         if found:
             break
 
+    print("query")
     start_time = timeit.default_timer()
-    for m in kb.fc_query([('?a', '105')]):
+    for m in kb.fc_query([('?a', 2.6)], epsilon=0.101, max_depth=2):
         elapsed = timeit.default_timer() - start_time
         print("Found solution %0.4f" % elapsed)
         print(m)
         break
+
+    # print(kb)
 
     # op = Operator(('Something', '?foa0', '?foa1'),
     #                   [(('haselement', '?o17', '?o18'), True),

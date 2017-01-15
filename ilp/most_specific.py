@@ -201,9 +201,10 @@ class SimStudentWhere(BaseILP):
                     pattern_instance[attr] = val
         # pattern_instance = {attr: val for attr in self.concept.av_counts
         #                     for val in self.concept.av_counts[attr]}
-        # pprint(pattern_instance)
+        pprint(pattern_instance)
         foa_mapping = {'foa%s' % j: '?foa%s' % j for j in range(len(t))}
         pattern_instance = rename_flat(pattern_instance, foa_mapping)
+        
 
         self.target_types = ['?foa%s' % i for i in range(len(t))]
         self.operator = Operator(tuple(['Rule'] + self.target_types),

@@ -22,6 +22,9 @@ agents = {'Dummy': Dummy,
           'LogicalWhereWhenHow': LogicalWhereWhenHow,
           'TrestleHow': TrestleHow}
 
+from pprint import pprint
+debug = True
+
 @csrf_exempt
 def create(request):
     """
@@ -34,6 +37,9 @@ def create(request):
         return HttpResponseNotAllowed(["POST"])
 
     data = json.loads(request.body.decode('utf-8'))
+
+    if debug:
+        pprint(data)
 
     if 'agent_type' not in data:
         print("request body missing 'agent_type'")

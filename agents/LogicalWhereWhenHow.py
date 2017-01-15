@@ -12,10 +12,10 @@ from agents.BaseAgent import BaseAgent
 from agents.action_planner import ActionPlanner
 from agents.WhenLearner import when_learners
 from agents.HowLearner import how_learners
-from agents.WhatLearner import what_learners
-from agents.WhatLearner import GrammarLearner
-from agents.WhatLearner import NeuralNetLearnedFeatures
-from agents.WhatLearner import GrammarLearnedFeatures
+# from agents.WhatLearner import what_learners
+# from agents.WhatLearner import GrammarLearner
+# from agents.WhatLearner import NeuralNetLearnedFeatures
+# from agents.WhatLearner import GrammarLearnedFeatures
 from ilp.most_specific import MostSpecific
 from ilp.most_specific import SimStudentWhere
 from ilp.aleph import Aleph
