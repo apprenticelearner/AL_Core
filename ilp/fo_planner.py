@@ -640,6 +640,58 @@ equal_rule = Operator(('Equal', '?x', '?y'),
 
 arith_rules = [equal_rule, add_rule, sub_rule, mult_rule, div_rule]
 
+
+half = Operator(('Half', '?x'),
+                [(('y', '?x'), '?xv')],
+                 [(('y', ('Half', '?x')),
+                  (lambda x: x / 2, '?xv'))])
+
+add_y = Operator(('Add', '?y1', '?y2'),
+
+                    [(('y', '?y1'), '?yv1'),
+                     (('y', '?y2'), '?yv2'),   
+                     (lambda y1, y2: y1 <= y2, '?yv1', '?yv2')],
+
+                    [(('y', ('Add', '?y1', '?y2')),
+                      (lambda y1, y2: y1 + y2, '?yv1', '?yv2'))])
+
+sub_y = Operator(('Subtract', '?y1', '?y2'),
+
+                    [(('y', '?y1'), '?yv1'),
+                     (('y', '?y2'), '?yv2')],
+
+                    [(('y', ('Subtract', '?y1', '?y2')),
+                      (lambda y1, y2: y1 - y2, '?yv1', '?yv2'))])
+
+add_x = Operator(('Add', '?x1', '?x2'),
+
+                    [(('x', '?x1'), '?xv1'),
+                     (('x', '?x2'), '?xv2'),   
+                     (lambda x1, x2: x1 <= x2, '?xv1', '?xv2')],
+
+                    [(('x', ('Add', '?x1', '?x2')),
+                      (lambda x1, x2: x1 + x2, '?xv1', '?xv2'))])
+
+sub_x = Operator(('Subtract', '?x1', '?x2'),
+
+                    [(('x', '?x1'), '?xv1'),
+                     (('x', '?x2'), '?xv2')],
+
+                    [(('x', ('Subtract', '?x1', '?x2')),
+                      (lambda x1, x2: x1 - x2, '?xv1', '?xv2'))])
+
+rotate = Operator(('Rotate', '?b1'),
+
+                    [(('x', ('bound', '?b1')), '?xv'),
+                    (('y', ('bound', '?b1')), '?yv'),
+                    (lambda x: not isinstance(x, tuple) or not x[0] == 'Rotate', '?b1')],
+                    
+                    [(('y', ('bound', ('Rotate', '?b1'))), '?yv'),
+                    (('x', ('bound', ('Rotate', '?b1'))), '?xv')])
+
+
+rb_rules = [add_x,add_y,sub_x,sub_y,half,rotate]
+
 if __name__ == "__main__":
 
     # criminal_rule = Operator(('Criminal', '?x'), [('Criminal', '?x')], [],
