@@ -34,29 +34,39 @@ class MostSpecific(BaseILP):
 
     def get_matches(self, X, constraints=None):
         for t in self.pos:
-            print(t)
-            yield t
+            # print(t)
+            yield list(t)
+
+    def __len__(self):
+        return len(self.pos)
+
+    def ifit(self, t, x, y):
+        self.target_types = t
         
+        if y == 1:
+            self.pos.add(tuple(t))
+
     def fit(self, T, X, y):
 
-        self.target_types = T[0]
+        # self.target_types = T[0]
 
-        #ignore X and save the positive T's.
-        for i,t in enumerate(T):
-            if y[i] == 1:
-                self.pos.add(t)
+        # ignore X and save the positive T's.
+        for i, t in enumerate(T):
+            self.ifit(T[i], X[i], y[i])
 
     def __repr__(self):
         tt = []
         try:
             for t in self.pos:
-                t = ["('name', '?foa%i')=='%s'" % (i,v) for i,v in enumerate(t)]
+                t = ["('name', '?foa%i')=='%s'" % (i, v)
+                     for i, v in enumerate(t)]
                 tt.append(t)
         except:
             pass
 
         tt = ["(" + ", ".join(t) + ")" for t in tt]
         return repr(" or ".join(tt))
+
 
 def ground(attr):
     new = []
@@ -76,6 +86,11 @@ class SimStudentWhere(BaseILP):
     def __init__(self):
         self.pos = set()
         self.operator = None
+        self.count = 0
+        self.concept = Cobweb3Node()
+
+    def __len__(self):
+        return self.count
 
     def get_matches(self, x, constraints=None):
         if self.operator is None:
@@ -116,7 +131,75 @@ class SimStudentWhere(BaseILP):
                 return True
         return False
 
+    def ifit(self, t, x, y):
+        if y == 0:
+            return
+
+        self.count += 1
+
+        x = {a: x[a] for a in x}
+
+        # eles = set([field for field in t])
+        # prior_count = 0
+        # while len(eles) - prior_count > 0:
+        #     prior_count = len(eles)
+        #     for a in x:
+        #         if isinstance(a, tuple) and a[0] == 'haselement':
+        #             if a[2] in eles:
+        #                 eles.add(a[1])
+        #             # if self.matches(eles, a):
+        #             #     names = get_attribute_components(a)
+        #             #     eles.update(names)
+
+        # x = {a: x[a] for a in x
+        #      if self.matches(eles, a)}
+
+        # foa_mapping = {field: 'foa%s' % j for j, field in enumerate(t)}
+        foa_mapping = {}
+        for j, field in enumerate(t):
+            if field not in foa_mapping:
+                foa_mapping[field] = 'foa%s' % j
+
+
+        # for j,field in enumerate(t):
+        #     x[('foa%s' % j, field)] = True
+        x = rename_flat(x, foa_mapping)
+        # pprint(x)
+
+        # print("adding:")
+
+        sm = StructureMapper(self.concept, gensym=gensym)
+        x = sm.transform(x)
+        # pprint(x)
+        self.concept.increment_counts(x)
+
+        # pprint(self.concept.av_counts)
+
+        remove = []
+        for attr in self.concept.av_counts:
+            if len(self.concept.av_counts[attr]) > 1:
+                remove.append(attr)
+            else:
+                for val in self.concept.av_counts[attr]:
+                    if self.concept.av_counts[attr][val] != self.concept.count:
+                        remove.append(attr)
+
+        for attr in remove:
+            del self.concept.av_counts[attr]
+
+        pattern_instance = {attr: val for attr in self.concept.av_counts
+                            for val in self.concept.av_counts[attr]}
+        # pprint(pattern_instance)
+        foa_mapping = {'foa%s' % j: '?foa%s' % j for j in range(len(t))}
+        pattern_instance = rename_flat(pattern_instance, foa_mapping)
+
+        self.target_types = ['?foa%s' % i for i in range(len(t))]
+        self.operator = Operator(tuple(['Rule'] + self.target_types),
+                                 [(a, pattern_instance[a])
+                                  for a in pattern_instance], [])
+
     def fit(self, T, X, y):
+        self.count = len(X)
         self.target_types = ['?foa%s' % i for i in range(len(T[0]))]
 
         # ignore X and save the positive T's.
@@ -124,79 +207,7 @@ class SimStudentWhere(BaseILP):
             if y[i] == 1:
                 self.pos.add(t)
 
-        # pprint(X)
-        concept = Cobweb3Node()
-        # self.tree = TrestleTree(structure_map_internally=False)
-        # self.target_types = T[0]
+        self.concept = Cobweb3Node()
 
-        # print("BUILDING UP")
-        # print(len(T))
         for i, t in enumerate(T):
-            if y[i] == 1:
-
-                x = {a: X[i][a] for a in X[i]}
-                # print("X BEFORE FILTERING OUT")
-                # pprint(x)
-
-                # x = {a: X[i][a] for a in X[i] if not isinstance(a, tuple) or
-                #     a[0] == 'orderedlist' or a[0] == 'value' or
-                #     a[0] == 'name' or a[0] == 'type' or a[0] == 'haselement'}
-
-                # need to extract only elements that are parents of one of the
-                # foas. All other elements and their relations should be
-                # removed.
-                eles = set([field for field in t])
-                prior_count = 0
-                while len(eles) - prior_count > 0:
-                    prior_count = len(eles)
-                    for a in x:
-                        if isinstance(a, tuple) and a[0] == 'haselement':
-                            if a[2] in eles:
-                                eles.add(a[1])
-                            # if self.matches(eles, a):
-                            #     names = get_attribute_components(a)
-                            #     eles.update(names)
-
-                x = {a: x[a] for a in x
-                     if self.matches(eles, a)}
-
-                foa_mapping = {field: 'foa%s' % j for j, field in enumerate(t)}
-                # for j,field in enumerate(t):
-                #     x[('foa%s' % j, field)] = True
-                x = rename_flat(x, foa_mapping)
-                # pprint(x)
-
-                # print("adding:")
-
-                sm = StructureMapper(concept, gensym=gensym)
-                x = sm.transform(x)
-                # pprint(x)
-                concept.increment_counts(x)
-                # pprint(concept.av_counts)
-                remove = []
-                for attr in concept.av_counts:
-                    if len(concept.av_counts[attr]) > 1:
-                        remove.append(attr)
-                    else:
-                        for val in concept.av_counts[attr]:
-                            if concept.av_counts[attr][val] != concept.count:
-                                remove.append(attr)
-
-                for attr in remove:
-                    del concept.av_counts[attr]
-
-                # print("done!")
-
-        pattern_instance = {attr: val for attr in concept.av_counts for val in
-                            concept.av_counts[attr]}
-        foa_mapping = {'foa%s' % j: '?foa%s' % j for j in range(len(t))}
-        pattern_instance = rename_flat(pattern_instance, foa_mapping)
-        # pprint(pattern_instance)
-        self.operator = Operator(tuple(['Rule'] + self.target_types),
-                                 [(a, pattern_instance[a])
-                                  for a in pattern_instance], [])
-        # self.pattern = []
-        # for attr in concept.av_counts:
-        #     for val in concept.av_counts[attr]:
-        #         self.pattern.append((attr, val))
-        # pprint(self.pattern)
+            self.ifit(t, X[i], y[i])
