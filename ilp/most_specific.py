@@ -4,6 +4,7 @@ from concept_formation.cobweb3 import Cobweb3Node
 from concept_formation.structure_mapper import StructureMapper
 from concept_formation.structure_mapper import rename_flat
 from concept_formation.structure_mapper import contains_component
+from concept_formation.continuous_value import ContinuousValue
 from ilp.fo_planner import Operator
 from ilp.fo_planner import build_index
 from ilp.fo_planner import subst
@@ -160,7 +161,6 @@ class SimStudentWhere(BaseILP):
             if field not in foa_mapping:
                 foa_mapping[field] = 'foa%s' % j
 
-
         # for j,field in enumerate(t):
         #     x[('foa%s' % j, field)] = True
         x = rename_flat(x, foa_mapping)
@@ -179,6 +179,10 @@ class SimStudentWhere(BaseILP):
         for attr in self.concept.av_counts:
             if len(self.concept.av_counts[attr]) > 1:
                 remove.append(attr)
+            elif isinstance(self.concept.av_counts[attr], ContinuousValue):
+                if (self.concept.av_counts[attr].biased_std() != 0 or
+                    self.concept.av_counts[attr].num != self.concept.count):
+                    remove.append(attr)
             else:
                 for val in self.concept.av_counts[attr]:
                     if self.concept.av_counts[attr][val] != self.concept.count:
@@ -187,8 +191,16 @@ class SimStudentWhere(BaseILP):
         for attr in remove:
             del self.concept.av_counts[attr]
 
-        pattern_instance = {attr: val for attr in self.concept.av_counts
-                            for val in self.concept.av_counts[attr]}
+        pattern_instance = {}
+        for attr in self.concept.av_counts:
+            if isinstance(self.concept.av_counts[attr], ContinuousValue):
+                m = self.concept.av_counts[attr].unbiased_mean()
+                pattern_instance[attr] = m
+            else:
+                for val in self.concept.av_counts[attr]:
+                    pattern_instance[attr] = val
+        # pattern_instance = {attr: val for attr in self.concept.av_counts
+        #                     for val in self.concept.av_counts[attr]}
         # pprint(pattern_instance)
         foa_mapping = {'foa%s' % j: '?foa%s' % j for j in range(len(t))}
         pattern_instance = rename_flat(pattern_instance, foa_mapping)
