@@ -1,5 +1,6 @@
 from pprint import pprint
 from random import random
+from random import choice
 
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
@@ -8,13 +9,17 @@ from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
 from ilp.most_specific import SimStudentWhere
-from ilp.most_specific import MostSpecific
+# from ilp.most_specific import MostSpecific
 from ilp.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
-from ilp.fo_planner import rb_rules
+# from ilp.fo_planner import rb_rules
+from ilp.fo_planner import arith_rules
 
-search_depth = 3
+rules = arith_rules
+
+search_depth = 1
 epsilon = .9
+
 
 class LogicalWhenHow(BaseAgent):
     """
@@ -31,15 +36,16 @@ class LogicalWhenHow(BaseAgent):
         tup = Tuplizer()
         flt = Flattener()
 
-        state = flt.transform(flt.transform(tup.transform(state)))
+        state = flt.transform(tup.transform(state))
         new = {}
         for attr in state:
             if (isinstance(attr, tuple) and attr[0] == 'value'):
                 new[('editable', attr[1])] = state[attr] == ''
                 for attr2 in state:
                     if (isinstance(attr2, tuple) and attr2[0] == 'value'):
-                        if (attr2 == attr or attr < attr2 or state[attr] == ""
-                            or state[attr2] == ""):
+                        if (attr2 == attr or attr < attr2 or (state[attr] == ""
+                                                              or state[attr2]
+                                                              == "")):
                             continue
                         if (state[attr] == state[attr2]):
                             new[('eq', attr, attr2)] = True
@@ -53,7 +59,10 @@ class LogicalWhenHow(BaseAgent):
         skillset = []
         for label in self.skills:
             for exp in self.skills[label]:
-                skillset.append((len(self.skills[label][exp]['where']),
+                pos = self.skills[label][exp]['where'].pos_concept.count
+                neg = self.skills[label][exp]['where'].neg_concept.count
+
+                skillset.append((pos / (pos + neg), pos + neg,
                                  random(), label, exp,
                                  self.skills[label][exp]))
         skillset.sort(reverse=True)
@@ -65,71 +74,102 @@ class LogicalWhenHow(BaseAgent):
                          state[a].replace('?', 'QM') if
                          isinstance(state[a], str) else
                          state[a])
-                        for a in state], rb_rules)
+                        for a in state], rules)
+        kb.fc_infer(depth=search_depth, epsilon=epsilon)
+
         # print(kb)
 
-        for _, _, label, (exp, input_args), skill in skillset:
-            print(skill['where'].operator)
-            for m in skill['where'].get_matches(state):
-                if len(m) != len(set(m)):
-                    print("GENERATED MATCH WITH TWO VARS BOUND TO SAME THING")
-                    continue
-                    
-                print("MATCH FOUND", label, exp, m)
-                vmapping = {'?foa' + str(i): ele for i, ele in enumerate(m)}
-                mapping = {'foa' + str(i): ele for i, ele in enumerate(m)}
+        for _, _, _, label, (exp, input_args), skill in skillset:
 
-                r_exp = list(rename_flat({exp: True}, vmapping))[0]
-                r_state = rename_flat(state, {mapping[a]: a for a in mapping})
+            print()
+            print("TRYING:", label, exp)
+            # print("Conditions:")
+            # pprint(skill['where'].operator.conditions)
 
-                # pprint(r_state)
+            # Continue until we either do something with the rule. For example,
+            # generate an SAI or determine that the rule doesn't match. If we
+            # get some kind of failure, such as being unable to execute an
+            # action sequence, then we want to learn from that and try again.
+            failed = True
 
-                # pprint(r_state)
+            while failed:
 
-                print("predicting")
-                c = skill['when'].categorize(r_state)
-                # pprint(c.av_counts)
-                print(c.predict('correct'))
+                failed = False
+                for m in skill['where'].get_matches(state):
+                    if len(m) != len(set(m)):
+                        print("GENERATED MATCH WITH TWO VARS BOUND TO SAME THING")
+                        continue
 
-                if not c.predict('correct'):
-                    print("predicting FAIL")
-                    continue
-                print("predicting FIRE")
+                    print("MATCH FOUND", label, exp, m)
+                    vmapping = {'?foa' + str(i): ele for i, ele in enumerate(m)}
+                    mapping = {'foa' + str(i): ele for i, ele in enumerate(m)}
 
-                rg_exp = []
-                for ele in r_exp:
-                    if isinstance(ele, tuple):
-                        kb = FoPlanner([(self.ground(a),
-                                         state[a].replace('?', 'QM') if
-                                         isinstance(state[a], str) else
-                                         state[a])
-                                        for a in state], rb_rules)
-                        for vm in kb.fc_query([(self.ground(ele), '?v')],
-                                              max_depth=search_depth, epsilon=epsilon):
-                            rg_exp.append(vm['?v'])
-                            break
-                    else:
-                        rg_exp.append(ele)
+                    r_exp = list(rename_flat({exp: True}, vmapping))[0]
+                    r_state = rename_flat(state, {mapping[a]: a for a in mapping})
 
-                if len(rg_exp) != len(r_exp):
-                    print("FAILED TO FIRE RULE")
-                    print(rg_exp, 'from', r_exp)
-                    continue
+                    # pprint(r_state)
 
-                # pprint(r_exp)
-                # pprint(rg_exp)
+                    # pprint(r_state)
 
-                # assert self.explains_sai(kb, r_exp, rg_exp)
+                    rg_exp = []
+                    for ele in r_exp:
+                        if isinstance(ele, tuple):
+                            # kb = FoPlanner([(self.ground(a),
+                            #                  state[a].replace('?', 'QM') if
+                            #                  isinstance(state[a], str) else
+                            #                  state[a])
+                            #                 for a in state], rules)
+                            for vm in kb.fc_query([(self.ground(ele), '?v')],
+                                                  max_depth=0,
+                                                  epsilon=epsilon):
+                                rg_exp.append(vm['?v'])
+                                break
+                        else:
+                            rg_exp.append(ele)
 
-                response = {}
-                response['label'] = label
-                response['selection'] = rg_exp[1]
-                response['action'] = rg_exp[2]
-                response['inputs'] = {a: rg_exp[3+i] for i,a in enumerate(input_args)}
-                # response['inputs'] = list(rg_exp[3:])
-                response['foas'] = []
-                # pprint(response)
-                return response
+                    if len(rg_exp) != len(r_exp):
+                        print("FAILED TO FIRE RULE")
+                        print(rg_exp, 'from', r_exp)
+                        continue
+
+                        # # add neg to where
+                        # skill['where'].ifit(m, state, 0)
+
+                        # # add neg to when
+                        # foa_mapping = {field: 'foa%s' % j for j, field in
+                        #                enumerate(m)}
+                        # neg_x = rename_flat(state, foa_mapping)
+                        # skill['when'].ifit(neg_x)
+
+                        # failed = True
+                        # break
+
+                    print("predicting")
+                    c = skill['when'].categorize(r_state)
+                    # pprint(c.av_counts)
+                    print(c.predict('correct'))
+
+                    if not c.predict('correct'):
+                        print("predicting FAIL")
+                        continue
+                    print("predicting FIRE")
+
+
+                    # pprint(r_exp)
+                    # pprint(rg_exp)
+
+                    # assert self.explains_sai(kb, r_exp, rg_exp)
+
+                    response = {}
+                    response['label'] = label
+                    response['selection'] = rg_exp[1]
+                    response['action'] = rg_exp[2]
+                    response['inputs'] = {a: rg_exp[3+i] for i, a in
+                                          enumerate(input_args)}
+                    # response['inputs'] = list(rg_exp[3:])
+                    response['foas'] = []
+                    # pprint(response)
+                    return response
 
         return {}
 
@@ -176,9 +216,9 @@ class LogicalWhenHow(BaseAgent):
             return []
 
     def explains_sai(self, kb, exp, sai):
+        print('trying', exp, 'with', sai)
         if len(exp) != len(sai):
             return
-        # print('trying', exp, 'with', sai)
 
         goals = []
         for i, e in enumerate(exp):
@@ -189,7 +229,7 @@ class LogicalWhenHow(BaseAgent):
 
         # print(goals)
 
-        for m in kb.fc_query(goals, max_depth=search_depth, epsilon=epsilon):
+        for m in kb.fc_query(goals, max_depth=0, epsilon=epsilon):
             yield m
 
         # for f in kb.facts:
@@ -198,6 +238,8 @@ class LogicalWhenHow(BaseAgent):
         # print(kb.facts)
 
     def train(self, state, label, foas, selection, action, inputs, correct):
+
+        # label = 'math'
 
         # create example dict
         example = {}
@@ -211,12 +253,12 @@ class LogicalWhenHow(BaseAgent):
         tup = Tuplizer()
         flt = Flattener()
         example['flat_state'] = flt.transform(tup.transform(state))
-        print('SAI:',selection,action,inputs)
-        print('State:')
-        pprint(example['state'])
-        print('Flat State:')
-        pprint(example['flat_state'])
+        print('SAI:', selection, action, inputs)
 
+        # print('State:')
+        # pprint(example['state'])
+        # print('Flat State:')
+        # pprint(example['flat_state'])
 
         new = {}
         for attr in example['flat_state']:
@@ -226,10 +268,11 @@ class LogicalWhenHow(BaseAgent):
                 for attr2 in example['flat_state']:
                     if (isinstance(attr2, tuple) and attr2[0] == 'value'):
                         if (attr2 == attr or attr < attr2 or
-                            example['flat_state'][attr] == "" or
-                            example['flat_state'][attr2] == ""):
+                            (example['flat_state'][attr] == "" or
+                             example['flat_state'][attr2] == "")):
                             continue
-                        if (example['flat_state'][attr] == example['flat_state'][attr2]):
+                        if ((example['flat_state'][attr] ==
+                             example['flat_state'][attr2])):
                             new[('eq', attr, attr2)] = True
 
         example['flat_state'].update(new)
@@ -240,6 +283,7 @@ class LogicalWhenHow(BaseAgent):
             self.skills[label] = {}
 
         explainations = []
+        secondary_explainations = []
 
         # the base explaination (the constants)
         input_args = tuple(sorted([arg for arg in inputs]))
@@ -247,49 +291,125 @@ class LogicalWhenHow(BaseAgent):
 
         # Need to do stuff with features here too.
 
-        # kb = FoPlanner([(self.ground(a),
-        #                  example['flat_state'][a].replace('?', 'QM') if
-        #                  isinstance(example['flat_state'][a], str) else
-        #                  example['flat_state'][a])
-        #                 for a in example['flat_state']], rb_rules)
+        # used for grounding out plans, don't need to build up each time.
+        kb = FoPlanner([(self.ground(a),
+                         example['flat_state'][a].replace('?', 'QM') if
+                         isinstance(example['flat_state'][a], str) else
+                         example['flat_state'][a])
+                        for a in example['flat_state']], rules)
+        kb.fc_infer(depth=search_depth, epsilon=epsilon)
 
-        for exp in self.skills[label]:
-            kb = FoPlanner([(self.ground(a),
-                             example['flat_state'][a].replace('?', 'QM') if
-                             isinstance(example['flat_state'][a], str) else
-                             example['flat_state'][a])
-                            for a in example['flat_state']], rb_rules)
+        for exp, iargs in self.skills[label]:
+            # kb = FoPlanner([(self.ground(a),
+            #                  example['flat_state'][a].replace('?', 'QM') if
+            #                  isinstance(example['flat_state'][a], str) else
+            #                  example['flat_state'][a])
+            #                 for a in example['flat_state']], rules)
             for m in self.explains_sai(kb, exp, sai):
                 print("COVERED", exp, m)
+
+                # Need to check if it would have been actully generated
+                # under where and when.
+
                 r_exp = self.unground(list(rename_flat({exp: True}, m))[0])
+
+                args = self.get_vars(exp)
+
+                if len(args) != len(m):
+                    print("EXP not same length")
+                    continue
+
+                grounded = True
+                for ele in m:
+                    if not isinstance(m[ele], str):
+                        grounded = False
+                        break
+                if not grounded:
+                    print("Pattern not fully grounded")
+                    continue
+
+                # foa_vmapping = {field: '?foa%s' % j
+                #                 for j, field in enumerate(args)}
+                # foa_mapping = {field: 'foa%s' % j for j, field in
+                #                enumerate(args)}
+
+                t = tuple([m["?foa%s" % i].replace("QM", "") for i in range(len(m))])
+
+                if len(t) != len(set(t)):
+                    print("TWO VARS BOUND OT SAME")
+                    continue
+
+                secondary_explainations.append(r_exp)
+
+                print("This is my T:", t)
+
+                if not self.skills[label][(exp,
+                                           iargs)]['where'].check_match(t,
+                                                                     example['flat_state']):
+                    continue
+
+                print("####### SUCCESSFUL WHERE MATCH########")
+
+                # x = rename_flat(example['flat_state'], foa_mapping)
+                # c = self.skills[label][(exp, iargs)]['when'].categorize(x)
+                # if not c.predict('correct'):
+                #     continue
+
+                print("ADDING", r_exp)
                 explainations.append(r_exp)
 
-        if len(explainations) == 0:
-            kb = FoPlanner([(self.ground(a),
-                             example['flat_state'][a].replace('?', 'QM') if
-                             isinstance(example['flat_state'][a], str) else
-                             example['flat_state'][a])
-                            for a in example['flat_state']], rb_rules)
+        if len(explainations) == 0 and len(secondary_explainations) > 0:
+            explainations.append(choice(secondary_explainations))
+            # explainations.append(secondary_explanation)
+
+        elif len(explainations) == 0:
+            # kb = FoPlanner([(self.ground(a),
+            #                  example['flat_state'][a].replace('?', 'QM') if
+            #                  isinstance(example['flat_state'][a], str) else
+            #                  example['flat_state'][a])
+            #                 for a in example['flat_state']], rules)
 
             selection_exp = selection
             for sel_match in kb.fc_query([('?selection', selection)],
-                                         max_depth=search_depth, epsilon=epsilon):
+                                         max_depth=0,
+                                         epsilon=epsilon):
                 selection_exp = sel_match['?selection']
                 break
 
             input_exps = []
+
             for a in input_args:
                 iv = inputs[a]
-                kb = FoPlanner([(self.ground(a),
-                                 example['flat_state'][a].replace('?', 'QM') if
-                                 isinstance(example['flat_state'][a], str) else
-                                 example['flat_state'][a])
-                                for a in example['flat_state']], rb_rules)
+                # kb = FoPlanner([(self.ground(a),
+                #                  example['flat_state'][a].replace('?', 'QM') if
+                #                  isinstance(example['flat_state'][a], str) else
+                #                  example['flat_state'][a])
+                #                 for a in example['flat_state']], rules)
                 input_exp = iv
+                print('trying to explain', [((a, '?input'), iv)])
+
+                # f = False
                 for iv_m in kb.fc_query([((a, '?input'), iv)],
-                                        max_depth=search_depth, epsilon=epsilon):
+                                        max_depth=0,
+                                        epsilon=epsilon):
                     input_exp = (a, iv_m['?input'])
+                    print("FOUND!", input_exp)
+                    # f = True
                     break
+
+                # if not f:
+                #     print()
+                #     print("FAILED TO EXPLAIN INPUT PRINTING GOAL AND FACTS")
+                #     print("GOAL:", ((a, '?input'), iv))
+
+                #     for f in kb.facts:
+                #         if f[0][0] == 'value':
+                #             print(f)
+                #     from time import sleep
+                #     sleep(30)
+
+                #     # pprint(kb.facts)
+
                 input_exps.append(input_exp)
 
             explainations.append(self.unground(('sai', selection_exp, action,

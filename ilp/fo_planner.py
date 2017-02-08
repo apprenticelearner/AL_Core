@@ -5,22 +5,83 @@ from math import isclose
 from py_search.base import Problem
 from py_search.base import Node
 from py_search.uninformed import iterative_deepening_search
-from py_search.uninformed import depth_first_search
-from py_search.uninformed import breadth_first_search
-from py_search.informed import iterative_deepening_best_first_search
-from py_search.informed import best_first_search
+from random import shuffle
+# from py_search.uninformed import depth_first_search
+# from py_search.uninformed import breadth_first_search
+# from py_search.informed import iterative_deepening_best_first_search
+# from py_search.informed import best_first_search
 from py_search.utils import compare_searches
 
 
 def index_key(fact):
     """
     Generates the key values necessary to look up the given fact in the index.
+
+    Takes a fact, represented as a tuple of elements and returns a tuple key.
+    In general tuples have a particular structure: ``((fact), value)``, so when
+    developing the index, it should use some combination of fact and values. 
+
+    Currently, I want the index to return (fact[0], fact[1], value); i.e., a
+    triple element index.
+
+    >>> index_key(('cell'))
+    ('cell', None, None)
+
+    >>> index_key(('cell', '5'))
+    ('cell', None, '5')
+
+    >>> index_key((('value', 'TableCell'), '5'))
+    ('value', 'TableCell', '5')
+
+    >>> index_key((('value', ('Add', ('value', 'TableCell'),
+    ...                              ('value', 'TableCell'))), '5'))
+    ('value', 'Add', '5')
     """
     if not isinstance(fact, tuple):
-        return fact, None
-    if len(fact) == 1:
-        return extract_first_string(fact[0]), None
-    return extract_first_string(fact[0]), extract_first_string(fact[1])
+        return extract_first_string(fact), None, None
+
+    first = fact[0]
+    second = fact[1]
+
+    if not isinstance(first, tuple):
+        return extract_first_string(first), None, extract_first_string(second)
+
+    return (extract_first_string(first[0]), extract_first_string(first[1]),
+            extract_first_string(second))
+
+
+def get_variablized_keys(key):
+    """
+    Takes the triple key given above (fact[0], fact[1], value) and returns all
+    the possible variablizations of it.
+
+    >>> [k for k in get_variablized_keys(('value', 'cell', '5'))]
+    [('value', 'cell', '5'), ('?', 'cell', '5'), ('value', '?', '5'),\
+ ('?', '?', '5'), ('value', 'cell', '?'), ('?', 'cell', '?'),\
+ ('value', '?', '?'), ('?', '?', '?'), ('?', None, '5'), ('?', None, '?')]
+
+    >>> [k for k in get_variablized_keys(('value', '?', '5'))]
+    [('value', '?', '5'), ('?', '?', '5'), ('value', '?', '?'),\
+ ('?', '?', '?'), ('?', None, '5'), ('?', None, '?')]
+
+    """
+    for k in get_variablized_keys_rec(key):
+        yield k
+
+    if key[0] is not None and key[0] != '?':
+        for k in get_variablized_keys_rec(key[2:]):
+            yield ('?', None) + k
+
+
+def get_variablized_keys_rec(key):
+    if len(key) > 0:
+        for sub_key in get_variablized_keys_rec(key[1:]):
+            yield key[:1] + sub_key
+
+            if key[0] is not None and key[0] != '?':
+                yield ('?',) + sub_key
+    else:
+        yield tuple()
 
 
 def extract_first_string(s):
@@ -29,7 +90,7 @@ def extract_first_string(s):
     track of the depth of the constant within the relation.
     """
     if isinstance(s, tuple):
-        return '(' + str(extract_first_string(s[0])) + ")"
+        return str(extract_first_string(s[0]))
     if is_variable(s):
         return '?'
     if isinstance(s, (int, float)):
@@ -146,7 +207,8 @@ def unify(x, y, s, epsilon=0.0):
 
     if s is None:
         return None
-    if (x == y or (isinstance(x, (int, float)) and isinstance(y, (int, float)) and isclose(x, y, abs_tol=epsilon))):
+    if (x == y or (isinstance(x, (int, float)) and isinstance(y, (int, float))
+                   and isclose(x, y, abs_tol=epsilon))):
         return s
     elif is_variable(x):
         return unify_var(x, y, s)
@@ -166,31 +228,61 @@ def pattern_match(pattern, index, substitution, epsilon=0.0):
     Find substitutions that yield a match of the pattern against the provided
     index. If no match is found then it returns None.
     """
-    if len(pattern) > 0:
-        ps = []
-        for p in pattern:
+    # print("SIZE OF PATTERN BEING MATCHED", len(pattern))
+    ps = []
+    remove_negs = []
+
+    for p in pattern:
+        if isinstance(p, tuple) and len(p) > 0 and p[0] == 'not':
             new_p = subst(substitution, p)
-            first, second = index_key(new_p)
+            args = [s for s in extract_strings(new_p[1]) if is_variable(s)]
+
+            if len(args) == 0:
+                # print("Checking Fully Bound Negation", new_p)
+
+                key = index_key(new_p[1])
+
+                if key in index:
+                    for f in index[key]:
+                        if new_p[1] == f:
+                            # print("Early Negation FAILURE!!!!!")
+                            return
+
+                remove_negs.append(p)
+
+        elif isinstance(p, tuple) and len(p) > 0 and callable(p[0]):
+            pass
+            # self.function_conditions.add(c)
+        else:
+            new_p = subst(substitution, p)
+            key = index_key(new_p)
 
             count = 0
-            if first in index:
-                count = len(index[first].get(second, []))
+            if key in index:
+                count = len(index[key])
             ps.append((count, random(), p))
 
+    if len(ps) == 0:
+        yield substitution
+
+    else:
         ps.sort()
         ele = ps[0][2]
         new_ele = subst(substitution, ps[0][2])
-        first, second = index_key(new_ele)
+        key = index_key(new_ele)
 
-        if first in index and second in index[first]:
-            for s in index[first][second]:
+        if key in index:
+            elements = [e for e in index[key]]
+            shuffle(elements)
+
+            for s in elements:
                 new_sub = unify(ele, s, substitution, epsilon)
                 if new_sub is not None:
                     for inner in pattern_match([p for p in pattern
-                                                if p != ele], index, new_sub, epsilon):
+                                                if p != ele and p not in
+                                                remove_negs], index, new_sub,
+                                               epsilon):
                         yield inner
-    else:
-        yield substitution
 
 
 def build_index(facts):
@@ -199,30 +291,11 @@ def build_index(facts):
     """
     index = {}
     for fact in facts:
-
-        first, second = index_key(fact)
-
-        if '?' not in index:
-            index['?'] = {}
-        if '?' not in index['?']:
-            index['?']['?'] = []
-
-        if first not in index:
-            index[first] = {}
-            index[first]['?'] = []
-
-        if second not in index['?']:
-            index['?'][second] = []
-
-        if second not in index[first]:
-            index[first][second] = []
-
-        index[first][second].append(fact)
-        index['?'][second].append(fact)
-        if second is not None:
-            index[first]['?'].append(fact)
-            index['?']['?'].append(fact)
-
+        key = index_key(fact)
+        for k in get_variablized_keys(key):
+            if k not in index:
+                index[k] = []
+            index[k].append(fact)
     return index
 
 
@@ -270,7 +343,7 @@ class FC_Problem(Problem):
         depth = 0
         new = set([1])
         count = 0
-        relevant_facts = set()
+        rfacts = set()
 
         while len(new) > 0 and depth < max_depth:
             depth += 1
@@ -290,9 +363,11 @@ class FC_Problem(Problem):
                         for g in goals:
                             sub = unify(g, e, {}, epsilon)
                             if sub is not None:
-                                relevant_facts.add(e)
+                                rfacts.add(e)
                                 for m in pattern_match(goals,
-                                        build_index(relevant_facts), sub, epsilon):
+                                                       build_index(rfacts),
+                                                       sub,
+                                                       epsilon):
                                     # print("Level: %i, # Operators: %i" %
                                     # (depth, count))
                                     return depth
@@ -339,7 +414,7 @@ class FC_Problem(Problem):
 
                 yield Node((new_state, goals), node, action,
                            node.cost() + 1,
-                           (operators, new_index,epsilon))
+                           (operators, new_index, epsilon))
 
     def goal_test(self, node):
         _, index, epsilon = node.extra
@@ -360,6 +435,7 @@ class FoPlanner:
         self.operators = []
         self.index = {}
         self._gensym_counter = 0
+        self.curr_depth = 0
 
         for fact in facts:
             self.add_fact(fact)
@@ -372,30 +448,12 @@ class FoPlanner:
         return '?gensym%i' % self._gensym_counter
 
     def add_fact(self, fact):
-
         self.facts.add(fact)
-        first, second = index_key(fact)
-
-        if '?' not in self.index:
-            self.index['?'] = {}
-        if '?' not in self.index['?']:
-            self.index['?']['?'] = []
-
-        if first not in self.index:
-            self.index[first] = {}
-            self.index[first]['?'] = []
-
-        if second not in self.index['?']:
-            self.index['?'][second] = []
-
-        if second not in self.index[first]:
-            self.index[first][second] = []
-
-        self.index[first][second].append(fact)
-        self.index['?'][second].append(fact)
-        if second is not None:
-            self.index[first]['?'].append(fact)
-            self.index['?']['?'].append(fact)
+        key = index_key(fact)
+        for k in get_variablized_keys(key):
+            if k not in self.index:
+                self.index[k] = []
+            self.index[k].append(fact)
 
     def add_operator(self, operator):
         """
@@ -432,6 +490,42 @@ class FoPlanner:
         """
         return fact in self.facts
 
+    def fc_get_actions(self, epsilon=0.0, must_match=None):
+        for o in self.operators:
+            for m in o.match(self.index, epsilon):
+                if must_match is not None:
+                    conditions = set([subst(m, c) for c in o.conditions])
+                    if len(must_match.intersection(conditions)) == 0:
+                        # print("USELESS MATCH")
+                        # print(conditions)
+                        # print("VS")
+                        # print(must_match)
+                        continue
+                    # else:
+                        # print("GOOD MATCH!")
+                        # print(conditions)
+                        # print("VS")
+                        # print(must_match)
+
+                try:
+                    effects = set([execute_functions(subst(m, f))
+                                   for f in o.add_effects]) - self.facts
+                    yield (o, m, effects)
+                except:
+                    continue
+
+#     def fc_infer_op(self, operator, mapping):
+#         try:
+#             effects = set([execute_functions(subst(mapping, f))
+#                            for f in operator.add_effects]) - self.facts
+#         except:
+#             effects = set()
+#
+#         for f in effects:
+#             self.add_fact(f)
+#
+#         return effects
+
     def fc_infer(self, depth=1, epsilon=0.0):
         for o in self.operators:
             if len(o.delete_effects) > 0:
@@ -440,7 +534,7 @@ class FoPlanner:
         new = set([1])
         count = 0
 
-        while len(new) > 0 and depth > 0:
+        while len(new) > 0 and self.curr_depth < depth:
             new = set()
             # could optimize here to only iterate over operators that bind with
             # facts in prev.
@@ -457,7 +551,8 @@ class FoPlanner:
 
             for f in new:
                 self.add_fact(f)
-            depth -= 1
+
+            self.curr_depth += 1
 
     def fc_query(self, goals, max_depth=5, epsilon=0.0):
         """
@@ -474,7 +569,7 @@ class FoPlanner:
         depth = 0
         new = set([1])
         count = 0
-        relevant_facts = set()
+        # relevant_facts = set()
 
         while len(new) > 0 and depth < max_depth:
             new = set()
@@ -489,19 +584,21 @@ class FoPlanner:
                     except:
                         continue
 
+                    new.update(effects)
+
                     for e in effects:
                         for g in goals:
                             sub = unify(g, e, {}, epsilon)
                             if sub is None:
-                                break
-                            relevant_facts.add(e)
-                            # print(sub)
-                            for m in pattern_match(goals,
-                                                   build_index(relevant_facts),
-                                                   sub, epsilon):
-                                yield m
+                                continue
 
-                    new.update(effects)
+                            # relevant_facts.add(e)
+
+                            for m in pattern_match(goals,
+                                                   build_index(self.facts |
+                                                               new), sub,
+                                                   epsilon):
+                                yield m
 
             for f in new:
                 self.add_fact(f)
@@ -519,11 +616,9 @@ class FoPlanner:
                                          frozenset(goals)),
                                 extra=(self.operators, index, epsilon))
 
-        # compare_searches([fc_problem], [iterative_deepening_search,
-        #                                 best_first_search])
-
         for solution in iterative_deepening_search(fc_problem,
-                                                   max_depth_limit=max_depth+1):
+                                                   max_depth_limit=max_depth +
+                                                   1):
             yield solution
 
 
@@ -573,14 +668,25 @@ class Operator:
     def __repr__(self):
         return str(self)
 
-    def match(self, index, epsilon=0.0):
+    def match(self, index, epsilon=0.0, initial_mapping=None):
         """
         Given a state, return all of the bindings of the current pattern that
         produce a valid match.
         """
-        for head_match in pattern_match(self.head_conditions, index, {}, epsilon):
+        if initial_mapping is None:
+            initial_mapping = {}
 
-            for full_match in pattern_match(self.non_head_conditions, index,
+        for head_match in pattern_match(self.head_conditions.union(
+                                        set([('not', c) for c in
+                                             self.negative_conditions])),
+                                        index, initial_mapping,
+                                        epsilon):
+            # if initial_mapping is not None:
+            #     print("INITIAL VS. HEAD", initial_mapping, head_match)
+            for full_match in pattern_match(self.non_head_conditions.union(
+                                            set([('not', c) for c in
+                                             self.negative_conditions])), 
+                                            index,
                                             head_match, epsilon):
 
                 neg_fun_fail = False
@@ -599,7 +705,8 @@ class Operator:
                     break
 
                 for neg_ele in self.negative_conditions:
-                    for nm in pattern_match([neg_ele], index, full_match, epsilon):
+                    for nm in pattern_match([neg_ele], index, full_match,
+                                            epsilon):
                         neg_fun_fail = True
                         break
                     if neg_fun_fail is True:
@@ -618,9 +725,21 @@ class Operator:
 add_rule = Operator(('Add', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv'),
-                     (lambda x, y: int(x) <= int(y), '?xv', '?yv')],
+                     (lambda x, y: x <= y, '?x', '?y')],
                     [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
                       (lambda x, y: str(int(x) + int(y)), '?xv', '?yv'))])
+
+update_rule = Operator(('sai', '?sel', 'UpdateTable', '?val', '?ele'),
+                    [(('value', '?ele'), '?val'),
+                     (lambda x: x != "", '?val'),
+                     (('name', '?ele2'), '?sel'),
+                     (('type', '?ele2'), 'MAIN::cell'),
+                     (('value', '?ele2'), '')],
+                    [('sai', '?sel', 'UpdateTable', '?val', '?ele')])
+
+done_rule = Operator(('sai', 'done', 'ButtonPressed', '-1'),
+                     [],
+                     [('sai', 'done', 'ButtonPressed', '-1', 'done-button')])
 
 sub_rule = Operator(('Subtract', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
@@ -632,7 +751,7 @@ sub_rule = Operator(('Subtract', '?x', '?y'),
 mult_rule = Operator(('Multiply', '?x', '?y'),
                      [(('value', '?x'), '?xv'),
                       (('value', '?y'), '?yv'),
-                      (lambda x, y: int(x) <= int(y), '?xv', '?yv')],
+                      (lambda x, y: x <= y, '?x', '?y')],
                      [(('value', ('Multiply', ('value', '?x'),
                                   ('value', '?y'))),
                        (lambda x, y: str(int(x) * int(y)), '?xv', '?yv'))])
@@ -648,59 +767,52 @@ equal_rule = Operator(('Equal', '?x', '?y'),
                        (lambda x, y: x == y, '?xv', '?yv')],
                       [('Equal', '?x', '?y')])
 
-arith_rules = [equal_rule, add_rule, sub_rule, mult_rule, div_rule]
+# arith_rules = [add_rule, sub_rule, mult_rule, div_rule]
+# arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule, done_rule]
+arith_rules = [add_rule, mult_rule, update_rule, done_rule]
 
 
 half = Operator(('Half', '?x'),
                 [(('y', '?x'), '?xv')],
-                 [(('y', ('Half', '?x')),
+                [(('y', ('Half', '?x')),
                   (lambda x: x / 2, '?xv'))])
 
 add_y = Operator(('Add', '?y1', '?y2'),
-
-                    [(('y', '?y1'), '?yv1'),
-                     (('y', '?y2'), '?yv2'),   
-                     (lambda y1, y2: y1 <= y2, '?yv1', '?yv2')],
-
-                    [(('y', ('Add', '?y1', '?y2')),
-                      (lambda y1, y2: y1 + y2, '?yv1', '?yv2'))])
+                 [(('y', '?y1'), '?yv1'),
+                  (('y', '?y2'), '?yv2'),
+                  (lambda y1, y2: y1 <= y2, '?yv1', '?yv2')],
+                 [(('y', ('Add', '?y1', '?y2')),
+                  (lambda y1, y2: y1 + y2, '?yv1', '?yv2'))])
 
 sub_y = Operator(('Subtract', '?y1', '?y2'),
-
-                    [(('y', '?y1'), '?yv1'),
-                     (('y', '?y2'), '?yv2')],
-
-                    [(('y', ('Subtract', '?y1', '?y2')),
-                      (lambda y1, y2: y1 - y2, '?yv1', '?yv2'))])
+                 [(('y', '?y1'), '?yv1'),
+                  (('y', '?y2'), '?yv2')],
+                 [(('y', ('Subtract', '?y1', '?y2')),
+                  (lambda y1, y2: y1 - y2, '?yv1', '?yv2'))])
 
 add_x = Operator(('Add', '?x1', '?x2'),
-
-                    [(('x', '?x1'), '?xv1'),
-                     (('x', '?x2'), '?xv2'),   
-                     (lambda x1, x2: x1 <= x2, '?xv1', '?xv2')],
-
-                    [(('x', ('Add', '?x1', '?x2')),
-                      (lambda x1, x2: x1 + x2, '?xv1', '?xv2'))])
+                 [(('x', '?x1'), '?xv1'),
+                  (('x', '?x2'), '?xv2'),
+                  (lambda x1, x2: x1 <= x2, '?xv1', '?xv2')],
+                 [(('x', ('Add', '?x1', '?x2')),
+                  (lambda x1, x2: x1 + x2, '?xv1', '?xv2'))])
 
 sub_x = Operator(('Subtract', '?x1', '?x2'),
-
-                    [(('x', '?x1'), '?xv1'),
-                     (('x', '?x2'), '?xv2')],
-
-                    [(('x', ('Subtract', '?x1', '?x2')),
-                      (lambda x1, x2: x1 - x2, '?xv1', '?xv2'))])
+                 [(('x', '?x1'), '?xv1'),
+                  (('x', '?x2'), '?xv2')],
+                 [(('x', ('Subtract', '?x1', '?x2')),
+                  (lambda x1, x2: x1 - x2, '?xv1', '?xv2'))])
 
 rotate = Operator(('Rotate', '?b1'),
+                  [(('x', ('bound', '?b1')), '?xv'),
+                   (('y', ('bound', '?b1')), '?yv'),
+                   (lambda x: not isinstance(x, tuple) or not x[0] == 'Rotate',
+                    '?b1')],
+                  [(('y', ('bound', ('Rotate', '?b1'))), '?yv'),
+                   (('x', ('bound', ('Rotate', '?b1'))), '?xv')])
 
-                    [(('x', ('bound', '?b1')), '?xv'),
-                    (('y', ('bound', '?b1')), '?yv'),
-                    (lambda x: not isinstance(x, tuple) or not x[0] == 'Rotate', '?b1')],
-                    
-                    [(('y', ('bound', ('Rotate', '?b1'))), '?yv'),
-                    (('x', ('bound', ('Rotate', '?b1'))), '?xv')])
 
-
-rb_rules = [add_x,add_y,sub_x,sub_y,half,rotate]
+rb_rules = [add_x, add_y, sub_x, sub_y, half, rotate]
 
 if __name__ == "__main__":
 
@@ -747,15 +859,15 @@ if __name__ == "__main__":
     #     print("Found solution", solution)
     #     break
 
-    facts = [(('y', 'cell1'), 1),
-             (('y', 'cell2'), 2),
-             (('value', 'cell3'), 3),
-             (('value', 'cell4'), 5),
-             (('value', 'cell5'), 7),
-             (('value', 'cell6'), 11),
-             (('value', 'cell7'), 13),
-             (('value', 'cell8'), 17)]
-    kb = FoPlanner(facts, rb_rules)
+    facts = [ (('value', 'cell1'), '1'),
+              (('value', 'cell2'), '2'),
+              (('value', 'cell4'), '3'),
+              (('value', 'cell3'), '5'),
+              (('value', 'cell5'), '7'),
+              (('value', 'cell6'), '11'),
+              (('value', 'cell7'), '13'),
+              (('value', 'cell8'), '17')]
+    kb = FoPlanner(facts, arith_rules)
 
     import timeit
 
@@ -763,27 +875,32 @@ if __name__ == "__main__":
 
     found = False
     print("plan")
-    for solution in kb.fc_plan([('?a', 2.6)],epsilon=0.101, max_depth=2):
-        elapsed = timeit.default_timer() - start_time
-        print("Found solution, %0.4f" % elapsed)
-        print(solution.path())
-        for m in pattern_match(solution.state[1], solution.extra[1], {}, epsilon=0.101):
-            found = True
-            print(m)
-            print()
-            break
-        if found:
-            break
+    # for solution in kb.fc_plan([(('value', '?a'), '385')], 
+    #                            # epsilon=0.101, max_depth=1
+    #                           ):
+    #     elapsed = timeit.default_timer() - start_time
+    #     print("Found solution, %0.4f" % elapsed)
+    #     print(solution.path())
+    #     for m in pattern_match(solution.state[1], solution.extra[1], {},
+    #                            epsilon=0.101):
+    #         found = True
+    #         print(m)
+    #         print()
+    #         break
+    #     if found:
+    #         break
 
     print("query")
     start_time = timeit.default_timer()
-    for m in kb.fc_query([('?a', 2.6)], epsilon=0.101, max_depth=2):
+    for m in kb.fc_query([(('value', '?a'), '385')], 
+                         # epsilon=0.101, max_depth=1
+                        ):
         elapsed = timeit.default_timer() - start_time
         print("Found solution %0.4f" % elapsed)
         print(m)
         break
 
-    # print(kb)
+    #print(kb)
 
     # op = Operator(('Something', '?foa0', '?foa1'),
     #                   [(('haselement', '?o17', '?o18'), True),
@@ -816,15 +933,20 @@ if __name__ == "__main__":
     #          (('type', 'obj-hint'), 'MAIN::button'),
     #          (('type', 'obj-JCommTable'), 'MAIN::table'),
     #          (('type', 'obj-JCommLabel'), 'MAIN::label'),
-    #          (('haselement', 'obj-JCommTable4_Column1', 'obj-JCommTable4_C1R1'), True),
+    #          (('haselement', 'obj-JCommTable4_Column1',
+    #          'obj-JCommTable4_C1R1'), True),
     #          (('type', 'obj-JCommTable3_Column1'), 'MAIN::column'),
     #          (('haselement', 'obj-init', 'obj-JCommTable8'), True),
-    #          (('haselement', 'obj-JCommTable8_Column1', 'obj-JCommTable8_C1R1'), True),
+    #          (('haselement', 'obj-JCommTable8_Column1',
+    #          'obj-JCommTable8_C1R1'), True),
     #          (('type', 'obj-JCommTable5'), 'MAIN::table'),
-    #          (('haselement', 'obj-JCommTable4', 'obj-JCommTable4_Column1'), True),
-    #          (('haselement', 'obj-JCommTable5_Column1', 'obj-JCommTable5_C1R1'), True),
+    #          (('haselement', 'obj-JCommTable4', 'obj-JCommTable4_Column1'),
+    #          True),
+    #          (('haselement', 'obj-JCommTable5_Column1',
+    #          'obj-JCommTable5_C1R1'), True),
     #          (('name', 'obj-JCommLabel'), 'JCommLabel'),
-    #          (('haselement', 'obj-JCommTable5_Column1', 'obj-JCommTable5_C1R2'), True),
+    #          (('haselement', 'obj-JCommTable5_Column1',
+    #          'obj-JCommTable5_C1R2'), True),
     #          (('type', 'obj-JCommTable3_C1R2'), 'MAIN::cell'),
     #          (('name', 'obj-done'), 'done'),
     #          (('haselement', 'obj-init', 'obj-JCommLabel2'), True),
@@ -836,11 +958,13 @@ if __name__ == "__main__":
     #          (('type', 'obj-JCommTable5_C1R2'), 'MAIN::cell'),
     #          (('name', 'obj-JCommTable2_C1R1'), 'JCommTable2_C1R1'),
     #          (('haselement', 'obj-init', 'obj-JCommTable5'), True),
-    #          (('haselement', 'obj-JCommTable8', 'obj-JCommTable8_Column1'), True),
+    #          (('haselement', 'obj-JCommTable8', 'obj-JCommTable8_Column1'),
+    #          True),
     #          (('haselement', 'obj-init', 'obj-done'), True),
     #          (('type', 'obj-JCommTable6_Column1'), 'MAIN::column'),
     #          (('type', 'obj-JCommTable7_Column1'), 'MAIN::column'),
-    #          (('haselement', 'obj-JCommTable', 'obj-JCommTable_Column1'), True),
+    #          (('haselement', 'obj-JCommTable', 'obj-JCommTable_Column1'),
+    #          True),
     #          (('name', 'obj-JCommTable4_C1R1'), 'JCommTable4_C1R1'),
     #          (('haselement', 'obj-init', 'obj-JCommTable2'), True),
     #          (('name', 'obj-JCommTable5_C1R1'), 'JCommTable5_C1R1'),
@@ -849,21 +973,21 @@ if __name__ == "__main__":
     #          (('name', 'obj-JCommTable2_Column1'), 'JCommTable2_Column1'),
     #          (('name', 'obj-JCommTable8_C1R1'), 'JCommTable8_C1R1'),
     #          (('type', 'obj-JCommTable8_C1R1'), 'MAIN::cell'),
-    #          (('haselement', 'obj-JCommTable7_Column1', 'obj-JCommTable7_C1R1'), True),
-    #          (('name', 'obj-JCommLabel3'), 'JCommLabel3'),
-    #          (('name', 'obj-JCommTable7'), 'JCommTable7'),
-    #          (('name', 'obj-JCommTable3'), 'JCommTable3'),
-    #          (('name', 'obj-JCommTable7_C1R1'), 'JCommTable7_C1R1'),
-    #          (('haselement', 'obj-JCommTable6_Column1', 'obj-JCommTable6_C1R2'), True),
+    #          (('haselement', 'obj-JCommTable7_Column1',
+    #          'obj-JCommTable7_C1R1'), True), (('name', 'obj-JCommLabel3'),
+    #          'JCommLabel3'), (('name', 'obj-JCommTable7'), 'JCommTable7'),
+    #          (('name', 'obj-JCommTable3'), 'JCommTable3'), (('name',
+    #          'obj-JCommTable7_C1R1'), 'JCommTable7_C1R1'), (('haselement',
+    #          'obj-JCommTable6_Column1', 'obj-JCommTable6_C1R2'), True),
     #          (('type', 'obj-done'), 'MAIN::button'),
     #          (('name', 'obj-JCommTable8'), 'JCommTable8'),
     #          (('type', 'obj-JCommLabel2'), 'MAIN::label'),
     #          (('haselement', 'obj-init', 'obj-JCommTable4'), True),
     #          (('name', 'obj-JCommTable6_Column1'), 'JCommTable6_Column1'),
     #          (('name', 'obj-JCommTable3_C1R1'), 'JCommTable3_C1R1'),
-    #          (('type', 'obj-JCommTable8_Column1'), 'MAIN::column'),
-    #          (('name', 'obj-JCommTable_C1R1'), 'JCommTable_C1R1'),
-    #          (('type', ('a', ('c', 'b')), 'obj-JCommTable4_C1R1'), 'MAIN::cell'),
+    #          (('type', 'obj-JCommTable8_Column1'), 'MAIN::column'), (('name',
+    #          'obj-JCommTable_C1R1'), 'JCommTable_C1R1'), (('type', ('a',
+    #          ('c', 'b')), 'obj-JCommTable4_C1R1'), 'MAIN::cell'),
     #          (('name', 'obj-JCommTable5_C1R2'), 'JCommTable5_C1R2'),
     #          (('type', 'obj-JCommTable_C1R2'), 'MAIN::cell'),
     #          (('name', 'obj-init'), 'init'),
@@ -875,39 +999,41 @@ if __name__ == "__main__":
     #          (('name', 'obj-JCommTable_Column1'), 'JCommTable_Column1'),
     #          (('name', 'obj-JCommTable5_Column1'), 'JCommTable5_Column1'),
     #          (('name', 'obj-JCommTable3_C1R2'), 'JCommTable3_C1R2'),
-    #          (('haselement', 'obj-JCommTable2', 'obj-JCommTable2_Column1'), True),
-    #          (('name', 'obj-JCommTable5'), 'JCommTable5'),
-    #          (('haselement', 'obj-JCommTable3_Column1', 'obj-JCommTable3_C1R2'), True),
-    #          (('type', 'obj-JCommTable7_C1R1'), 'MAIN::cell'),
-    #          (('name', 'obj-JCommTable'), 'JCommTable'),
-    #          (('name', 'obj-hint'), 'hint'),
-    #          (('haselement', 'obj-JCommTable_Column1', 'obj-JCommTable_C1R2'), True),
-    #          (('name', 'obj-JCommLabel4'), 'JCommLabel4'),
-    #          (('name', 'obj-JCommTable4_C1R2'), 'JCommTable4_C1R2'),
-    #          (('haselement', 'obj-init', 'obj-JCommTable6'), True),
-    #          (('haselement', 'obj-JCommTable4_Column1', 'obj-JCommTable4_C1R2'), True),
-    #          (('type', 'obj-init'), 'MAIN::problem'),
-    #          (('type', 'obj-JCommTable6_C1R2'), 'MAIN::cell'),
-    #          (('type', 'obj-JCommTable2'), 'MAIN::table'),
-    #          (('haselement', 'obj-init', 'obj-JCommTable'), True),
-    #          (('type', 'obj-JCommTable_C1R1'), 'MAIN::cell'),
-    #          (('haselement', 'obj-JCommTable3', 'obj-JCommTable3_Column1'), True),
-    #          (('haselement', 'obj-JCommTable2_Column1', 'obj-JCommTable2_C1R1'), True),
-    #          (('haselement', 'obj-JCommTable6', 'obj-JCommTable6_Column1'), True),
-    #          (('name', 'obj-JCommLabel2'), 'JCommLabel2'),
-    #          (('type', 'obj-JCommTable8'), 'MAIN::table'),
-    #          (('haselement', 'obj-JCommTable6_Column1', 'obj-JCommTable6_C1R1'), True),
-    #          (('type', 'obj-JCommTable3'), 'MAIN::table'),
-    #          (('haselement', 'obj-init', 'obj-hint'), True),
-    #          (('type', 'obj-JCommTable4_Column1'), 'MAIN::column'),
-    #          (('type', 'obj-JCommTable3_C1R1'), 'MAIN::cell'),
-    #          (('haselement', 'obj-init', 'obj-JCommTable3'), True),
-    #          (('name', 'obj-JCommTable8_Column1'), 'JCommTable8_Column1'),
-    #          (('type', 'obj-JCommTable_Column1'), 'MAIN::column'),
-    #          (('type', 'obj-JCommTable5_Column1'), 'MAIN::column'),
-    #          (('haselement', 'obj-JCommTable_Column1', 'obj-JCommTable_C1R1'), True),
-    #          (('haselement', 'obj-JCommTable3_Column1', 'obj-JCommTable3_C1R1'), True),
-    #          (('type', 'obj-JCommTable5_C1R1'), 'MAIN::cell'),
+    #          (('haselement', 'obj-JCommTable2', 'obj-JCommTable2_Column1'),
+    #          True), (('name', 'obj-JCommTable5'), 'JCommTable5'),
+    #          (('haselement', 'obj-JCommTable3_Column1',
+    #          'obj-JCommTable3_C1R2'), True), (('type',
+    #          'obj-JCommTable7_C1R1'), 'MAIN::cell'), (('name',
+    #          'obj-JCommTable'), 'JCommTable'), (('name', 'obj-hint'),
+    #          'hint'), (('haselement', 'obj-JCommTable_Column1',
+    #          'obj-JCommTable_C1R2'), True), (('name', 'obj-JCommLabel4'),
+    #          'JCommLabel4'), (('name', 'obj-JCommTable4_C1R2'),
+    #          'JCommTable4_C1R2'), (('haselement', 'obj-init',
+    #          'obj-JCommTable6'), True), (('haselement',
+    #          'obj-JCommTable4_Column1', 'obj-JCommTable4_C1R2'), True),
+    #          (('type', 'obj-init'), 'MAIN::problem'), (('type',
+    #          'obj-JCommTable6_C1R2'), 'MAIN::cell'), (('type',
+    #          'obj-JCommTable2'), 'MAIN::table'), (('haselement', 'obj-init',
+    #          'obj-JCommTable'), True), (('type', 'obj-JCommTable_C1R1'),
+    #          'MAIN::cell'), (('haselement', 'obj-JCommTable3',
+    #          'obj-JCommTable3_Column1'), True), (('haselement',
+    #          'obj-JCommTable2_Column1', 'obj-JCommTable2_C1R1'), True),
+    #          (('haselement', 'obj-JCommTable6', 'obj-JCommTable6_Column1'),
+    #          True), (('name', 'obj-JCommLabel2'), 'JCommLabel2'), (('type',
+    #          'obj-JCommTable8'), 'MAIN::table'), (('haselement',
+    #          'obj-JCommTable6_Column1', 'obj-JCommTable6_C1R1'), True),
+    #          (('type', 'obj-JCommTable3'), 'MAIN::table'), (('haselement',
+    #          'obj-init', 'obj-hint'), True), (('type',
+    #          'obj-JCommTable4_Column1'), 'MAIN::column'), (('type',
+    #          'obj-JCommTable3_C1R1'), 'MAIN::cell'), (('haselement',
+    #          'obj-init', 'obj-JCommTable3'), True), (('name',
+    #          'obj-JCommTable8_Column1'), 'JCommTable8_Column1'), (('type',
+    #          'obj-JCommTable_Column1'), 'MAIN::column'), (('type',
+    #          'obj-JCommTable5_Column1'), 'MAIN::column'), (('haselement',
+    #          'obj-JCommTable_Column1', 'obj-JCommTable_C1R1'), True),
+    #          (('haselement', 'obj-JCommTable3_Column1',
+    #          'obj-JCommTable3_C1R1'), True), (('type',
+    #          'obj-JCommTable5_C1R1'), 'MAIN::cell'),
     #          (('name', 'obj-JCommTable7_Column1'), 'JCommTable7_Column1'),
     #          (('type', 'obj-JCommTable2_Column1'), 'MAIN::column'),
     #          (('name', 'obj-JCommTable3_Column1'), 'JCommTable3_Column1'),
@@ -915,10 +1041,11 @@ if __name__ == "__main__":
     #          (('name', 'obj-JCommTable6'), 'JCommTable6'),
     #          (('name', 'obj-JCommTable2'), 'JCommTable2'),
     #          (('name', 'obj-JCommTable6_C1R2'), 'JCommTable6_C1R2'),
-    #          (('haselement', 'obj-JCommTable5', 'obj-JCommTable5_Column1'), True),
-    #          (('haselement', 'obj-JCommTable7', 'obj-JCommTable7_Column1'), True),
-    #          (('name', 'obj-JCommTable6_C1R1'), 'JCommTable6_C1R1'),
-    #          (('type', 'obj-JCommTable4_C1R2'), 'MAIN::cell')]
+    #          (('haselement', 'obj-JCommTable5', 'obj-JCommTable5_Column1'),
+    #          True), (('haselement', 'obj-JCommTable7',
+    #          'obj-JCommTable7_Column1'), True), (('name',
+    #          'obj-JCommTable6_C1R1'), 'JCommTable6_C1R1'), (('type',
+    #          'obj-JCommTable4_C1R2'), 'MAIN::cell')]
 
     # kb = FoPlanner(state, [op])
 

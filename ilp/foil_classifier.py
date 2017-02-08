@@ -307,6 +307,7 @@ class FoilClassifier(BaseILP):
             x = x.replace("apostrophe", "'")
             x = x.replace("quote", '"')
             x = x.replace("backslash", "\\")
+            x = x.replace("exclaimation", "!")
             x = x[1:]
             if x == "nil":
                 x == ""
@@ -322,6 +323,7 @@ class FoilClassifier(BaseILP):
                 x = str(x)
             if x == "":
                 x = "nil"
+            x = x.replace("!", "exclaimation")
             x = x.replace("\\", "backslash")
             x = x.replace('"', "quote")
             x = x.replace("'", "apostrophe")

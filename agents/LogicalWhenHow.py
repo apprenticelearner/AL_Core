@@ -1,6 +1,5 @@
 import inspect
 from pprint import pprint
-from itertools import permutations
 from itertools import product
 
 from sklearn.feature_extraction import DictVectorizer
@@ -24,9 +23,9 @@ class LogicalWhenHow(BaseAgent):
     """
     This is the basis for the 3 learning phase model. It accepts three classes
     for the where, when, and how learning. Where and and When are both
-    classifiers. How learning is a form of planner. 
+    classifiers. How learning is a form of planner.
     """
-    def __init__(self,how_params=None):
+    def __init__(self, how_params=None):
         self.when = Aleph
         self.skills = {}
         self.examples = {}
@@ -45,8 +44,8 @@ class LogicalWhenHow(BaseAgent):
                 yield new_feature, features[feature](*values)
 
     def request(self, state, features, functions):
-        #print("REQUEST")
-        #pprint(self.skills)
+        # print("REQUEST")
+        # pprint(self.skills)
         ff = Flattener()
         tup = Tuplizer()
 
@@ -54,7 +53,7 @@ class LogicalWhenHow(BaseAgent):
         state = ff.transform(state)
         for attr, value in self.compute_features(state, features):
             state[attr] = value
-        
+
         for label in self.skills:
             for grounded_plan, plan in self.get_plan(label, state, functions):
                 response = {}
@@ -68,7 +67,7 @@ class LogicalWhenHow(BaseAgent):
         return {}
 
     def get_plan(self, label, state, functions):
-        act_plan = ActionPlanner(actions=functions,act_params=self.how_params)
+        act_plan = ActionPlanner(actions=functions, act_params=self.how_params)
 
         for seq in self.skills[label]:
             s = self.skills[label][seq]

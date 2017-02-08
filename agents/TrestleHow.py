@@ -22,6 +22,7 @@ class TrestleHow(BaseAgent):
         self.tree = TrestleTree()
         self.action_set = action_set
         self.how_params = how_params
+        self.noop = {}
 
     def request(self, state):
         """
@@ -31,12 +32,12 @@ class TrestleHow(BaseAgent):
         ft = Flattener()
         flat_state = ft.transform(state)
 
-        pprint(flat_state)
+        #pprint(flat_state)
 
-        state = {a: state[a] for a in flat_state if isinstance(a, tuple) and
-                         (a[0] == 'name' or a[0] == 'value')}
+        state = {a: flat_state[a] for a in flat_state if isinstance(a, tuple)
+                 and (a[0] == 'name' or a[0] == 'value')}
 
-        pprint(state)
+        #pprint(state)
 
         aug_state = deepcopy(state)
         aug_state.update(compute_features(state,
@@ -79,45 +80,50 @@ class TrestleHow(BaseAgent):
         This agent makes use of a limited collection of the normal arguments
         """
         tree = self.tree
-        sai = tup_sai(selection,action,inputs)
+        sai = tup_sai(selection, action, inputs)
         act_plan = ActionPlanner(self.action_set, act_params=self.how_params)
 
-        state = {a: state[a] for a in state if isinstance(a, tuple) and
-                         (a[0] == 'name' or a[0] == 'value')}
+        # state = {a: state[a] for a in state if isinstance(a, tuple) and
+        #         (a[0] == 'name' or a[0] == 'value')}
 
         aug_state = deepcopy(state)
         aug_state.update(compute_features(aug_state,
                                           self.action_set.get_feature_dict()))
 
-        foas = parse_foas(foas)
-        for foa in foas:
-            aug_state[('foa',foa['name'])] = True
+        for i, foa in enumerate(foas):
+            aug_state[('foa' + str(i), foa)] = True
 
         aug_state['skill_label'] = label
 
         inf_state = tree.infer_missing(aug_state)
-        plans = [k for k in inf_state if isinstance(k,tuple) and k[0] == 'sai']
+        plans = [k for k in inf_state
+                 if isinstance(k, tuple) and k[0] == 'sai']
 
         ft = Flattener()
         flat_state = ft.transform(state)
-        flat_state = {a: flat_state[a] for a in flat_state if (isinstance(a, tuple)
-                      and (a[0] == 'name' or a[0] == 'value'))}
+        flat_state = {a: flat_state[a] for a in flat_state
+                      if (isinstance(a, tuple) and
+                          (a[0] == 'name' or a[0] == 'value'))}
+
+        s = frozenset(flat_state.items())
+        if s not in self.noop:
+            self.noop[s] = []
+        self.noop[s].append((selection, action, *inputs))
 
         plans = [p for p in plans if act_plan.compare_plan(p, sai, flat_state)]
 
         if len(plans) == 0:
-            plans = act_plan.explain_sai(flat_state,sai)
+            plans = act_plan.explain_sai(flat_state, sai)
 
         for p in plans:
             print(sai)
             print(p)
-            print(tuple([act_plan.execute_plan(ele, flat_state)
-                                       for ele in p]))
+            print(tuple([act_plan.execute_plan(ele, flat_state) for ele in p]))
             aug_state[p] = correct
 
         print("about to ifit")
         tree.ifit(aug_state)
         print("done ifitting")
 
-    def check(self,state,features,functions,selection,action,inputs):
+    def check(self, state, selection, action, inputs):
         return False

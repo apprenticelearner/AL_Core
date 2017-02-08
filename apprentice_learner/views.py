@@ -14,13 +14,15 @@ from agents.Dummy import Dummy
 from agents.WhereWhenHow import WhereWhenHow
 from agents.LogicalWhenHowNoFoa import LogicalWhenHow
 from agents.LogicalWhereWhenHow import LogicalWhereWhenHow
+from agents.RLAgent import RLAgent
 from agents.TrestleHow import TrestleHow
 
 agents = {'Dummy': Dummy,
           'WhereWhenHow': WhereWhenHow,
           'LogicalWhenHow': LogicalWhenHow,
           'LogicalWhereWhenHow': LogicalWhereWhenHow,
-          'TrestleHow': TrestleHow}
+          'TrestleHow': TrestleHow,
+          'RLAgent': RLAgent}
 
 from pprint import pprint
 debug = True
@@ -99,9 +101,8 @@ def request(request, agent_id):
 
         agent = Agent.objects.get(id=agent_id)
         agent.inc_request()
-        agent.save()
-
         response = agent.instance.request(data['state'])
+        agent.save()
         return HttpResponse(json.dumps(response))
 
     except Exception as e:
@@ -113,13 +114,14 @@ def request_by_name(http_request, agent_name):
     agent = get_list_or_404(Agent,name=agent_name)[0]
     return request(http_request,agent.id)
 
+
 @csrf_exempt
 def train(request, agent_id):
     """
     Trains the Agent with an state annotated with the SAI used / with
     feedback.
     """
-    try:    
+    try:
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(request.body.decode('utf-8'))
@@ -147,7 +149,7 @@ def train(request, agent_id):
         if 'correct' not in data:
             print("request body missing 'correct'")
             return HttpResponseBadRequest("request body missing 'correct'")
-        
+
         agent = Agent.objects.get(id=agent_id)
         agent.inc_train()
 
@@ -161,10 +163,12 @@ def train(request, agent_id):
         traceback.print_exc()
         return HttpResponseServerError(str(e))
 
+
 @csrf_exempt
 def train_by_name(request, agent_name):
-    agent = get_list_or_404(Agent,name=agent_name)[0]
-    return train(request,agent.id)
+    agent = get_list_or_404(Agent, name=agent_name)[0]
+    return train(request, agent.id)
+
 
 @csrf_exempt
 def check(request, agent_id):
