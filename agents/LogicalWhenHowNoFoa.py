@@ -210,7 +210,7 @@ class LogicalWhenHow(BaseAgent):
 
         tup = Tuplizer()
         flt = Flattener()
-        example['flat_state'] =flt.transform(flt.transform(tup.transform(state)))
+        example['flat_state'] = flt.transform(tup.transform(state))
         print('SAI:',selection,action,inputs)
         print('State:')
         pprint(example['state'])
