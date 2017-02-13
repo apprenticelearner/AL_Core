@@ -2,7 +2,7 @@ import json
 import traceback
 
 from django.views.decorators.csrf import csrf_exempt
-from django.shortcuts import redirect, get_list_or_404
+from django.shortcuts import redirect, get_list_or_404, get_object_or_404
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
@@ -211,3 +211,27 @@ def check(request, agent_id):
 def check_by_name(request, agent_name):
     agent = get_list_or_404(Agent,name=agent_name)[0]
     return check(request,agent.id)
+
+
+def report(request, agent_id):
+    if request.method != "GET":
+            return HttpResponseNotAllowed(["GET"])
+
+    agent = get_object_or_404(Agent,id=agent_id)
+
+    response = {
+        'id':agent.id,
+        'name':agent.name,
+        'num_request':agent.num_request,
+        'num_train':agent.num_train,
+        'num_check':agent.num_check,
+        'created':agent.created,
+        'updated':agent.updated
+    }
+
+    response = {k:str(response[k]) for k in response}
+    return HttpResponse(json.dumps(response))
+
+def report_by_name(request, agent_name):
+    agent = get_list_or_404(Agent,name=agent_name)[0]
+    return report(request,agent.id)
