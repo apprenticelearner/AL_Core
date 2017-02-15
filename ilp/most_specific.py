@@ -133,22 +133,30 @@ class SimStudentWhere(BaseILP):
             return True
         return False
 
-    def get_matches(self, x, constraints=None):
+    def get_matches(self, x, constraints=None, epsilon=0.0):
         if self.operator is None:
             return
 
-        # print("GETTING MATCHES")
+        print("GETTING MATCHES")
         grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
+        # print("FACTS")
+        # pprint(grounded)
         index = build_index(grounded)
 
-        for m in self.operator.match(index):
-            # print('match', m, self.operator.name)
+        # print("INDEX")
+        # pprint(index)
+
+        # print("OPERATOR")
+        # pprint(self.operator)
+
+        for m in self.operator.match(index,epsilon=epsilon):
+            print('match', m, self.operator.name)
             result = tuple(['?' + subst(m, ele)
                             for ele in self.operator.name[1:]])
             # result = tuple(['?' + m[e] for e in self.target_types])
             yield result
 
-        # print("GOT ALL THE MATCHES!")
+        print("GOT ALL THE MATCHES!")
 
         # for t in self.pos:
         #     print(t)
@@ -265,7 +273,9 @@ class SimStudentWhere(BaseILP):
         conditions = ([(a, pos_instance[a]) for a in pos_instance] +
                       [('not', (a, neg_instance[a])) for a in neg_instance])
 
-        # pprint(conditions)
+        print("========CONDITIONS======")
+        pprint(conditions)
+        print("========CONDITIONS======")
 
         self.target_types = ['?foa%s' % i for i in range(len(t))]
         self.operator = Operator(tuple(['Rule'] + self.target_types),

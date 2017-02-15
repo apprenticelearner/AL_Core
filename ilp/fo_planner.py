@@ -229,6 +229,7 @@ def pattern_match(pattern, index, substitution, epsilon=0.0):
     index. If no match is found then it returns None.
     """
     # print("SIZE OF PATTERN BEING MATCHED", len(pattern))
+    # pprint(pattern)
     ps = []
     remove_negs = []
 
@@ -682,7 +683,7 @@ class Operator:
                                         index, initial_mapping,
                                         epsilon):
             # if initial_mapping is not None:
-            #     print("INITIAL VS. HEAD", initial_mapping, head_match)
+            # print("INITIAL VS. HEAD", initial_mapping, head_match)
             for full_match in pattern_match(self.non_head_conditions.union(
                                             set([('not', c) for c in
                                              self.negative_conditions])), 
