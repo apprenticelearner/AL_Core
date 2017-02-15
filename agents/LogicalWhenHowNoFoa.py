@@ -12,10 +12,10 @@ from ilp.most_specific import SimStudentWhere
 # from ilp.most_specific import MostSpecific
 from ilp.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
-# from ilp.fo_planner import rb_rules
-from ilp.fo_planner import arith_rules
+from ilp.fo_planner import rb_rules
+# from ilp.fo_planner import arith_rules
 
-rules = arith_rules
+rules = rb_rules
 
 search_depth = 1
 epsilon = .9
@@ -67,7 +67,9 @@ class LogicalWhenHow(BaseAgent):
                                  self.skills[label][exp]))
         skillset.sort(reverse=True)
 
+        print('####SKILLSET####')
         pprint(skillset)
+        print('####SKILLSET####')
 
         # used for grounding out plans, don't need to build up each time.
         kb = FoPlanner([(self.ground(a),
@@ -95,7 +97,7 @@ class LogicalWhenHow(BaseAgent):
             while failed:
 
                 failed = False
-                for m in skill['where'].get_matches(state):
+                for m in skill['where'].get_matches(state,epsilon=epsilon):
                     if len(m) != len(set(m)):
                         print("GENERATED MATCH WITH TWO VARS BOUND TO SAME THING")
                         continue
