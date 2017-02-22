@@ -310,8 +310,8 @@ def execute_functions(fact):
             return fact[0](*[execute_functions(ele) for ele in fact[1:]])
         else:
             return tuple(execute_functions(ele) for ele in fact)
-    elif is_variable(fact):
-        raise Exception("Cannot execute functions on variables")
+    # elif is_variable(fact):
+    #     raise Exception("Cannot execute functions on variables")
 
     return fact
 
@@ -543,9 +543,21 @@ class FoPlanner:
                 for m in o.match(self.index, epsilon):
                     count += 1
                     try:
-                        effects = set([execute_functions(subst(m, f))
-                                       for f in o.add_effects]) - self.facts
-                    except:
+                        unprocessed = [f for f in o.add_effects]
+                        effects = set()
+                        while len(unprocessed) > 0:
+                            ele = unprocessed.pop()
+                            f = execute_functions(subst(m, ele))
+                            if isinstance(f, list):
+                                unprocessed.extend(f)
+                            else:
+                                effects.add(f)
+                        effects = effects - self.facts
+
+                        # effects = set([execute_functions(subst(m, f))
+                        #                for f in o.add_effects]) - self.facts
+                    except Exception as e:
+                        # print(e)
                         continue
 
                     new.update(effects)
@@ -723,99 +735,14 @@ class Operator:
                 break
 
 
-add_rule = Operator(('Add', '?x', '?y'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv'),
-                     (lambda x, y: x <= y, '?x', '?y')],
-                    [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
-                      (lambda x, y: str(int(x) + int(y)), '?xv', '?yv'))])
-
-update_rule = Operator(('sai', '?sel', 'UpdateTable', '?val', '?ele'),
-                    [(('value', '?ele'), '?val'),
-                     (lambda x: x != "", '?val'),
-                     (('name', '?ele2'), '?sel'),
-                     (('type', '?ele2'), 'MAIN::cell'),
-                     (('value', '?ele2'), '')],
-                    [('sai', '?sel', 'UpdateTable', '?val', '?ele')])
-
-done_rule = Operator(('sai', 'done', 'ButtonPressed', '-1'),
-                     [],
-                     [('sai', 'done', 'ButtonPressed', '-1', 'done-button')])
-
-sub_rule = Operator(('Subtract', '?x', '?y'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv')],
-                    [(('value', ('Subtract', ('value', '?x'),
-                                 ('value', '?y'))),
-                      (lambda x, y: str(int(x) - int(y)), '?xv', '?yv'))])
-
-mult_rule = Operator(('Multiply', '?x', '?y'),
-                     [(('value', '?x'), '?xv'),
-                      (('value', '?y'), '?yv'),
-                      (lambda x, y: x <= y, '?x', '?y')],
-                     [(('value', ('Multiply', ('value', '?x'),
-                                  ('value', '?y'))),
-                       (lambda x, y: str(int(x) * int(y)), '?xv', '?yv'))])
-
-div_rule = Operator(('Divide', '?x', '?y'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv')],
-                    [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
-                      (lambda x, y: str(int(x) / int(y)), '?xv', '?yv'))])
-
-equal_rule = Operator(('Equal', '?x', '?y'),
-                      [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
-                       (lambda x, y: x == y, '?xv', '?yv')],
-                      [('Equal', '?x', '?y')])
-
-# arith_rules = [add_rule, sub_rule, mult_rule, div_rule]
-# arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule, done_rule]
-arith_rules = [add_rule, mult_rule, update_rule, done_rule]
-
-
-half = Operator(('Half', '?x'),
-                [(('y', '?x'), '?xv')],
-                [(('y', ('Half', '?x')),
-                  (lambda x: x / 2, '?xv'))])
-
-add_y = Operator(('Add', '?y1', '?y2'),
-                 [(('y', '?y1'), '?yv1'),
-                  (('y', '?y2'), '?yv2'),
-                  (lambda y1, y2: y1 <= y2, '?yv1', '?yv2')],
-                 [(('y', ('Add', '?y1', '?y2')),
-                  (lambda y1, y2: y1 + y2, '?yv1', '?yv2'))])
-
-sub_y = Operator(('Subtract', '?y1', '?y2'),
-                 [(('y', '?y1'), '?yv1'),
-                  (('y', '?y2'), '?yv2')],
-                 [(('y', ('Subtract', '?y1', '?y2')),
-                  (lambda y1, y2: y1 - y2, '?yv1', '?yv2'))])
-
-add_x = Operator(('Add', '?x1', '?x2'),
-                 [(('x', '?x1'), '?xv1'),
-                  (('x', '?x2'), '?xv2'),
-                  (lambda x1, x2: x1 <= x2, '?xv1', '?xv2')],
-                 [(('x', ('Add', '?x1', '?x2')),
-                  (lambda x1, x2: x1 + x2, '?xv1', '?xv2'))])
-
-sub_x = Operator(('Subtract', '?x1', '?x2'),
-                 [(('x', '?x1'), '?xv1'),
-                  (('x', '?x2'), '?xv2')],
-                 [(('x', ('Subtract', '?x1', '?x2')),
-                  (lambda x1, x2: x1 - x2, '?xv1', '?xv2'))])
-
-rotate = Operator(('Rotate', '?b1'),
-                  [(('x', ('bound', '?b1')), '?xv'),
-                   (('y', ('bound', '?b1')), '?yv'),
-                   (lambda x: not isinstance(x, tuple) or not x[0] == 'Rotate',
-                    '?b1')],
-                  [(('y', ('bound', ('Rotate', '?b1'))), '?yv'),
-                   (('x', ('bound', ('Rotate', '?b1'))), '?xv')])
-
-
-rb_rules = [add_x, add_y, sub_x, sub_y, half, rotate]
-
 if __name__ == "__main__":
+
+    facts = [(('value', 'test1'), 'this is a test sentence'),
+             (('value', 'test2'), 'BOOM')]
+    kb = FoPlanner(facts, [unigramize, bigramize])
+    kb.fc_infer()
+    print(kb.facts)
+
 
     # criminal_rule = Operator(('Criminal', '?x'), [('Criminal', '?x')], [],
     #                         [('American', '?x'),
@@ -860,46 +787,46 @@ if __name__ == "__main__":
     #     print("Found solution", solution)
     #     break
 
-    facts = [ (('value', 'cell1'), '1'),
-              (('value', 'cell2'), '2'),
-              (('value', 'cell4'), '3'),
-              (('value', 'cell3'), '5'),
-              (('value', 'cell5'), '7'),
-              (('value', 'cell6'), '11'),
-              (('value', 'cell7'), '13'),
-              (('value', 'cell8'), '17')]
-    kb = FoPlanner(facts, arith_rules)
+    # facts = [ (('value', 'cell1'), '1'),
+    #           (('value', 'cell2'), '2'),
+    #           (('value', 'cell4'), '3'),
+    #           (('value', 'cell3'), '5'),
+    #           (('value', 'cell5'), '7'),
+    #           (('value', 'cell6'), '11'),
+    #           (('value', 'cell7'), '13'),
+    #           (('value', 'cell8'), '17')]
+    # kb = FoPlanner(facts, arith_rules)
 
-    import timeit
+    # import timeit
 
-    start_time = timeit.default_timer()
+    # start_time = timeit.default_timer()
 
-    found = False
-    print("plan")
-    # for solution in kb.fc_plan([(('value', '?a'), '385')], 
-    #                            # epsilon=0.101, max_depth=1
-    #                           ):
+    # found = False
+    # print("plan")
+    # # for solution in kb.fc_plan([(('value', '?a'), '385')], 
+    # #                            # epsilon=0.101, max_depth=1
+    # #                           ):
+    # #     elapsed = timeit.default_timer() - start_time
+    # #     print("Found solution, %0.4f" % elapsed)
+    # #     print(solution.path())
+    # #     for m in pattern_match(solution.state[1], solution.extra[1], {},
+    # #                            epsilon=0.101):
+    # #         found = True
+    # #         print(m)
+    # #         print()
+    # #         break
+    # #     if found:
+    # #         break
+
+    # print("query")
+    # start_time = timeit.default_timer()
+    # for m in kb.fc_query([(('value', '?a'), '385')], 
+    #                      # epsilon=0.101, max_depth=1
+    #                     ):
     #     elapsed = timeit.default_timer() - start_time
-    #     print("Found solution, %0.4f" % elapsed)
-    #     print(solution.path())
-    #     for m in pattern_match(solution.state[1], solution.extra[1], {},
-    #                            epsilon=0.101):
-    #         found = True
-    #         print(m)
-    #         print()
-    #         break
-    #     if found:
-    #         break
-
-    print("query")
-    start_time = timeit.default_timer()
-    for m in kb.fc_query([(('value', '?a'), '385')], 
-                         # epsilon=0.101, max_depth=1
-                        ):
-        elapsed = timeit.default_timer() - start_time
-        print("Found solution %0.4f" % elapsed)
-        print(m)
-        break
+    #     print("Found solution %0.4f" % elapsed)
+    #     print(m)
+    #     break
 
     #print(kb)
 

@@ -12,10 +12,11 @@ from concept_formation.cobweb3 import Cobweb3Tree
 
 from planners.fo_planner import FoPlanner
 from planners.fo_planner import subst
-from planners.fo_planner import arith_rules
+from planners.rulesets import rulesets
+# from planners.fo_planner import arith_rules
 from agents.BaseAgent import BaseAgent
 
-rules = arith_rules
+# rules = arith_rules
 epsilon = .9
 search_depth = 2
 
@@ -146,6 +147,7 @@ class RLAgent(BaseAgent):
         self.last_action = None
         self.reward = None
         self.max_episodes = 5
+        self.action_set = action_set.name
 
     def request(self, state):
         tup = Tuplizer()
@@ -177,7 +179,7 @@ class RLAgent(BaseAgent):
                              state[a].replace('?', 'QM') if
                              isinstance(state[a], str) else
                              state[a])
-                            for a in state], rules)
+                            for a in state], rulesets[self.action_set])
 
             curr_state = {x[0]: x[1] for x in kb.facts}
             next_actions = [a for a in kb.fc_get_actions(epsilon=epsilon)]
@@ -275,7 +277,7 @@ class RLAgent(BaseAgent):
         #                      state[a].replace('?', 'QM') if
         #                      isinstance(state[a], str) else
         #                      state[a])
-        #                     for a in state], rules)
+        #                     for a in state], rulesets[self.action_set])
 
         #     cum_reward = 0
         #     trace = [{str(a): v for a, v in kb.facts}]

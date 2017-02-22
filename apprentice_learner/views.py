@@ -67,8 +67,9 @@ def create(request):
     try:
         args['action_set'] = action_set
         instance = agents[data['agent_type']](**args)
-        agent_name = data.get('name','')
-        agent = Agent(instance=instance, action_set=action_set,name=agent_name)
+        agent_name = data.get('name', '')
+        agent = Agent(instance=instance, action_set=action_set,
+                      name=agent_name)
         agent.save()
         ret_data = {'agent_id': str(agent.id)}
 

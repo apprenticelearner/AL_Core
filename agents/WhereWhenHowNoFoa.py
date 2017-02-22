@@ -12,10 +12,8 @@ from learners.WhereLearner import SimStudentWhere
 # from ilp.most_specific import MostSpecific
 from planners.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
-from planners.fo_planner import rb_rules
-from planners.fo_planner import arith_rules
 
-rules = arith_rules
+from planners.rulesets import rulesets
 
 search_depth = 1
 epsilon = .9
@@ -31,6 +29,8 @@ class WhereWhenHowNoFoa(BaseAgent):
         self.when = TrestleTree
         self.skills = {}
         self.examples = {}
+        self.action_set = action_set.name
+        # self.rules = rulesets[action_set.name]
 
     def request(self, state):
         tup = Tuplizer()
@@ -79,7 +79,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                          state[a].replace('?', 'QM') if
                          isinstance(state[a], str) else
                          state[a])
-                        for a in state], rules)
+                        for a in state], rulesets[self.action_set])
         kb.fc_infer(depth=search_depth, epsilon=epsilon)
 
         # print(kb)
@@ -123,7 +123,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                             #                  state[a].replace('?', 'QM') if
                             #                  isinstance(state[a], str) else
                             #                  state[a])
-                            #                 for a in state], rules)
+                            #                 for a in state], rulesets[self.action_set])
                             for vm in kb.fc_query([(self.ground(ele), '?v')],
                                                   max_depth=0,
                                                   epsilon=epsilon):
@@ -301,7 +301,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                          example['flat_state'][a].replace('?', 'QM') if
                          isinstance(example['flat_state'][a], str) else
                          example['flat_state'][a])
-                        for a in example['flat_state']], rules)
+                        for a in example['flat_state']], rulesets[self.action_set])
         kb.fc_infer(depth=search_depth, epsilon=epsilon)
 
         for exp, iargs in self.skills[label]:
@@ -309,7 +309,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             #                  example['flat_state'][a].replace('?', 'QM') if
             #                  isinstance(example['flat_state'][a], str) else
             #                  example['flat_state'][a])
-            #                 for a in example['flat_state']], rules)
+            #                 for a in example['flat_state']], rulesets[self.action_set])
             for m in self.explains_sai(kb, exp, sai):
                 print("COVERED", exp, m)
 
@@ -372,7 +372,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             #                  example['flat_state'][a].replace('?', 'QM') if
             #                  isinstance(example['flat_state'][a], str) else
             #                  example['flat_state'][a])
-            #                 for a in example['flat_state']], rules)
+            #                 for a in example['flat_state']], rulesets[self.action_set])
 
             selection_exp = selection
             for sel_match in kb.fc_query([('?selection', selection)],
@@ -389,7 +389,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 #                  example['flat_state'][a].replace('?', 'QM') if
                 #                  isinstance(example['flat_state'][a], str) else
                 #                  example['flat_state'][a])
-                #                 for a in example['flat_state']], rules)
+                #                 for a in example['flat_state']], rulesets[self.action_set])
                 input_exp = iv
                 print('trying to explain', [((a, '?input'), iv)])
 

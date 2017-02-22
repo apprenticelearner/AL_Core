@@ -105,7 +105,7 @@ class WhereWhenHow(BaseAgent):
                 s = ((label, seq), accuracy)
                 # s = (random(), len(corrects), label, seq)
                 skills.append(s)
-        skills.sort(reverse=True)
+        # skills.sort(reverse=True)
 
         # for _,_,label,seq in skills:
         #     s = self.skills[label][seq]
