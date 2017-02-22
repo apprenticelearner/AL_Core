@@ -52,7 +52,7 @@ equal_rule = Operator(('Equal', '?x', '?y'),
 
 editable_rule = Operator(('Editable', '?x'),
                          [(('value', '?x'), '?xv')],
-                         [(('editable', '?x'), (lambda x: x == " ", '?xv'))])
+                         [(('editable', '?x'), (lambda x: x == "", '?xv'))])
 
 unigramize = Operator(('Unigramize', '?x'),
                       [(('value', '?x'), '?xv')],
