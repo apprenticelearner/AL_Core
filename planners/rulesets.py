@@ -1,4 +1,5 @@
 from planners.fo_planner import Operator
+from planners.fo_planner import FoPlanner
 
 
 add_rule = Operator(('Add', '?x', '?y'),
@@ -43,8 +44,15 @@ div_rule = Operator(('Divide', '?x', '?y'),
 
 equal_rule = Operator(('Equal', '?x', '?y'),
                       [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
+                       (lambda x, y: x < y, '?x', '?y'),
+                       (lambda x: x != '', '?xv'),
+                       (lambda x: x != '', '?yv'),
                        (lambda x, y: x == y, '?xv', '?yv')],
-                      [('Equal', '?x', '?y')])
+                      [(('eq', '?x', '?y'), True)])
+
+editable_rule = Operator(('Editable', '?x'),
+                         [(('value', '?x'), '?xv')],
+                         [(('editable', '?x'), (lambda x: x == " ", '?xv'))])
 
 unigramize = Operator(('Unigramize', '?x'),
                       [(('value', '?x'), '?xv')],
@@ -106,6 +114,18 @@ rotate = Operator(('Rotate', '?b1'),
 
 rb_rules = [add_x, add_y, sub_x, sub_y, half, rotate]
 
-rulesets = {'fraction arithmetic prior knowledge': arith_rules,
-            'rumbleblocks': rb_rules,
-            'article selection': []}
+functionsets = {'fraction arithmetic prior knowledge': arith_rules,
+                'rumbleblocks': rb_rules, 'article selection': []}
+
+featuresets = {'fraction arithmetic prior knowledge': [equal_rule,
+                                                       editable_rule],
+               'rumbleblocks': [], 'article selection': [equal_rule,
+                                                         editable_rule]}
+
+if __name__ == "__main__":
+
+    facts = [(('value', 'a'), ''),
+             (('value', 'b'), '')]
+    kb = FoPlanner(facts, [equal_rule])
+    kb.fc_infer()
+    print(kb.facts)

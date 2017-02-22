@@ -13,7 +13,8 @@ from learners.WhereLearner import SimStudentWhere
 from planners.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
 
-from planners.rulesets import rulesets
+from planners.rulesets import functionsets
+from planners.rulesets import featuresets
 
 search_depth = 1
 epsilon = .9
@@ -30,7 +31,6 @@ class WhereWhenHowNoFoa(BaseAgent):
         self.skills = {}
         self.examples = {}
         self.action_set = action_set.name
-        # self.rules = rulesets[action_set.name]
 
     def request(self, state):
         tup = Tuplizer()
@@ -38,21 +38,30 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         state = flt.transform(tup.transform(state))
 
-        new = {}
-        for attr in state:
-            if (isinstance(attr, tuple) and attr[0] == 'value'):
-                new[('editable', attr[1])] = state[attr] == ''
-                for attr2 in state:
-                    if (isinstance(attr2, tuple) and attr2[0] == 'value'):
-                        if (attr2 == attr or attr < attr2 or (state[attr] == ""
-                                                              or state[attr2]
-                                                              == "")):
-                            continue
-                        if (state[attr] == state[attr2]):
-                            new[('eq', attr, attr2)] = True
-        state.update(new)
+        # new = {}
+        # for attr in state:
+        #     if (isinstance(attr, tuple) and attr[0] == 'value'):
+        #         new[('editable', attr[1])] = state[attr] == ''
+        #         for attr2 in state:
+        #             if (isinstance(attr2, tuple) and attr2[0] == 'value'):
+        #                 if (attr2 == attr or attr < attr2 or (state[attr] == ""
+        #                                                       or state[attr2]
+        #                                                       == "")):
+        #                     continue
+        #                 if (state[attr] == state[attr2]):
+        #                     new[('eq', attr, attr2)] = True
+        # state.update(new)
 
-        pprint(state)
+        kb = FoPlanner([(self.ground(a),
+                         state[a].replace('?', 'QM') if
+                         isinstance(state[a], str) else
+                         state[a])
+                        for a in state], featuresets[self.action_set])
+        kb.fc_infer(depth=1, epsilon=epsilon)
+        state = {self.unground(a): v.replace("QM", "?") if isinstance(v, str)
+                 else v for a, v in kb.facts}
+
+        # pprint(state)
 
         # compute features
 
@@ -79,7 +88,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                          state[a].replace('?', 'QM') if
                          isinstance(state[a], str) else
                          state[a])
-                        for a in state], rulesets[self.action_set])
+                        for a in state], functionsets[self.action_set])
         kb.fc_infer(depth=search_depth, epsilon=epsilon)
 
         # print(kb)
@@ -123,7 +132,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                             #                  state[a].replace('?', 'QM') if
                             #                  isinstance(state[a], str) else
                             #                  state[a])
-                            #                 for a in state], rulesets[self.action_set])
+                            #                 for a in state], functionsets[self.action_set])
                             for vm in kb.fc_query([(self.ground(ele), '?v')],
                                                   max_depth=0,
                                                   epsilon=epsilon):
@@ -265,24 +274,35 @@ class WhereWhenHowNoFoa(BaseAgent):
         # print('Flat State:')
         # pprint(example['flat_state'])
 
-        new = {}
-        for attr in example['flat_state']:
-            if (isinstance(attr, tuple) and attr[0] == 'value'):
-                new[('editable', attr[1])] = example['flat_state'][attr] == ''
+        # new = {}
+        # for attr in example['flat_state']:
+        #     if (isinstance(attr, tuple) and attr[0] == 'value'):
+        #         new[('editable', attr[1])] = example['flat_state'][attr] == ''
 
-                for attr2 in example['flat_state']:
-                    if (isinstance(attr2, tuple) and attr2[0] == 'value'):
-                        if (attr2 == attr or attr < attr2 or
-                            (example['flat_state'][attr] == "" or
-                             example['flat_state'][attr2] == "")):
-                            continue
-                        if ((example['flat_state'][attr] ==
-                             example['flat_state'][attr2])):
-                            new[('eq', attr, attr2)] = True
+        #         for attr2 in example['flat_state']:
+        #             if (isinstance(attr2, tuple) and attr2[0] == 'value'):
+        #                 if (attr2 == attr or attr < attr2 or
+        #                     (example['flat_state'][attr] == "" or
+        #                      example['flat_state'][attr2] == "")):
+        #                     continue
+        #                 if ((example['flat_state'][attr] ==
+        #                      example['flat_state'][attr2])):
+        #                     new[('eq', attr, attr2)] = True
 
-        example['flat_state'].update(new)
+        # example['flat_state'].update(new)
 
-        # pprint(example['flat_state'])
+        kb = FoPlanner([(self.ground(a),
+                         example['flat_state'][a].replace('?', 'QM') if
+                         isinstance(example['flat_state'][a], str) else
+                         example['flat_state'][a])
+                        for a in example['flat_state']],
+                       featuresets[self.action_set])
+        kb.fc_infer(depth=1, epsilon=epsilon)
+        example['flat_state'] = {self.unground(a): v.replace("QM", "?") if
+                                 isinstance(v, str) else v for a, v in
+                                 kb.facts}
+
+        pprint(example['flat_state'])
 
         if label not in self.skills:
             self.skills[label] = {}
@@ -301,7 +321,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                          example['flat_state'][a].replace('?', 'QM') if
                          isinstance(example['flat_state'][a], str) else
                          example['flat_state'][a])
-                        for a in example['flat_state']], rulesets[self.action_set])
+                        for a in example['flat_state']], functionsets[self.action_set])
         kb.fc_infer(depth=search_depth, epsilon=epsilon)
 
         for exp, iargs in self.skills[label]:
@@ -309,7 +329,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             #                  example['flat_state'][a].replace('?', 'QM') if
             #                  isinstance(example['flat_state'][a], str) else
             #                  example['flat_state'][a])
-            #                 for a in example['flat_state']], rulesets[self.action_set])
+            #                 for a in example['flat_state']], functionsets[self.action_set])
             for m in self.explains_sai(kb, exp, sai):
                 print("COVERED", exp, m)
 
@@ -372,7 +392,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             #                  example['flat_state'][a].replace('?', 'QM') if
             #                  isinstance(example['flat_state'][a], str) else
             #                  example['flat_state'][a])
-            #                 for a in example['flat_state']], rulesets[self.action_set])
+            #                 for a in example['flat_state']], functionsets[self.action_set])
 
             selection_exp = selection
             for sel_match in kb.fc_query([('?selection', selection)],
@@ -389,7 +409,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 #                  example['flat_state'][a].replace('?', 'QM') if
                 #                  isinstance(example['flat_state'][a], str) else
                 #                  example['flat_state'][a])
-                #                 for a in example['flat_state']], rulesets[self.action_set])
+                #                 for a in example['flat_state']], functionsets[self.action_set])
                 input_exp = iv
                 print('trying to explain', [((a, '?input'), iv)])
 

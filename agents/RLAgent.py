@@ -12,7 +12,8 @@ from concept_formation.cobweb3 import Cobweb3Tree
 
 from planners.fo_planner import FoPlanner
 from planners.fo_planner import subst
-from planners.rulesets import rulesets
+from planners.rulesets import functionsets
+from planners.rulesets import featuresets
 # from planners.fo_planner import arith_rules
 from agents.BaseAgent import BaseAgent
 
@@ -179,7 +180,7 @@ class RLAgent(BaseAgent):
                              state[a].replace('?', 'QM') if
                              isinstance(state[a], str) else
                              state[a])
-                            for a in state], rulesets[self.action_set])
+                            for a in state], functionsets[self.action_set])
 
             curr_state = {x[0]: x[1] for x in kb.facts}
             next_actions = [a for a in kb.fc_get_actions(epsilon=epsilon)]
@@ -277,7 +278,7 @@ class RLAgent(BaseAgent):
         #                      state[a].replace('?', 'QM') if
         #                      isinstance(state[a], str) else
         #                      state[a])
-        #                     for a in state], rulesets[self.action_set])
+        #                     for a in state], functionsets[self.action_set])
 
         #     cum_reward = 0
         #     trace = [{str(a): v for a, v in kb.facts}]
