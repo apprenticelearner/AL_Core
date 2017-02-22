@@ -1,6 +1,6 @@
 from pprint import pprint
 from copy import deepcopy
-from agents.pyibl import Agent
+from learners.pyibl import Agent
 import numpy as np
 
 from sklearn.feature_extraction import DictVectorizer
@@ -15,7 +15,7 @@ from sklearn.pipeline import Pipeline
 from concept_formation.cobweb3 import Cobweb3Tree
 from concept_formation.trestle import TrestleTree
 
-from ilp.foil_classifier import FoilClassifier
+# from ilp.foil_classifier import FoilClassifier
 
 # cobweb, pyibl, nearest neighbor, logistic regression
 
@@ -54,24 +54,6 @@ def DictVectWrapper(clf):
                             ('clf', clf(**x))])
 
     return fun
-
-class ScikitFoil(object):
-
-    def __init__(self, params=None):
-        if params is None:
-            self.foil = FoilClassifier()
-        else:
-            self.foil = FoilClassifier(**params)
-
-    def __repr__(self):
-        return repr(self.foil)  
-
-    def fit(self, X, y):
-        self.foil.fit(X, y)
-
-    def predict(self, X):
-        yh = self.foil.predict(X)
-        return np.array(yh)
 
 class ScikitTrestle(object):
 
@@ -256,7 +238,7 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
         else:
             return super(CustomKNeighborsClassifier, self).predict(X)
 
-parameters_nearest = {'n_neighbors':3}
+parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss' : 'perceptron'}
 
 when_learners = {}
@@ -271,7 +253,6 @@ when_learners['sgd'] = DictVectWrapper(CustomSGD)
 when_learners['cobweb'] = ScikitCobweb
 when_learners['trestle'] = ScikitTrestle
 when_learners['pyibl'] = DictVectWrapper(ScikitPyIBL)
-when_learners['foil'] = iFitWrapper(ScikitFoil)
 
 #clf_class = Wrapper(GaussianNB)
 #clf = clf_class()

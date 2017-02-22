@@ -70,10 +70,13 @@ class IncrementalMany(object):
         """
         try:
             sai = tup_sai(example['selection'], example['action'],
-                          example['inputs'])
+                          [example['inputs'][a] for a in example['inputs']])
             grounded_plan = tuple([self.planner.execute_plan(ele,
                                     example['limited_state'])
                                     for ele in explanation])
+            print()
+            print(sai, 'VS', grounded_plan)
+            print()
             return self.planner.is_sais_equal(grounded_plan, sai)
         except Exception as e:
             print(e)
@@ -95,6 +98,10 @@ class SimStudentHow(IncrementalMany):
                 seed = self.explanations[exp][0]
                 sai = tup_sai(seed['selection'], seed['action'],
                               seed['inputs'])
+
+                print("LIMITED STATE FOR HOW")
+                pprint(seed['limited_state'])
+
                 for new_exp in self.planner.explain_sai_iter(seed['limited_state'],
                                                         sai):
                     if not self.explains(new_exp, example):

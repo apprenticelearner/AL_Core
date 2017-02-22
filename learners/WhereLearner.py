@@ -7,15 +7,39 @@ from concept_formation.structure_mapper import StructureMapper
 from concept_formation.structure_mapper import rename_flat
 from concept_formation.structure_mapper import contains_component
 from concept_formation.continuous_value import ContinuousValue
-from ilp.fo_planner import Operator
-from ilp.fo_planner import build_index
-from ilp.fo_planner import subst
-from ilp.fo_planner import unify
+from planners.fo_planner import Operator
+from planners.fo_planner import build_index
+from planners.fo_planner import subst
+from planners.fo_planner import unify
 
-from ilp.base_ilp import BaseILP
 
 global my_gensym_counter
 my_gensym_counter = 0
+
+
+class BaseILP(object):
+
+    def __init__(self):
+        pass
+
+    def get_match(self, X):
+        pass
+
+    def get_all_matches(self, X):
+        pass
+
+    def ifit(self, X, y):
+        pass
+
+    def fit(self, X, y):
+        """
+        Assume that X is a list of dictionaries that represent FOL using
+        TRESTLE notation.
+
+        y is a vector of 0's or 1's that specify whether the examples are
+        positive or negative.
+        """
+        pass
 
 
 def gensym():
@@ -52,7 +76,7 @@ class MostSpecific(BaseILP):
     def get_matches(self, X, constraints=None):
         for t in self.pos:
             # print(t)
-            yield list(t)
+            yield t
 
     def __len__(self):
         return len(self.pos)

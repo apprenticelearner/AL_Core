@@ -1,6 +1,4 @@
-from random import choice
 from pprint import pprint
-from math import exp
 from random import uniform
 from random import random
 from random import shuffle
@@ -12,10 +10,10 @@ from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.cobweb3 import Cobweb3Tree
 
-from ilp.fo_planner import FoPlanner
-from ilp.fo_planner import subst
+from planners.fo_planner import FoPlanner
+from planners.fo_planner import subst
+from planners.fo_planner import arith_rules
 from agents.BaseAgent import BaseAgent
-from ilp.fo_planner import arith_rules
 
 rules = arith_rules
 epsilon = .9

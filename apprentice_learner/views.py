@@ -1,8 +1,10 @@
 import json
 import traceback
+from pprint import pprint
 
 from django.views.decorators.csrf import csrf_exempt
-from django.shortcuts import redirect, get_list_or_404, get_object_or_404
+from django.shortcuts import get_list_or_404
+from django.shortcuts import get_object_or_404
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
@@ -12,20 +14,16 @@ from apprentice_learner.models import ActionSet
 from apprentice_learner.models import Agent
 from agents.Dummy import Dummy
 from agents.WhereWhenHow import WhereWhenHow
-from agents.LogicalWhenHowNoFoa import LogicalWhenHow
-from agents.LogicalWhereWhenHow import LogicalWhereWhenHow
+from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from agents.RLAgent import RLAgent
-from agents.TrestleHow import TrestleHow
 
 agents = {'Dummy': Dummy,
+          'WhereWhenHowNoFoa': WhereWhenHowNoFoa,
           'WhereWhenHow': WhereWhenHow,
-          'LogicalWhenHow': LogicalWhenHow,
-          'LogicalWhereWhenHow': LogicalWhereWhenHow,
-          'TrestleHow': TrestleHow,
           'RLAgent': RLAgent}
 
-from pprint import pprint
 debug = True
+
 
 @csrf_exempt
 def create(request):
@@ -33,7 +31,7 @@ def create(request):
     This is used to create a new agent with the provided configuration.
 
     .. todo:: TODO Ideally there should be a way to create agents both using
-    the browser and via a POST object. 
+    the browser and via a POST object.
     """
     if request.method != "POST":
         return HttpResponseNotAllowed(["POST"])

@@ -8,20 +8,20 @@ from concept_formation.trestle import TrestleTree
 from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
-from ilp.most_specific import SimStudentWhere
+from learners.WhereLearner import SimStudentWhere
 # from ilp.most_specific import MostSpecific
-from ilp.fo_planner import FoPlanner
+from planners.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
-from ilp.fo_planner import rb_rules
-# from ilp.fo_planner import arith_rules
+from planners.fo_planner import rb_rules
+from planners.fo_planner import arith_rules
 
-rules = rb_rules
+rules = arith_rules
 
 search_depth = 1
 epsilon = .9
 
 
-class LogicalWhenHow(BaseAgent):
+class WhereWhenHowNoFoa(BaseAgent):
     """
     This is the basis for the 2 mechanism model.
     """
@@ -37,6 +37,7 @@ class LogicalWhenHow(BaseAgent):
         flt = Flattener()
 
         state = flt.transform(tup.transform(state))
+
         new = {}
         for attr in state:
             if (isinstance(attr, tuple) and attr[0] == 'value'):
@@ -50,6 +51,8 @@ class LogicalWhenHow(BaseAgent):
                         if (state[attr] == state[attr2]):
                             new[('eq', attr, attr2)] = True
         state.update(new)
+
+        pprint(state)
 
         # compute features
 

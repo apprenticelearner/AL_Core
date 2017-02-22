@@ -205,6 +205,13 @@ class ActionPlanner:
         already_found = set()
         
         inp_exps = [[] for ele in sai[2:]]
+        sai_copy = [ele for ele in sai[:-1]]
+        for a in sai[-1]:
+            sai_copy.append(sai[-1][a])
+
+        sai = tuple(sai_copy)
+        
+        print(sai[2:])
         inp_iters = [self.explain_value_iter(state, ele) for ele in sai[2:]]
 
         found = True
@@ -233,9 +240,11 @@ class ActionPlanner:
         """
         num_expl = self.act_params['num_expl']
         time_limit = self.act_params['time_limit']
+        sel = self.explain_value(state, sai[2], num_expl, time_limit)[0]
         exps = [self.explain_value(state, ele, num_expl, time_limit) for ele in
-                sai[2:]]
-        return [sai[0:2] + inp for inp in product(*exps)]
+                [sai[3][a] for a in sai[3]]]
+        print([sai[0:2] + (sel,) + inp for inp in product(*exps)])
+        return [sai[0:2] + (sel,) + inp for inp in product(*exps)]
 
 
     def explain_value_iter(self, state, value):
@@ -248,8 +257,8 @@ class ActionPlanner:
         extra["epsilon"] = self.act_params['epsilon']
         extra['tested'] = set()
         depth_limit = self.act_params['depth_limit']
-        state = {k:state[k] for k in state if k[0] != '_'}
-        problem = ActionPlannerProblem((tuple(state.items()), 
+        state = {k: state[k] for k in state if k[0] != '_'}
+        problem = ActionPlannerProblem((tuple(state.items()),
                                         None, value), extra=extra)
         try:
             for solution in best_first_search(problem, cost_limit=depth_limit):
@@ -261,7 +270,7 @@ class ActionPlanner:
         yield str(value)
 
     def explain_value(self, state, value, num_expl=1, time_limit=float('inf')):
-        """ 
+        """
         This function uses a planner compute the given value from the current
         state. The function returns a plan.
         """
@@ -271,9 +280,10 @@ class ActionPlanner:
         extra['tested'] = set()
         depth_limit = self.act_params['depth_limit']
 
-        state = {k:state[k] for k in state if k[0] != '_'}
+        state = {k: state[k] for k in state if k[0] != '_'}
 
-        problem = ActionPlannerProblem((tuple(state.items()), None, value), extra=extra)
+        problem = ActionPlannerProblem((tuple(state.items()), None, value),
+                                       extra=extra)
 
         explanations = []
         
