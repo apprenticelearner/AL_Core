@@ -41,7 +41,7 @@ def create(request):
     if debug:
         pprint(data)
 
-    if 'agent_type' not in data:
+    if 'agent_type' not in data or data['agent_type'] is None:
         print("request body missing 'agent_type'")
         return HttpResponseBadRequest("request body missing 'agent_type'")
 
@@ -49,7 +49,7 @@ def create(request):
         print("Specified agent not supported")
         return HttpResponseBadRequest("Specified agent not supported")
 
-    if 'action_set' not in data:
+    if 'action_set' not in data or data['action_set'] is None:
         print("request body missing 'action_set'")
         return HttpResponseBadRequest("request body missing 'action_set'")
 
@@ -94,7 +94,7 @@ def request(request, agent_id):
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(request.body.decode('utf-8'))
         
-        if 'state' not in data:
+        if 'state' not in data or data['state'] is None:
             print("request body missing 'state'")
             return HttpResponseBadRequest("request body missing 'state'")
 
@@ -125,27 +125,27 @@ def train(request, agent_id):
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(request.body.decode('utf-8'))
 
-        if 'state' not in data:
+        if 'state' not in data or data['state'] is None:
             print("request body missing 'state'")
             return HttpResponseBadRequest("request body missing 'state'")
-        if 'label' not in data:
+        if 'label' not in data or data['label'] is None:
             print("request body missing 'label'")
             data['label'] = 'NO_LABEL'
             # return HttpResponseBadRequest("request body missing 'label'")
-        if 'foas' not in data:
+        if 'foas' not in data or data['foas'] is None:
             print("request body missing 'foas'")
             data['foas'] = {}
             # return HttpResponseBadRequest("request body missing 'foas'")
-        if 'selection' not in data:
+        if 'selection' not in data or data['selection'] is None:
             print("request body missing 'selection'")
             return HttpResponseBadRequest("request body missing 'selection'")
-        if 'action' not in data:
+        if 'action' not in data or data['action'] is None:
             print("request body missing 'action'")
             return HttpResponseBadRequest("request body missing 'action'")
-        if 'inputs' not in data:
+        if 'inputs' not in data or data['inputs'] is None:
             print("request body missing 'inputs'")
             return HttpResponseBadRequest("request body missing 'inputs'")
-        if 'correct' not in data:
+        if 'correct' not in data or data['correct'] is None:
             print("request body missing 'correct'")
             return HttpResponseBadRequest("request body missing 'correct'")
 
