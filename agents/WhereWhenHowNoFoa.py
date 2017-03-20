@@ -8,8 +8,8 @@ from concept_formation.trestle import TrestleTree
 from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
-from learners.WhereLearner import SimStudentWhere
-# from ilp.most_specific import MostSpecific
+from learners.WhereLearner import SpecificToGeneral
+from learners.WhereLearner import MostSpecific
 from planners.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
 
@@ -25,8 +25,8 @@ class WhereWhenHowNoFoa(BaseAgent):
     This is the basis for the 2 mechanism model.
     """
     def __init__(self, action_set):
-        self.where = SimStudentWhere
-        # self.where = MostSpecific
+        # self.where = SpecificToGeneral
+        self.where = MostSpecific
         self.when = TrestleTree
         self.skills = {}
         self.examples = {}
@@ -109,9 +109,10 @@ class WhereWhenHowNoFoa(BaseAgent):
             while failed:
 
                 failed = False
-                for m in skill['where'].get_matches(state,epsilon=epsilon):
+                for m in skill['where'].get_matches(state, epsilon=epsilon):
                     if len(m) != len(set(m)):
-                        print("GENERATED MATCH WITH TWO VARS BOUND TO SAME THING")
+                        print("GENERATED MATCH WITH TWO VARS BOUND TO ",
+                              "SAME THING")
                         continue
 
                     print("MATCH FOUND", label, exp, m)
@@ -159,6 +160,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                         # break
 
                     print("predicting")
+                    pprint(r_state)
                     c = skill['when'].categorize(r_state)
                     # pprint(c.av_counts)
                     print(c.predict('correct'))
@@ -361,7 +363,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 t = tuple([m["?foa%s" % i].replace("QM", "") for i in range(len(m))])
 
                 if len(t) != len(set(t)):
-                    print("TWO VARS BOUND OT SAME")
+                    print("TWO VARS BOUND TO SAME")
                     continue
 
                 secondary_explainations.append(r_exp)

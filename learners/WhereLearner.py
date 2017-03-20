@@ -6,20 +6,30 @@ from concept_formation.preprocessor import NameStandardizer
 from concept_formation.structure_mapper import StructureMapper
 from concept_formation.structure_mapper import rename_flat
 from concept_formation.structure_mapper import contains_component
-from concept_formation.continuous_value import ContinuousValue
 from planners.fo_planner import Operator
 from planners.fo_planner import build_index
 from planners.fo_planner import subst
-from planners.fo_planner import unify
 
 
 global my_gensym_counter
 my_gensym_counter = 0
 
 
+class Counter(object):
+
+    def __init__(self):
+        self.count = 0
+
+    def increment(self):
+        self.count += 1
+
+
 class BaseILP(object):
 
     def __init__(self):
+        pass
+
+    def check_match(self, t, x):
         pass
 
     def get_match(self, X):
@@ -67,62 +77,60 @@ def get_vars(arg):
     else:
         return []
 
+
 class MostSpecific(BaseILP):
+    """
+    This just memorizes pairs of states and matches. Then given a state it
+    looks up a match.
+    """
 
-    def __init__(self):
-        self.pos = set()
+    def __init__(self, remove_values=True):
+        self.remove_values = remove_values
+        self.states = {}
         self.target_types = []
-
-    def get_matches(self, X, constraints=None):
-        for t in self.pos:
-            # print(t)
-            yield t
-
-    def __len__(self):
-        return len(self.pos)
+        self.pos_concept = Counter()
+        self.neg_concept = Counter()
 
     def ifit(self, t, x, y):
-        self.target_types = t
+        if y == 0:
+            self.neg_concept.increment()
+            return
+        self.pos_concept.increment()
 
-        if y == 1:
-            self.pos.add(tuple(t))
+        if self.remove_values:
+            # x = {a: "EMPTY" if x[a] == "" 
+            #      else str(type(x[a])) for a in x}
+            x = {a: str(type(x[a])) for a in x}
+        x = frozenset(x.items())
+        pprint(x)
+        if x not in self.states:
+            self.states[x] = set()
+        self.states[x].add(tuple(t))
+
+    def get_matches(self, x, epsilon=0.0):
+        if self.remove_values:
+            x = {a: str(type(x[a])) for a in x}
+        x = frozenset(x.items())
+        if x not in self.states:
+            return
+        for t in self.states[x]:
+            yield t
+
+    def check_match(self, t, x):
+        if self.remove_values:
+            x = {a: str(type(x[a])) for a in x}
+        x = frozenset(x.items())
+        return x in self.states and t in self.states[x]
+
+    def __len__(self):
+        return sum(len(self.states[x]) for x in self.states)
 
     def fit(self, T, X, y):
-
-        # self.target_types = T[0]
-
-        # ignore X and save the positive T's.
         for i, t in enumerate(T):
             self.ifit(T[i], X[i], y[i])
 
-    def __repr__(self):
-        tt = []
-        try:
-            for t in self.pos:
-                t = ["('name', '?foa%i')=='%s'" % (i, v)
-                     for i, v in enumerate(t)]
-                tt.append(t)
-        except:
-            pass
 
-        tt = ["(" + ", ".join(t) + ")" for t in tt]
-        return repr(" or ".join(tt))
-
-
-def ground(attr):
-    new = []
-    for ele in attr:
-        if isinstance(ele, tuple):
-            new.append(ground(ele))
-        elif isinstance(ele, str):
-            if ele[0] == '?':
-                new.append(ele[1:])
-            else:
-                new.append(ele)
-    return tuple(new)
-
-
-class SimStudentWhere(BaseILP):
+class SpecificToGeneral(BaseILP):
 
     def __init__(self):
         self.pos = set()
@@ -173,11 +181,12 @@ class SimStudentWhere(BaseILP):
         # print("OPERATOR")
         # pprint(self.operator)
 
-        for m in self.operator.match(index,epsilon=epsilon):
+        for m in self.operator.match(index, epsilon=epsilon):
             print('match', m, self.operator.name)
             result = tuple(['?' + subst(m, ele)
                             for ele in self.operator.name[1:]])
             # result = tuple(['?' + m[e] for e in self.target_types])
+            print(result)
             yield result
 
         print("GOT ALL THE MATCHES!")
@@ -215,8 +224,8 @@ class SimStudentWhere(BaseILP):
         # if y == 0:
         #     return
 
-        # x = {a: x[a] for a in x if self.is_structural_feature(a, x[a])}
-        x = {a: x[a] for a in x}
+        x = {a: x[a] for a in x if self.is_structural_feature(a, x[a])}
+        # x = {a: x[a] for a in x}
 
         # eles = set([field for field in t])
         # prior_count = 0
@@ -297,9 +306,9 @@ class SimStudentWhere(BaseILP):
         conditions = ([(a, pos_instance[a]) for a in pos_instance] +
                       [('not', (a, neg_instance[a])) for a in neg_instance])
 
-        print("========CONDITIONS======")
-        pprint(conditions)
-        print("========CONDITIONS======")
+        # print("========CONDITIONS======")
+        # pprint(conditions)
+        # print("========CONDITIONS======")
 
         self.target_types = ['?foa%s' % i for i in range(len(t))]
         self.operator = Operator(tuple(['Rule'] + self.target_types),
@@ -322,7 +331,7 @@ class SimStudentWhere(BaseILP):
 
 if __name__ == "__main__":
 
-    ssw = SimStudentWhere()
+    ssw = SpecificToGeneral()
 
     p1 = {('on', '?o1', '?o2'): True,
           ('name', '?o1'): "Block 1",
