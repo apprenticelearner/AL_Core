@@ -2,6 +2,7 @@ from pprint import pprint
 
 from agents.utils import tup_sai
 
+
 class IncrementalMany(object):
 
     def __init__(self, planner):
@@ -84,6 +85,7 @@ class IncrementalMany(object):
             pprint(explanation)
             pprint(example['limited_state'])
             return False
+
 
 class SimStudentHow(IncrementalMany):
 

@@ -17,7 +17,7 @@ from learners.HowLearner import how_learners
 # from agents.WhatLearner import NeuralNetLearnedFeatures
 # from agents.WhatLearner import GrammarLearnedFeatures
 from learners.WhereLearner import MostSpecific
-from learners.WhereLearner import SimStudentWhere
+from learners.WhereLearner import SpecificToGeneral
 
 
 class WhereWhenHow(BaseAgent):
@@ -72,7 +72,7 @@ class WhereWhenHow(BaseAgent):
         self.how_instances = {}
 
         # self.where = Foil
-        self.where = MostSpecific
+        self.where = WhereMemo
         # self.where = SimStudentWhere
         # self.where = iFoil
         # self.where = Aleph

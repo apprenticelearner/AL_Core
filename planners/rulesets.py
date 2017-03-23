@@ -1,5 +1,15 @@
+import re
+
 from planners.fo_planner import Operator
 from planners.fo_planner import FoPlanner
+
+_then_gensym_counter = 0
+
+
+def gensym():
+    global _then_gensym_counter
+    _then_gensym_counter += 1
+    return 'QMthengensym%i' % _then_gensym_counter
 
 
 add_rule = Operator(('Add', '?x', '?y'),
@@ -51,20 +61,82 @@ equal_rule = Operator(('Equal', '?x', '?y'),
                       [(('eq', '?x', '?y'), True)])
 
 editable_rule = Operator(('Editable', '?x'),
-                         [(('value', '?x'), '?xv')],
-                         [(('editable', '?x'), (lambda x: x == "", '?xv'))])
+                         [(('value', '?x'), '?xv'),
+                          (lambda x: x == "", '?xv')],
+                         [(('editable', '?x'), True)])
+                         # [(('editable', '?x'), (lambda x: x == "", '?xv'))])
 
-unigramize = Operator(('Unigramize', '?x'),
-                      [(('value', '?x'), '?xv')],
-                      [(lambda x, y: [('unigram', y, e) for e in
-                                      x.split(' ')], '?xv', '?x')])
+def structurize_text(attr, val):
+    ret = []
+    words = val.split(' ')
+    prev_word_obj = None
+    for w in words:
+        w = w.lower()
+        if w == '':
+            continue
 
-bigramize = Operator(('Bigramize', '?x'),
-                     [(('value', '?x'), '?xv'),
-                      (lambda x: ' ' in x, '?xv')],
-                     [(lambda x, y: [('bigram', y, x.split(' ')[i],
-                                      x.split(' ')[i+1]) for i in
-                                     range(len(x.split(' '))-1)], '?xv', '?x')])
+        word_obj = gensym()
+        print(word_obj)
+        ret.append((('contains-word', attr, word_obj), True))
+        ret.append((('word-value', word_obj, w), True))
+
+        if prev_word_obj is not None:
+            ret.append((('word-adj', attr, prev_word_obj, word_obj), True))
+
+        prev_word_obj = word_obj
+
+    return ret
+
+
+def unigramize(attr, val):
+    ret = []
+    words = re.findall("[a-zA-Z0-9_']+|[^a-zA-Z0-9_\s]",
+                       val.replace('QM', '?'))
+    # words = val.split(' ')
+
+    for w in words:
+        if w == '':
+            continue
+        w = w.lower()
+        w = w.replace('?', 'QM')
+
+        ret.append((('unigram', attr, w), True))
+
+    return ret
+
+
+def bigramize(attr, val):
+    ret = []
+    words = re.findall("[a-zA-Z0-9_']+|[^a-zA-Z0-9_\s]",
+                       val.replace('QM', '?'))
+    # words = val.split(' ')
+    prev_w = "<START>"
+
+    for w in words:
+        if w == '':
+            continue
+        w = w.lower()
+        w = w.replace('?', 'QM')
+        ret.append((('bigram', attr, prev_w, w), True))
+        prev_w = w
+
+    ret.append((('bigram', attr, prev_w, "<END>"), True))
+
+    return ret
+
+
+structurize = Operator(('Structurize', '?x'),
+                       [(('value', '?x'), '?xv')],
+                       [(structurize_text, '?x', '?xv')])
+
+unigram_rule = Operator(('Unigram-rule', '?x'),
+                        [(('value', '?x'), '?xv')],
+                        [(unigramize, '?x', '?xv')])
+
+bigram_rule = Operator(('Bigram-rule', '?x'),
+                       [(('value', '?x'), '?xv'),
+                        (lambda x: ' ' in x, '?xv')],
+                       [(bigramize, '?x', '?xv')])
 
 arith_rules = [add_rule, sub_rule, mult_rule, div_rule]
 # arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule,
@@ -117,13 +189,15 @@ functionsets = {'fraction arithmetic prior knowledge': arith_rules,
 
 featuresets = {'fraction arithmetic prior knowledge': [equal_rule,
                                                        editable_rule],
-               'rumbleblocks': [], 'article selection': [equal_rule,
+               'rumbleblocks': [], 'article selection': [unigram_rule,
+                                                         bigram_rule,
+                                                         equal_rule,
                                                          editable_rule]}
 
 if __name__ == "__main__":
 
-    facts = [(('value', 'a'), ''),
-             (('value', 'b'), '')]
-    kb = FoPlanner(facts, [equal_rule])
+    facts = [(('value', 'a'), 'This is Chris\'s first sentence.'),
+             (('value', 'b'), 'This is the secondQM sentence.')]
+    kb = FoPlanner(facts, [bigram_rule])
     kb.fc_infer()
     print(kb.facts)
