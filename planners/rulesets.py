@@ -79,8 +79,7 @@ half = Operator(('Half', '?x'),
 
 add_y = Operator(('Add', '?y1', '?y2'),
                  [(('y', '?y1'), '?yv1'),
-                  (('y', '?y2'), '?yv2'),
-                  (lambda y1, y2: y1 <= y2, '?y1', '?y2')],
+                  (('y', '?y2'), '?yv2')],
                  [(('y', ('Add', '?y1', '?y2')),
                   (lambda y1, y2: y1 + y2, '?yv1', '?yv2'))])
 
@@ -92,8 +91,7 @@ sub_y = Operator(('Subtract', '?y1', '?y2'),
 
 add_x = Operator(('Add', '?x1', '?x2'),
                  [(('x', '?x1'), '?xv1'),
-                  (('x', '?x2'), '?xv2'),
-                  (lambda x1, x2: x1 <= x2, '?x1', '?x2')],
+                  (('x', '?x2'), '?xv2')],
                  [(('x', ('Add', '?x1', '?x2')),
                   (lambda x1, x2: x1 + x2, '?xv1', '?xv2'))])
 
