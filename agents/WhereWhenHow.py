@@ -72,7 +72,7 @@ class WhereWhenHow(BaseAgent):
         self.how_instances = {}
 
         # self.where = Foil
-        self.where = WhereMemo
+        self.where = MostSpecific
         # self.where = SimStudentWhere
         # self.where = iFoil
         # self.where = Aleph
