@@ -7,7 +7,7 @@ from random import choice
 from py_search.base import Problem
 from py_search.base import Node
 from py_search.optimization import simulated_annealing
-from py_search.optimization import hill_climbing
+# from py_search.optimization import hill_climbing
 
 from planners.fo_planner import Operator
 from planners.fo_planner import build_index
@@ -18,7 +18,7 @@ from learners.utils import test_coverage
 from learners.utils import get_variablizations
 from learners.utils import weighted_choice
 
-clause_accuracy_weight = 0.95
+clause_accuracy_weight = 1.0
 
 
 def clause_score(accuracy_weight, p_covered, p_uncovered, n_covered,
@@ -38,6 +38,11 @@ def clause_vector_score(v, possible_literals, constraints, pset, nset):
     h = build_clause(v, possible_literals)
     l = clause_length(h)
     p_covered, n_covered = test_coverage(h, constraints, pset, nset)
+    if len(p_covered) < 1:
+        pprint(pset)
+        pprint(h)
+        assert False
+
     return clause_score(clause_accuracy_weight, len(p_covered), len(pset) -
                         len(p_covered), len(n_covered), len(nset) -
                         len(n_covered), l)
@@ -56,15 +61,21 @@ def optimize_clause(h, constraints, pset, nset):
     cover x.
     """
     c_length = clause_length(h)
+    print('# POS', len(pset))
+    print('# NEG', len(nset))
+    print('length', c_length)
+
     p_covered, n_covered = test_coverage(h, constraints, pset, nset)
     p_uncovered = [p for p in pset if p not in p_covered]
     n_uncovered = [n for n in nset if n not in n_covered]
+    print("P COVERED", len(p_covered))
+    print("N COVERED", len(n_covered))
     initial_score = clause_score(clause_accuracy_weight, len(p_covered),
                                  len(p_uncovered), len(n_covered),
                                  len(n_uncovered), c_length)
     p, pm = choice(p_covered)
     pos_partial = list(compute_bottom_clause(p, pm))
-    print('POS PARTIAL', pos_partial)
+    # print('POS PARTIAL', pos_partial)
 
     # TODO if we wanted we could add the introduction of new variables to the
     # get_variablizations function.
@@ -92,7 +103,7 @@ def optimize_clause(h, constraints, pset, nset):
             print(new_l)
             possible_literals[pos_partial.index(l)].append(new_l)
 
-    pprint(possible_literals)
+    # pprint(possible_literals)
     reverse_pl = {l: (i, j) for i in possible_literals for j, l in
                   enumerate(possible_literals[i])}
 
@@ -102,8 +113,8 @@ def optimize_clause(h, constraints, pset, nset):
         clause_vector[i] = j
     clause_vector = tuple(clause_vector)
 
-    print("INITIAL CLAUSE VECTOR")
-    print(clause_vector)
+    # print("INITIAL CLAUSE VECTOR")
+    # print(clause_vector)
 
     flip_weights = [(len(possible_literals[i])-1, i) for i in
                     possible_literals]
@@ -113,6 +124,7 @@ def optimize_clause(h, constraints, pset, nset):
     print("SIZE OF SEARCH SPACE:", size)
 
     num_successors = sum([w for w, c in flip_weights])
+    print("NUM SUCCESSORS", num_successors)
     temp_length = num_successors
     temp_length = 10
     initial_temp = 0.16
@@ -135,12 +147,11 @@ class ClauseOptimizationProblem(Problem):
         """
         This is an optimization, so no early termination
         """
-        print("GOAL TESTING", node.state, node.cost())
         return False
 
     def random_successor(self, node):
         clause_vector = node.state
-        print("EXPANDING", clause_vector, node.cost())
+        # print("EXPANDING", clause_vector, node.cost())
 
         possible_literals, flip_weights, constraints, pset, nset = node.extra
         index = weighted_choice(flip_weights)
@@ -148,10 +159,10 @@ class ClauseOptimizationProblem(Problem):
                         if j != clause_vector[index]])
         new_clause_vector = tuple(new_j if i == index else j for i, j in
                                   enumerate(clause_vector))
-        print("SCORING NEW CLAUSE")
+        print("SCORING")
         score = clause_vector_score(new_clause_vector, possible_literals,
                                     constraints, pset, nset)
-        print("DONE SCORING")
+        print("Done - Score =", score)
         return Node(new_clause_vector, None, None, -1 * score,
                     extra=node.extra)
 
@@ -170,7 +181,7 @@ class ClauseOptimizationProblem(Problem):
                                             possible_literals, constraints,
                                             pset, nset)
                 yield Node(new_clause_vector, None, None, -1 * score,
-                            extra=node.extra)
+                           extra=node.extra)
 
 
 class IncrementalHeuristic(object):
@@ -250,6 +261,8 @@ class IncrementalHeuristic(object):
                                  len(n_uncovered), c_length)
 
             print("OVERALL SCORE", score)
+            print("FINAL H")
+            pprint(self.h.union(self.constraints))
 
 
 if __name__ == "__main__":

@@ -30,7 +30,7 @@ class WhereWhenHowNoFoa(BaseAgent):
         # self.where = SpecificToGeneral
         self.where = RelationalLearner
         # self.where = MostSpecific
-        # self.when = when_learners['naive bayes']
+        # self.when = 'naive bayes'
         self.when = 'always true'
         self.skills = {}
         self.examples = {}

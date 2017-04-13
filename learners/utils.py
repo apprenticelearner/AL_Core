@@ -42,7 +42,7 @@ def get_variablizations(literal):
                 yield new
 
     elif not is_variable(literal):
-        yield '?gen%i' % hash(literal)
+        yield '?gen%s' % repr(literal)
 
 
 def count_occurances(var, h):
@@ -63,11 +63,8 @@ def covers(h, x, initial_mapping):
     """
     index = build_index(x)
     operator = Operator(tuple(['Rule']), h, [])
-    print("COVERS?")
     for m in operator.match(index, initial_mapping=initial_mapping):
-        print("True")
         return True
-    print("False")
     return False
 
 

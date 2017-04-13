@@ -1,11 +1,13 @@
+from math import isclose
 from pprint import pprint
 from random import random
-from math import isclose
+from random import shuffle
+from itertools import product
 
+from concept_formation.utils import isNumber
 from py_search.base import Problem
 from py_search.base import Node
 from py_search.uninformed import iterative_deepening_search
-from random import shuffle
 # from py_search.uninformed import depth_first_search
 # from py_search.uninformed import breadth_first_search
 # from py_search.informed import iterative_deepening_best_first_search
@@ -15,26 +17,57 @@ from py_search.utils import compare_searches
 
 def index_key(fact):
     """
+    A new total indexing of the fact. Just build the whole damn thing, assuming
+    it doesn't explode the memory usage.
+
+    >>> index_key('cell')
+    'cell'
+
+    >>> index_key(('cell',))
+    ('cell',)
+
+    >>> index_key(('cell', '5'))
+    ('cell', '5')
+
+    >>> index_key((('value', '?x'), '5'))
+    (('value', '?'), '5')
+
+    >>> index_key((('value', ('Add', ('value', '?x'),
+    ...                              ('value', '?y'))), '5'))
+    (('value', ('Add', ('value', '?'), ('value', '?'))), '5')
+    """
+    if isinstance(fact, tuple):
+        return tuple(index_key(ele) for ele in fact)
+    elif is_variable(fact):
+        return '?'
+    elif isNumber(fact):
+        return '#NUM'
+    else:
+        return fact
+
+
+def old_index_key(fact):
+    """
     Generates the key values necessary to look up the given fact in the index.
 
     Takes a fact, represented as a tuple of elements and returns a tuple key.
     In general tuples have a particular structure: ``((fact), value)``, so when
-    developing the index, it should use some combination of fact and values. 
+    developing the index, it should use some combination of fact and values.
 
     Currently, I want the index to return (fact[0], fact[1], value); i.e., a
     triple element index.
 
-    >>> index_key(('cell'))
+    >>> old_index_key(('cell'))
     ('cell', None, None)
 
-    >>> index_key(('cell', '5'))
+    >>> old_index_key(('cell', '5'))
     ('cell', None, '5')
 
-    >>> index_key((('value', 'TableCell'), '5'))
+    >>> old_index_key((('value', 'TableCell'), '5'))
     ('value', 'TableCell', '5')
 
-    >>> index_key((('value', ('Add', ('value', 'TableCell'),
-    ...                              ('value', 'TableCell'))), '5'))
+    >>> old_index_key((('value', ('Add', ('value', 'TableCell'),
+    ...                                  ('value', 'TableCell'))), '5'))
     ('value', 'Add', '5')
     """
     if not isinstance(fact, tuple):
@@ -49,18 +82,60 @@ def index_key(fact):
     return (extract_first_string(first[0]), extract_first_string(first[1]),
             extract_first_string(second))
 
-
 def get_variablized_keys(key):
     """
     Takes the triple key given above (fact[0], fact[1], value) and returns all
     the possible variablizations of it.
 
     >>> [k for k in get_variablized_keys(('value', 'cell', '5'))]
+    [('value', 'cell', '5'), ('value', 'cell', '?'), \
+('value', '?', '5'), ('value', '?', '?'), '?']
+
+    >>> [k for k in get_variablized_keys(('value', '?', '5'))]
+    [('value', '?', '5'), ('value', '?', '?'), '?']
+
+    >>> [k for k in get_variablized_keys((('value',
+    ...                                    ('Add', ('value', 'TableCell'),
+    ...                                            ('value', 'TableCell'))),
+    ...                                    '5'))]
+    [(('value', ('Add', ('value', 'TableCell'), ('value', 'TableCell'))), '5'), (('value', ('Add', ('value', 'TableCell'), ('value', 'TableCell'))), '?'), (('value', ('Add', ('value', 'TableCell'), ('value', '?'))), '5'), (('value', ('Add', ('value', 'TableCell'), ('value', '?'))), '?'), (('value', ('Add', ('value', 'TableCell'), '?')), '5'), (('value', ('Add', ('value', 'TableCell'), '?')), '?'), (('value', ('Add', ('value', '?'), ('value', 'TableCell'))), '5'), (('value', ('Add', ('value', '?'), ('value', 'TableCell'))), '?'), (('value', ('Add', ('value', '?'), ('value', '?'))), '5'), (('value', ('Add', ('value', '?'), ('value', '?'))), '?'), (('value', ('Add', ('value', '?'), '?')), '5'), (('value', ('Add', ('value', '?'), '?')), '?'), (('value', ('Add', '?', ('value', 'TableCell'))), '5'), (('value', ('Add', '?', ('value', 'TableCell'))), '?'), (('value', ('Add', '?', ('value', '?'))), '5'), (('value', ('Add', '?', ('value', '?'))), '?'), (('value', ('Add', '?', '?')), '5'), (('value', ('Add', '?', '?')), '?'), (('value', '?'), '5'), (('value', '?'), '?'), ('?', '5'), ('?', '?'), '?']
+    """
+    yield key
+
+    if isinstance(key, tuple):
+
+        if isinstance(key[0], tuple):
+            head = None
+            body = key
+        else:
+            head = key[0]
+            body = key[1:]
+
+        possible_bodies = [list(get_variablized_keys(e)) for e in
+                           body]
+        for body in product(*possible_bodies):
+            if head is None:
+                new = tuple(body)
+            else:
+                new = (head,) + tuple(body)
+            if new != key:
+                yield new
+
+    if not is_variable(key):
+        yield '?'
+
+
+def old_get_variablized_keys(key):
+    """
+    Takes the triple key given above (fact[0], fact[1], value) and returns all
+    the possible variablizations of it.
+
+    >>> [k for k in old_get_variablized_keys(('value', 'cell', '5'))]
     [('value', 'cell', '5'), ('?', 'cell', '5'), ('value', '?', '5'),\
  ('?', '?', '5'), ('value', 'cell', '?'), ('?', 'cell', '?'),\
  ('value', '?', '?'), ('?', '?', '?'), ('?', None, '5'), ('?', None, '?')]
 
-    >>> [k for k in get_variablized_keys(('value', '?', '5'))]
+    >>> [k for k in old_get_variablized_keys(('value', '?', '5'))]
     [('value', '?', '5'), ('?', '?', '5'), ('value', '?', '?'),\
  ('?', '?', '?'), ('?', None, '5'), ('?', None, '?')]
 
@@ -271,6 +346,7 @@ def pattern_match(pattern, index, substitution, epsilon=0.0):
         ele = ps[0][2]
         new_ele = subst(substitution, ps[0][2])
         key = index_key(new_ele)
+        # print('INDEX KEY', key)
 
         if key in index:
             elements = [e for e in index[key]]
@@ -293,7 +369,9 @@ def build_index(facts):
     index = {}
     for fact in facts:
         key = index_key(fact)
+        # print('KEY', key)
         for k in get_variablized_keys(key):
+            # print('VB KEY', k)
             if k not in index:
                 index[k] = []
             index[k].append(fact)
@@ -666,6 +744,7 @@ class Operator:
                         break
                 if not found:
                     self.non_head_conditions.add(c)
+                    # print('NON HEAD CONDITION', c)
 
         for e in self.effects:
             if isinstance(e, tuple) and len(e) > 0 and e[0] == 'not':
@@ -689,12 +768,16 @@ class Operator:
         if initial_mapping is None:
             initial_mapping = {}
 
+        # print("HEAD CONDITIONS")
+        # pprint(self.head_conditions)
+
         for head_match in pattern_match(self.head_conditions.union(
                                         set([('not', c) for c in
                                              self.negative_conditions])),
                                         index, initial_mapping,
                                         epsilon):
             # if initial_mapping is not None:
+            # print("HEAD MAPPING", head_match)
             # print("INITIAL VS. HEAD", initial_mapping, head_match)
             for full_match in pattern_match(self.non_head_conditions.union(
                                             set([('not', c) for c in
@@ -739,7 +822,8 @@ if __name__ == "__main__":
 
     facts = [(('value', 'test1'), 'this is a test sentence'),
              (('value', 'test2'), 'BOOM')]
-    kb = FoPlanner(facts, [unigramize, bigramize])
+    # kb = FoPlanner(facts, [unigramize, bigramize])
+    kb = FoPlanner(facts, [])
     kb.fc_infer()
     print(kb.facts)
 
@@ -986,3 +1070,18 @@ if __name__ == "__main__":
     #         break
     #     if found:
     #         break
+
+    # operator = Operator(tuple(('Rule',)), h, [])
+    # index = build_index(x)
+
+    # pprint(x)
+
+    # # pprint(index)
+
+    # found = False
+    # for m in operator.match(index, epsilon=0.001):
+    #     print('match', m, operator.name)
+    #     found = True
+
+    # if not found:
+    #     print("NOTHING FOUND")
