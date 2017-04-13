@@ -9,7 +9,9 @@ from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
 from learners.WhereLearner import SpecificToGeneral
+from learners.WhereLearner import RelationalLearner
 from learners.WhereLearner import MostSpecific
+from learners.WhenLearner import when_learners
 from planners.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
 
@@ -26,13 +28,16 @@ class WhereWhenHowNoFoa(BaseAgent):
     """
     def __init__(self, action_set):
         # self.where = SpecificToGeneral
-        self.where = MostSpecific
-        self.when = TrestleTree
+        self.where = RelationalLearner
+        # self.where = MostSpecific
+        # self.when = when_learners['naive bayes']
+        self.when = 'always true'
         self.skills = {}
         self.examples = {}
         self.action_set = action_set.name
 
     def request(self, state):
+        print("REQUEST RECEIVED")
         tup = Tuplizer()
         flt = Flattener()
 
@@ -71,8 +76,8 @@ class WhereWhenHowNoFoa(BaseAgent):
         skillset = []
         for label in self.skills:
             for exp in self.skills[label]:
-                pos = self.skills[label][exp]['where'].pos_concept.count
-                neg = self.skills[label][exp]['where'].neg_concept.count
+                pos = self.skills[label][exp]['where'].num_pos()
+                neg = self.skills[label][exp]['where'].num_neg()
 
                 skillset.append((pos / (pos + neg), pos + neg,
                                  random(), label, exp,
@@ -137,7 +142,10 @@ class WhereWhenHowNoFoa(BaseAgent):
                             for vm in kb.fc_query([(self.ground(ele), '?v')],
                                                   max_depth=0,
                                                   epsilon=epsilon):
-                                rg_exp.append(vm['?v'])
+                                # if vm['?v'] == '':
+                                #     raise Exception("Should not be an empty str")
+                                if vm['?v'] != '':
+                                    rg_exp.append(vm['?v'])
                                 break
                         else:
                             rg_exp.append(ele)
@@ -161,17 +169,24 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                     print("predicting")
                     # pprint(r_state)
-                    c = skill['when'].categorize(r_state)
+
+                    # c = skill['when'].categorize(r_state)
+                    p = skill['when'].predict([r_state])[0]
 
                     # print("###CATEGORIZED CONCEPT###")
                     # print(c)
                     # pprint(c.av_counts)
                     # print(c.predict('correct'))
 
-                    if not c.predict('correct'):
+                    if p == 0:
                         print("predicting FAIL")
                         continue
                     print("predicting FIRE")
+
+                    # if not c.predict('correct'):
+                    #     print("predicting FAIL")
+                    #     continue
+                    # print("predicting FIRE")
 
                     # print("###TREE###")
                     # print(skill['when'])
@@ -257,6 +272,11 @@ class WhereWhenHowNoFoa(BaseAgent):
         #     if isinstance(f[0], tuple) and f[0][0] == 'value':
         #         print(f)
         # print(kb.facts)
+
+    def compute_exp_depth(self, exp):
+        if isinstance(exp, tuple):
+            return 1 + max([self.compute_exp_depth(sub) for sub in exp])
+        return 0
 
     def train(self, state, label, foas, selection, action, inputs, correct):
 
@@ -365,7 +385,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                 # foa_mapping = {field: 'foa%s' % j for j, field in
                 #                enumerate(args)}
 
-                t = tuple([m["?foa%s" % i].replace("QM", "") for i in range(len(m))])
+                t = tuple([m["?foa%s" % i].replace("QM", "?") for i in
+                           range(len(m))])
 
                 if len(t) != len(set(t)):
                     print("TWO VARS BOUND TO SAME")
@@ -420,14 +441,33 @@ class WhereWhenHowNoFoa(BaseAgent):
                 input_exp = iv
                 print('trying to explain', [((a, '?input'), iv)])
 
+
+                # TODO not sure what the best approach is for choosing among
+                # the possible explanations. Perhaps we should choose more than
+                # one. Maybe the shortest (less deep). 
+
                 # f = False
+                possible = []
                 for iv_m in kb.fc_query([((a, '?input'), iv)],
                                         max_depth=0,
                                         epsilon=epsilon):
-                    input_exp = (a, iv_m['?input'])
-                    print("FOUND!", input_exp)
+
+                    # input_exp = (a, iv_m['?input'])
+                    possible.append((a, iv_m['?input']))
+                    # print("FOUND!", input_exp)
                     # f = True
-                    break
+                    # break
+
+                possible = [(self.compute_exp_depth(p), random(), p) for p in
+                            possible]
+                possible.sort()
+                print("FOUND!")
+                pprint(possible)
+
+
+                if len(possible) > 0:
+                    _, _, input_exp = possible[0]
+                    # input_exp = choice(possible)
 
                 # if not f:
                 #     print()
@@ -460,9 +500,14 @@ class WhereWhenHowNoFoa(BaseAgent):
             # print(r_exp)
 
             if r_exp not in self.skills[label]:
+                mg_h = self.extract_mg_h(r_exp[0])
+                w_args = tuple(['?foa%s' % j for j, _ in enumerate(args)])
+
                 self.skills[label][r_exp] = {}
-                self.skills[label][r_exp]['where'] = self.where()
-                self.skills[label][r_exp]['when'] = self.when()
+                self.skills[label][r_exp]['where'] = self.where(args=w_args,
+                                                                constraints=mg_h)
+                                                                # initial_h=mg_h)
+                self.skills[label][r_exp]['when'] = when_learners[self.when]()
 
             print('where learning for ', exp)
             self.skills[label][r_exp]['where'].ifit(args,
@@ -474,11 +519,12 @@ class WhereWhenHowNoFoa(BaseAgent):
             # Need to add computed features.
             # need to rename example with foa's that are not variables
             x = rename_flat(example['flat_state'], foa_mapping)
-            x['correct'] = example['correct']
+            # x['correct'] = example['correct']
 
             print('ifitting')
             # pprint(x)
-            self.skills[label][r_exp]['when'].ifit(x)
+            # self.skills[label][r_exp]['when'].ifit(x)
+            self.skills[label][r_exp]['when'].ifit(x, example['correct'])
             print('done ifitting')
 
             # print("###UPDATED TREE###")
@@ -486,6 +532,23 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         # check for subsuming explainations (alternatively we could probably
         # just order the explainations by how many examples they cover
+
+    def extract_mg_h(self, sai):
+        """
+        Given an SAI, this find the most general pattern that will generate a
+        match.
+
+        E.g., ('sai', ('name', '?foa0'), 'UpdateTable', ('value', '?foa1'))
+        will yield: {('name', '?foa0'), ('value', '?foa1')}
+        """
+        h = set()
+        for ele in sai:
+            if isinstance(ele, tuple) and len(ele) == 2 and ele[1][0] == '?':
+                h.add(tuple(list(ele) + [ele[1] + 'val']))
+            elif isinstance(ele, tuple):
+                h.update(self.extract_mg_h(ele))
+
+        return frozenset(h)
 
     def check(self, state, selection, action, inputs):
         return False

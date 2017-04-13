@@ -6,6 +6,7 @@ from concept_formation.preprocessor import NameStandardizer
 from concept_formation.structure_mapper import StructureMapper
 from concept_formation.structure_mapper import rename_flat
 from concept_formation.structure_mapper import contains_component
+from learners.IncrementalHeuristic import IncrementalHeuristic
 from planners.fo_planner import Operator
 from planners.fo_planner import build_index
 from planners.fo_planner import subst
@@ -23,6 +24,15 @@ def ground(arg):
         return arg
 
 
+def unground(arg):
+    if isinstance(arg, tuple):
+        return tuple(unground(e) for e in arg)
+    elif isinstance(arg, str):
+        return arg.replace('QM', '?')
+    else:
+        return arg
+
+
 class Counter(object):
 
     def __init__(self):
@@ -34,7 +44,7 @@ class Counter(object):
 
 class BaseILP(object):
 
-    def __init__(self):
+    def __init__(self, args, G):
         pass
 
     def check_match(self, t, x):
@@ -60,16 +70,28 @@ class BaseILP(object):
         pass
 
 
-def gensym():
+def value_gensym():
     """
     Generates unique names for naming renaming apart objects.
 
     :return: a unique object name
-    :rtype: '?o'+counter
+    :rtype: '?val'+counter
     """
     global my_gensym_counter
     my_gensym_counter += 1
-    return '?o' + str(my_gensym_counter)
+    return '?val' + str(my_gensym_counter)
+
+
+# def gensym():
+#     """
+#     Generates unique names for naming renaming apart objects.
+#
+#     :return: a unique object name
+#     :rtype: '?o'+counter
+#     """
+#     global my_gensym_counter
+#     my_gensym_counter += 1
+#     return '?o' + str(my_gensym_counter)
 
 
 def get_vars(arg):
@@ -92,12 +114,21 @@ class MostSpecific(BaseILP):
     looks up a match.
     """
 
-    def __init__(self, remove_values=True):
-        self.remove_values = remove_values
+    def __init__(self, remove_attrs=None):
         self.states = {}
         self.target_types = []
         self.pos_concept = Counter()
         self.neg_concept = Counter()
+
+        if remove_attrs is None:
+            remove_attrs = ['value']
+        self.remove_attrs = remove_attrs
+
+    def num_pos(self):
+        return self.pos_concept.count()
+
+    def num_neg(self):
+        return self.neg_concept.count()
 
     def ifit(self, t, x, y):
         if y == 0:
@@ -105,12 +136,11 @@ class MostSpecific(BaseILP):
             return
         self.pos_concept.increment()
 
-        if self.remove_values:
-            # x = {a: "EMPTY" if x[a] == ""
-            #      else str(type(x[a])) for a in x}
-            # x = {a: str(type(x[a])) for a in x}
-            x = {a: x[a] if isinstance(x[a], bool) else str(type(x[a])) for a
-                 in x}
+        x = {a: x[a] for a in x if (isinstance(a, tuple) and a[0] not in
+                                    self.remove_attrs) or
+                                   (not isinstance(a, tuple) and a not in
+                                    self.remove_attrs)}
+
         x = frozenset(x.items())
         pprint(x)
         if x not in self.states:
@@ -118,10 +148,10 @@ class MostSpecific(BaseILP):
         self.states[x].add(tuple(t))
 
     def get_matches(self, x, epsilon=0.0):
-        if self.remove_values:
-            # x = {a: str(type(x[a])) for a in x}
-            x = {a: x[a] if isinstance(x[a], bool) else str(type(x[a])) for a
-                 in x}
+        x = {a: x[a] for a in x if (isinstance(a, tuple) and a[0] not in
+                                    self.remove_attrs) or
+                                   (not isinstance(a, tuple) and a not in
+                                    self.remove_attrs)}
         x = frozenset(x.items())
         if x not in self.states:
             return
@@ -129,14 +159,14 @@ class MostSpecific(BaseILP):
             yield t
 
     def check_match(self, t, x):
-        t = tuple('?' + e for e in t)
+        # t = tuple('?' + e for e in t)
         # print("CHECKING", t)
         # print("against", [self.states[a] for a in self.states])
 
-        if self.remove_values:
-            # x = {a: str(type(x[a])) for a in x}
-            x = {a: x[a] if isinstance(x[a], bool) else str(type(x[a])) for a
-                 in x}
+        x = {a: x[a] for a in x if (isinstance(a, tuple) and a[0] not in
+                                    self.remove_attrs) or
+                                   (not isinstance(a, tuple) and a not in
+                                    self.remove_attrs)}
         x = frozenset(x.items())
 
         # if t in [self.states[a] for a in self.states][0]:
@@ -155,14 +185,140 @@ class MostSpecific(BaseILP):
             self.ifit(T[i], X[i], y[i])
 
 
+class RelationalLearner(BaseILP):
+
+    def __init__(self, args, constraints=None, remove_attrs=None):
+        self.pos_count = 0
+        self.neg_count = 0
+        self.args = args
+
+        # self.learner = IncrementalGeneralToSpecific(args=self.args,
+        #                                             constraints=constraints)
+        # self.learner = IncrementalSpecificToGeneral(args=self.args,
+        #                                             constraints=constraints)
+        self.learner = IncrementalHeuristic(args=self.args,
+                                            constraints=constraints)
+
+        if remove_attrs is None:
+            remove_attrs = ['value']
+        self.remove_attrs = remove_attrs
+
+    def num_pos(self):
+        return self.pos_count
+
+    def num_neg(self):
+        return self.neg_count
+
+    def __len__(self):
+        return self.pos_count + self.neg_count
+
+    def __repr__(self):
+        return repr(self.learner.get_hset())
+
+    def __str__(self):
+        return str(self.learner.get_hset())
+
+    def ground_example(self, x):
+        grounded = [tuple(list(ground(a)) + [ground(x[a])])
+                    if isinstance(a, tuple)
+                    else tuple([ground(a), ground(x[a])]) for a in x]
+        return grounded
+
+    def check_match(self, t, x):
+        print("CHECK MATCHES T", t)
+
+        t = tuple(ele.replace('?', "QM") for ele in t)
+
+        # Update to include initial args
+        mapping = {a: t[i] for i, a in enumerate(self.args)}
+
+        print("MY MAPPING", mapping)
+
+        print("CHECKING MATCHES")
+        grounded = self.ground_example(x)
+        # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
+        # pprint(grounded)
+        # pprint(mapping)
+        index = build_index(grounded)
+
+        for h in self.learner.get_hset():
+            # Update to include initial args
+            operator = Operator(tuple(('Rule',) + self.args), h, [])
+            for m in operator.match(index, initial_mapping=mapping):
+                return True
+        return False
+
+    def get_matches(self, x, epsilon=0.0):
+
+        print("GETTING MATCHES")
+        pprint(self.learner.get_hset())
+        grounded = self.ground_example(x)
+        # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
+        # print("FACTS")
+        # pprint(grounded)
+
+        index = build_index(grounded)
+
+        # print("INDEX")
+        # pprint(index)
+
+        # print("OPERATOR")
+        # pprint(self.operator)
+        # print(self.learner.get_hset())
+
+        for h in self.learner.get_hset():
+            # print('h', h)
+            # Update to include initial args
+            operator = Operator(tuple(('Rule',) + self.args), h, [])
+            print("OPERATOR", h)
+
+            for m in operator.match(index, epsilon=epsilon):
+                print('match', m, operator.name)
+                result = tuple([unground(subst(m, ele))
+                                for ele in operator.name[1:]])
+                # result = tuple(['?' + subst(m, ele)
+                #                 for ele in self.operator.name[1:]])
+                # result = tuple(['?' + m[e] for e in self.target_types])
+                print('GET MATCHES T', result)
+                yield result
+
+        print("GOT ALL THE MATCHES!")
+
+    def ifit(self, t, x, y):
+
+        if y == 1:
+            self.pos_count += 1
+        else:
+            self.neg_count += 1
+
+        t = tuple(ground(e) for e in t)
+        grounded = self.ground_example(x)
+
+        print("BEFORE IFIT %i" % y)
+        print(self.learner.get_hset())
+        self.learner.ifit(t, grounded, y)
+        print("AFTER IFIT")
+        print(self.learner.get_hset())
+
+
 class SpecificToGeneral(BaseILP):
 
-    def __init__(self):
+    def __init__(self, remove_attrs=None):
         self.pos = set()
         self.operator = None
         self.concept = Cobweb3Node()
         self.pos_concept = CobwebNode()
         self.neg_concept = CobwebNode()
+
+        if remove_attrs is None:
+            remove_attrs = ['value']
+        self.remove_attrs = remove_attrs
+
+    def num_pos(self):
+        return self.pos_concept.count()
+
+    def num_neg(self):
+        return self.neg_concept.count()
 
     def __len__(self):
         return self.count
@@ -175,15 +331,21 @@ class SpecificToGeneral(BaseILP):
         if y is predicted to be 1 then returns True
         else returns False
         """
+        print("CHECK MATCHES T", t)
+
         if self.operator is None:
             return
+
+        t = tuple(ele.replace('?', "QM") for ele in t)
 
         mapping = {a: t[i] for i, a in enumerate(self.operator.name[1:])}
 
         print("MY MAPPING", mapping)
 
-        # print("GETTING MATCHES")
+        print("CHECKING MATCHES")
         grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
+        # pprint(grounded)
+        # pprint(mapping)
         index = build_index(grounded)
 
         for m in self.operator.match(index, initial_mapping=mapping):
@@ -208,10 +370,12 @@ class SpecificToGeneral(BaseILP):
 
         for m in self.operator.match(index, epsilon=epsilon):
             print('match', m, self.operator.name)
-            result = tuple(['?' + subst(m, ele)
+            result = tuple([unground(subst(m, ele))
                             for ele in self.operator.name[1:]])
+            # result = tuple(['?' + subst(m, ele)
+            #                 for ele in self.operator.name[1:]])
             # result = tuple(['?' + m[e] for e in self.target_types])
-            print(result)
+            print('GET MATCHES T', result)
             yield result
 
         print("GOT ALL THE MATCHES!")
@@ -246,10 +410,16 @@ class SpecificToGeneral(BaseILP):
         return False
 
     def ifit(self, t, x, y):
+        print("IFIT T", t)
         # if y == 0:
         #     return
 
-        x = {a: x[a] for a in x if self.is_structural_feature(a, x[a])}
+        x = {a: x[a] for a in x if (isinstance(a, tuple) and a[0] not in
+                                    self.remove_attrs) or
+                                   (not isinstance(a, tuple) and a not in
+                                    self.remove_attrs)}
+
+        # x = {a: x[a] for a in x if self.is_structural_feature(a, x[a])}
         # x = {a: x[a] for a in x}
 
         # eles = set([field for field in t])
@@ -302,24 +472,39 @@ class SpecificToGeneral(BaseILP):
         pos_instance = {}
         pos_args = set()
         for attr in self.pos_concept.av_counts:
-            if len(self.pos_concept.av_counts[attr]) == 1:
-                for val in self.pos_concept.av_counts[attr]:
-                    if ((self.pos_concept.av_counts[attr][val] ==
-                         self.pos_concept.count)):
+            attr_count = 0
+            for val in self.pos_concept.av_counts[attr]:
+                attr_count += self.pos_concept.av_counts[attr][val]
+            if attr_count == self.pos_concept.count:
+                if len(self.pos_concept.av_counts[attr]) == 1:
+                    args = get_vars(attr)
+                    pos_args.update(args)
+                    pos_instance[attr] = val
+                else:
+                    args = get_vars(attr)
+                    val_gensym = value_gensym()
+                    args.append(val_gensym)
+                    pos_instance[attr] = val_gensym
 
-                        args = get_vars(attr)
-                        pos_args.update(args)
-                        pos_instance[attr] = val
+            # if len(self.pos_concept.av_counts[attr]) == 1:
+            #     for val in self.pos_concept.av_counts[attr]:
+            #         if ((self.pos_concept.av_counts[attr][val] ==
+            #              self.pos_concept.count)):
+            #             args = get_vars(attr)
+            #             pos_args.update(args)
+            #             pos_instance[attr] = val
 
         # print('POS ARGS', pos_args)
 
         neg_instance = {}
         for attr in self.neg_concept.av_counts:
+            # print("ATTR", attr)
             args = set(get_vars(attr))
             if not args.issubset(pos_args):
                 continue
 
             for val in self.neg_concept.av_counts[attr]:
+                # print("VAL", val)
                 if ((attr not in self.pos_concept.av_counts or val not in
                      self.pos_concept.av_counts[attr])):
                     neg_instance[attr] = val
@@ -331,9 +516,9 @@ class SpecificToGeneral(BaseILP):
         conditions = ([(a, pos_instance[a]) for a in pos_instance] +
                       [('not', (a, neg_instance[a])) for a in neg_instance])
 
-        # print("========CONDITIONS======")
-        # pprint(conditions)
-        # print("========CONDITIONS======")
+        print("========CONDITIONS======")
+        pprint(conditions)
+        print("========CONDITIONS======")
 
         self.target_types = ['?foa%s' % i for i in range(len(t))]
         self.operator = Operator(tuple(['Rule'] + self.target_types),
@@ -356,33 +541,41 @@ class SpecificToGeneral(BaseILP):
 
 if __name__ == "__main__":
 
-    ssw = SpecificToGeneral()
+    ssw = RelationalLearner(args=('?foa0',),
+                            constraints=frozenset([('name', '?foa0',
+                                                  '?foa0val')]))
 
-    p1 = {('on', '?o1', '?o2'): True,
+    p1 = {('on', '?o1'): '?o2',
           ('name', '?o1'): "Block 1",
           ('name', '?o2'): "Block 7",
-          ('value', '?o2'): 99}
+          ('valuea', '?o2'): 99}
 
-    p2 = {('on', '?o3', '?o4'): True,
+    p2 = {('on', '?o3'): '?o4',
           ('name', '?o3'): "Block 3",
-          ('name', '?o4'): "Block 4"}
+          ('name', '?o4'): "Block 4",
+          ('valuea', '?o4'): 2}
 
-    n1 = {('on', '?o5', '?o6'): True,
-          ('on', '?o6', '?o7'): True,
+    n1 = {('on', '?o5'): '?o6',
+          ('on', '?o6'): '?o7',
           ('name', '?o5'): "Block 5",
           ('name', '?o6'): "Block 6",
           ('name', '?o7'): "Block 7",
-          ('value', '?o7'): 100}
+          ('valuea', '?o7'): 100}
 
     ssw.ifit(['?o1'], p1, 1)
-    ssw.ifit(['?o3'], p2, 1)
     ssw.ifit(['?o5'], n1, 0)
+    ssw.ifit(['?o3'], p2, 1)
 
-    test1 = {('on', '?o5', '?o6'): True,
-             ('on', '?o6', '?o7'): True,
+    test1 = {('on', '?o5'): '?o6',
+             ('on', '?o6'): '?o7',
              ('name', '?o5'): "Block 1",
              ('name', '?o6'): "Block 7",
-             ('name', '?o7'): "Block 5"}
+             ('name', '?o7'): "Block 5",
+             ('valuea', '?o6'): 3}
+
+    print()
+    print("FINAL HYPOTHESIS")
+    print(ssw.learner.get_hset())
 
     for m in ssw.get_matches(test1):
         print('OP MATCH', m)

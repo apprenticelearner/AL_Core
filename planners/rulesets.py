@@ -15,7 +15,8 @@ def gensym():
 add_rule = Operator(('Add', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv'),
-                     (lambda x, y: x <= y, '?x', '?y')],
+                     # (lambda x, y: x <= y, '?x', '?y')
+                    ],
                     [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
                       (lambda x, y: str(int(x) + int(y)), '?xv', '?yv'))])
 
@@ -41,7 +42,8 @@ sub_rule = Operator(('Subtract', '?x', '?y'),
 mult_rule = Operator(('Multiply', '?x', '?y'),
                      [(('value', '?x'), '?xv'),
                       (('value', '?y'), '?yv'),
-                      (lambda x, y: x <= y, '?x', '?y')],
+                      # (lambda x, y: x <= y, '?x', '?y')
+                     ],
                      [(('value', ('Multiply', ('value', '?x'),
                                   ('value', '?y'))),
                        (lambda x, y: str(int(x) * int(y)), '?xv', '?yv'))])
@@ -54,17 +56,28 @@ div_rule = Operator(('Divide', '?x', '?y'),
 
 equal_rule = Operator(('Equal', '?x', '?y'),
                       [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
-                       (lambda x, y: x < y, '?x', '?y'),
+                       (lambda x, y: x != y, '?x', '?y'),
                        (lambda x: x != '', '?xv'),
                        (lambda x: x != '', '?yv'),
-                       (lambda x, y: x == y, '?xv', '?yv')],
-                      [(('eq', '?x', '?y'), True)])
+                       # (lambda x, y: x == y, '?xv', '?yv')
+                      ],
+                      [(('eq', ('value', '?x'), ('value', '?y')),
+                        (lambda x, y: x == y, '?xv', '?yv'))])
+                      # [(('eq', ('value', '?x'), ('value', '?y')), True)])
 
 editable_rule = Operator(('Editable', '?x'),
                          [(('value', '?x'), '?xv'),
-                          (lambda x: x == "", '?xv')],
-                         [(('editable', '?x'), True)])
-                         # [(('editable', '?x'), (lambda x: x == "", '?xv'))])
+                         # (lambda x: x == "", '?xv')
+                         ],
+                         # [(('editable', '?x'), True)])
+                         [(('editable', '?x'), (lambda x: x == "", '?xv'))])
+
+half_val = Operator(('Half', '?x'),
+                    [(('value', '?x'), '?xv'),
+                     (lambda x: x % 2 == 0, '?xv')],
+                    [(('value', ('Half', '?x')),
+                      (lambda x: str(int(x) // 2), '?xv'))])
+
 
 def structurize_text(attr, val):
     ret = []
@@ -201,3 +214,12 @@ if __name__ == "__main__":
     kb = FoPlanner(facts, [bigram_rule])
     kb.fc_infer()
     print(kb.facts)
+
+    facts = [(('value', 'x'), '17'),
+             (('value', 'y'), '7')]
+    kb = FoPlanner(facts, arith_rules + [half_val])
+    from pprint import pprint
+    for sol in kb.fc_query([(('value', '?a'), '98')], 3):
+        pprint(sol)
+    # kb.fc_infer()
+    # print(kb.facts)

@@ -5,7 +5,8 @@ import numpy as np
 
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.naive_bayes import GaussianNB
+# from sklearn.naive_bayes import GaussianNB
+from sklearn.naive_bayes import BernoulliNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import SGDClassifier
 from sklearn.svm import SVC
@@ -14,46 +15,63 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from concept_formation.cobweb3 import Cobweb3Tree
 from concept_formation.trestle import TrestleTree
+from concept_formation.preprocessor import Tuplizer
+from concept_formation.preprocessor import Flattener
 
 # from ilp.foil_classifier import FoilClassifier
 
 # cobweb, pyibl, nearest neighbor, logistic regression
 
+
 class CustomPipeline(Pipeline):
 
     def ifit(self, x, y):
         if not hasattr(self, 'X'):
-          self.X = []
+            self.X = []
         if not hasattr(self, 'y'):
-          self.y = []
+            self.y = []
 
-        self.X.append(x)
-        self.y.append(y)
+        ft = Flattener()
+        tup = Tuplizer()
 
+        # pprint(x)
+        self.X.append(tup.undo_transform(ft.transform(x)))
+        self.y.append(int(y))
+        # print(self.y)
         return self.fit(self.X, self.y)
+
+    def predict(self, X):
+        ft = Flattener()
+        tup = Tuplizer()
+        X = [tup.undo_transform(ft.transform(x)) for x in X]
+        return super(CustomPipeline, self).predict(X)
 
     def __repr__(self):
         return repr(self.named_steps['clf'])
 
+
 def iFitWrapper(clf):
+
     def fun(x=None):
         if x is None:
-          return CustomPipeline([('clf', clf())])
+            return CustomPipeline([('clf', clf())])
         else:
-          return CustomPipeline([('clf', clf(**x))])
+            return CustomPipeline([('clf', clf(**x))])
 
     return fun
+
 
 def DictVectWrapper(clf):
     def fun(x=None):
         if x is None:
-          return CustomPipeline([('dict vect', DictVectorizer(sparse=False)), 
-                            ('clf', clf())])
+            return CustomPipeline([('dict vect', DictVectorizer(sparse=False)),
+                                   ('clf', clf())])
         else:
-          return CustomPipeline([('dict vect', DictVectorizer(sparse=False)), 
-                            ('clf', clf(**x))])
+            return CustomPipeline([('dict vect', DictVectorizer(sparse=False)),
+                                   ('clf', clf(**x))])
 
     return fun
+
 
 class ScikitTrestle(object):
 
@@ -67,7 +85,7 @@ class ScikitTrestle(object):
         x = deepcopy(x)
         x['y_label'] = "%i" % y
         self.tree.ifit(x)
-    
+
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
@@ -75,7 +93,7 @@ class ScikitTrestle(object):
         self.tree.fit(X, randomize_first=False)
 
     def predict(self, X):
-        return np.array([int(self.tree.categorize(x).predict('y_label')) for x in X])
+        return [self.tree.categorize(x).predict('y_label') for x in X]
 
 class ScikitCobweb(object):
 
@@ -97,7 +115,7 @@ class ScikitCobweb(object):
         self.tree.fit(X, randomize_first=False)
 
     def predict(self, X):
-        return np.array([int(self.tree.categorize(x).predict('y_label')) for x in X])
+        return [self.tree.categorize(x).predict('y_label') for x in X]
 
 class ScikitPyIBL(object):
 
@@ -172,7 +190,7 @@ class CustomLogisticRegression(LogisticRegression):
             self.single_label = y[0]
             return self
         else:
-            return super(CustomLogisticRegression, self).fit(X,y)
+            return super(CustomLogisticRegression, self).fit(X, y)
 
     def predict(self, X):
         if self.is_single_class:
@@ -238,11 +256,47 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
         else:
             return super(CustomKNeighborsClassifier, self).predict(X)
 
+class AlwaysTrue(object):
+
+    def ifit(self, x, y):
+        pass
+
+    def fit(self, X, y):
+        pass
+
+    def predict(self, X):
+        return [1 for x in X]
+
+
+class MajorityClass(object):
+
+    def __init__(self):
+        self.pos = 0
+        self.neg = 0
+
+    def ifit(self, x, y):
+        if y == 1:
+            self.pos += 1
+        elif y == 0:
+            self.neg += 1
+        else:
+            raise Exception("y must equal 0 or 1")
+
+    def fit(self, X, y):
+        for i in range(len(X)):
+            self.ifit(X[i], y[i])
+
+    def predict(self, X):
+        if self.pos >= self.neg:
+            return [1 for x in X]
+        else:
+            return [0 for x in X]
+
 parameters_nearest = {'n_neighbors': 3}
-parameters_sgd = {'loss' : 'perceptron'}
+parameters_sgd = {'loss': 'perceptron'}
 
 when_learners = {}
-when_learners['naive bayes'] = DictVectWrapper(GaussianNB)
+when_learners['naive bayes'] = DictVectWrapper(BernoulliNB)
 when_learners['decision tree'] = DictVectWrapper(DecisionTreeClassifier)
 when_learners['logistic regression'] = DictVectWrapper(CustomLogisticRegression)
 when_learners['nearest neighbors'] = DictVectWrapper(CustomKNeighborsClassifier)
@@ -254,11 +308,14 @@ when_learners['cobweb'] = ScikitCobweb
 when_learners['trestle'] = ScikitTrestle
 when_learners['pyibl'] = DictVectWrapper(ScikitPyIBL)
 
-#clf_class = Wrapper(GaussianNB)
-#clf = clf_class()
-#
-#X = [{'color': 'red'}, {'color': 'green'}]
-#y = [0, 1]
-#
-#clf.fit(X,y)
-#print(clf.predict(X))
+when_learners['majority class'] = MajorityClass
+when_learners['always true'] = AlwaysTrue
+
+# clf_class = Wrapper(GaussianNB)
+# clf = clf_class()
+
+# X = [{'color': 'red'}, {'color': 'green'}]
+# y = [0, 1]
+
+# clf.fit(X,y)
+# print(clf.predict(X))
