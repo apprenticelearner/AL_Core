@@ -32,6 +32,9 @@ def index_key(fact):
     >>> index_key((('value', '?x'), '5'))
     (('value', '?'), '5')
 
+    >>> index_key((('X',('Position','Block1')), 10))
+    (('X',('Position','Block1')), '#NUM')
+
     >>> index_key((('value', ('Add', ('value', '?x'),
     ...                              ('value', '?y'))), '5'))
     (('value', ('Add', ('value', '?'), ('value', '?'))), '5')
@@ -66,8 +69,11 @@ def old_index_key(fact):
     >>> old_index_key((('value', 'TableCell'), '5'))
     ('value', 'TableCell', '5')
 
+    >>> old_index_key((('X',('Position','Block1')), 10))
+    ('X', 'Position', '#NUM')
+
     >>> old_index_key((('value', ('Add', ('value', 'TableCell'),
-    ...                                  ('value', 'TableCell'))), '5'))
+    ...                              ('value', 'TableCell'))), '5'))
     ('value', 'Add', '5')
     """
     if not isinstance(fact, tuple):
