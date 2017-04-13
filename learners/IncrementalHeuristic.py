@@ -18,7 +18,7 @@ from learners.utils import test_coverage
 from learners.utils import get_variablizations
 from learners.utils import weighted_choice
 
-clause_accuracy_weight = 1.0
+clause_accuracy_weight = .95
 
 
 def clause_score(accuracy_weight, p_covered, p_uncovered, n_covered,
@@ -73,6 +73,15 @@ def optimize_clause(h, constraints, pset, nset):
     initial_score = clause_score(clause_accuracy_weight, len(p_covered),
                                  len(p_uncovered), len(n_covered),
                                  len(n_uncovered), c_length)
+    if len(p_covered) == 0:
+        print('CONSTRAINTS')
+        print(constraints)
+        print('HYPOTHESIS')
+        print(h)
+        print('PSET')
+        print(pset)
+        import time
+        time.sleep(10)
     p, pm = choice(p_covered)
     pos_partial = list(compute_bottom_clause(p, pm))
     # print('POS PARTIAL', pos_partial)
@@ -159,10 +168,10 @@ class ClauseOptimizationProblem(Problem):
                         if j != clause_vector[index]])
         new_clause_vector = tuple(new_j if i == index else j for i, j in
                                   enumerate(clause_vector))
-        print("SCORING")
+        # print("SCORING")
         score = clause_vector_score(new_clause_vector, possible_literals,
                                     constraints, pset, nset)
-        print("Done - Score =", score)
+        # print("Done - Score =", score)
         return Node(new_clause_vector, None, None, -1 * score,
                     extra=node.extra)
 
@@ -243,6 +252,9 @@ class IncrementalHeuristic(object):
             self.nset.append((x, mapping))
         else:
             raise Exception("y must be 0 or 1")
+
+        if len(self.pset) == 0:
+            self.h = None
 
         if self.h is None and y == 1:
             self.h = self.compute_bottom_clause(x, mapping)

@@ -542,11 +542,9 @@ class WhereWhenHowNoFoa(BaseAgent):
         will yield: {('name', '?foa0'), ('value', '?foa1')}
         """
         h = set()
-        for ele in sai:
-            if isinstance(ele, tuple) and len(ele) == 2 and ele[1][0] == '?':
-                h.add(tuple(list(ele) + [ele[1] + 'val']))
-            elif isinstance(ele, tuple):
-                h.update(self.extract_mg_h(ele))
+        for i, ele in enumerate(sai):
+            if isinstance(ele, tuple):
+                h.add(tuple(list(ele) + ['?constraint-val%i' % i]))
 
         return frozenset(h)
 
