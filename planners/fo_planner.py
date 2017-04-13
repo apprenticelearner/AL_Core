@@ -33,6 +33,9 @@ def index_key(fact):
     >>> index_key((('value', 'TableCell'), '5'))
     ('value', 'TableCell', '5')
 
+    >>> index_key((('X',('Position','Block1')), 10))
+    ('X', 'Position', '#NUM')
+
     >>> index_key((('value', ('Add', ('value', 'TableCell'),
     ...                              ('value', 'TableCell'))), '5'))
     ('value', 'Add', '5')
