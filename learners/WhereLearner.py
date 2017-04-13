@@ -10,9 +10,17 @@ from planners.fo_planner import Operator
 from planners.fo_planner import build_index
 from planners.fo_planner import subst
 
-
 global my_gensym_counter
 my_gensym_counter = 0
+
+
+def ground(arg):
+    if isinstance(arg, tuple):
+        return tuple(ground(e) for e in arg)
+    elif isinstance(arg, str):
+        return arg.replace('?', 'QM')
+    else:
+        return arg
 
 
 class Counter(object):
@@ -98,9 +106,11 @@ class MostSpecific(BaseILP):
         self.pos_concept.increment()
 
         if self.remove_values:
-            # x = {a: "EMPTY" if x[a] == "" 
+            # x = {a: "EMPTY" if x[a] == ""
             #      else str(type(x[a])) for a in x}
-            x = {a: str(type(x[a])) for a in x}
+            # x = {a: str(type(x[a])) for a in x}
+            x = {a: x[a] if isinstance(x[a], bool) else str(type(x[a])) for a
+                 in x}
         x = frozenset(x.items())
         pprint(x)
         if x not in self.states:
@@ -109,7 +119,9 @@ class MostSpecific(BaseILP):
 
     def get_matches(self, x, epsilon=0.0):
         if self.remove_values:
-            x = {a: str(type(x[a])) for a in x}
+            # x = {a: str(type(x[a])) for a in x}
+            x = {a: x[a] if isinstance(x[a], bool) else str(type(x[a])) for a
+                 in x}
         x = frozenset(x.items())
         if x not in self.states:
             return
@@ -117,9 +129,22 @@ class MostSpecific(BaseILP):
             yield t
 
     def check_match(self, t, x):
+        t = tuple('?' + e for e in t)
+        # print("CHECKING", t)
+        # print("against", [self.states[a] for a in self.states])
+
         if self.remove_values:
-            x = {a: str(type(x[a])) for a in x}
+            # x = {a: str(type(x[a])) for a in x}
+            x = {a: x[a] if isinstance(x[a], bool) else str(type(x[a])) for a
+                 in x}
         x = frozenset(x.items())
+
+        # if t in [self.states[a] for a in self.states][0]:
+        #     print("KEY")
+        #     pprint([a for a in self.states][0])
+        #     print("THE X")
+        #     pprint(x)
+
         return x in self.states and t in self.states[x]
 
     def __len__(self):

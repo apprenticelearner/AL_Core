@@ -160,16 +160,21 @@ class WhereWhenHowNoFoa(BaseAgent):
                         # break
 
                     print("predicting")
-                    pprint(r_state)
+                    # pprint(r_state)
                     c = skill['when'].categorize(r_state)
+
+                    # print("###CATEGORIZED CONCEPT###")
+                    # print(c)
                     # pprint(c.av_counts)
-                    print(c.predict('correct'))
+                    # print(c.predict('correct'))
 
                     if not c.predict('correct'):
                         print("predicting FAIL")
                         continue
                     print("predicting FIRE")
 
+                    # print("###TREE###")
+                    # print(skill['when'])
 
                     # pprint(r_exp)
                     # pprint(rg_exp)
@@ -459,7 +464,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 self.skills[label][r_exp]['where'] = self.where()
                 self.skills[label][r_exp]['when'] = self.when()
 
-            print('where learning')
+            print('where learning for ', exp)
             self.skills[label][r_exp]['where'].ifit(args,
                                                     example['flat_state'],
                                                     example['correct'])
@@ -472,8 +477,12 @@ class WhereWhenHowNoFoa(BaseAgent):
             x['correct'] = example['correct']
 
             print('ifitting')
+            # pprint(x)
             self.skills[label][r_exp]['when'].ifit(x)
             print('done ifitting')
+
+            # print("###UPDATED TREE###")
+            # print(self.skills[label][r_exp]['when'])
 
         # check for subsuming explainations (alternatively we could probably
         # just order the explainations by how many examples they cover
