@@ -14,16 +14,23 @@ from planners.fo_planner import build_index
 
 from learners.utils import rename
 from learners.utils import clause_length
+from learners.utils import count_elements
 from learners.utils import test_coverage
 from learners.utils import get_variablizations
 from learners.utils import weighted_choice
 
-clause_accuracy_weight = .95
+clause_accuracy_weight = 0.95
+max_literal_length = 5
 
 
 def clause_score(accuracy_weight, p_covered, p_uncovered, n_covered,
                  n_uncovered, length):
     w = accuracy_weight
+    # accuracy = (p_covered / (p_covered + n_covered))
+
+    n_uncovered = 4 * n_uncovered
+    n_covered = 4 * n_covered
+
     accuracy = ((p_covered + n_uncovered) / (p_covered + p_uncovered +
                                              n_covered + n_uncovered))
     return w * accuracy + (1-w) * 1/(1+length)
@@ -42,10 +49,14 @@ def clause_vector_score(v, possible_literals, constraints, pset, nset):
         pprint(pset)
         pprint(h)
         assert False
+        import time
+        print("NO POSITIVES COVERED!!!!!!")
+        time.sleep(60)
 
-    return clause_score(clause_accuracy_weight, len(p_covered), len(pset) -
-                        len(p_covered), len(n_covered), len(nset) -
-                        len(n_covered), l)
+    return (clause_score(clause_accuracy_weight, len(p_covered), len(pset) -
+                         len(p_covered), len(n_covered), len(nset) -
+                         len(n_covered), l), len(pset) - len(p_covered),
+            len(n_covered))
 
 
 def compute_bottom_clause(x, mapping):
@@ -110,6 +121,11 @@ def optimize_clause(h, constraints, pset, nset):
             print(add_m)
             print(l)
             print(new_l)
+            print(additional_literals)
+            if l not in pos_partial:
+                print("ERROR l not in pos_partial")
+                import time
+                time.sleep(1000)
             possible_literals[pos_partial.index(l)].append(new_l)
 
     # pprint(possible_literals)
@@ -118,6 +134,11 @@ def optimize_clause(h, constraints, pset, nset):
 
     clause_vector = [0 for i in range(len(possible_literals))]
     for l in h:
+        if l not in reverse_pl:
+            print("MISSING LITERAL!!!")
+            import time
+            time.sleep(1000)
+
         i, j = reverse_pl[l]
         clause_vector[i] = j
     clause_vector = tuple(clause_vector)
@@ -142,7 +163,9 @@ def optimize_clause(h, constraints, pset, nset):
     problem = ClauseOptimizationProblem(clause_vector,
                                         initial_cost=-1*initial_score,
                                         extra=(possible_literals, flip_weights,
-                                               constraints, pset, nset))
+                                               constraints, pset, nset,
+                                               len(p_uncovered),
+                                               len(n_covered)))
     # for sol in hill_climbing(problem):
     for sol in simulated_annealing(problem, initial_temp=initial_temp,
                                    temp_length=temp_length):
@@ -155,29 +178,93 @@ class ClauseOptimizationProblem(Problem):
     def goal_test(self, node):
         """
         This is an optimization, so no early termination
+
+        Early terminate at the minimum possible cost. 
         """
-        return False
+        return node.cost() < - 0.95
+        return node.cost() == -1
 
     def random_successor(self, node):
         clause_vector = node.state
         # print("EXPANDING", clause_vector, node.cost())
 
-        possible_literals, flip_weights, constraints, pset, nset = node.extra
+        (possible_literals, flip_weights, constraints, pset, nset, omissions,
+         comissions) = node.extra
+
+        omissions += 1.0001 
+        comissions += 1.0
+
+        # print()
+        # print("OMISSIONS", omissions)
+        # print("COMISSIONS", comissions)
+
+        # if omissions > comissions:
+        #     print("LEN 1", 1 / ((comissions / omissions) * (max_literal_length
+        #                                                     - 1 + 0.1)))
+        #     print("LEN 3", 1 / ((comissions / omissions) * (max_literal_length
+        #                                                     - 3 + 0.1)))
+
+        # if comissions > omissions:
+        #     print("LEN 1", 1 / ((comissions / omissions) * (1 + 0.1)))
+        #     print("LEN 3", 1 / ((comissions / omissions) * (3 + 0.1)))
+
+        # gen_bias = (omissions) / (omissions + comissions)
+        # gen_bias = (omissions - comissions) / max(omissions, comissions)
+        # print("Gen Bias", omissions / (omissions + comissions))
+
+        flip_weights = [(0.1 + (comissions / omissions) *
+                         count_elements(possible_literals[i][clause_vector[i]],
+                                        {}), i) if omissions > comissions else
+                        (0.1 + (omissions / comissions) * (max_literal_length -
+                         count_elements(possible_literals[i][clause_vector[i]],
+                                        {})), i) if comissions > omissions else
+                        (1, i)
+                        for i in range(len(clause_vector))]
+
         index = weighted_choice(flip_weights)
+        curr_l_size = count_elements(possible_literals[index][clause_vector[index]], {})
+        # print("CURR L", possible_literals[index][clause_vector[index]])
+
+        # print("CURRENT SIZE", curr_l_size)
+
+        # print("GEN BIAS", gen_bias)
+
+        # # print(possible_literals[index])
+        # weighted_pl = [(gen_bias * (curr_l_size - count_elements(l, {})), j)
+        #                for j, l in enumerate(possible_literals[index]) if j !=
+        #                clause_vector[index]]
+        # min_weight = min([w for w, _ in weighted_pl])
+        # if min_weight < 0:
+        #     weighted_pl = [(w + abs(min_weight) + 1, j) for w, j in weighted_pl]
+        # # weighted_pl.sort()
+
+        # # print("WPL", weighted_pl)
+
+        # new_j = weighted_choice(weighted_pl)
+
+        # print("NEW L", possible_literals[index][new_j])
+        # # print(new_j)
+
         new_j = choice([j for j in range(len(possible_literals[index]))
                         if j != clause_vector[index]])
+
+
         new_clause_vector = tuple(new_j if i == index else j for i, j in
                                   enumerate(clause_vector))
         # print("SCORING")
-        score = clause_vector_score(new_clause_vector, possible_literals,
-                                    constraints, pset, nset)
+        score, om, cm = clause_vector_score(new_clause_vector,
+                                            possible_literals, constraints,
+                                            pset, nset)
         # print("Done - Score =", score)
+        print("New Node Score =", score)
         return Node(new_clause_vector, None, None, -1 * score,
-                    extra=node.extra)
+                    extra=(possible_literals, flip_weights, constraints, pset,
+                          nset, om, cm))
 
     def successors(self, node):
         clause_vector = node.state
-        possible_literals, flip_weights, constraints, pset, nset = node.extra
+        (possible_literals, flip_weights, constraints, pset, nset, omissions,
+         comissions) = node.extra
 
         for index in possible_literals:
             for new_j in range(len(possible_literals[index])):
@@ -186,11 +273,12 @@ class ClauseOptimizationProblem(Problem):
 
                 new_clause_vector = tuple(new_j if i == index else j for i, j
                                           in enumerate(clause_vector))
-                score = clause_vector_score(new_clause_vector,
-                                            possible_literals, constraints,
-                                            pset, nset)
+                score, om, cm = clause_vector_score(new_clause_vector,
+                                                    possible_literals,
+                                                    constraints, pset, nset)
                 yield Node(new_clause_vector, None, None, -1 * score,
-                           extra=node.extra)
+                           extra=(possible_literals, flip_weights, constraints,
+                                  pset, nset, om, cm))
 
 
 class IncrementalHeuristic(object):
