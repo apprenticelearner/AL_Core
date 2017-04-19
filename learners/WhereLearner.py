@@ -255,7 +255,8 @@ class RelationalLearner(BaseILP):
         grounded = self.ground_example(x)
         # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
         # print("FACTS")
-        # pprint(grounded)
+
+        pprint(grounded)
 
         index = build_index(grounded)
 
@@ -294,11 +295,11 @@ class RelationalLearner(BaseILP):
         t = tuple(ground(e) for e in t)
         grounded = self.ground_example(x)
 
-        print("BEFORE IFIT %i" % y)
-        print(self.learner.get_hset())
+        # print("BEFORE IFIT %i" % y)
+        # print(self.learner.get_hset())
         self.learner.ifit(t, grounded, y)
-        print("AFTER IFIT")
-        print(self.learner.get_hset())
+        # print("AFTER IFIT")
+        # print(self.learner.get_hset())
 
 
 class SpecificToGeneral(BaseILP):

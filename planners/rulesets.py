@@ -12,6 +12,16 @@ def gensym():
     return 'QMthengensym%i' % _then_gensym_counter
 
 
+def is_str_number(s):
+    if not isinstance(s, str):
+        return False
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
 add_rule = Operator(('Add', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv'),
@@ -56,17 +66,24 @@ div_rule = Operator(('Divide', '?x', '?y'),
 
 equal_rule = Operator(('Equal', '?x', '?y'),
                       [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
-                       (lambda x, y: x != y, '?x', '?y'),
+                       (lambda x, y: x < y, '?x', '?y'),
                        (lambda x: x != '', '?xv'),
                        (lambda x: x != '', '?yv'),
+                       (is_str_number, '?xv'),
+                       (is_str_number, '?yv'),
                        # (lambda x, y: x == y, '?xv', '?yv')
                       ],
                       [(('eq', ('value', '?x'), ('value', '?y')),
                         (lambda x, y: x == y, '?xv', '?yv'))])
                       # [(('eq', ('value', '?x'), ('value', '?y')), True)])
 
+is_number_rule = Operator(('IsNumber', '?x'),
+                          [(('value', '?x'), '?xv')],
+                          [(('IsNumber', '?x'), (is_str_number, '?xv'))])
+
 editable_rule = Operator(('Editable', '?x'),
                          [(('value', '?x'), '?xv'),
+                          (('type', '?x'), 'MAIN::cell'),
                          # (lambda x: x == "", '?xv')
                          ],
                          # [(('editable', '?x'), True)])
@@ -201,6 +218,7 @@ functionsets = {'fraction arithmetic prior knowledge': arith_rules,
                 'rumbleblocks': rb_rules, 'article selection': []}
 
 featuresets = {'fraction arithmetic prior knowledge': [equal_rule,
+                                                       # is_number_rule,
                                                        editable_rule],
                'rumbleblocks': [], 'article selection': [unigram_rule,
                                                          bigram_rule,

@@ -500,12 +500,23 @@ class WhereWhenHowNoFoa(BaseAgent):
             # print(r_exp)
 
             if r_exp not in self.skills[label]:
-                mg_h = self.extract_mg_h(r_exp[0])
+                # mg_h = self.extract_mg_h(r_exp[0])
+                constraints = self.generate_tutor_constraints(r_exp[0])
+
+                print("ACTIONSET")
+                print(self.action_set)
+
+                print("SAI")
+                print(r_exp[0])
+
+                print("CONSTRAINTS")
+                print(constraints)
+
                 w_args = tuple(['?foa%s' % j for j, _ in enumerate(args)])
 
                 self.skills[label][r_exp] = {}
                 self.skills[label][r_exp]['where'] = self.where(args=w_args,
-                                                                constraints=mg_h)
+                                                                constraints=constraints)
                                                                 # initial_h=mg_h)
                 self.skills[label][r_exp]['when'] = when_learners[self.when]()
 
@@ -533,6 +544,38 @@ class WhereWhenHowNoFoa(BaseAgent):
         # check for subsuming explainations (alternatively we could probably
         # just order the explainations by how many examples they cover
 
+    def generate_tutor_constraints(self, sai):
+        """
+        Given an SAI, this finds a set of constraints for the SAI, so it don't
+        fire in nonsensical situations.
+        """
+        constraints = set()
+        args = self.get_vars(sai)
+
+        # selection constraints, you can only select something that has an
+        # empty string value.
+        selection = args[0]
+        constraints.add(('value', selection, '?selection-value'))
+        constraints.add((is_empty_string, '?selection-value'))
+
+        # get action
+        action = sai[2]
+        if action == "ButtonPressed":
+            # Constrain the selection to be of type button
+            constraints.add(('type', selection, 'MAIN::button'))
+            constraints.add(('name', selection, 'done'))
+        else:
+            #constraints.add(('not', ('type', selection, 'MAIN::button')))
+            constraints.add(('type', selection, 'MAIN::cell'))
+
+        # value constraints, don't select empty values
+        for i, a in enumerate(args[1:]):
+            constraints.add(('value', a, '?foa%ival' % (i+1)))
+            constraints.add((is_not_empty_string, '?foa%ival' % (i+1)))
+            constraints.add(('type', a, 'MAIN::cell'))
+
+        return frozenset(constraints)
+
     def extract_mg_h(self, sai):
         """
         Given an SAI, this find the most general pattern that will generate a
@@ -550,3 +593,11 @@ class WhereWhenHowNoFoa(BaseAgent):
 
     def check(self, state, selection, action, inputs):
         return False
+
+
+def is_empty_string(s):
+    return s == ''
+
+
+def is_not_empty_string(s):
+    return s != ''

@@ -3,6 +3,8 @@ Standard functions used to support relational learning
 """
 from random import uniform
 from itertools import product
+from multiprocessing import Pool
+from multiprocessing import cpu_count
 
 from planners.fo_planner import Operator
 from planners.fo_planner import build_index
@@ -10,6 +12,7 @@ from planners.fo_planner import build_index
 from planners.fo_planner import is_variable
 from planners.fo_planner import extract_strings
 
+pool = None
 
 def weighted_choice(choices):
     """
@@ -49,11 +52,30 @@ def count_occurances(var, h):
     return len([s for x in h for s in extract_strings(x) if s == var])
 
 
+def parallel_covers(x):
+    h, constraints, x, xm = x
+    return covers(h.union(constraints), x, xm)
+
+
 def test_coverage(h, constraints, pset, nset):
-    new_pset = [(p, pm) for p, pm in pset if
-                covers(h.union(constraints), p, pm)]
-    new_nset = [(n, nm) for n, nm in nset if
-                covers(h.union(constraints), n, nm)]
+    global pool
+    if pool is None:
+        pool = Pool(cpu_count())
+
+    xset = [(h, constraints, p, pm) for p, pm in pset]
+    pset_covers = pool.map(parallel_covers, xset)
+    new_pset = [pset[i] for i, v in enumerate(pset_covers) if v is True]
+
+    xset = [(h, constraints, n, nm) for n, nm in nset]
+    nset_covers = pool.map(parallel_covers, xset)
+    new_nset = [nset[i] for i, v in enumerate(nset_covers) if v is True]
+
+    # print("TESTING MULTICORE!")
+    # print(covers)
+    # new_pset = [(p, pm) for p, pm in pset if
+    #             covers(h.union(constraints), p, pm)]
+    # new_nset = [(n, nm) for n, nm in nset if
+    #             covers(h.union(constraints), n, nm)]
     return new_pset, new_nset
 
 
@@ -125,6 +147,9 @@ def count_elements(x, var_counts):
     """
     Counts the number of constants and keeps track of variable occurnaces.
     """
+    if x is None:
+        return 0
+
     c = 0
     if isinstance(x, tuple):
         c = sum([count_elements(ele, var_counts) for ele in x])
