@@ -26,7 +26,7 @@ add_rule = Operator(('Add', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv'),
                      # (lambda x, y: x <= y, '?x', '?y')
-                    ],
+                     ],
                     [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
                       (lambda x, y: str(int(x) + int(y)), '?xv', '?yv'))])
 
@@ -49,11 +49,44 @@ sub_rule = Operator(('Subtract', '?x', '?y'),
                                  ('value', '?y'))),
                       (lambda x, y: str(int(x) - int(y)), '?xv', '?yv'))])
 
+
+def int_float_divide(x, y):
+    z = float(x) / float(y)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
+
+def sig_figs(x, y):
+    x = float(x)
+    y = float(y)
+    if not y.is_integer():
+        raise Exception("Cannot round to a fractional precision")
+    else:
+        y = int(y)
+    output_s = '%.' + str(y) + 'g'
+    out = float(output_s % x)
+    if out.is_integer():
+        out = int(out)
+    out = str(out)
+    curr_digits = len(out.replace(".", ""))
+    if curr_digits < y:
+        if "." not in out:
+            out += "."
+        out += "0" * (y - curr_digits)
+    return out
+
+
+sig_fig_rule = Operator(('SigFig', '?x', '?y'),
+                        [(('value', '?x'), '?xv'),
+                         (('value', '?y'), '?yv')],
+                        [(('value', ('SigFig', ('value', '?x'),
+                         ('value', '?y'))), (sig_figs, '?xv', '?yv'))])
+
+
 mult_rule = Operator(('Multiply', '?x', '?y'),
                      [(('value', '?x'), '?xv'),
-                      (('value', '?y'), '?yv'),
-                      # (lambda x, y: x <= y, '?x', '?y')
-                     ],
+                      (('value', '?y'), '?yv')],
                      [(('value', ('Multiply', ('value', '?x'),
                                   ('value', '?y'))),
                        (lambda x, y: str(int(x) * int(y)), '?xv', '?yv'))])
@@ -62,7 +95,7 @@ div_rule = Operator(('Divide', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv')],
                     [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
-                      (lambda x, y: str(int(x) / int(y)), '?xv', '?yv'))])
+                      (int_float_divide, '?xv', '?yv'))])
 
 equal_rule = Operator(('Equal', '?x', '?y'),
                       [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
@@ -72,10 +105,10 @@ equal_rule = Operator(('Equal', '?x', '?y'),
                        (is_str_number, '?xv'),
                        (is_str_number, '?yv'),
                        # (lambda x, y: x == y, '?xv', '?yv')
-                      ],
+                       ],
+                      # [(('eq', ('value', '?x'), ('value', '?y')), True)])
                       [(('eq', ('value', '?x'), ('value', '?y')),
                         (lambda x, y: x == y, '?xv', '?yv'))])
-                      # [(('eq', ('value', '?x'), ('value', '?y')), True)])
 
 is_number_rule = Operator(('IsNumber', '?x'),
                           [(('value', '?x'), '?xv')],
@@ -85,7 +118,7 @@ editable_rule = Operator(('Editable', '?x'),
                          [(('value', '?x'), '?xv'),
                           (('type', '?x'), 'MAIN::cell'),
                          # (lambda x: x == "", '?xv')
-                         ],
+                          ],
                          # [(('editable', '?x'), True)])
                          [(('editable', '?x'), (lambda x: x == "", '?xv'))])
 
@@ -96,9 +129,9 @@ half_val = Operator(('Half', '?x'),
                       (lambda x: str(int(x) // 2), '?xv'))])
 
 
-def structurize_text(attr, val):
+def tokenize_text(attr, val):
     ret = []
-    words = val.split(' ')
+    words = re.findall(r"[0-9]+|[a-zA-Z]+|[^\w ]", val)
     prev_word_obj = None
     for w in words:
         w = w.lower()
@@ -107,11 +140,11 @@ def structurize_text(attr, val):
 
         word_obj = gensym()
         print(word_obj)
-        ret.append((('contains-word', attr, word_obj), True))
-        ret.append((('word-value', word_obj, w), True))
+        ret.append((('contains-token', attr, word_obj), True))
+        ret.append((('value', word_obj), w))
 
         if prev_word_obj is not None:
-            ret.append((('word-adj', attr, prev_word_obj, word_obj), True))
+            ret.append((('token-adj', attr, prev_word_obj, word_obj), True))
 
         prev_word_obj = word_obj
 
@@ -155,9 +188,9 @@ def bigramize(attr, val):
     return ret
 
 
-structurize = Operator(('Structurize', '?x'),
-                       [(('value', '?x'), '?xv')],
-                       [(structurize_text, '?x', '?xv')])
+tokenize_rule = Operator(('Tokenize', '?x'),
+                         [(('value', '?x'), '?xv')],
+                         [(tokenize_text, '?x', '?xv')])
 
 unigram_rule = Operator(('Unigram-rule', '?x'),
                         [(('value', '?x'), '?xv')],
@@ -168,7 +201,7 @@ bigram_rule = Operator(('Bigram-rule', '?x'),
                         (lambda x: ' ' in x, '?xv')],
                        [(bigramize, '?x', '?xv')])
 
-arith_rules = [add_rule, sub_rule, mult_rule, div_rule]
+arith_rules = [add_rule, sub_rule, mult_rule, div_rule, sig_fig_rule]
 # arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule,
 #                done_rule]
 # arith_rules = [add_rule, mult_rule, update_rule, done_rule]
@@ -218,6 +251,7 @@ functionsets = {'fraction arithmetic prior knowledge': arith_rules,
                 'rumbleblocks': rb_rules, 'article selection': []}
 
 featuresets = {'fraction arithmetic prior knowledge': [equal_rule,
+                                                       # tokenize_rule,
                                                        # is_number_rule,
                                                        editable_rule],
                'rumbleblocks': [], 'article selection': [unigram_rule,

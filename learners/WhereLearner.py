@@ -110,6 +110,115 @@ def get_vars(arg):
 
 class MostSpecific(BaseILP):
     """
+    This learner always returns the tuples it was trained with, after ensuring
+    they meet any provided constraints.
+    """
+    def __init__(self, args, constraints=None):
+        self.pos_count = 0
+        self.neg_count = 0
+        self.args = args
+        self.tuples = set()
+
+        if constraints is None:
+            self.constraints = frozenset()
+        else:
+            self.constraints = constraints
+
+    def num_pos(self):
+        return self.pos_count
+
+    def num_neg(self):
+        return self.neg_count
+
+    def __len__(self):
+        return self.pos_count + self.neg_count
+
+    def __repr__(self):
+        return repr(self.tuples)
+
+    def __str__(self):
+        return str(self.tuples)
+
+    def ground_example(self, x):
+        grounded = [tuple(list(ground(a)) + [ground(x[a])])
+                    if isinstance(a, tuple)
+                    else tuple([ground(a), ground(x[a])]) for a in x]
+        return grounded
+
+    def check_match(self, t, x):
+        print("CHECK MATCHES T", t)
+
+        t = tuple(ground(ele) for ele in t)
+
+        # Update to include initial args
+        mapping = {a: t[i] for i, a in enumerate(self.args)}
+
+        print("MY MAPPING", mapping)
+
+        print("CHECKING MATCHES")
+
+        if t not in self.tuples:
+            return False
+
+        grounded = self.ground_example(x)
+        # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
+        # pprint(grounded)
+        # pprint(mapping)
+        index = build_index(grounded)
+
+        # Update to include initial args
+        operator = Operator(tuple(('Rule',) + self.args),
+                            frozenset().union(self.constraints), [])
+        for m in operator.match(index, initial_mapping=mapping):
+            return True
+        return False
+
+    def get_matches(self, x, epsilon=0.0):
+
+        print("GETTING MATCHES")
+        pprint(self.tuples)
+        grounded = self.ground_example(x)
+        # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
+        # print("FACTS")
+
+        # pprint(grounded)
+
+        index = build_index(grounded)
+
+        # print("INDEX")
+        # pprint(index)
+
+        # print("OPERATOR")
+        # pprint(self.operator)
+        # print(self.learner.get_hset())
+
+        for t in self.tuples:
+            mapping = {a: t[i] for i, a in enumerate(self.args)}
+            operator = Operator(tuple(('Rule',) + self.args),
+                                frozenset().union(self.constraints), [])
+
+            for m in operator.match(index, epsilon=epsilon,
+                                    initial_mapping=mapping):
+                result = tuple(ele.replace("QM", '?') for ele in t)
+                print('GET MATCHES T', result)
+                yield result
+                break
+
+        print("GOT ALL THE MATCHES!")
+
+    def ifit(self, t, x, y):
+
+        if y == 1:
+            self.pos_count += 1
+        else:
+            self.neg_count += 1
+
+        t = tuple(ground(e) for e in t)
+        self.tuples.add(t)
+
+
+class StateResponseLearner(BaseILP):
+    """
     This just memorizes pairs of states and matches. Then given a state it
     looks up a match.
     """
@@ -142,7 +251,7 @@ class MostSpecific(BaseILP):
                                     self.remove_attrs)}
 
         x = frozenset(x.items())
-        pprint(x)
+        # pprint(x)
         if x not in self.states:
             self.states[x] = set()
         self.states[x].add(tuple(t))
@@ -256,7 +365,7 @@ class RelationalLearner(BaseILP):
         # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
         # print("FACTS")
 
-        pprint(grounded)
+        # pprint(grounded)
 
         index = build_index(grounded)
 

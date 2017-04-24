@@ -18,7 +18,7 @@ from planners.fo_planner import FoPlanner
 from planners.rulesets import functionsets
 from planners.rulesets import featuresets
 
-search_depth = 1
+search_depth = 2
 epsilon = .9
 
 
@@ -28,10 +28,11 @@ class WhereWhenHowNoFoa(BaseAgent):
     """
     def __init__(self, action_set):
         # self.where = SpecificToGeneral
-        self.where = RelationalLearner
-        # self.where = MostSpecific
+        # self.where = RelationalLearner
+        self.where = MostSpecific
         # self.when = 'naive bayes'
-        self.when = 'always true'
+        # self.when = 'always true'
+        self.when = 'trestle'
         self.skills = {}
         self.examples = {}
         self.action_set = action_set.name
@@ -329,7 +330,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                  isinstance(v, str) else v for a, v in
                                  kb.facts}
 
-        pprint(example['flat_state'])
+        # pprint(example['flat_state'])
 
         if label not in self.skills:
             self.skills[label] = {}
@@ -350,6 +351,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                          example['flat_state'][a])
                         for a in example['flat_state']], functionsets[self.action_set])
         kb.fc_infer(depth=search_depth, epsilon=epsilon)
+        # pprint(kb.facts)
 
         for exp, iargs in self.skills[label]:
             # kb = FoPlanner([(self.ground(a),
@@ -462,7 +464,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                             possible]
                 possible.sort()
                 print("FOUND!")
-                pprint(possible)
+                # pprint(possible)
 
 
                 if len(possible) > 0:
@@ -554,6 +556,8 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         # selection constraints, you can only select something that has an
         # empty string value.
+        print("SAI", sai)
+        print("ARGS", args)
         selection = args[0]
         constraints.add(('value', selection, '?selection-value'))
         constraints.add((is_empty_string, '?selection-value'))
@@ -565,14 +569,14 @@ class WhereWhenHowNoFoa(BaseAgent):
             constraints.add(('type', selection, 'MAIN::button'))
             constraints.add(('name', selection, 'done'))
         else:
-            #constraints.add(('not', ('type', selection, 'MAIN::button')))
+            # constraints.add(('not', ('type', selection, 'MAIN::button')))
             constraints.add(('type', selection, 'MAIN::cell'))
 
         # value constraints, don't select empty values
         for i, a in enumerate(args[1:]):
             constraints.add(('value', a, '?foa%ival' % (i+1)))
             constraints.add((is_not_empty_string, '?foa%ival' % (i+1)))
-            constraints.add(('type', a, 'MAIN::cell'))
+            # constraints.add(('type', a, 'MAIN::cell'))
 
         return frozenset(constraints)
 

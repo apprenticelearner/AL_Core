@@ -83,17 +83,18 @@ class ScikitTrestle(object):
 
     def ifit(self, x, y):
         x = deepcopy(x)
-        x['y_label'] = "%i" % y
+        x['_y_label'] = "%i" % y
         self.tree.ifit(x)
 
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
-            x['y_label'] = "%i" % y[i]
+            x['_y_label'] = "%i" % y[i]
         self.tree.fit(X, randomize_first=False)
 
     def predict(self, X):
-        return [self.tree.categorize(x).predict('y_label') for x in X]
+        return [int(self.tree.categorize(x).predict('_y_label')) for x in X]
+
 
 class ScikitCobweb(object):
 
@@ -105,17 +106,18 @@ class ScikitCobweb(object):
 
     def ifit(self, x, y):
         x = deepcopy(x)
-        x['y_label'] = "%i" % y
+        x['_y_label'] = "%i" % y
         self.tree.ifit(x)
-    
+
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
-            x['y_label'] = "%i" % y[i]
+            x['_y_label'] = "%i" % y[i]
         self.tree.fit(X, randomize_first=False)
 
     def predict(self, X):
-        return [self.tree.categorize(x).predict('y_label') for x in X]
+        return [int(self.tree.categorize(x).predict('_y_label')) for x in X]
+
 
 class ScikitPyIBL(object):
 
@@ -136,10 +138,10 @@ class ScikitPyIBL(object):
 
     def ifit(self, x, y):
         if 'X' not in self:
-            self.X = [] 
+            self.X = []
         if 'y' not in self:
-            self.y = [] 
-        self.X.append(x)        
+            self.y = []
+        self.X.append(x)
         self.y.append(y)
 
     def fit(self, X, y):
@@ -155,7 +157,7 @@ class ScikitPyIBL(object):
         self.agent.decay = self.decay
         self.agent.temperature = self.temperature
 
-        for i,x in enumerate(self.X):
+        for i, x in enumerate(self.X):
             zero_situation = self.agent.situationDecision("0", tuple(x))
             one_situation = self.agent.situationDecision("1", tuple(x))
             result = self.agent.choose(zero_situation, one_situation)
@@ -177,7 +179,7 @@ class ScikitPyIBL(object):
             zero_situation = self.agent.situationDecision("0", tuple(x))
             one_situation = self.agent.situationDecision("1", tuple(x))
             predictions.append(int(self.agent.choose(zero_situation,
-                            one_situation)))
+                               one_situation)))
         return np.array(predictions)
 
 
@@ -208,7 +210,7 @@ class CustomSVM(SVC):
             self.single_label = y[0]
             return self
         else:
-            return super(CustomSVM, self).fit(X,y)
+            return super(CustomSVM, self).fit(X, y)
 
     def predict(self, X):
         if self.is_single_class:
@@ -220,7 +222,6 @@ class CustomSVM(SVC):
 class CustomSGD(SGDClassifier):
 
     def fit(self, X, y):
-        
         self.is_single_class = False
         if len(set(y)) == 1:
             self.is_single_class = True
@@ -237,24 +238,25 @@ class CustomSGD(SGDClassifier):
 
 
 class CustomKNeighborsClassifier(KNeighborsClassifier):
-    
+
     def fit(self, X, y):
         self.is_sample_less = False
-        if len(y) < self.n_neighbors :
+        if len(y) < self.n_neighbors:
             self.is_sample_less = True
-            if sum(y) >= len(y)-sum(y): 
+            if sum(y) >= len(y)-sum(y):
                 self.prediction = 1
             else:
                 self.prediction = 0
             return self
         else:
-            return super(CustomKNeighborsClassifier, self).fit(X,y)
+            return super(CustomKNeighborsClassifier, self).fit(X, y)
 
     def predict(self, X):
         if self.is_sample_less:
             return np.array([int(self.prediction) for x in X])
         else:
             return super(CustomKNeighborsClassifier, self).predict(X)
+
 
 class AlwaysTrue(object):
 
@@ -291,6 +293,7 @@ class MajorityClass(object):
             return [1 for x in X]
         else:
             return [0 for x in X]
+
 
 parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss': 'perceptron'}
