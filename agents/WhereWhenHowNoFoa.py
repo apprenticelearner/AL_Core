@@ -18,7 +18,7 @@ from planners.fo_planner import FoPlanner
 from planners.rulesets import functionsets
 from planners.rulesets import featuresets
 
-search_depth = 2
+search_depth = 1
 epsilon = .9
 
 
@@ -32,7 +32,7 @@ class WhereWhenHowNoFoa(BaseAgent):
         self.where = MostSpecific
         # self.when = 'naive bayes'
         # self.when = 'always true'
-        self.when = 'trestle'
+        self.when = 'cobweb'
         self.skills = {}
         self.examples = {}
         self.action_set = action_set.name
@@ -345,12 +345,14 @@ class WhereWhenHowNoFoa(BaseAgent):
         # Need to do stuff with features here too.
 
         # used for grounding out plans, don't need to build up each time.
+        # print(functionsets[self.action_set])
         kb = FoPlanner([(self.ground(a),
                          example['flat_state'][a].replace('?', 'QM') if
                          isinstance(example['flat_state'][a], str) else
                          example['flat_state'][a])
                         for a in example['flat_state']], functionsets[self.action_set])
         kb.fc_infer(depth=search_depth, epsilon=epsilon)
+        # FACTS AFTER USING FUNCTIONS.
         # pprint(kb.facts)
 
         for exp, iargs in self.skills[label]:
@@ -464,7 +466,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                             possible]
                 possible.sort()
                 print("FOUND!")
-                # pprint(possible)
+                pprint(possible)
 
 
                 if len(possible) > 0:

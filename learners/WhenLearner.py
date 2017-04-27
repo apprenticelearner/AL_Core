@@ -301,8 +301,13 @@ parameters_sgd = {'loss': 'perceptron'}
 when_learners = {}
 when_learners['naive bayes'] = DictVectWrapper(BernoulliNB)
 when_learners['decision tree'] = DictVectWrapper(DecisionTreeClassifier)
-when_learners['logistic regression'] = DictVectWrapper(CustomLogisticRegression)
-when_learners['nearest neighbors'] = DictVectWrapper(CustomKNeighborsClassifier)
+
+clr = DictVectWrapper(CustomLogisticRegression)
+when_learners['logistic regression'] = clr
+
+ckn = DictVectWrapper(CustomKNeighborsClassifier)
+when_learners['nearest neighbors'] = ckn
+
 when_learners['random forest'] = DictVectWrapper(RandomForestClassifier)
 when_learners['svm'] = DictVectWrapper(CustomSVM)
 when_learners['sgd'] = DictVectWrapper(CustomSGD)

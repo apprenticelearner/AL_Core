@@ -1,5 +1,4 @@
 import re
-
 from planners.fo_planner import Operator
 from planners.fo_planner import FoPlanner
 
@@ -12,6 +11,19 @@ def gensym():
     return 'QMthengensym%i' % _then_gensym_counter
 
 
+def is_str_and_not_number(s):
+    if not isinstance(s, str):
+        return False
+    if s == "":
+        return False
+
+    try:
+        float(s)
+        return False
+    except ValueError:
+        return True
+
+
 def is_str_number(s):
     if not isinstance(s, str):
         return False
@@ -22,32 +34,25 @@ def is_str_number(s):
         return False
 
 
-add_rule = Operator(('Add', '?x', '?y'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv'),
-                     # (lambda x, y: x <= y, '?x', '?y')
-                     ],
-                    [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
-                      (lambda x, y: str(int(x) + int(y)), '?xv', '?yv'))])
+def int_float_add(x, y):
+    z = float(x) + float(y)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
 
-update_rule = Operator(('sai', '?sel', 'UpdateTable', '?val', '?ele'),
-                       [(('value', '?ele'), '?val'),
-                        (lambda x: x != "", '?val'),
-                        (('name', '?ele2'), '?sel'),
-                        (('type', '?ele2'), 'MAIN::cell'),
-                        (('value', '?ele2'), '')],
-                       [('sai', '?sel', 'UpdateTable', '?val', '?ele')])
 
-done_rule = Operator(('sai', 'done', 'ButtonPressed', '-1'),
-                     [],
-                     [('sai', 'done', 'ButtonPressed', '-1', 'done-button')])
+def int_float_subtract(x, y):
+    z = float(x) - float(y)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
 
-sub_rule = Operator(('Subtract', '?x', '?y'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv')],
-                    [(('value', ('Subtract', ('value', '?x'),
-                                 ('value', '?y'))),
-                      (lambda x, y: str(int(x) - int(y)), '?xv', '?yv'))])
+
+def int_float_multiply(x, y):
+    z = float(x) * float(y)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
 
 
 def int_float_divide(x, y):
@@ -77,9 +82,88 @@ def sig_figs(x, y):
     return out
 
 
+def is_unit(unit):
+    units = {'L', 'g', 'gal', 'kL', 'kg', 'lb', 'mL', 'mg'}
+    return unit in units
+
+
+def convert_units(val, from_unit, to_unit):
+    print('converting %s from %s to %s.' % (val, from_unit, to_unit))
+    val = float(val)
+    conversions = {}
+    conversions[('lb', 'kg')] = 2.2046
+    conversions[('mg', 'g')] = 1000
+    conversions[('mL', 'L')] = 1000
+    conversions[('L', 'kL')] = 1000
+    conversions[('g', 'kg')] = 1000
+    conversions[('L', 'gal')] = 3.7854
+
+    result = None
+    if (from_unit, to_unit) in conversions:
+        result = val * conversions[(from_unit, to_unit)]
+    elif (to_unit, from_unit) in conversions:
+        result = val * 1.0 / conversions[(to_unit, from_unit)]
+
+    if result is None:
+        raise Exception("Unknown units for conversion")
+
+    if result.is_integer():
+        return str(int(result))
+    else:
+        return str(result)
+
+
+add_rule = Operator(('Add', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv'),
+                     # (lambda x, y: x <= y, '?x', '?y')
+                     ],
+                    [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
+                      (int_float_add, '?xv', '?yv'))])
+
+update_rule = Operator(('sai', '?sel', 'UpdateTable', '?val', '?ele'),
+                       [(('value', '?ele'), '?val'),
+                        (lambda x: x != "", '?val'),
+                        (('name', '?ele2'), '?sel'),
+                        (('type', '?ele2'), 'MAIN::cell'),
+                        (('value', '?ele2'), '')],
+                       [('sai', '?sel', 'UpdateTable', '?val', '?ele')])
+
+done_rule = Operator(('sai', 'done', 'ButtonPressed', '-1'),
+                     [],
+                     [('sai', 'done', 'ButtonPressed', '-1', 'done-button')])
+
+sub_rule = Operator(('Subtract', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv')],
+                    [(('value', ('Subtract', ('value', '?x'),
+                                 ('value', '?y'))),
+                      (int_float_subtract, '?xv', '?yv'))])
+
+
+convert_units_rule = Operator(('ConvertUnits', '?x', '?y', '?z'),
+                              [(('value', '?x'), '?val'),
+                               (('value', '?y'), '?from-unit'),
+                               (('value', '?z'), '?to-unit'),
+                               (is_str_number, '?val'),
+                               (is_str_and_not_number, '?from-unit'),
+                               (is_str_and_not_number, '?to-unit'),
+                               (is_unit, '?from-unit'),
+                               (is_unit, '?to-unit'),
+                               (lambda x, y: x != y, '?from-unit',
+                                                     '?to-unit')
+                               ],
+                              [(('value', ('ConvertUnits', ('value', '?x'),
+                               ('value', '?y'), ('value', '?z'))),
+                               (convert_units, '?val', '?from-unit',
+                                '?to-unit'))])
+
+
 sig_fig_rule = Operator(('SigFig', '?x', '?y'),
                         [(('value', '?x'), '?xv'),
-                         (('value', '?y'), '?yv')],
+                         (('value', '?y'), '?yv'),
+                         (('type', '?y'), 'MAIN::cell'),
+                         (lambda x: float(x) < 10, '?yv')],
                         [(('value', ('SigFig', ('value', '?x'),
                          ('value', '?y'))), (sig_figs, '?xv', '?yv'))])
 
@@ -89,7 +173,7 @@ mult_rule = Operator(('Multiply', '?x', '?y'),
                       (('value', '?y'), '?yv')],
                      [(('value', ('Multiply', ('value', '?x'),
                                   ('value', '?y'))),
-                       (lambda x, y: str(int(x) * int(y)), '?xv', '?yv'))])
+                       (int_float_multiply, '?xv', '?yv'))])
 
 div_rule = Operator(('Divide', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
@@ -202,6 +286,8 @@ bigram_rule = Operator(('Bigram-rule', '?x'),
                        [(bigramize, '?x', '?xv')])
 
 arith_rules = [add_rule, sub_rule, mult_rule, div_rule, sig_fig_rule]
+stoichiometry_rules = [sig_fig_rule, div_rule, mult_rule]
+
 # arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule,
 #                done_rule]
 # arith_rules = [add_rule, mult_rule, update_rule, done_rule]
@@ -248,12 +334,14 @@ rotate = Operator(('Rotate', '?b1'),
 rb_rules = [add_x, add_y, sub_x, sub_y, half, rotate]
 
 functionsets = {'fraction arithmetic prior knowledge': arith_rules,
+                'stoichiometry': stoichiometry_rules,
                 'rumbleblocks': rb_rules, 'article selection': []}
 
 featuresets = {'fraction arithmetic prior knowledge': [equal_rule,
                                                        # tokenize_rule,
                                                        # is_number_rule,
                                                        editable_rule],
+               'stoichiometry': [editable_rule, equal_rule],
                'rumbleblocks': [], 'article selection': [unigram_rule,
                                                          bigram_rule,
                                                          equal_rule,
