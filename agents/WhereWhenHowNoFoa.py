@@ -521,7 +521,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 self.skills[label][r_exp] = {}
                 self.skills[label][r_exp]['where'] = self.where(args=w_args,
                                                                 constraints=constraints)
-                                                                # initial_h=mg_h)
+                # initial_h=mg_h)
                 self.skills[label][r_exp]['when'] = when_learners[self.when]()
 
             print('where learning for ', exp)

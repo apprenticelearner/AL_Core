@@ -1,6 +1,10 @@
 import re
+
+from nltk import ViterbiParser
+
 from planners.fo_planner import Operator
 from planners.fo_planner import FoPlanner
+from learners.EquationGrammar import grammar
 
 _then_gensym_counter = 0
 
@@ -56,7 +60,7 @@ def int_float_multiply(x, y):
 
 
 def int_float_divide(x, y):
-    z = float(x) / float(y)
+    z = round(float(x) / float(y), 6)
     if z.is_integer():
         z = int(z)
     return str(z)
@@ -113,6 +117,116 @@ def convert_units(val, from_unit, to_unit):
         return str(result)
 
 
+def tokenize_text(attr, val):
+    ret = []
+    words = re.findall(r"[0-9]+|[a-zA-Z]+|[^\w ]", val)
+    prev_word_obj = None
+    for w in words:
+        w = w.lower()
+        if w == '':
+            continue
+
+        word_obj = gensym()
+        print(word_obj)
+        ret.append((('contains-token', attr, word_obj), True))
+        ret.append((('value', word_obj), w))
+
+        if prev_word_obj is not None:
+            ret.append((('token-adj', attr, prev_word_obj, word_obj), True))
+
+        prev_word_obj = word_obj
+
+    return ret
+
+
+def tree_features(tree, path):
+    ret = []
+    node_str = ""
+    for l in tree.leaves():
+        node_str += l
+
+    ret.append((('tree-label', path), tree.label()))
+    ret.append((('value', path), node_str))
+
+    # print(len(tree))
+    if len(tree) < 2:
+        return ret
+
+    left_rt = tree_features(tree[0], ('left-tree', path))
+    right_rt = tree_features(tree[1], ('right-tree', path))
+    # left_rt = tree_features(tree[0], (tree[0].label(), path))
+    # right_rt = tree_features(tree[1], (tree[1].label(), path))
+
+    # print(ret + left_rt + right_rt)
+    return ret + left_rt + right_rt
+
+
+def grammar_features(attr, val):
+    if not isinstance(val, str):
+        raise Exception("Can only parse strings")
+
+    parser = ViterbiParser(grammar)
+    sent = [c for c in val.replace(" ", "")]
+    for tree in parser.parse(sent):
+        return tree_features(tree, attr)
+
+    raise Exception("Unable to parse val with grammar")
+
+
+def unigramize(attr, val):
+    ret = []
+    words = re.findall("[a-zA-Z0-9_']+|[^a-zA-Z0-9_\s]+",
+                       val.replace('QM', '?'))
+    # words = val.split(' ')
+
+    for w in words:
+        if w == '':
+            continue
+        w = w.lower()
+        w = w.replace('?', 'QM')
+
+        ret.append((('unigram', attr, w), True))
+
+    return ret
+
+
+def bigramize(attr, val):
+    ret = []
+    words = re.findall("[a-zA-Z0-9_']+|[^a-zA-Z0-9_\s]",
+                       val.replace('QM', '?'))
+    # words = val.split(' ')
+    prev_w = "<START>"
+
+    for w in words:
+        if w == '':
+            continue
+        w = w.lower()
+        w = w.replace('?', 'QM')
+        ret.append((('bigram', attr, prev_w, w), True))
+        prev_w = w
+
+    ret.append((('bigram', attr, prev_w, "<END>"), True))
+
+    return ret
+
+
+def subtract_strings(x, y):
+    result = x.replace(y, "")
+
+    assert result != ""
+    assert result != x
+
+    return result
+
+
+def concatenate_with_space(x, y):
+    return "%s %s" % (x, y)
+
+
+def concatenate_without_space(x, y):
+    return "%s%s" % (x, y)
+
+
 add_rule = Operator(('Add', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv'),
@@ -120,6 +234,7 @@ add_rule = Operator(('Add', '?x', '?y'),
                      ],
                     [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
                       (int_float_add, '?xv', '?yv'))])
+
 
 update_rule = Operator(('sai', '?sel', 'UpdateTable', '?val', '?ele'),
                        [(('value', '?ele'), '?val'),
@@ -129,9 +244,11 @@ update_rule = Operator(('sai', '?sel', 'UpdateTable', '?val', '?ele'),
                         (('value', '?ele2'), '')],
                        [('sai', '?sel', 'UpdateTable', '?val', '?ele')])
 
+
 done_rule = Operator(('sai', 'done', 'ButtonPressed', '-1'),
                      [],
                      [('sai', 'done', 'ButtonPressed', '-1', 'done-button')])
+
 
 sub_rule = Operator(('Subtract', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
@@ -213,68 +330,30 @@ half_val = Operator(('Half', '?x'),
                       (lambda x: str(int(x) // 2), '?xv'))])
 
 
-def tokenize_text(attr, val):
-    ret = []
-    words = re.findall(r"[0-9]+|[a-zA-Z]+|[^\w ]", val)
-    prev_word_obj = None
-    for w in words:
-        w = w.lower()
-        if w == '':
-            continue
-
-        word_obj = gensym()
-        print(word_obj)
-        ret.append((('contains-token', attr, word_obj), True))
-        ret.append((('value', word_obj), w))
-
-        if prev_word_obj is not None:
-            ret.append((('token-adj', attr, prev_word_obj, word_obj), True))
-
-        prev_word_obj = word_obj
-
-    return ret
-
-
-def unigramize(attr, val):
-    ret = []
-    words = re.findall("[a-zA-Z0-9_']+|[^a-zA-Z0-9_\s]",
-                       val.replace('QM', '?'))
-    # words = val.split(' ')
-
-    for w in words:
-        if w == '':
-            continue
-        w = w.lower()
-        w = w.replace('?', 'QM')
-
-        ret.append((('unigram', attr, w), True))
-
-    return ret
-
-
-def bigramize(attr, val):
-    ret = []
-    words = re.findall("[a-zA-Z0-9_']+|[^a-zA-Z0-9_\s]",
-                       val.replace('QM', '?'))
-    # words = val.split(' ')
-    prev_w = "<START>"
-
-    for w in words:
-        if w == '':
-            continue
-        w = w.lower()
-        w = w.replace('?', 'QM')
-        ret.append((('bigram', attr, prev_w, w), True))
-        prev_w = w
-
-    ret.append((('bigram', attr, prev_w, "<END>"), True))
-
-    return ret
+grammar_parser_rule = Operator(('GrammarParse', '?x'),
+                               [(('value', '?x'), '?xv')],
+                               [(grammar_features, '?x', '?xv')])
 
 
 tokenize_rule = Operator(('Tokenize', '?x'),
                          [(('value', '?x'), '?xv')],
                          [(tokenize_text, '?x', '?xv')])
+
+concatenate_rule = Operator(('concatenate-rule', '?x', '?y'),
+                            [(('value', '?x'), '?xv'),
+                             (('value', '?y'), '?yv')],
+                            [(('value', ('concatenate-rule',
+                                         '?x', '?y')),
+                                (concatenate_without_space,
+                                    '?xv', '?yv'))])
+
+string_subtract_rule = Operator(('string-subtract-rule',
+                                 '?x', '?y'),
+                                [(('value', '?x'), '?xv'),
+                                 (('value', '?y'), '?yv')],
+                                [(('value', ('string-subtract-rule',
+                                             '?x', '?y')),
+                                 (subtract_strings, '?xv', '?yv'))])
 
 unigram_rule = Operator(('Unigram-rule', '?x'),
                         [(('value', '?x'), '?xv')],
@@ -284,14 +363,6 @@ bigram_rule = Operator(('Bigram-rule', '?x'),
                        [(('value', '?x'), '?xv'),
                         (lambda x: ' ' in x, '?xv')],
                        [(bigramize, '?x', '?xv')])
-
-arith_rules = [add_rule, sub_rule, mult_rule, div_rule, sig_fig_rule]
-stoichiometry_rules = [sig_fig_rule, div_rule, mult_rule]
-
-# arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule,
-#                done_rule]
-# arith_rules = [add_rule, mult_rule, update_rule, done_rule]
-
 
 half = Operator(('Half', '?x'),
                 [(('y', '?x'), '?xv')],
@@ -332,12 +403,22 @@ rotate = Operator(('Rotate', '?b1'),
 
 
 rb_rules = [add_x, add_y, sub_x, sub_y, half, rotate]
+arith_rules = [add_rule, sub_rule, mult_rule, div_rule, sig_fig_rule,
+               # string_subtract_rule,
+               concatenate_rule]
+stoichiometry_rules = [sig_fig_rule, div_rule, mult_rule]
+
+# arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule,
+#                done_rule]
+# arith_rules = [add_rule, mult_rule, update_rule, done_rule]
 
 functionsets = {'fraction arithmetic prior knowledge': arith_rules,
                 'stoichiometry': stoichiometry_rules,
                 'rumbleblocks': rb_rules, 'article selection': []}
 
 featuresets = {'fraction arithmetic prior knowledge': [equal_rule,
+                                                       # unigram_rule,
+                                                       grammar_parser_rule,
                                                        # tokenize_rule,
                                                        # is_number_rule,
                                                        editable_rule],
@@ -349,17 +430,17 @@ featuresets = {'fraction arithmetic prior knowledge': [equal_rule,
 
 if __name__ == "__main__":
 
-    facts = [(('value', 'a'), 'This is Chris\'s first sentence.'),
-             (('value', 'b'), 'This is the secondQM sentence.')]
-    kb = FoPlanner(facts, [bigram_rule])
+    facts = [(('value', 'a'), '3'),
+             (('value', 'b'), '3x')]
+    kb = FoPlanner(facts, [string_subtract_rule])
     kb.fc_infer()
     print(kb.facts)
 
-    facts = [(('value', 'x'), '17'),
-             (('value', 'y'), '7')]
-    kb = FoPlanner(facts, arith_rules + [half_val])
-    from pprint import pprint
-    for sol in kb.fc_query([(('value', '?a'), '98')], 3):
-        pprint(sol)
+    # facts = [(('value', 'x'), '17'),
+    #          (('value', 'y'), '7')]
+    # kb = FoPlanner(facts, arith_rules + [half_val])
+    # from pprint import pprint
+    # for sol in kb.fc_query([(('value', '?a'), '98')], 3):
+    #     pprint(sol)
     # kb.fc_infer()
     # print(kb.facts)

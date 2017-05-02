@@ -1,523 +1,240 @@
-from nltk.tree import ProbabilisticTree
-from nltk.grammar import induce_pcfg
+# from pprint import pprint
+from random import random
+# from random import shuffle
+
+import nltk
 from nltk.grammar import Production
-from nltk import Nonterminal
-import heapq
 
-import pickle
 
-def average(l):
-    """
-    Returns the average of a list of numbers.
-    """
-    return sum(l) / len(l)
-
-class NeuralNetLearnedFeatures():
+class pCFG_Grammar(object):
 
     def __init__(self):
+        self.nt_count = 0
+        self.grammar = None
+        self.start = nltk.Nonterminal('S')
 
-        with open("/Users/cmaclell/Downloads/embeddings.csv", "r") as embin:
-            embeddings = [[float(v) for v in line.strip().split(",")] for line in embin]
+    def gen_nt(self):
+        self.nt_count += 1
+        return nltk.Nonterminal("NT%i" % self.nt_count)
 
-        with open("/Users/cmaclell/Downloads/data_307.txt", "r") as fin:
-            self.nn_features = {line.split('\t')[0].lower().replace('"',""):
-                                embeddings[i] for i,line in enumerate(fin)}
+    def parse(self, sentences):
+        if self.grammar is None:
+            raise Exception("No Grammar, call learn_grammar first.")
 
-        self.nn_features['a'] = {}
-        self.nn_features['an'] = {}
-        self.nn_features['the'] = {}
+        parser = nltk.ViterbiParser(self.grammar)
 
-    def get_features(self, attr_name, sequence):
-        sent = "".join(sequence)
-        if sent in self.nn_features:
-            emb = self.nn_features["".join(sequence)]
-            return {("f%i" % i, attr_name): v for i,v in enumerate(emb)}
+        for sent in sents:
+            found = False
+            for tree in parser.parse(sent):
+                found = True
+                yield tree
+            if not found:
+                raise Exception("Sentence not parsable")
 
-        print("Unable to find: %s" % sent)
-        print(self.nn_features.keys())
-        return {}
+    def learn_grammar(self, sentences):
+        print()
+        print("Inducing Structure...")
+        self.induce_structure(sentences)
+        print("done.")
 
-class GrammarLearnedFeatures():
+        print()
+        print("Initial Grammar:")
+        print(self.grammar)
 
-    def __init__(self):
+        print()
+        print("Inducing Weights...")
+        self.induce_weights(sentences)
+        print("done.")
 
-        with open("/Users/cmaclell/Downloads/grammar_dict.pickle", "rb") as fin:
-            self.features = pickle.load(fin)
+    def induce_weights(self, sentences):
+        if self.grammar is None:
+            raise Exception("Need to call induce_structure first")
 
-    def get_features(self, attr_name, sequence):
-        sent = "".join(sequence)
-        if sent in self.features:
-            f = self.features["".join(sequence)]
-            return {("NT-count (%s)" % attr, attr_name):f[attr] for attr in f}
+        sentences = [[c for c in s] for s in sentences]
 
-        print("Unable to find: %s" % sent)
-        print(self.nn_features.keys())
-        return {}
+        log_prob_last = 0
+        log_prob_curr = float('inf')
 
-class GrammarLearner():
+        while abs(log_prob_last - log_prob_curr) > 0.0001:
+            log_prob_last = log_prob_curr
 
-    def __init__(self):
-        self.sequences = []
-        self.pcfg_grammar = None
-        self.gensym_counter = 0
+            parser = nltk.ViterbiParser(self.grammar)
 
-    def nonterminal_gensym(self):
-        """
-        Returns a unique nonterminal symbol.
-        """
-        self.gensym_counter += 1
-        return Nonterminal("NT%i" % self.gensym_counter)
-
-    def ifit(self, sequence):
-        """
-        Adds the sequence to the previous training data
-        and retrains.
-        """
-        self.sequences.append(sequence)
-        return self.fit(self.sequences)
-
-    def fit(self, sequences):
-        """
-        Learn a grammar given a set of sequences
-        """
-        self.sequences = sequences
-        self.greedy_structure_hypothesizer(self.sequences)
-        self.viterbi_training(self.sequences)
-        return self.pcfg_grammar
-
-    def generate_most_likely_grounding(self, nt):
-        head_index = {}
-
-        for p in self.pcfg_grammar.productions():
-            if str(p.lhs()) not in head_index:
-                head_index[str(p.lhs())] = []
-            head_index[str(p.lhs())].append(p)
-
-        initial = (0, [nt], "")
-        h = []
-
-        heapq.heappush(h, initial)
-
-        while len(h) > 0:
-            lp, nts, s = heapq.heappop(h)
-
-            if len(nts) == 0:
-                return s
-
-            nt = str(nts[0])
-
-            for p in head_index[str(nt)]:
-                if len(p.rhs()) == 1:
-                    new = (lp - p.logprob(), nts[1:], s + p.rhs()[0])
-                else:
-                    new = (lp - p.logprob(), list(p.rhs()) + nts[1:], s)
-                heapq.heappush(h, new)
-
-        return None
-
-    def __str__(self):
-        unary = []
-        binary = []
-
-        for p in self.pcfg_grammar.productions():
-            if len(p.rhs()) == 1:
-                unary.append((p.logprob(), p))
-            else:
-                binary.append((p.logprob(), p))
-
-        unary.sort()
-        binary.sort()
-
-        s = ""
-        for lb, p in unary:
-            s += str(p) + "\n"
-        for lp, p in binary:
-            s += str(p) + "\n"
-
-        return s
-
-    def get_features(self, attr_name, sequence):
-        """
-        Returns a set of new grammar based features to describe the 
-        sequence.
-        """
-        tree = self.parse(sequence)
-        if tree is None:
-            return {}
-
-        features = {}
-        nodes = [tree]
-        while len(nodes) > 0:
-            n = nodes.pop()
-            if attr_name is None:
-                f = n.label()
-            else:
-                f = (n.label(), attr_name)
-
-            if f not in features:
-                features[f] = 0
-            features[f] += 1
-
-            if len(n) == 2:
-                nodes.append(n[0])
-                nodes.append(n[1])
-
-        return features
-
-    def get_tree_features(self, attr_name, sequence):
-        """
-        Returns a set of new grammar based features to describe the 
-        sequence.
-        """
-        tree = self.parse(sequence)
-        if tree is None:
-            return {}
-
-        features = {}
-        nodes = [(attr_name, tree)]
-        while len(nodes) > 0:
-            path, n = nodes.pop()
-            features[path] = n.label()
-            
-            if len(n) == 2:
-                nodes.append((('left', path), n[0]))
-                nodes.append((('right', path), n[1]))
-
-        return features
-
-    def generate_terminal_productions(self, sequences):
-        """
-        Returns a set of rules for each of the terminal symbols. 
-        """
-        terminals = {symbol for seq in sequences for symbol in seq}
-        productions = {Production(self.nonterminal_gensym(), [t]) for t in
-                       terminals}
-        return productions
-
-    def update_sequences(self, sequences, productions):
-        unary_index = {}
-        binary_index = {}
-        for p in productions:
-            if len(p.rhs()) == 1:
-                unary_index[p.rhs()[0]] = p
-            elif len(p.rhs()) == 2:
-                binary_index[tuple(p.rhs())] = p
-            else:
-                raise Exception("productions cannot have more than 2 symbols on rhs")
-
-        sequences = [[unary_index[ele].lhs() if ele in unary_index else ele 
-                      for ele in s] for s in sequences]
-        new_sequences = []
-
-        for s in sequences:
-            start = 0
-            while start < len(s)-1:
-                curr = tuple(s[start:start+2])
-                if curr in binary_index:
-                    s = s[:start] + [binary_index[curr].lhs()] + s[start+2:]
-                    if start > 1:
-                        start -= 1
-                else:
-                    start += 1
-
-            new_sequences.append(s)
-
-        return new_sequences
-
-    def get_recursive_production(self, sequences):
-        """
-        Finds a symbol that is repeated in one of the sequences and returns it.
-        If no pair is repeated, then returns None.
-        """
-        count_threshold = 1
-        avg_len_threshold = 2 
-
-        patterns = {}
-
-        for s in sequences:
-            left = None
-            last = None
-            length = 0
-
-            for sym in s + [None]:
-                if sym != last:
-                    if last not in patterns:
-                        patterns[last] = {}
-
-                    if left is not None:
-                        if ('right', left) not in patterns[last]:
-                            patterns[last][('right', left)] = {'count':0,
-                                                               'lengths':[]}
-                        patterns[last][('right', left)]['count'] += 1
-                        patterns[last][('right', left)]['lengths'].append(length)
-
-                    if sym is not None:
-                        if ('left', sym) not in patterns[last]:
-                            patterns[last][('left', sym)] = {'count':0,
-                                                               'lengths':[]}
-                        patterns[last][('left', sym)]['count'] += 1
-                        patterns[last][('left', sym)]['lengths'].append(length)
-
-                    left = last
-                    last = sym
-                    length = 1
-                else:
-                    length += 1
-
-        prods = [(patterns[rs][(d,ts)]['count'], Production(ts, [rs, ts])) 
-                 if d=="left" else 
-                 (patterns[rs][(d,ts)]['count'], Production(ts, [ts, rs]))
-                 for rs in patterns for d, ts in patterns[rs] if
-                 patterns[rs][(d,ts)]['count'] >= count_threshold and 
-                 average(patterns[rs][(d,ts)]['lengths']) >= avg_len_threshold]
-
-        if len(prods) > 0:
-            prods.sort(reverse=True)
-            return prods[0][1]
-
-        return None
-
-    def get_most_frequent_pair(self, sequences):
-        counts = {}
-        for s in sequences:
-            for start in range(len(s)-1):
-                pair = s[start], s[start+1]
-                if pair not in counts:
-                    counts[pair] = 0
-                counts[pair] += 1
-
-        pairs = [(counts[p], i, p) for i,p in enumerate(counts)]
-        pairs.sort(reverse=True)
-        return pairs[0][2]
-
-    def greedy_structure_hypothesizer(self, sequences):
-        productions = self.generate_terminal_productions(sequences)
-        parsed_seqs = self.update_sequences(sequences, productions)
-        start_symbols = set()
-
-        while len(parsed_seqs) > 0:
-            new_prod = self.get_recursive_production(parsed_seqs)
-            if new_prod is None:
-                most_frequent_pair = self.get_most_frequent_pair(parsed_seqs)
-                new_prod = Production(self.nonterminal_gensym(), most_frequent_pair)
-
-            productions.add(new_prod)
-            parsed_seqs = self.update_sequences(parsed_seqs, productions)
-            start_symbols = start_symbols.union({s[0] for s in parsed_seqs if
-                                                 len(s) == 1})
-            parsed_seqs = [s for s in parsed_seqs if len(s) > 1]
-
-        # TODO not sure this is the right way to handle start symbol
-        # introduction, but hey it'll work for now.
-        #productions = [Production(Nonterminal('S'), 
-        #                          [Nonterminal('S') 
-        #                           if nt in start_symbols else nt 
-        #                           for nt in p.rhs()]) 
-        #               if p.lhs() in start_symbols else 
-        #               Production(p.lhs(),[Nonterminal('S') 
-        #                           if nt in start_symbols else nt 
-        #                           for nt in p.rhs()])  
-        #               for p in productions]
-
-        self.pcfg_grammar = induce_pcfg(Nonterminal("S"), productions)
-
-    def parse(self, s):
-        parser = CustomViterbiParser(self.pcfg_grammar)
-        return parser.parse(s)
-
-    def viterbi_training(self, sequences):
-        """
-        Update self.pcfg probabilities using viterbi training
-        """
-        last_ll = 0
-        ll = float('-inf')
-        tol = 0.000001
-
-        while abs(last_ll - ll) > tol:
-            last_ll = ll
-            parser = CustomViterbiParser(self.pcfg_grammar)
             productions = []
-            ll = 0
-            for s in sequences:
-                tree = parser.parse(s)
-                if not tree:
-                    raise Exception("Not parsable")
-                ll += tree.logprob()
-                productions += tree.productions()
+            log_prob_curr = 0
+            for i, sent in enumerate(sentences):
+                print("parsing sentence %i of %i" % (i, len(sentences)))
+                found = False
+                for tree in parser.parse(sent):
+                    found = True
+                    log_prob_curr += tree.logprob()
+                    productions += tree.productions()
+                if not found:
+                    print(sent)
+                    raise Exception("Unable to parse sentence")
 
-            self.pcfg_grammar = induce_pcfg(self.pcfg_grammar.start(),
-                                            productions)
-            
-class CustomViterbiParser:
+            # print("last log prog", log_prob_last)
+            print("curr log prob", log_prob_curr)
 
-    def __init__(self, grammar):
-        # organize grammar productions in hashmaps for 
-        # fast lookup
-        self.unary_prods = {}
-        self.binary_prods = {}
-        for p in grammar.productions():
-            if len(p.rhs()) == 1:
-                if p.rhs()[0] not in self.unary_prods:
-                    self.unary_prods[p.rhs()[0]] = []
-                self.unary_prods[p.rhs()[0]].append(p)
-            elif len(p.rhs()) == 2:
-                if tuple(p.rhs()) not in self.binary_prods:
-                    self.binary_prods[tuple(p.rhs())] = []
-                self.binary_prods[tuple(p.rhs())].append(p)
+            self.grammar = nltk.induce_pcfg(self.start, productions)
+
+    def induce_structure(self, sentences):
+
+        sentences = [[c for c in s] for s in sentences]
+
+        start_symbols = set()
+        productions = []
+        prod_table = {}
+
+        # group all digits together
+        digit_terminals = set([str(i) for i in range(10)])
+
+        # unary rules
+        terminals = set()
+        for s in sentences:
+            terminals.update(s)
+        for t in terminals:
+            if t in digit_terminals:
+                nt = nltk.Nonterminal("Digit")
             else:
-                raise Exception("Grammar rules cannot have more than two symbols on RHS.")
+                nt = nltk.Nonterminal("Unary%s" % self.gen_nt())
+            p = Production(nt, [t])
+            productions.append(p)
+            prod_table[tuple(p.rhs())] = p.lhs()
 
-    def parse(self, s):
-        n = len(s)
-        # inside chart is a tuple with nt:(left_loc, right_loc, prob)
-        chart = {i:{j:{} for j in range(i,n)} for i in range(n)}
+        sentences = self.apply_unary_prod(sentences, prod_table)
 
-        # apply unary productions
-        for i in range(n):
-            token = s[i]
-            for p in self.unary_prods[token]:
-                if (p.lhs() not in chart[i][i] or 
-                    p.logprob() > chart[i][i][p.lhs()][2]):
-                    # no left and right expansions at the leaves so use None
-                    chart[i][i][p.lhs()] = (None, None, p.logprob())
+        while len(sentences) > 0:
+            if self.has_recursion(sentences):
+                p = self.generate_recursive_prod(sentences)
+            else:
+                p = self.generate_most_frequent_prod(sentences)
 
-        # build up chart with binary productions
-        for span in range(1,n):
-            for left in range(n-span):
-                right = left+span
+            productions.append(p)
+            prod_table[tuple(p.rhs())] = p.lhs()
 
-                for split in range(left, right):
-                    for left_nt in chart[left][split]:
-                        for right_nt in chart[split+1][right]:
-                            rhs = (left_nt, right_nt)
+            sentences = self.update_with_prod(sentences, prod_table)
 
-                            if rhs not in self.binary_prods:
-                                continue
+            new_sentences = []
+            for s in sentences:
+                if len(s) == 1:
+                    start_symbols.add(s[0])
+                else:
+                    new_sentences.append(s)
 
-                            for p in self.binary_prods[rhs]:
-                                prob = (chart[left][split][left_nt][2] +
-                                        chart[split+1][right][right_nt][2] +
-                                        p.logprob())
+            sentences = new_sentences
 
-                                if (p.lhs() not in chart[left][right] or
-                                    prob > chart[left][right][p.lhs()][2]):
-                                    chart[left][right][p.lhs()] = ((left_nt,
-                                                                    left,
-                                                                    split),
-                                                                   (right_nt,
-                                                                    split+1,
-                                                                    right),
-                                                                   prob)
+        # generate the start productions
+        for symbol in start_symbols:
+            for p in productions:
+                if p.lhs() == symbol:
+                    productions.append(Production(self.start, p.rhs()))
 
-        top_nts = [(chart[0][n-1][nt][2], nt) for nt in chart[0][n-1]]
+        self.grammar = nltk.induce_pcfg(self.start, productions)
 
-        if len(top_nts) > 0:
-            top_nts.sort(reverse=True)
-            return self.build_tree(s, chart, top_nts[0][1], 0, n-1)
+    def generate_most_frequent_prod(self, sentences):
+        pairs = {}
 
-        print("UNABLE TO PARSE")
-        print(s)
-        return None
+        for s in sentences:
+            for i in range(len(s)-1):
+                pair = (s[i], s[i+1])
+                if pair not in pairs:
+                    pairs[pair] = 0
+                pairs[pair] += 1
 
-    def build_tree(self, seq, chart, nt, left, right):
-        """
-        Given a sequence and a chart, builds the nltk Probabilistic Tree
-        object.
-        """
-        if left == right:
-            return ProbabilisticTree(nt.symbol(), [seq[left]],
-                                     logprob=chart[left][right][nt][2])
-        
-        left_tree = self.build_tree(seq, chart, chart[left][right][nt][0][0],
-                                    chart[left][right][nt][0][1], 
-                                    chart[left][right][nt][0][2])
-        right_tree = self.build_tree(seq, chart, chart[left][right][nt][1][0],
-                                    chart[left][right][nt][1][1], 
-                                    chart[left][right][nt][1][2])
+        pairs = [(pairs[p], random(), p) for p in pairs]
+        pairs.sort(reverse=True)
+        count, _, pair = pairs[0]
+        nt = self.gen_nt()
 
-        return ProbabilisticTree(nt.symbol(), [left_tree, right_tree],
-                                 logprob=chart[left][right][nt][2]) 
+        return Production(nt, list(pair))
 
-what_learners = {'grammar': GrammarLearner}
+    def generate_recursive_prod(self, sentences):
+        pairs = {}
+        for s in sentences:
+            for i in range(len(s) - 1):
+                if (s[i] == s[i+1] and
+                        isinstance(s[i], nltk.Nonterminal)):
+                    pair = (s[i], s[i+1])
+                    if pair not in pairs:
+                        pairs[pair] = 0
+                    pairs[pair] += 1
+
+        pairs = [(pairs[p], random(), p) for p in pairs]
+        pairs.sort(reverse=True)
+        count, _, pair = pairs[0]
+
+        return Production(pair[0], list(pair))
+
+    def apply_unary_prod(self, sentences, prod_table):
+        for s in sentences:
+            i = 0
+            while i < len(s):
+                if (s[i],) in prod_table:
+                    s[i:i+1] = [prod_table[(s[i],)]]
+                else:
+                    i += 1
+        return sentences
+
+    def update_with_prod(self, sentences, prod_table):
+        for s in sentences:
+            # print(s)
+            i = 0
+            while i < len(s) and len(s) > 1:
+                pair = tuple(s[i:i+2])
+                if pair in prod_table:
+                    s[i:i+2] = [prod_table[pair]]
+                    i -= 1
+                else:
+                    i += 1
+        return sentences
+
+    def has_recursion(self, sentences):
+        for s in sentences:
+            for i in range(len(s) - 1):
+                if (s[i] == s[i+1] and
+                        isinstance(s[i], nltk.Nonterminal)):
+                    return True
+        return False
 
 
 if __name__ == "__main__":
-    #from nltk.corpus import treebank
-    import re
 
-    gl = GrammarLearner()
-    with open("/Users/cmaclell/Projects/simstudent/AuthoringTools/java/Projects/articleSelectionTutor/massproduction-templates/article_sentences.csv") as fin:
-        lines = [line for line in fin]
-    
-    print(len(lines))
+    equation_strings = []
 
-    words = [[c for c in w] for line in lines 
-             for w in re.split(r'[ ,;.\?\-"]+', line.strip().lower()) 
-             if w != ""]
-    test_seqs = words + [[c for c in line.strip().lower()] for line in lines]
+    fdir = "/Users/cmaclell/Downloads/ds293_tx_2017_0424_102558/"
+    fname = "ds293_tx_All_Data_876_2015_0804_091957.txt"
 
+    with open(fdir + fname) as fin:
+        key = None
+        for line in fin:
+            if key is None:
+                key = {v: i for i, v in enumerate(line.split('\t'))}
+                continue
+            line = line.split('\t')
+            eq = line[key['Step Name']]
 
-    #gl.fit(test_seqs)
-    #with open("/Users/cmaclell/Downloads/article_grammar.pickle", 'wb') as fout:
-    #    pickle.dump(gl, fout)
-    #print("PICKLED")
+            if '=' not in eq:
+                continue
 
-    with open("/Users/cmaclell/Downloads/article_grammar.pickle", 'rb') as f:
-        gl = pickle.load(f)
+            eq = eq.split(' = ')
+            equation_strings.append(eq[0])
+            equation_strings.append(eq[1])
 
-    #print(gl)
+    # shuffle(equation_strings)
+    # equation_strings = equation_strings[0:30]
 
-    #for w in test_seqs:
-    #    fm = gl.get_features(None, w)
-    #    for a in fm:
-    #        print(a, gl.generate_most_likely_grounding(a))
-    #    print({gl.generate_most_likely_grounding(a): fm[a] for a in fm})
+    # pprint(equation_strings)
+    # print(len(equation_strings))
+    # equation_strings = ["3x + 2", "-4x", "4x", "700", "-5", "-100"]
 
+    sents = [[c for c in s] for s in equation_strings]
+    # pprint(sents)
 
-    features = {}
-    for line in lines:
-        fm = gl.get_features(None, [c for c in line.strip().lower()])
-        #for a in fm:
-        #    print(a, gl.generate_most_likely_grounding(a))
-        features[line.strip().lower()] = {gl.generate_most_likely_grounding(a):fm[a] for a in fm}
+    gl = pCFG_Grammar()
+    gl.learn_grammar(sents)
+    print(gl.grammar)
 
-    with open("/Users/cmaclell/Downloads/grammar_dict.pickle", "wb") as fout:
-        pickle.dump(features, fout)
-
-    print(features)
-#
-
-    #gl = GrammarLearner()
-
-    #with open("/Users/cmaclell/Projects/simstudent/AuthoringTools/java/Projects/articleSelectionTutor/massproduction-templates/article_sentences.txt") as fin:
-    #    lines = [line for line in fin]
-
-    #words = [[c for c in w] for line in lines for w in re.split(r'[ ,;.\?\-"]+', line.strip().lower()) if
-    #         w != ""]
-    #test_seqs = [[c for c in line.strip().lower()] for line in lines] #+ [words]
-
-    ##test_seqs = [[c for c in " ".join([s.lower() for s in t])] for fileid in
-    ##             treebank.fileids()[:2] for t in treebank.sents(fileid)]
-    #print(len(test_seqs))
-    #print(sum([len(s) for s in test_seqs])/len(test_seqs))
-
-    #print(test_seqs)
-
-    #gl.fit([['b','a','a','a']])
-    #print(gl.parse(['b','a','a','a']))
-    #gl.fit(test_seqs[:20])
-    #print(test_seqs[19])
-    #print(gl.parse(test_seqs[19]))
-    #print(gl.pcfg_grammar)
-
-    #import pickle
-
-    #with open("/Users/cmaclell/Downloads/article_grammar.pickle", 'wb') as fout:
-    #    pickle.dump(gl, fout)
-
-    #print(gl.get_features(("value", '?foa0'), test_seqs[19]))
-
-
-
-    #nnf = NeuralNetLearnedFeatures()
-    #print(nnf.get_features('?foa0', lines[10].strip().replace('"',"")))
+    for tree in gl.parse(sents):
+        print(tree)
+        print(tree.logprob())
