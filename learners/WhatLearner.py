@@ -1,5 +1,6 @@
-# from pprint import pprint
+import pickle
 from random import random
+# from pprint import pprint
 # from random import shuffle
 
 import nltk
@@ -200,7 +201,7 @@ class pCFG_Grammar(object):
 
 if __name__ == "__main__":
 
-    equation_strings = []
+    sentences = set()
 
     fdir = "/Users/cmaclell/Downloads/ds293_tx_2017_0424_102558/"
     fname = "ds293_tx_All_Data_876_2015_0804_091957.txt"
@@ -218,23 +219,41 @@ if __name__ == "__main__":
                 continue
 
             eq = eq.split(' = ')
-            equation_strings.append(eq[0])
-            equation_strings.append(eq[1])
+            # equation_strings.append(eq[0])
+            sentences.add(eq[0].lower())
+            # equation_strings.append(eq[1])
+            sentences.add(eq[1].lower())
 
-    # shuffle(equation_strings)
-    # equation_strings = equation_strings[0:30]
+    fdir = "/Users/cmaclell/Dropbox/projects/simstudent/Authoring" \
+           "Tools/java/Projects/articleSelectionTutor/massproduct" \
+           "ion-templates/"
+    fname = "article_sentences.txt"
 
-    # pprint(equation_strings)
-    # print(len(equation_strings))
+    with open(fdir + fname, encoding="ISO-8859-1") as fin:
+        key = None
+        for line in fin:
+            line = line.strip()
+            print('adding', line.lower())
+            sentences.add(line.lower())
+
+    # sentences = list(sentences)
+    # shuffle(sentences)
+    # sentences = sentences[0:30]
+    # pprint(sentences)
+
     # equation_strings = ["3x + 2", "-4x", "4x", "700", "-5", "-100"]
 
-    sents = [[c for c in s] for s in equation_strings]
+    sents = [[c for c in s] for s in sentences]
     # pprint(sents)
 
     gl = pCFG_Grammar()
     gl.learn_grammar(sents)
-    print(gl.grammar)
+    # print(gl.grammar)
 
-    for tree in gl.parse(sents):
-        print(tree)
-        print(tree.logprob())
+    print("PICKLING...")
+    pickle.dump(gl.grammar, open("grammar.pickle", "wb"))
+    print("Done.")
+
+    # for tree in gl.parse(sents):
+    #     print(tree)
+    #     print(tree.logprob())

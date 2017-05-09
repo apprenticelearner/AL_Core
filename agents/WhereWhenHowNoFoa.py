@@ -4,12 +4,11 @@ from random import choice
 
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
-from concept_formation.trestle import TrestleTree
 from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
-from learners.WhereLearner import SpecificToGeneral
-from learners.WhereLearner import RelationalLearner
+# from learners.WhereLearner import SpecificToGeneral
+# from learners.WhereLearner import RelationalLearner
 from learners.WhereLearner import MostSpecific
 from learners.WhenLearner import when_learners
 from planners.fo_planner import FoPlanner
@@ -32,10 +31,10 @@ class WhereWhenHowNoFoa(BaseAgent):
         self.where = MostSpecific
         # self.when = 'naive bayes'
         # self.when = 'always true'
-        self.when = 'cobweb'
+        self.when = 'trestle'
         self.skills = {}
         self.examples = {}
-        self.action_set = action_set.name
+        self.action_set = action_set
 
     def request(self, state):
         print("REQUEST RECEIVED")
@@ -50,9 +49,8 @@ class WhereWhenHowNoFoa(BaseAgent):
         #         new[('editable', attr[1])] = state[attr] == ''
         #         for attr2 in state:
         #             if (isinstance(attr2, tuple) and attr2[0] == 'value'):
-        #                 if (attr2 == attr or attr < attr2 or (state[attr] == ""
-        #                                                       or state[attr2]
-        #                                                       == "")):
+        #                 if (attr2 == attr or attr < attr2 or
+        #                     (state[attr] == "" or state[attr2] == "")):
         #                     continue
         #                 if (state[attr] == state[attr2]):
         #                     new[('eq', attr, attr2)] = True
@@ -122,11 +120,14 @@ class WhereWhenHowNoFoa(BaseAgent):
                         continue
 
                     print("MATCH FOUND", label, exp, m)
-                    vmapping = {'?foa' + str(i): ele for i, ele in enumerate(m)}
-                    mapping = {'foa' + str(i): ele for i, ele in enumerate(m)}
+                    vmapping = {'?foa' + str(i): ele
+                                for i, ele in enumerate(m)}
+                    mapping = {'foa' + str(i): ele
+                               for i, ele in enumerate(m)}
 
                     r_exp = list(rename_flat({exp: True}, vmapping))[0]
-                    r_state = rename_flat(state, {mapping[a]: a for a in mapping})
+                    r_state = rename_flat(state,
+                                          {mapping[a]: a for a in mapping})
 
                     # pprint(r_state)
 
@@ -139,12 +140,14 @@ class WhereWhenHowNoFoa(BaseAgent):
                             #                  state[a].replace('?', 'QM') if
                             #                  isinstance(state[a], str) else
                             #                  state[a])
-                            #                 for a in state], functionsets[self.action_set])
+                            #                 for a in state],
+                            #                functionsets[self.action_set])
                             for vm in kb.fc_query([(self.ground(ele), '?v')],
                                                   max_depth=0,
                                                   epsilon=epsilon):
                                 # if vm['?v'] == '':
-                                #     raise Exception("Should not be an empty str")
+                                #     raise Exception("Should not be an"
+                                #                     " empty str")
                                 if vm['?v'] != '':
                                     rg_exp.append(vm['?v'])
                                 break
@@ -305,7 +308,8 @@ class WhereWhenHowNoFoa(BaseAgent):
         # new = {}
         # for attr in example['flat_state']:
         #     if (isinstance(attr, tuple) and attr[0] == 'value'):
-        #         new[('editable', attr[1])] = example['flat_state'][attr] == ''
+        #         new[('editable', attr[1])] =
+        #           example['flat_state'][attr] == ''
 
         #         for attr2 in example['flat_state']:
         #             if (isinstance(attr2, tuple) and attr2[0] == 'value'):
@@ -350,7 +354,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                          example['flat_state'][a].replace('?', 'QM') if
                          isinstance(example['flat_state'][a], str) else
                          example['flat_state'][a])
-                        for a in example['flat_state']], functionsets[self.action_set])
+                        for a in example['flat_state']],
+                       functionsets[self.action_set])
         kb.fc_infer(depth=search_depth, epsilon=epsilon)
         # FACTS AFTER USING FUNCTIONS.
         # pprint(kb.facts)
@@ -360,7 +365,8 @@ class WhereWhenHowNoFoa(BaseAgent):
             #                  example['flat_state'][a].replace('?', 'QM') if
             #                  isinstance(example['flat_state'][a], str) else
             #                  example['flat_state'][a])
-            #                 for a in example['flat_state']], functionsets[self.action_set])
+            #                 for a in example['flat_state']],
+            #                functionsets[self.action_set])
             for m in self.explains_sai(kb, exp, sai):
                 print("COVERED", exp, m)
 
@@ -400,9 +406,8 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                 print("This is my T:", t)
 
-                if not self.skills[label][(exp,
-                                           iargs)]['where'].check_match(t,
-                                                                     example['flat_state']):
+                skill_where = self.skills[label][(exp, iargs)]['where']
+                if not skill_where.check_match(t, example['flat_state']):
                     continue
 
                 print("####### SUCCESSFUL WHERE MATCH########")
@@ -424,7 +429,8 @@ class WhereWhenHowNoFoa(BaseAgent):
             #                  example['flat_state'][a].replace('?', 'QM') if
             #                  isinstance(example['flat_state'][a], str) else
             #                  example['flat_state'][a])
-            #                 for a in example['flat_state']], functionsets[self.action_set])
+            #                 for a in example['flat_state']],
+            #                functionsets[self.action_set])
 
             selection_exp = selection
             for sel_match in kb.fc_query([('?selection', selection)],
@@ -438,17 +444,17 @@ class WhereWhenHowNoFoa(BaseAgent):
             for a in input_args:
                 iv = inputs[a]
                 # kb = FoPlanner([(self.ground(a),
-                #                  example['flat_state'][a].replace('?', 'QM') if
-                #                  isinstance(example['flat_state'][a], str) else
-                #                  example['flat_state'][a])
-                #                 for a in example['flat_state']], functionsets[self.action_set])
+                #         example['flat_state'][a].replace('?', 'QM') if
+                #         isinstance(example['flat_state'][a], str) else
+                #         example['flat_state'][a])
+                #        for a in example['flat_state']],
+                # functionsets[self.action_set])
                 input_exp = iv
                 print('trying to explain', [((a, '?input'), iv)])
 
-
                 # TODO not sure what the best approach is for choosing among
                 # the possible explanations. Perhaps we should choose more than
-                # one. Maybe the shortest (less deep). 
+                # one. Maybe the shortest (less deep).
 
                 # f = False
                 possible = []
@@ -467,7 +473,6 @@ class WhereWhenHowNoFoa(BaseAgent):
                 possible.sort()
                 print("FOUND!")
                 pprint(possible)
-
 
                 if len(possible) > 0:
                     _, _, input_exp = possible[0]
@@ -519,8 +524,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                 w_args = tuple(['?foa%s' % j for j, _ in enumerate(args)])
 
                 self.skills[label][r_exp] = {}
-                self.skills[label][r_exp]['where'] = self.where(args=w_args,
-                                                                constraints=constraints)
+                where_inst = self.where(args=w_args, constraints=constraints)
+                self.skills[label][r_exp]['where'] = where_inst
                 # initial_h=mg_h)
                 self.skills[label][r_exp]['when'] = when_learners[self.when]()
 
@@ -558,6 +563,10 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         # selection constraints, you can only select something that has an
         # empty string value.
+
+        if len(args) == 0:
+            return frozenset()
+
         print("SAI", sai)
         print("ARGS", args)
         selection = args[0]

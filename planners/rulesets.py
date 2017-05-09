@@ -4,7 +4,7 @@ from nltk import ViterbiParser
 
 from planners.fo_planner import Operator
 from planners.fo_planner import FoPlanner
-from learners.EquationGrammar import grammar
+from learners.Grammar import grammar
 
 _then_gensym_counter = 0
 
@@ -166,7 +166,7 @@ def grammar_features(attr, val):
         raise Exception("Can only parse strings")
 
     parser = ViterbiParser(grammar)
-    sent = [c for c in val.replace(" ", "")]
+    sent = [c for c in val.replace(" ", "").lower()]
     for tree in parser.parse(sent):
         return tree_features(tree, attr)
 
@@ -404,7 +404,6 @@ rotate = Operator(('Rotate', '?b1'),
 
 rb_rules = [add_x, add_y, sub_x, sub_y, half, rotate]
 arith_rules = [add_rule, sub_rule, mult_rule, div_rule, sig_fig_rule,
-               # string_subtract_rule,
                concatenate_rule]
 stoichiometry_rules = [sig_fig_rule, div_rule, mult_rule]
 
@@ -412,16 +411,13 @@ stoichiometry_rules = [sig_fig_rule, div_rule, mult_rule]
 #                done_rule]
 # arith_rules = [add_rule, mult_rule, update_rule, done_rule]
 
-functionsets = {'fraction arithmetic prior knowledge': arith_rules,
+functionsets = {'tutor knowledge': arith_rules,
                 'stoichiometry': stoichiometry_rules,
                 'rumbleblocks': rb_rules, 'article selection': []}
 
-featuresets = {'fraction arithmetic prior knowledge': [equal_rule,
-                                                       # unigram_rule,
-                                                       grammar_parser_rule,
-                                                       # tokenize_rule,
-                                                       # is_number_rule,
-                                                       editable_rule],
+featuresets = {'tutor knowledge': [equal_rule,
+                                   grammar_parser_rule,
+                                   editable_rule],
                'stoichiometry': [editable_rule, equal_rule],
                'rumbleblocks': [], 'article selection': [unigram_rule,
                                                          bigram_rule,

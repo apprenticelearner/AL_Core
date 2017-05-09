@@ -7,7 +7,7 @@ from random import choice
 from py_search.base import Problem
 from py_search.base import Node
 from py_search.optimization import simulated_annealing
-from py_search.optimization import hill_climbing
+# from py_search.optimization import hill_climbing
 
 from planners.fo_planner import Operator
 from planners.fo_planner import build_index
@@ -89,7 +89,7 @@ def optimize_clause(h, constraints, seed, pset, nset):
     initial_score = clause_score(clause_accuracy_weight, len(p_covered),
                                  len(p_uncovered), len(n_covered),
                                  len(n_uncovered), c_length)
-    
+
     p, pm = seed
     pos_partial = list(compute_bottom_clause(p, pm))
     # print('POS PARTIAL', pos_partial)
@@ -155,8 +155,8 @@ def optimize_clause(h, constraints, seed, pset, nset):
     num_successors = sum([w for w, c in flip_weights])
     print("NUM SUCCESSORS", num_successors)
     temp_length = num_successors
-    temp_length = 10 
-    initial_temp = 0.15
+    temp_length = 10
+    # initial_temp = 0.15
     # initial_temp = 0.0
     print("TEMP LENGTH", temp_length)
     print('INITIAL SCORE', initial_score)
@@ -214,10 +214,11 @@ class ClauseOptimizationProblem(Problem):
         # print("COMISSIONS", comissions)
 
         # if omissions > comissions:
-        #     print("LEN 1", 1 / ((comissions / omissions) * (max_literal_length
+        #     print("LEN 1", 1 / ((comissions / omissions) *
+        #                   (max_literal_length
         #                                                     - 1 + 0.1)))
-        #     print("LEN 3", 1 / ((comissions / omissions) * (max_literal_length
-        #                                                     - 3 + 0.1)))
+        #     print("LEN 3", 1 / ((comissions / omissions) *
+        #                   (max_literal_length               - 3 + 0.1)))
 
         # if comissions > omissions:
         #     print("LEN 1", 1 / ((comissions / omissions) * (1 + 0.1)))
