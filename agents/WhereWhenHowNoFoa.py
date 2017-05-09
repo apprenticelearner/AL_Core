@@ -510,7 +510,11 @@ class WhereWhenHowNoFoa(BaseAgent):
 
             if r_exp not in self.skills[label]:
                 # mg_h = self.extract_mg_h(r_exp[0])
-                constraints = self.generate_tutor_constraints(r_exp[0])
+
+                if self.action_set == "tutor knowledge":
+                    constraints = self.generate_tutor_constraints(r_exp[0])
+                else:
+                    constraints = self.extract_mg_h(r_exp[0])
 
                 print("ACTIONSET")
                 print(self.action_set)
