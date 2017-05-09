@@ -10,7 +10,7 @@ from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
 from django.http import HttpResponseNotAllowed
 
-from apprentice_learner.models import ActionSet
+# from apprentice_learner.models import ActionSet
 from apprentice_learner.models import Agent
 from agents.Dummy import Dummy
 from agents.WhereWhenHow import WhereWhenHow
@@ -53,11 +53,12 @@ def create(request):
         print("request body missing 'action_set'")
         return HttpResponseBadRequest("request body missing 'action_set'")
 
-    try:
-        action_set = ActionSet.objects.get(name=data['action_set'])
-    except ActionSet.DoesNotExist:
-        print("Specified action set does not exist")
-        return HttpResponseBadRequest("Specified action set does not exist")
+    # try:
+    #     action_set = ActionSet.objects.get(name=data['action_set'])
+    # except ActionSet.DoesNotExist:
+    #     print("Specified action set does not exist")
+    #     return HttpResponseBadRequest("Specified action set does not exist")
+    action_set = data['action_set']
 
     if 'args' not in data:
         args = {}
@@ -75,25 +76,26 @@ def create(request):
 
     except Exception as e:
         print("Failed to create agent", e)
-        return HttpResponseServerError("Failed to create agent, ensure provided args are correct.")
+        return HttpResponseServerError("Failed to create agent, "
+                                       "ensure provided args are "
+                                       "correct.")
 
     return HttpResponse(json.dumps(ret_data))
+
 
 @csrf_exempt
 def request(request, agent_id):
     """
     Returns an SAI description for a given a problem state according to the
-    current knoweldge base.
-
-    Expects an HTTP POST with a json object stored as a utf-8 btye string in the
-    request body. 
+    current knoweldge base.  Expects an HTTP POST with a json object stored as
+    a utf-8 btye string in the request body.
     That object should have the following fields:
     """
     try:
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(request.body.decode('utf-8'))
-        
+
         if 'state' not in data or data['state'] is None:
             print("request body missing 'state'")
             return HttpResponseBadRequest("request body missing 'state'")
@@ -108,10 +110,11 @@ def request(request, agent_id):
         traceback.print_exc()
         return HttpResponseServerError(str(e))
 
+
 @csrf_exempt
 def request_by_name(http_request, agent_name):
-    agent = get_list_or_404(Agent,name=agent_name)[0]
-    return request(http_request,agent.id)
+    agent = get_list_or_404(Agent, name=agent_name)[0]
+    return request(http_request, agent.id)
 
 
 @csrf_exempt
@@ -171,12 +174,11 @@ def train_by_name(request, agent_name):
 
 @csrf_exempt
 def check(request, agent_id):
-    
     """
     Uses the knoweldge base to check the correctness of an SAI in provided
     state.
     """
-    try:    
+    try:
         if request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(request.body.decode('utf-8'))
@@ -189,14 +191,14 @@ def check(request, agent_id):
             return HttpResponseBadRequest("request body missing 'action'")
         if 'inputs' not in data:
             return HttpResponseBadRequest("request body missing 'inputs'")
-        
+
         agent = Agent.objects.get(id=agent_id)
         agent.inc_check()
         agent.save()
 
         response = {}
 
-        response['correct'] = agent.instance.check(data['state'], 
+        response['correct'] = agent.instance.check(data['state'],
                                                    data['selection'],
                                                    data['action'],
                                                    data['inputs'])
@@ -206,31 +208,33 @@ def check(request, agent_id):
         traceback.print_exc()
         return HttpResponseServerError(str(e))
 
+
 @csrf_exempt
 def check_by_name(request, agent_name):
-    agent = get_list_or_404(Agent,name=agent_name)[0]
-    return check(request,agent.id)
+    agent = get_list_or_404(Agent, name=agent_name)[0]
+    return check(request, agent.id)
 
 
 def report(request, agent_id):
     if request.method != "GET":
             return HttpResponseNotAllowed(["GET"])
 
-    agent = get_object_or_404(Agent,id=agent_id)
+    agent = get_object_or_404(Agent, id=agent_id)
 
     response = {
-        'id':agent.id,
-        'name':agent.name,
-        'num_request':agent.num_request,
-        'num_train':agent.num_train,
-        'num_check':agent.num_check,
-        'created':agent.created,
-        'updated':agent.updated
+        'id': agent.id,
+        'name': agent.name,
+        'num_request': agent.num_request,
+        'num_train': agent.num_train,
+        'num_check': agent.num_check,
+        'created': agent.created,
+        'updated': agent.updated
     }
 
-    response = {k:str(response[k]) for k in response}
+    response = {k: str(response[k]) for k in response}
     return HttpResponse(json.dumps(response))
 
+
 def report_by_name(request, agent_name):
-    agent = get_list_or_404(Agent,name=agent_name)[0]
-    return report(request,agent.id)
+    agent = get_list_or_404(Agent, name=agent_name)[0]
+    return report(request, agent.id)

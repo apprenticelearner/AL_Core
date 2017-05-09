@@ -1,44 +1,46 @@
 from django.db import models
 from picklefield.fields import PickledObjectField
 
-class PyFunction(models.Model):
-    name = models.CharField(max_length=200)
-    fun_def = models.TextField()
+# class PyFunction(models.Model):
+#     name = models.CharField(max_length=200)
+#     fun_def = models.TextField()
+#
+#     def __str__(self):
+#         return self.name
+#
+# class ActionSet(models.Model):
+#     name = models.CharField(max_length=200, unique=True)
+#     features = models.ManyToManyField(PyFunction, blank=True,
+#                                       related_name="feature_action_sets")
+#     functions = models.ManyToManyField(PyFunction, blank=True,
+#                                       related_name="function_action_sets")
+#
+#     def get_feature_dict(self):
+#         features = {}
+#         for feature in self.features.all():
+#             temp = {}
+#             exec(feature.fun_def, temp)
+#             features[feature.name] = temp[feature.name]
+#         return features
+#
+#     def get_function_dict(self):
+#         functions = {}
+#         for function in self.functions.all():
+#             temp = {}
+#             exec(function.fun_def, temp)
+#             functions[function.name] = temp[function.name]
+#         return functions
+#
+#     def __str__(self):
+#         return self.name
 
-    def __str__(self):
-        return self.name
-
-class ActionSet(models.Model):
-    name = models.CharField(max_length=200, unique=True)
-    features = models.ManyToManyField(PyFunction, blank=True,
-                                      related_name="feature_action_sets")
-    functions = models.ManyToManyField(PyFunction, blank=True,
-                                      related_name="function_action_sets")
-
-    def get_feature_dict(self):
-        features = {}
-        for feature in self.features.all():
-            temp = {}
-            exec(feature.fun_def, temp)
-            features[feature.name] = temp[feature.name]
-        return features
-
-    def get_function_dict(self):
-        functions = {}
-        for function in self.functions.all():
-            temp = {}
-            exec(function.fun_def, temp)
-            functions[function.name] = temp[function.name]
-        return functions
-
-    def __str__(self):
-        return self.name
 
 class Agent(models.Model):
     instance = PickledObjectField()
-    action_set = models.ForeignKey(ActionSet, on_delete=models.CASCADE)
+    action_set = models.CharField(max_length=200, blank=False)
+    # action_set = models.ForeignKey(ActionSet, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, blank=True)
-    num_request = models.IntegerField(default=0) 
+    num_request = models.IntegerField(default=0)
     num_train = models.IntegerField(default=0)
     num_check = models.IntegerField(default=0)
     created = models.DateTimeField(auto_now_add=True)
@@ -54,7 +56,7 @@ class Agent(models.Model):
         self.num_check = self.num_check + 1
 
     def __str__(self):
-        skills = {} 
+        skills = {}
 
         try:
             sd = self.instance.skills
@@ -77,7 +79,7 @@ class Agent(models.Model):
         import pydotplus
         from sklearn import tree
         from sklearn.externals.six import StringIO
-        
+
         for label in self.instance.skills:
             for n, how in enumerate(self.instance.skills[label]):
                 pipeline = self.instance.skills[label][how]['when_classifier']
@@ -91,16 +93,14 @@ class Agent(models.Model):
                                      class_names=["Don't Fire Rule",
                                                   "Fire Rule"],
                                      filled=True, rounded=True,
-                                     special_characters=True) 
+                                     special_characters=True)
                 graph = pydotplus.graph_from_dot_data(dot_data.getvalue())
                 graph.write_png("decisiontrees/%s-%i.png" % (label, n))
 
     class Meta:
         ordering = ('-updated',)
 
-   
     # user specified domain
     # owner
 
 # Users and User permissions
-

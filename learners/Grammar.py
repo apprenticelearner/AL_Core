@@ -1,7 +1,11 @@
+import pickle
+
 from nltk import ViterbiParser
 from nltk import PCFG
 
-grammar = PCFG.fromstring("""
+grammar = pickle.load(open('learners/grammar.pickle', 'rb'))
+
+grammar_old = PCFG.fromstring("""
     S -> NT38 NT73 [0.00218381]
     NT38 -> NT13 UnaryNT12 [1.0]
     NT13 -> UnaryNT11 Digit [0.983932]
@@ -969,7 +973,7 @@ if __name__ == "__main__":
     print(grammar)
     parser = ViterbiParser(grammar)
 
-    sent = [c for c in "1x+2"]
+    sent = [c for c in "-7/2"]
     print(sent)
     for tree in parser.parse(sent):
         print(tree)
