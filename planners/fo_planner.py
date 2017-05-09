@@ -3,6 +3,8 @@ from pprint import pprint
 from random import random
 from random import shuffle
 from itertools import product
+from multiprocessing import cpu_count
+from multiprocess import Pool
 
 from concept_formation.utils import isNumber
 from py_search.base import Problem
@@ -12,7 +14,16 @@ from py_search.uninformed import iterative_deepening_search
 # from py_search.uninformed import breadth_first_search
 # from py_search.informed import iterative_deepening_best_first_search
 # from py_search.informed import best_first_search
-from py_search.utils import compare_searches
+# from py_search.utils import compare_searches
+
+pool = None
+
+
+def get_pool():
+    global pool
+    if pool is None:
+        pool = Pool(cpu_count())
+    return pool
 
 
 def index_key(fact):
@@ -88,6 +99,7 @@ def old_index_key(fact):
     return (extract_first_string(first[0]), extract_first_string(first[1]),
             extract_first_string(second))
 
+
 def get_variablized_keys(key):
     """
     Takes the triple key given above (fact[0], fact[1], value) and returns all
@@ -104,7 +116,21 @@ def get_variablized_keys(key):
     ...                                    ('Add', ('value', 'TableCell'),
     ...                                            ('value', 'TableCell'))),
     ...                                    '5'))]
-    [(('value', ('Add', ('value', 'TableCell'), ('value', 'TableCell'))), '5'), (('value', ('Add', ('value', 'TableCell'), ('value', 'TableCell'))), '?'), (('value', ('Add', ('value', 'TableCell'), ('value', '?'))), '5'), (('value', ('Add', ('value', 'TableCell'), ('value', '?'))), '?'), (('value', ('Add', ('value', 'TableCell'), '?')), '5'), (('value', ('Add', ('value', 'TableCell'), '?')), '?'), (('value', ('Add', ('value', '?'), ('value', 'TableCell'))), '5'), (('value', ('Add', ('value', '?'), ('value', 'TableCell'))), '?'), (('value', ('Add', ('value', '?'), ('value', '?'))), '5'), (('value', ('Add', ('value', '?'), ('value', '?'))), '?'), (('value', ('Add', ('value', '?'), '?')), '5'), (('value', ('Add', ('value', '?'), '?')), '?'), (('value', ('Add', '?', ('value', 'TableCell'))), '5'), (('value', ('Add', '?', ('value', 'TableCell'))), '?'), (('value', ('Add', '?', ('value', '?'))), '5'), (('value', ('Add', '?', ('value', '?'))), '?'), (('value', ('Add', '?', '?')), '5'), (('value', ('Add', '?', '?')), '?'), (('value', '?'), '5'), (('value', '?'), '?'), ('?', '5'), ('?', '?'), '?']
+    [(('value', ('Add', ('value', 'TableCell'), ('value', 'TableCell'))), \
+'5'), (('value', ('Add', ('value', 'TableCell'), ('value', 'TableCell'))), \
+'?'), (('value', ('Add', ('value', 'TableCell'), ('value', '?'))), '5'), \
+(('value', ('Add', ('value', 'TableCell'), ('value', '?'))), '?'), (('value', \
+('Add', ('value', 'TableCell'), '?')), '5'), (('value', ('Add', ('value', \
+'TableCell'), '?')), '?'), (('value', ('Add', ('value', '?'), ('value', \
+'TableCell'))), '5'), (('value', ('Add', ('value', '?'), ('value', \
+'TableCell'))), '?'), (('value', ('Add', ('value', '?'), ('value', '?'))), \
+'5'), (('value', ('Add', ('value', '?'), ('value', '?'))), '?'), (('value', \
+('Add', ('value', '?'), '?')), '5'), (('value', ('Add', ('value', '?'), \
+'?')), '?'), (('value', ('Add', '?', ('value', 'TableCell'))), '5'), ((\
+'value', ('Add', '?', ('value', 'TableCell'))), '?'), (('value', ('Add', \
+'?', ('value', '?'))), '5'), (('value', ('Add', '?', ('value', '?'))), '?'), \
+(('value', ('Add', '?', '?')), '5'), (('value', ('Add', '?', '?')), '?'), \
+(('value', '?'), '5'), (('value', '?'), '?'), ('?', '5'), ('?', '?'), '?']
     """
     yield key
 
@@ -611,40 +637,53 @@ class FoPlanner:
 #
 #         return effects
 
+    def get_effects(self, op_eps):
+        operator, epsilon = op_eps
+        ret = []
+        for m in operator.match(self.index, epsilon):
+            try:
+                unprocessed = [f for f in operator.add_effects]
+                effects = set()
+                while len(unprocessed) > 0:
+                    ele = unprocessed.pop()
+                    f = execute_functions(subst(m, ele))
+                    if isinstance(f, list):
+                        unprocessed.extend(f)
+                    else:
+                        effects.add(f)
+                effects = effects - self.facts
+                ret.append(effects)
+            except Exception as e:
+                continue
+        return ret
+
     def fc_infer(self, depth=1, epsilon=0.0):
         for o in self.operators:
             if len(o.delete_effects) > 0:
                 raise Exception("Cannot fc_infer with delete effects.")
 
         new = set([1])
-        count = 0
+        # count = 0
 
         while len(new) > 0 and self.curr_depth < depth:
             new = set()
             # could optimize here to only iterate over operators that bind with
             # facts in prev.
-            for o in self.operators:
-                for m in o.match(self.index, epsilon):
-                    count += 1
-                    try:
-                        unprocessed = [f for f in o.add_effects]
-                        effects = set()
-                        while len(unprocessed) > 0:
-                            ele = unprocessed.pop()
-                            f = execute_functions(subst(m, ele))
-                            if isinstance(f, list):
-                                unprocessed.extend(f)
-                            else:
-                                effects.add(f)
-                        effects = effects - self.facts
-
-                        # effects = set([execute_functions(subst(m, f))
-                        #                for f in o.add_effects]) - self.facts
-                    except Exception as e:
-                        # print(e)
-                        continue
-
+            pool = get_pool()
+            all_effects = pool.map(self.get_effects,
+                                   [(o, epsilon) for o in
+                                       self.operators])
+            for match_effects in all_effects:
+                for effects in match_effects:
                     new.update(effects)
+
+            # print(match_effects)
+
+            # for o in self.operators:
+            #     match_effects = self.get_effects((o, epsilon))
+
+            #     for effects in match_effects:
+            #         new.update(effects)
 
             for f in new:
                 self.add_fact(f)
@@ -787,7 +826,7 @@ class Operator:
             # print("INITIAL VS. HEAD", initial_mapping, head_match)
             for full_match in pattern_match(self.non_head_conditions.union(
                                             set([('not', c) for c in
-                                             self.negative_conditions])), 
+                                                 self.negative_conditions])),
                                             index,
                                             head_match, epsilon):
 
@@ -832,7 +871,6 @@ if __name__ == "__main__":
     kb = FoPlanner(facts, [])
     kb.fc_infer()
     print(kb.facts)
-
 
     # criminal_rule = Operator(('Criminal', '?x'), [('Criminal', '?x')], [],
     #                         [('American', '?x'),
@@ -893,7 +931,7 @@ if __name__ == "__main__":
 
     # found = False
     # print("plan")
-    # # for solution in kb.fc_plan([(('value', '?a'), '385')], 
+    # # for solution in kb.fc_plan([(('value', '?a'), '385')],
     # #                            # epsilon=0.101, max_depth=1
     # #                           ):
     # #     elapsed = timeit.default_timer() - start_time
@@ -910,7 +948,7 @@ if __name__ == "__main__":
 
     # print("query")
     # start_time = timeit.default_timer()
-    # for m in kb.fc_query([(('value', '?a'), '385')], 
+    # for m in kb.fc_query([(('value', '?a'), '385')],
     #                      # epsilon=0.101, max_depth=1
     #                     ):
     #     elapsed = timeit.default_timer() - start_time
@@ -918,7 +956,7 @@ if __name__ == "__main__":
     #     print(m)
     #     break
 
-    #print(kb)
+    # print(kb)
 
     # op = Operator(('Something', '?foa0', '?foa1'),
     #                   [(('haselement', '?o17', '?o18'), True),
