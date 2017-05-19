@@ -15,3 +15,4 @@ scikit-learn>=0.17.1
 scipy>=0.18.0
 tabulate==0.7.5
 verlib==0.1
+multiprocess>=0.70.5
