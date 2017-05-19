@@ -1,5 +1,4 @@
-from pprint import pprint
-
+# from pprint import pprint
 from concept_formation.cobweb3 import Cobweb3Node
 from concept_formation.cobweb import CobwebNode
 from concept_formation.preprocessor import NameStandardizer
@@ -146,16 +145,16 @@ class MostSpecific(BaseILP):
         return grounded
 
     def check_match(self, t, x):
-        print("CHECK MATCHES T", t)
+        # print("CHECK MATCHES T", t)
 
         t = tuple(ground(ele) for ele in t)
 
         # Update to include initial args
         mapping = {a: t[i] for i, a in enumerate(self.args)}
 
-        print("MY MAPPING", mapping)
+        # print("MY MAPPING", mapping)
 
-        print("CHECKING MATCHES")
+        # print("CHECKING MATCHES")
 
         if t not in self.tuples:
             return False
@@ -175,8 +174,8 @@ class MostSpecific(BaseILP):
 
     def get_matches(self, x, epsilon=0.0):
 
-        print("GETTING MATCHES")
-        pprint(self.tuples)
+        # print("GETTING MATCHES")
+        # pprint(self.tuples)
         grounded = self.ground_example(x)
         # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
         # print("FACTS")
@@ -200,11 +199,11 @@ class MostSpecific(BaseILP):
             for m in operator.match(index, epsilon=epsilon,
                                     initial_mapping=mapping):
                 result = tuple(ele.replace("QM", '?') for ele in t)
-                print('GET MATCHES T', result)
+                # print('GET MATCHES T', result)
                 yield result
                 break
 
-        print("GOT ALL THE MATCHES!")
+        # print("GOT ALL THE MATCHES!")
 
     def ifit(self, t, x, y):
 
@@ -334,16 +333,16 @@ class RelationalLearner(BaseILP):
         return grounded
 
     def check_match(self, t, x):
-        print("CHECK MATCHES T", t)
+        # print("CHECK MATCHES T", t)
 
         t = tuple(ele.replace('?', "QM") for ele in t)
 
         # Update to include initial args
         mapping = {a: t[i] for i, a in enumerate(self.args)}
 
-        print("MY MAPPING", mapping)
+        # print("MY MAPPING", mapping)
 
-        print("CHECKING MATCHES")
+        # print("CHECKING MATCHES")
         grounded = self.ground_example(x)
         # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
         # pprint(grounded)
@@ -359,8 +358,8 @@ class RelationalLearner(BaseILP):
 
     def get_matches(self, x, epsilon=0.0):
 
-        print("GETTING MATCHES")
-        pprint(self.learner.get_hset())
+        # print("GETTING MATCHES")
+        # pprint(self.learner.get_hset())
         grounded = self.ground_example(x)
         # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
         # print("FACTS")
@@ -380,19 +379,19 @@ class RelationalLearner(BaseILP):
             # print('h', h)
             # Update to include initial args
             operator = Operator(tuple(('Rule',) + self.args), h, [])
-            print("OPERATOR", h)
+            # print("OPERATOR", h)
 
             for m in operator.match(index, epsilon=epsilon):
-                print('match', m, operator.name)
+                # print('match', m, operator.name)
                 result = tuple([unground(subst(m, ele))
                                 for ele in operator.name[1:]])
                 # result = tuple(['?' + subst(m, ele)
                 #                 for ele in self.operator.name[1:]])
                 # result = tuple(['?' + m[e] for e in self.target_types])
-                print('GET MATCHES T', result)
+                # print('GET MATCHES T', result)
                 yield result
 
-        print("GOT ALL THE MATCHES!")
+        # print("GOT ALL THE MATCHES!")
 
     def ifit(self, t, x, y):
 
@@ -441,7 +440,7 @@ class SpecificToGeneral(BaseILP):
         if y is predicted to be 1 then returns True
         else returns False
         """
-        print("CHECK MATCHES T", t)
+        # print("CHECK MATCHES T", t)
 
         if self.operator is None:
             return
@@ -450,9 +449,9 @@ class SpecificToGeneral(BaseILP):
 
         mapping = {a: t[i] for i, a in enumerate(self.operator.name[1:])}
 
-        print("MY MAPPING", mapping)
+        # print("MY MAPPING", mapping)
 
-        print("CHECKING MATCHES")
+        # print("CHECKING MATCHES")
         grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
         # pprint(grounded)
         # pprint(mapping)
@@ -466,7 +465,7 @@ class SpecificToGeneral(BaseILP):
         if self.operator is None:
             return
 
-        print("GETTING MATCHES")
+        # print("GETTING MATCHES")
         grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
         # print("FACTS")
         # pprint(grounded)
@@ -479,16 +478,16 @@ class SpecificToGeneral(BaseILP):
         # pprint(self.operator)
 
         for m in self.operator.match(index, epsilon=epsilon):
-            print('match', m, self.operator.name)
+            # print('match', m, self.operator.name)
             result = tuple([unground(subst(m, ele))
                             for ele in self.operator.name[1:]])
             # result = tuple(['?' + subst(m, ele)
             #                 for ele in self.operator.name[1:]])
             # result = tuple(['?' + m[e] for e in self.target_types])
-            print('GET MATCHES T', result)
+            # print('GET MATCHES T', result)
             yield result
 
-        print("GOT ALL THE MATCHES!")
+        # print("GOT ALL THE MATCHES!")
 
         # for t in self.pos:
         #     print(t)
@@ -516,11 +515,11 @@ class SpecificToGeneral(BaseILP):
     def is_structural_feature(self, attr, value):
         if not isinstance(attr, tuple) or attr[0] != 'value':
             return True
-        print('REMOVING: ', attr, value)
+        # print('REMOVING: ', attr, value)
         return False
 
     def ifit(self, t, x, y):
-        print("IFIT T", t)
+        # print("IFIT T", t)
         # if y == 0:
         #     return
 
@@ -626,9 +625,9 @@ class SpecificToGeneral(BaseILP):
         conditions = ([(a, pos_instance[a]) for a in pos_instance] +
                       [('not', (a, neg_instance[a])) for a in neg_instance])
 
-        print("========CONDITIONS======")
-        pprint(conditions)
-        print("========CONDITIONS======")
+        # print("========CONDITIONS======")
+        # pprint(conditions)
+        # print("========CONDITIONS======")
 
         self.target_types = ['?foa%s' % i for i in range(len(t))]
         self.operator = Operator(tuple(['Rule'] + self.target_types),
@@ -683,9 +682,9 @@ if __name__ == "__main__":
              ('name', '?o7'): "Block 5",
              ('valuea', '?o6'): 3}
 
-    print()
-    print("FINAL HYPOTHESIS")
-    print(ssw.learner.get_hset())
+    # print()
+    # print("FINAL HYPOTHESIS")
+    # print(ssw.learner.get_hset())
 
-    for m in ssw.get_matches(test1):
-        print('OP MATCH', m)
+    # for m in ssw.get_matches(test1):
+    #    print('OP MATCH', m)

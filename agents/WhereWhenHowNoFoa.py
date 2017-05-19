@@ -1,4 +1,4 @@
-from pprint import pprint
+# from pprint import pprint
 from random import random
 from random import choice
 
@@ -31,13 +31,14 @@ class WhereWhenHowNoFoa(BaseAgent):
         self.where = MostSpecific
         # self.when = 'naive bayes'
         # self.when = 'always true'
-        self.when = 'trestle'
+        # self.when = 'trestle'
+        self.when = 'decision tree'
         self.skills = {}
         self.examples = {}
         self.action_set = action_set
 
     def request(self, state):
-        print("REQUEST RECEIVED")
+        # print("REQUEST RECEIVED")
         tup = Tuplizer()
         flt = Flattener()
 
@@ -83,9 +84,9 @@ class WhereWhenHowNoFoa(BaseAgent):
                                  self.skills[label][exp]))
         skillset.sort(reverse=True)
 
-        print('####SKILLSET####')
-        pprint(skillset)
-        print('####SKILLSET####')
+        # print('####SKILLSET####')
+        # pprint(skillset)
+        # print('####SKILLSET####')
 
         # used for grounding out plans, don't need to build up each time.
         kb = FoPlanner([(self.ground(a),
@@ -99,8 +100,9 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         for _, _, _, label, (exp, input_args), skill in skillset:
 
-            print()
-            print("TRYING:", label, exp)
+            # print()
+            # print("TRYING:", label, exp)
+
             # print("Conditions:")
             # pprint(skill['where'].operator.conditions)
 
@@ -115,11 +117,11 @@ class WhereWhenHowNoFoa(BaseAgent):
                 failed = False
                 for m in skill['where'].get_matches(state, epsilon=epsilon):
                     if len(m) != len(set(m)):
-                        print("GENERATED MATCH WITH TWO VARS BOUND TO ",
-                              "SAME THING")
+                        # print("GENERATED MATCH WITH TWO VARS BOUND TO ",
+                        #       "SAME THING")
                         continue
 
-                    print("MATCH FOUND", label, exp, m)
+                    # print("MATCH FOUND", label, exp, m)
                     vmapping = {'?foa' + str(i): ele
                                 for i, ele in enumerate(m)}
                     mapping = {'foa' + str(i): ele
@@ -155,8 +157,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                             rg_exp.append(ele)
 
                     if len(rg_exp) != len(r_exp):
-                        print("FAILED TO FIRE RULE")
-                        print(rg_exp, 'from', r_exp)
+                        # print("FAILED TO FIRE RULE")
+                        # print(rg_exp, 'from', r_exp)
                         continue
 
                         # # add neg to where
@@ -171,7 +173,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                         # failed = True
                         # break
 
-                    print("predicting")
+                    # print("predicting")
                     # pprint(r_state)
 
                     # c = skill['when'].categorize(r_state)
@@ -183,9 +185,9 @@ class WhereWhenHowNoFoa(BaseAgent):
                     # print(c.predict('correct'))
 
                     if p == 0:
-                        print("predicting FAIL")
+                        # print("predicting FAIL")
                         continue
-                    print("predicting FIRE")
+                    # print("predicting FIRE")
 
                     # if not c.predict('correct'):
                     #     print("predicting FAIL")
@@ -256,7 +258,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             return []
 
     def explains_sai(self, kb, exp, sai):
-        print('trying', exp, 'with', sai)
+        # print('trying', exp, 'with', sai)
         if len(exp) != len(sai):
             return
 
@@ -298,7 +300,7 @@ class WhereWhenHowNoFoa(BaseAgent):
         tup = Tuplizer()
         flt = Flattener()
         example['flat_state'] = flt.transform(tup.transform(state))
-        print('SAI:', selection, action, inputs)
+        # print('SAI:', selection, action, inputs)
 
         # print('State:')
         # pprint(example['state'])
@@ -368,7 +370,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             #                 for a in example['flat_state']],
             #                functionsets[self.action_set])
             for m in self.explains_sai(kb, exp, sai):
-                print("COVERED", exp, m)
+                # print("COVERED", exp, m)
 
                 # Need to check if it would have been actully generated
                 # under where and when.
@@ -378,7 +380,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 args = self.get_vars(exp)
 
                 if len(args) != len(m):
-                    print("EXP not same length")
+                    # print("EXP not same length")
                     continue
 
                 grounded = True
@@ -387,7 +389,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                         grounded = False
                         break
                 if not grounded:
-                    print("Pattern not fully grounded")
+                    # print("Pattern not fully grounded")
                     continue
 
                 # foa_vmapping = {field: '?foa%s' % j
@@ -399,25 +401,25 @@ class WhereWhenHowNoFoa(BaseAgent):
                            range(len(m))])
 
                 if len(t) != len(set(t)):
-                    print("TWO VARS BOUND TO SAME")
+                    # print("TWO VARS BOUND TO SAME")
                     continue
 
                 secondary_explainations.append(r_exp)
 
-                print("This is my T:", t)
+                # print("This is my T:", t)
 
                 skill_where = self.skills[label][(exp, iargs)]['where']
                 if not skill_where.check_match(t, example['flat_state']):
                     continue
 
-                print("####### SUCCESSFUL WHERE MATCH########")
+                # print("####### SUCCESSFUL WHERE MATCH########")
 
                 # x = rename_flat(example['flat_state'], foa_mapping)
                 # c = self.skills[label][(exp, iargs)]['when'].categorize(x)
                 # if not c.predict('correct'):
                 #     continue
 
-                print("ADDING", r_exp)
+                # print("ADDING", r_exp)
                 explainations.append(r_exp)
 
         if len(explainations) == 0 and len(secondary_explainations) > 0:
@@ -450,7 +452,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 #        for a in example['flat_state']],
                 # functionsets[self.action_set])
                 input_exp = iv
-                print('trying to explain', [((a, '?input'), iv)])
+                # print('trying to explain', [((a, '?input'), iv)])
 
                 # TODO not sure what the best approach is for choosing among
                 # the possible explanations. Perhaps we should choose more than
@@ -471,8 +473,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                 possible = [(self.compute_exp_depth(p), random(), p) for p in
                             possible]
                 possible.sort()
-                print("FOUND!")
-                pprint(possible)
+                # print("FOUND!")
+                # pprint(possible)
 
                 if len(possible) > 0:
                     _, _, input_exp = possible[0]
@@ -516,14 +518,14 @@ class WhereWhenHowNoFoa(BaseAgent):
                 else:
                     constraints = self.extract_mg_h(r_exp[0])
 
-                print("ACTIONSET")
-                print(self.action_set)
+                # print("ACTIONSET")
+                # print(self.action_set)
 
-                print("SAI")
-                print(r_exp[0])
+                # print("SAI")
+                # print(r_exp[0])
 
-                print("CONSTRAINTS")
-                print(constraints)
+                # print("CONSTRAINTS")
+                # print(constraints)
 
                 w_args = tuple(['?foa%s' % j for j, _ in enumerate(args)])
 
@@ -533,11 +535,11 @@ class WhereWhenHowNoFoa(BaseAgent):
                 # initial_h=mg_h)
                 self.skills[label][r_exp]['when'] = when_learners[self.when]()
 
-            print('where learning for ', exp)
+            # print('where learning for ', exp)
             self.skills[label][r_exp]['where'].ifit(args,
                                                     example['flat_state'],
                                                     example['correct'])
-            print('done where learning')
+            # print('done where learning')
 
             # TODO
             # Need to add computed features.
@@ -545,11 +547,11 @@ class WhereWhenHowNoFoa(BaseAgent):
             x = rename_flat(example['flat_state'], foa_mapping)
             # x['correct'] = example['correct']
 
-            print('ifitting')
+            # print('ifitting')
             # pprint(x)
             # self.skills[label][r_exp]['when'].ifit(x)
             self.skills[label][r_exp]['when'].ifit(x, example['correct'])
-            print('done ifitting')
+            # print('done ifitting')
 
             # print("###UPDATED TREE###")
             # print(self.skills[label][r_exp]['when'])
@@ -571,8 +573,8 @@ class WhereWhenHowNoFoa(BaseAgent):
         if len(args) == 0:
             return frozenset()
 
-        print("SAI", sai)
-        print("ARGS", args)
+        # print("SAI", sai)
+        # print("ARGS", args)
         selection = args[0]
         constraints.add(('value', selection, '?selection-value'))
         constraints.add((is_empty_string, '?selection-value'))
