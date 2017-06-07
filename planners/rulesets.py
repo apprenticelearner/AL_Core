@@ -1,10 +1,11 @@
 import re
 
-from nltk import ViterbiParser
+# from nltk import ViterbiParser
 
 from planners.fo_planner import Operator
 from planners.fo_planner import FoPlanner
 from learners.Grammar import grammar
+from learners.WhatLearner import ViterbiParser
 
 _then_gensym_counter = 0
 
