@@ -2,10 +2,10 @@ import re
 
 # from nltk import ViterbiParser
 
-from planners.fo_planner import Operator
-from planners.fo_planner import FoPlanner
-from learners.Grammar import grammar
-from learners.WhatLearner import ViterbiParser
+from fo_planner import Operator
+from fo_planner import FoPlanner
+# from learners.Grammar import grammar
+# from learners.WhatLearner import ViterbiParser
 
 _then_gensym_counter = 0
 
@@ -427,17 +427,81 @@ featuresets = {'tutor knowledge': [equal_rule,
 
 if __name__ == "__main__":
 
-    facts = [(('value', 'a'), '3'),
-             (('value', 'b'), '3x')]
-    kb = FoPlanner(facts, [string_subtract_rule])
-    kb.fc_infer()
-    print(kb.facts)
+    # facts = [(('value', 'a'), '3'),
+    #          (('value', 'b'), '3x')]
+
+    facts = [
+              # (('x', ('bound', '?b1')), '?xv')
+              (('x', ('pos','rect1')),2),
+              (('y', ('pos','rect1')),1),
+              (('x', ('bound','rect1')),3),
+              (('y', ('bound','rect1')),1),
+
+              (('x', ('pos','block1')),1),
+              (('y', ('pos','block1')),2),
+              (('x', ('bound','block1')),1),
+              (('y', ('bound','block1')),1),
+
+              (('x', ('bound','block2')),1),
+              (('y', ('bound','block2')),1),
+
+              (('x', ('pos','check1')),1),
+              (('y', ('pos','check1')),1),
+
+              (('x', ('pos','check2')),1),
+              (('y', ('pos','check2')),3),
+
+              (('x', ('pos','check3')),3),
+              (('y', ('pos','check3')),1),
+
+              (('x', ('pos','check4')),3),
+              (('y', ('pos','check4')),3),
+
+              ]
+
+
+    # kb = FoPlanner(facts, [string_subtract_rule])
+    # kb.fc_infer()
+    # print(kb.facts)
 
     # facts = [(('value', 'x'), '17'),
     #          (('value', 'y'), '7')]
-    # kb = FoPlanner(facts, arith_rules + [half_val])
-    # from pprint import pprint
-    # for sol in kb.fc_query([(('value', '?a'), '98')], 3):
+    kb = FoPlanner(facts, rb_rules)
+    from pprint import pprint
+    
+
+    print('X')
+    i = 0
+    for sol in kb.fc_query([(('x', '?a'),3)], 2):
+      if i % 5 == 0:
+        pprint(sol)
+      if i > 5 * 10:
+        break
+      i += 1
+
+
+    print('Y')
+    i = 0
+    for sol in kb.fc_query([(('y', '?a'),2)], 2):
+      if i % 5 == 0:
+        pprint(sol)
+      if i > 5 * 10:
+        break
+      i += 1
+
+
+    
+    # print(len(xs))
+    # pprint(xs[:10])
+    
+    # ys = [sol for sol in kb.fc_query([(('y', '?a'),2)], 2)]
+    # print('Y')
+    # print(len(ys))
+    # pprint(ys[:10])    
+
+    # print('Y')
+    # for sol in kb.fc_query([(('y', '?a'),2)], 2):
     #     pprint(sol)
     # kb.fc_infer()
-    # print(kb.facts)
+    # pprint(kb.facts)
+

@@ -412,7 +412,7 @@ class RelationalLearner(BaseILP):
 
 class SpecificToGeneral(BaseILP):
 
-    def __init__(self, remove_attrs=None):
+    def __init__(self, args=None, constraints=None, remove_attrs=None):
         self.pos = set()
         self.operator = None
         self.concept = Cobweb3Node()
@@ -424,10 +424,10 @@ class SpecificToGeneral(BaseILP):
         self.remove_attrs = remove_attrs
 
     def num_pos(self):
-        return self.pos_concept.count()
+        return self.pos_concept.count
 
     def num_neg(self):
-        return self.neg_concept.count()
+        return self.neg_concept.count
 
     def __len__(self):
         return self.count

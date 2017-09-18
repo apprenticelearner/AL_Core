@@ -7,7 +7,7 @@ from concept_formation.preprocessor import Tuplizer
 from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
-# from learners.WhereLearner import SpecificToGeneral
+from learners.WhereLearner import SpecificToGeneral
 # from learners.WhereLearner import RelationalLearner
 from learners.WhereLearner import MostSpecific
 from learners.WhenLearner import when_learners
@@ -26,9 +26,9 @@ class WhereWhenHowNoFoa(BaseAgent):
     This is the basis for the 2 mechanism model.
     """
     def __init__(self, action_set):
-        # self.where = SpecificToGeneral
+        self.where = SpecificToGeneral
         # self.where = RelationalLearner
-        self.where = MostSpecific
+        # self.where = MostSpecific
         # self.when = 'naive bayes'
         # self.when = 'always true'
         self.when = 'trestle'
