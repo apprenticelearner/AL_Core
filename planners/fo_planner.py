@@ -871,12 +871,20 @@ class Operator:
 
 if __name__ == "__main__":
 
-    facts = [(('value', 'test1'), 'this is a test sentence'),
-             (('value', 'test2'), 'BOOM')]
+    import sys
+    sys.path.insert(0, './')
+
+    from planners.rulesets import arith_rules
+
+    facts = [(('value', 'ul'), '6'),
+             (('value', 'ur'), '8'),
+             (('value', 'll'), '-3')]
     # kb = FoPlanner(facts, [unigramize, bigramize])
-    kb = FoPlanner(facts, [])
-    kb.fc_infer()
-    print(kb.facts)
+    kb = FoPlanner(facts, arith_rules)
+    # kb.fc_infer()
+    for m in kb.fc_query([(('value', '?x'), '9')], max_depth=1):
+        print(m)
+    # print(kb.facts)
 
     # criminal_rule = Operator(('Criminal', '?x'), [('Criminal', '?x')], [],
     #                         [('American', '?x'),

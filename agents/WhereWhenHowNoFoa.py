@@ -1,4 +1,4 @@
-# from pprint import pprint
+from pprint import pprint
 from random import random
 from random import choice
 
@@ -31,13 +31,15 @@ class WhereWhenHowNoFoa(BaseAgent):
         self.where = MostSpecific
         # self.when = 'naive bayes'
         # self.when = 'always true'
-        # self.when = 'trestle'
-        self.when = 'decision tree'
+        self.when = 'trestle'
+        # self.when = 'cobweb'
+        # self.when = 'decision tree'
         self.skills = {}
         self.examples = {}
         self.action_set = action_set
 
     def request(self, state):
+        # print(state)
         # print("REQUEST RECEIVED")
         tup = Tuplizer()
         flt = Flattener()
@@ -85,7 +87,7 @@ class WhereWhenHowNoFoa(BaseAgent):
         skillset.sort(reverse=True)
 
         # print('####SKILLSET####')
-        # pprint(skillset)
+        pprint(skillset)
         # print('####SKILLSET####')
 
         # used for grounding out plans, don't need to build up each time.
@@ -285,6 +287,11 @@ class WhereWhenHowNoFoa(BaseAgent):
         return 0
 
     def train(self, state, label, foas, selection, action, inputs, correct):
+        print('label', label)
+        print('selection', selection)
+        print('action', action)
+        print('input', inputs)
+        print('correct', correct)
 
         # label = 'math'
 
@@ -524,8 +531,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                 # print("SAI")
                 # print(r_exp[0])
 
-                # print("CONSTRAINTS")
-                # print(constraints)
+                print("CONSTRAINTS")
+                print(constraints)
 
                 w_args = tuple(['?foa%s' % j for j, _ in enumerate(args)])
 
@@ -587,7 +594,9 @@ class WhereWhenHowNoFoa(BaseAgent):
             constraints.add(('name', selection, 'done'))
         else:
             # constraints.add(('not', ('type', selection, 'MAIN::button')))
-            constraints.add(('type', selection, 'MAIN::cell'))
+            constraints.add(('not', ('type', selection, 'MAIN::button')))
+            constraints.add(('not', ('type', selection, 'MAIN::label')))
+            # constraints.add(('type', selection, 'MAIN::cell'))
 
         # value constraints, don't select empty values
         for i, a in enumerate(args[1:]):
