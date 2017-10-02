@@ -15,4 +15,7 @@ urlpatterns = [
     url(r'^train/(?P<agent_name>[a-zA-Z0-9_-]{1,200})/$', views.train_by_name, name="train_by_name"),
     url(r'^check/(?P<agent_name>[a-zA-Z0-9_-]{1,200})/$', views.check_by_name, name="check_by_name"),
     url(r'^report/(?P<agent_name>[a-zA-Z0-9_-]{1,200})/$', views.report_by_name, name="report_by_name"),
+
+
+    url(r'^tester/$', views.test_view, name='tester')
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

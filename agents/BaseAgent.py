@@ -3,7 +3,7 @@ class BaseAgent(object):
     This is essentially an abstract class for apprentice learner agents.
     """
 
-    def __init__(self, featureset, functionset):
+    def __init__(self, feature_set, function_set):
         pass
 
     def request(self, state):

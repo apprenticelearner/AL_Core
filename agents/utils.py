@@ -34,9 +34,9 @@ def tup_sai(selection,action,inputs):
 
     if inputs is None:
         pass
-    elif isinstance(inputs,list):
+    elif isinstance(inputs, list):
         sai.extend(inputs)
-    else :
+    else:
         sai.append(inputs)
 
     return tuple(sai)
@@ -59,4 +59,4 @@ def compute_features(state, features):
                 pass
 
 def parse_foas(foas):
-    return [{'name':foa.split('|')[1],'value':foa.split('|')[2]} for foa in foas]
+    return [{'name':foa.split('|')[1], 'value':foa.split('|')[2]} for foa in foas]

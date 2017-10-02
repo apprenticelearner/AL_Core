@@ -298,26 +298,23 @@ class MajorityClass(object):
 parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss': 'perceptron'}
 
-when_learners = {}
-when_learners['naive bayes'] = DictVectWrapper(BernoulliNB)
-when_learners['decision tree'] = DictVectWrapper(DecisionTreeClassifier)
+def get_when_learner(name):
+    return WHEN_LEARNERS[name.lower.replace(' ', '').replace('_', '')]
 
-clr = DictVectWrapper(CustomLogisticRegression)
-when_learners['logistic regression'] = clr
-
-ckn = DictVectWrapper(CustomKNeighborsClassifier)
-when_learners['nearest neighbors'] = ckn
-
-when_learners['random forest'] = DictVectWrapper(RandomForestClassifier)
-when_learners['svm'] = DictVectWrapper(CustomSVM)
-when_learners['sgd'] = DictVectWrapper(CustomSGD)
-
-when_learners['cobweb'] = ScikitCobweb
-when_learners['trestle'] = ScikitTrestle
-when_learners['pyibl'] = DictVectWrapper(ScikitPyIBL)
-
-when_learners['majority class'] = MajorityClass
-when_learners['always true'] = AlwaysTrue
+WHEN_LEARNERS = {
+    'naivebayes':DictVectWrapper(BernoulliNB),
+    'decisiontree':DictVectWrapper(DecisionTreeClassifier),
+    'logisticregression':DictVectWrapper(CustomLogisticRegression),
+    'nearestneighbors':DictVectWrapper(CustomKNeighborsClassifier),
+    'random_forest':DictVectWrapper(RandomForestClassifier),
+    'svm':DictVectWrapper(CustomSVM),
+    'sgd':DictVectWrapper(CustomSGD),
+    'cobweb':ScikitCobweb,
+    'trestle':ScikitTrestle,
+    'pyibl':DictVectWrapper(ScikitPyIBL),
+    'majorityclass':MajorityClass,
+    'alwaystrue':AlwaysTrue
+}
 
 # clf_class = Wrapper(GaussianNB)
 # clf = clf_class()

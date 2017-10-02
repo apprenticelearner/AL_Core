@@ -134,6 +134,10 @@ class SimStudentHow(IncrementalMany):
         self.remove_subsumed()
         return self.explanations
 
-how_learners = {}
-how_learners['incremental'] = IncrementalMany
-how_learners['simstudent'] = SimStudentHow
+def get_how_learner(name):
+    return HOW_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+
+HOW_LEARNERS = {
+    'incremental':IncrementalMany,
+    'simstudent':SimStudentHow
+}

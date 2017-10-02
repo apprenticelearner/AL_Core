@@ -7,20 +7,18 @@ from concept_formation.preprocessor import Tuplizer
 from concept_formation.structure_mapper import rename_flat
 
 from agents.BaseAgent import BaseAgent
-from learners.WhereLearner import SpecificToGeneral
-# from learners.WhereLearner import RelationalLearner
-from learners.WhereLearner import MostSpecific
-from learners.WhenLearner import when_learners
+from learners.WhenLearner import get_when_learner
+from learners.WhereLearner import get_where_learner
 from planners.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
 
 # from planners.rulesets import functionsets
 # from planners.rulesets import featuresets
 
-search_depth = 1
-epsilon = .9
+# search_depth = 1
+# epsilon = .9
 
-def explains_sai(knowledge_base, exp, sai):
+def explains_sai(knowledge_base, exp, sai, epsilon):
     """
     Doc String
     """
@@ -104,19 +102,17 @@ class WhereWhenHowNoFoa(BaseAgent):
     """
     This is the basis for the 2 mechanism model.
     """
-    def __init__(self, featureset, functionset):
-        self.where = SpecificToGeneral
-        # self.where = RelationalLearner
-        # self.where = MostSpecific
-        # self.when = 'naive bayes'
-        # self.when = 'always true'
-        self.when = 'trestle'
-        # self.when = 'cobweb'
-        # self.when = 'decision tree'
+    def __init__(self, featureset, functionset, 
+                 when_learner='trestle', where_learner='SpecificToGeneral',
+                 search_depth=1, numerical_epsilon=0.0):
+        self.where = get_where_learner(where_learner)
+        self.when = get_when_learner(when_learner)
         self.skills = {}
         self.examples = {}
         self.featureset = featureset
         self.functionset = functionset
+        self.search_depth = search_depth
+        self.epsilon = numerical_epsilon
 
     def request(self, state):
         """
@@ -132,7 +128,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                      else state[a])
                                     for a in state],
                                    self.featureset)
-        knowledge_base.fc_infer(depth=1, epsilon=epsilon)
+        knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
         state = {unground(a): v.replace("QM", "?")
                               if isinstance(v, str)
                               else v
@@ -155,7 +151,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                      else state[a])
                                     for a in state],
                                    self.functionset)
-        knowledge_base.fc_infer(depth=search_depth, epsilon=epsilon)
+        knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
 
         # TODO - would it be too expensive to make skillset contain some kind of Skill object?
         # because this for loop is ridiculous
@@ -170,7 +166,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             while failed:
 
                 failed = False
-                for match in skill['where'].get_matches(state, epsilon=epsilon):
+                for match in skill['where'].get_matches(state, epsilon=self.epsilon):
                     if len(match) != len(set(match)):
                         continue
 
@@ -186,7 +182,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                         if isinstance(ele, tuple):
                             for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
                                                                      max_depth=0,
-                                                                     epsilon=epsilon):
+                                                                     epsilon=self.epsilon):
                                 if var_match['?v'] != '':
                                     rg_exp.append(var_match['?v'])
                                 break
@@ -245,7 +241,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                     for a in example['flat_state']],
                                    self.featureset)
 
-        knowledge_base.fc_infer(depth=1, epsilon=epsilon)
+        knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
 
         example['flat_state'] = {unground(a): v.replace("QM", "?")
                                               if isinstance(v, str)
@@ -272,12 +268,12 @@ class WhereWhenHowNoFoa(BaseAgent):
                                      else example['flat_state'][a])
                                     for a in example['flat_state']],
                                    self.functionset)
-        knowledge_base.fc_infer(depth=search_depth, epsilon=epsilon)
+        knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
         # FACTS AFTER USING FUNCTIONS.
         # pprint(kb.facts)
 
         for exp, iargs in self.skills[label]:
-            for match in self.explains_sai(knowledge_base, exp, sai):
+            for match in self.explains_sai(knowledge_base, exp, sai, self.epsilon):
                 # print("COVERED", exp, m)
 
                 # Need to check if it would have been actully generated
@@ -317,7 +313,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             selection_exp = selection
             for sel_match in knowledge_base.fc_query([('?selection', selection)],
                                                      max_depth=0,
-                                                     epsilon=epsilon):
+                                                     epsilon=self.epsilon):
                 selection_exp = sel_match['?selection']
                 break
 
@@ -335,7 +331,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 possible = []
                 for iv_m in knowledge_base.fc_query([((arg, '?input'), input_val)],
                                                     max_depth=0,
-                                                    epsilon=epsilon):
+                                                    epsilon=self.epsilon):
 
                     possible.append((arg, iv_m['?input']))
 
@@ -372,7 +368,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 self.skills[label][r_exp] = {}
                 where_inst = self.where(args=w_args, constraints=constraints)
                 self.skills[label][r_exp]['where'] = where_inst
-                self.skills[label][r_exp]['when'] = when_learners[self.when]()
+                self.skills[label][r_exp]['when'] = self.when()
 
             self.skills[label][r_exp]['where'].ifit(args, example['flat_state'], example['correct'])
             # print('done where learning')

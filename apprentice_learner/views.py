@@ -7,6 +7,7 @@ import traceback
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_list_or_404
 from django.shortcuts import get_object_or_404
+from django.shortcuts import render
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import MultipleObjectsReturned
 from django.http import HttpResponse
@@ -29,18 +30,20 @@ AGENTS = {'Dummy': Dummy,
           'RLAgent': RLAgent}
 
 
-def parse_operator_set(data, set_name, errs = []):
+def parse_operator_set(data, set_name, errs=None):
     """
     Given a data dictionary from a request looks up and compiles a set of
     Operators and throws appropriate exceptions when they have problems. I am
     allowing either a list of ints, taken as primary key's of Operators, or
     strs, which are taken as Operator names.
     """
+    if errs is None:
+        errs = []
     op_set = []
     for val in data.get(set_name, []):
         if isinstance(val, str):
             try:
-                opr = Operator.object.get(name=val)
+                opr = Operator.objects.get(name=val)
                 op_set.append(opr.compile())
             except ObjectDoesNotExist:
                 errs.append("no operator with name {} exists".format(val))
@@ -49,7 +52,7 @@ def parse_operator_set(data, set_name, errs = []):
                 errs.append("multiple operators with name {} exist".format(val))
         elif isinstance(val, int):
             try:
-                opr = Operator.object.get(pk=val)
+                opr = Operator.objects.get(pk=val)
                 op_set.append(opr.compile())
             except ObjectDoesNotExist:
                 errs.append("no operator with name {} exists".format(val))
@@ -74,14 +77,19 @@ def create(http_request):
     if 'agent_type' not in data or data['agent_type'] is None:
         errs.append("request body missing 'agent_type'")
 
-    if data['agent_type'] not in AGENTS:
+    if not errs and data['agent_type'] not in AGENTS:
         errs.append("Specified agent not supported")
 
     project_id = data.get('project_id', 1)
-    project = Project.object.get(id=project_id)
 
-    if project is None:
-        errs.append(str.format("project: {} does not exist", project_id))
+    if project_id == 1:
+        project = Project.objects.get_or_create(id=1)
+    else:
+        try:
+            project = Project.objects.get(id=project_id)
+        except ObjectDoesNotExist:
+            errs.append(str.format("project: {} does not exist", project_id))
+            project = None
 
     feature_set, errs = parse_operator_set(data, 'feature_set', errs)
     function_set, errs = parse_operator_set(data, 'function_set', errs)
@@ -95,8 +103,12 @@ def create(http_request):
     else:
         args = data['args']
 
-    args['featureset'] = project.compile_features() + feature_set
-    args['functionset'] = project.compile_functions() + function_set
+    args['feature_set'] = feature_set
+    args['function_set'] = function_set
+
+    if project is not None:
+        args['feature_set'] += project.compile_features()
+        args['function_set'] += project.compile_functions()
 
     try:
         # args['action_set'] = action_set
@@ -302,3 +314,7 @@ def report_by_name(http_request, agent_name):
     """
     agent = get_list_or_404(Agent, name=agent_name)[0]
     return report(http_request, agent.id)
+
+@csrf_exempt
+def test_view(http_request) :
+    return render(http_request, 'apprentice_learner/tester.html')

@@ -19,7 +19,7 @@ from django.contrib import admin
 from flashpolicies.views import simple
 
 urlpatterns = [
-    url(r'^',include('apprentice_learner.urls')),
+    url(r'^',include('apprentice_learner.urls',namespace='apprentice_learner')),
     url(r'^admin/', include(admin.site.urls)),
     url(r'^crossdomain.xml$', simple,
         {'domains': ['*']}),
