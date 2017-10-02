@@ -2,8 +2,8 @@ import re
 
 # from nltk import ViterbiParser
 
-from fo_planner import Operator
-from fo_planner import FoPlanner
+from planners.fo_planner import Operator
+from planners.fo_planner import FoPlanner
 # from learners.Grammar import grammar
 # from learners.WhatLearner import ViterbiParser
 

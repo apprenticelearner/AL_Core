@@ -1,10 +1,14 @@
+"""
+Module Doc String
+"""
 import json
 import traceback
-from pprint import pprint
 
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_list_or_404
 from django.shortcuts import get_object_or_404
+from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import MultipleObjectsReturned
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
@@ -12,70 +16,99 @@ from django.http import HttpResponseNotAllowed
 
 # from apprentice_learner.models import ActionSet
 from apprentice_learner.models import Agent
+from apprentice_learner.models import Project
+from apprentice_learner.models import Operator
 from agents.Dummy import Dummy
 from agents.WhereWhenHow import WhereWhenHow
 from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from agents.RLAgent import RLAgent
 
-agents = {'Dummy': Dummy,
+AGENTS = {'Dummy': Dummy,
           'WhereWhenHowNoFoa': WhereWhenHowNoFoa,
           'WhereWhenHow': WhereWhenHow,
           'RLAgent': RLAgent}
 
-debug = True
+
+def parse_operator_set(data, set_name, errs = []):
+    """
+    Given a data dictionary from a request looks up and compiles a set of
+    Operators and throws appropriate exceptions when they have problems. I am
+    allowing either a list of ints, taken as primary key's of Operators, or
+    strs, which are taken as Operator names.
+    """
+    op_set = []
+    for val in data.get(set_name, []):
+        if isinstance(val, str):
+            try:
+                opr = Operator.object.get(name=val)
+                op_set.append(opr.compile())
+            except ObjectDoesNotExist:
+                errs.append("no operator with name {} exists".format(val))
+            #This case should be impossible but I'm going to leave the error catch in
+            except MultipleObjectsReturned:
+                errs.append("multiple operators with name {} exist".format(val))
+        elif isinstance(val, int):
+            try:
+                opr = Operator.object.get(pk=val)
+                op_set.append(opr.compile())
+            except ObjectDoesNotExist:
+                errs.append("no operator with name {} exists".format(val))
+    return op_set, errs
 
 
 @csrf_exempt
-def create(request):
+def create(http_request):
     """
     This is used to create a new agent with the provided configuration.
 
     .. todo:: TODO Ideally there should be a way to create agents both using
     the browser and via a POST object.
     """
-    if request.method != "POST":
+    if http_request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
-    data = json.loads(request.body.decode('utf-8'))
+    data = json.loads(http_request.body.decode('utf-8'))
 
-    if debug:
-        pprint(data)
+    errs = []
 
     if 'agent_type' not in data or data['agent_type'] is None:
-        print("request body missing 'agent_type'")
-        return HttpResponseBadRequest("request body missing 'agent_type'")
+        errs.append("request body missing 'agent_type'")
 
-    if data['agent_type'] not in agents:
-        print("Specified agent not supported")
-        return HttpResponseBadRequest("Specified agent not supported")
+    if data['agent_type'] not in AGENTS:
+        errs.append("Specified agent not supported")
 
-    if 'action_set' not in data or data['action_set'] is None:
-        print("request body missing 'action_set'")
-        return HttpResponseBadRequest("request body missing 'action_set'")
+    project_id = data.get('project_id', 1)
+    project = Project.object.get(id=project_id)
 
-    # try:
-    #     action_set = ActionSet.objects.get(name=data['action_set'])
-    # except ActionSet.DoesNotExist:
-    #     print("Specified action set does not exist")
-    #     return HttpResponseBadRequest("Specified action set does not exist")
-    action_set = data['action_set']
+    if project is None:
+        errs.append(str.format("project: {} does not exist", project_id))
+
+    feature_set, errs = parse_operator_set(data, 'feature_set', errs)
+    function_set, errs = parse_operator_set(data, 'function_set', errs)
+
+    if len(errs) > 0:
+        print('errors: {}'.format(','.join(errs)))
+        return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
 
     if 'args' not in data:
         args = {}
     else:
         args = data['args']
 
+    args['featureset'] = project.compile_features() + feature_set
+    args['functionset'] = project.compile_functions() + function_set
+
     try:
-        args['action_set'] = action_set
-        instance = agents[data['agent_type']](**args)
+        # args['action_set'] = action_set
+        instance = AGENTS[data['agent_type']](**args)
         agent_name = data.get('name', '')
-        agent = Agent(instance=instance, action_set=action_set,
+        agent = Agent(instance=instance,
                       name=agent_name)
         agent.save()
         ret_data = {'agent_id': str(agent.id)}
 
-    except Exception as e:
-        print("Failed to create agent", e)
+    except Exception as exp:
+        print("Failed to create agent", exp)
         return HttpResponseServerError("Failed to create agent, "
                                        "ensure provided args are "
                                        "correct.")
@@ -84,17 +117,18 @@ def create(request):
 
 
 @csrf_exempt
-def request(request, agent_id):
+def request(http_request, agent_id):
     """
     Returns an SAI description for a given a problem state according to the
     current knoweldge base.  Expects an HTTP POST with a json object stored as
     a utf-8 btye string in the request body.
     That object should have the following fields:
     """
+
     try:
-        if request.method != "POST":
+        if http_request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
-        data = json.loads(request.body.decode('utf-8'))
+        data = json.loads(http_request.body.decode('utf-8'))
 
         if 'state' not in data or data['state'] is None:
             print("request body missing 'state'")
@@ -106,51 +140,54 @@ def request(request, agent_id):
         agent.save()
         return HttpResponse(json.dumps(response))
 
-    except Exception as e:
+    except Exception as exp:
         traceback.print_exc()
-        return HttpResponseServerError(str(e))
+        return HttpResponseServerError(str(exp))
 
 
 @csrf_exempt
 def request_by_name(http_request, agent_name):
+    """
+    A version of request that can look up an agent by its name. This will
+    generally be slower but it also doesn't expose how the data is stored and
+    might be easier in some cases.
+    """
     agent = get_list_or_404(Agent, name=agent_name)[0]
     return request(http_request, agent.id)
 
 
 @csrf_exempt
-def train(request, agent_id):
+def train(http_request, agent_id):
     """
     Trains the Agent with an state annotated with the SAI used / with
     feedback.
     """
     try:
-        if request.method != "POST":
+        if http_request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
-        data = json.loads(request.body.decode('utf-8'))
+        data = json.loads(http_request.body.decode('utf-8'))
+
+        errs = []
 
         if 'state' not in data or data['state'] is None:
-            print("request body missing 'state'")
-            return HttpResponseBadRequest("request body missing 'state'")
+            errs.append("request body missing 'state'")
         if 'label' not in data or data['label'] is None:
-            print("request body missing 'label'")
             data['label'] = 'NO_LABEL'
-            # return HttpResponseBadRequest("request body missing 'label'")
         if 'foas' not in data or data['foas'] is None:
-            print("request body missing 'foas'")
             data['foas'] = {}
-            # return HttpResponseBadRequest("request body missing 'foas'")
         if 'selection' not in data or data['selection'] is None:
-            print("request body missing 'selection'")
-            return HttpResponseBadRequest("request body missing 'selection'")
+            errs.append("request body missing 'selection'")
         if 'action' not in data or data['action'] is None:
-            print("request body missing 'action'")
-            return HttpResponseBadRequest("request body missing 'action'")
+            errs.append("request body missing 'action'")
         if 'inputs' not in data or data['inputs'] is None:
-            print("request body missing 'inputs'")
-            return HttpResponseBadRequest("request body missing 'inputs'")
+            errs.append("request body missing 'inputs'")
         if 'correct' not in data or data['correct'] is None:
-            print("request body missing 'correct'")
-            return HttpResponseBadRequest("request body missing 'correct'")
+            errs.append("request body missing 'correct'")
+
+        # Linter was complaining about too many returns so I consolidated all of the errors above
+        if len(errs) > 0:
+            print('errors: {}'.format(','.join(errs)))
+            return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
 
         agent = Agent.objects.get(id=agent_id)
         agent.inc_train()
@@ -161,36 +198,47 @@ def train(request, agent_id):
         agent.save()
         return HttpResponse("OK")
 
-    except Exception as e:
+    except Exception as exp:
         traceback.print_exc()
-        return HttpResponseServerError(str(e))
+        return HttpResponseServerError(str(exp))
 
 
 @csrf_exempt
-def train_by_name(request, agent_name):
+def train_by_name(http_request, agent_name):
+    """
+    A version of train that can look up an agent by its name. This will
+    generally be slower but it also doesn't expose how the data is stored and
+    might be easier in some cases.
+    """
     agent = get_list_or_404(Agent, name=agent_name)[0]
-    return train(request, agent.id)
+    return train(http_request, agent.id)
 
 
 @csrf_exempt
-def check(request, agent_id):
+def check(http_request, agent_id):
     """
     Uses the knoweldge base to check the correctness of an SAI in provided
     state.
     """
     try:
-        if request.method != "POST":
+        if http_request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
-        data = json.loads(request.body.decode('utf-8'))
+        data = json.loads(http_request.body.decode('utf-8'))
+
+        errs = []
 
         if 'state' not in data:
-            return HttpResponseBadRequest("request body missing 'state'")
+            errs.append("request body missing 'state'")
         if 'selection' not in data:
-            return HttpResponseBadRequest("request body missing 'selection'")
+            errs.append("request body missing 'selection'")
         if 'action' not in data:
-            return HttpResponseBadRequest("request body missing 'action'")
+            errs.append("request body missing 'action'")
         if 'inputs' not in data:
-            return HttpResponseBadRequest("request body missing 'inputs'")
+            errs.append("request body missing 'inputs'")
+
+        if len(errs) > 0:
+            print('errors: {}'.format(','.join(errs)))
+            return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
 
         agent = Agent.objects.get(id=agent_id)
         agent.inc_check()
@@ -204,20 +252,31 @@ def check(request, agent_id):
                                                    data['inputs'])
         return HttpResponse(json.dumps(response))
 
-    except Exception as e:
+    except Exception as exp:
         traceback.print_exc()
-        return HttpResponseServerError(str(e))
+        return HttpResponseServerError(str(exp))
 
 
 @csrf_exempt
-def check_by_name(request, agent_name):
+def check_by_name(http_request, agent_name):
+    """
+    A version of check that can look up an agent by its name. This will
+    generally be slower but it also doesn't expose how the data is stored and
+    might be easier in some cases.
+    """
     agent = get_list_or_404(Agent, name=agent_name)[0]
-    return check(request, agent.id)
+    return check(http_request, agent.id)
 
 
-def report(request, agent_id):
-    if request.method != "GET":
-            return HttpResponseNotAllowed(["GET"])
+def report(http_request, agent_id):
+    """
+    A simple method for looking up an agent's stats. I've found it to be
+    really helpful for looking an agent's idea from its name to speed up
+    processing. Also nice for stat counting.
+    """
+
+    if http_request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
 
     agent = get_object_or_404(Agent, id=agent_id)
 
@@ -235,6 +294,11 @@ def report(request, agent_id):
     return HttpResponse(json.dumps(response))
 
 
-def report_by_name(request, agent_name):
+def report_by_name(http_request, agent_name):
+    """
+    A version of report that can look up an agent by its name. This will
+    generally be slower but it also doesn't expose how the data is stored and
+    might be easier in some cases.
+    """
     agent = get_list_or_404(Agent, name=agent_name)[0]
-    return report(request, agent.id)
+    return report(http_request, agent.id)

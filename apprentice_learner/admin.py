@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apprentice_learner.models import Agent
+from apprentice_learner.models import Agent, Project, Operator
 # from apprentice_learner.models import ActionSet
 # from apprentice_learner.models import PyFunction
 
@@ -20,3 +20,6 @@ class AgentAdmin(admin.ModelAdmin):
 admin.site.register(Agent, AgentAdmin)
 # admin.site.register(ActionSet, AgentAdmin)
 # admin.site.register(PyFunction, AgentAdmin)
+
+admin.site.register(Project)
+admin.site.register(Operator)
