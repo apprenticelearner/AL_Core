@@ -49,7 +49,6 @@ def valid_py(value):
             _('%(value)s is not a valid python statment'),
             params={'value':value},)
 
-
 class Operator(models.Model):
     """
     A model to contain all of the pieces of an fo_planner.Operator.
