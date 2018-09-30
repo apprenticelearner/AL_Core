@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <title>Apprentice Learner Tester</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
+    </head>
+    <body role="document">
+        <div class="container">
+            <h1>Apprentice API Tester</h1>
+            <div class="row">
+                <div class="col">
+                    <select class="form-control" id="agent-id">
+                        {% for agent in agents %}
+                            <option value="{{ agent.id }}"
+
+                        {% endfor %}
+                    </select>
+
+
+                    <input id="agent-id" type="text" class="form-control"/>
+                    <select class="form-control" id="api-target">
+                        <option value="{% url 'apprentice_learner:create' %}">Create</option>
+                        <option value="{% url 'apprentice_learner:request' 1 %}">Request</option>
+                        <option value="{% url 'apprentice_learner:train' 1 %}">Train</option>
+                        <option value="{% url 'apprentice_learner:check' 1 %}">Check</option>
+                        <option value="{% url 'apprentice_learner:report' 1 %}">Report</option>
+                    </select>
+
+                    <textarea class="form-control" id="request-content" rows="20">
+{"name":"demo_agent",
+    "agent_type":"WhereWhenHowNoFoa",
+    "project_id":1,
+    "feature_set":["add","subtract","multiply","divide"],
+    "function_set":["add","subtract","multiple","divide"],
+    "args": {
+        "epsilon":0.5,
+        "where":"GeneralToSpecific",
+        "when":"trestle"
+    }
+}</textarea>
+                    <button id="submit" type="submit" class="btn btn-primary">Submit</button>
+                </div>
+                <div class="col">
+                    <textarea class="form-control" id="result-content" rows=20 readonly></textarea>
+                </div>
+            </div>
+        </div>
+
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.11.0/umd/popper.min.js" integrity="sha384-b/U6ypiBEHpOf/4+1nzFpr53nxSS+GLCkfwBdFNTxtclqqenISfwAzpKaMNFNmj4" crossorigin="anonymous"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/js/bootstrap.min.js" integrity="sha384-h0AbiXch4ZDo7tp9hKZ4TsHbi047NrKGLO3SEJAg45jXxnGIfYzk4Si90RDIqNm1" crossorigin="anonymous"></script>
+
+        <script>
+            $(document).ready(function() {
+                $('#submit').click(function(){
+                    $.ajax({
+                        url: $('#api-target').val(),  //"{% url 'apprentice_learner:create' %}",
+                        type: 'POST',
+                        data: $('#request-content').val().replace(/\n/g,""),
+                        success: function(data,textStatus,jqXHR) {
+                            $('#result-content').val(data);
+                            $('#result-content').toggleClass('is-invalid',false);
+                        },
+                        error: function(msg,textStatus,errorThrown){
+                            $('#result-content').val(errorThrown + "\n" + msg.responseText.replace(/,/g,'\n'));
+                            console.log(msg);
+                            console.log(textStatus);
+                            console.log(errorThrown);
+                            $('#result-content').toggleClass('is-invalid',true);
+                        }               
+                    });
+                });
+            });
+
+
+        </script>
+
+    </body>
+</html>

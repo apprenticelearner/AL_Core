@@ -648,6 +648,17 @@ class SpecificToGeneral(BaseILP):
             self.ifit(t, X[i], y[i])
 
 
+def get_where_learner(name):
+    return WHERE_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+
+WHERE_LEARNERS = {
+    'mostspecific':MostSpecific,
+    'stateresponselearner':StateResponseLearner,
+    'relationallearner':RelationalLearner,
+    'specifictogeneral':SpecificToGeneral
+}
+
+
 if __name__ == "__main__":
 
     ssw = RelationalLearner(args=('?foa0',),

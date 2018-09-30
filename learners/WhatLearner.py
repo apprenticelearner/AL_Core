@@ -317,6 +317,15 @@ class pCFG_Grammar(object):
         return False
 
 
+def get_what_learner(name):
+    return WHAT_LEARNERS[name.lower.replace(' ', '').replace('_', '')]
+
+WHAT_LEARNERS = {
+    'viterbiparser':ViterbiParser,
+    'pcfggrammar':pCFG_Grammar
+}
+
+
 if __name__ == "__main__":
 
     sentences = set()

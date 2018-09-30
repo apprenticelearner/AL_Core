@@ -1,6 +1,7 @@
 from agents.BaseAgent import BaseAgent
 
-class Dummy(BaseAgent):
+
+class Stub(BaseAgent):
     """
     Just a dummy agent that requests no actions, doesn't learn, and returns
     false for all checks. Made for testing the API.
@@ -8,7 +9,8 @@ class Dummy(BaseAgent):
     def request(self, state):
         return {}
 
-    def train(self, state, label, foas, selection, action, inputs, correct):
+    def train(self, state, selection, action, inputs, reward, skill_label,
+              foci_of_attention):
         pass
 
     def check(self, state, selection, action, inputs):

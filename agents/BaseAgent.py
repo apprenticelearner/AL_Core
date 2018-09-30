@@ -3,7 +3,7 @@ class BaseAgent(object):
     This is essentially an abstract class for apprentice learner agents.
     """
 
-    def __init__(self, action_set):
+    def __init__(self, feature_set, function_set):
         pass
 
     def request(self, state):
@@ -14,8 +14,8 @@ class BaseAgent(object):
         """
         raise NotImplementedError("request function not implemented")
 
-    def train(self, state, skill_label, foas, selection, action, inputs,
-              correct):
+    def train(self, state, selection, action, inputs, reward, skill_label,
+              foci_of_attention):
         """
         Accepts a JSON object representing the state, a string representing the
         skill label, a list of strings representing the foas, a string

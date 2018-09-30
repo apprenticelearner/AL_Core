@@ -10,8 +10,8 @@ from agents.utils import compute_features
 from agents.utils import weighted_choice
 from agents.BaseAgent import BaseAgent
 from planners.action_planner import ActionPlanner
-from learners.WhenLearner import when_learners
-from learners.HowLearner import how_learners
+from learners.WhenLearner import get_when_learner
+from learners.HowLearner import get_how_learner
 # from agents.WhatLearner import what_learners
 # from agents.WhatLearner import GrammarLearner
 # from agents.WhatLearner import NeuralNetLearnedFeatures
@@ -68,7 +68,7 @@ class WhereWhenHow(BaseAgent):
         # with open("/Users/cmaclell/Downloads/article_grammar.pickle", 'rb') as f:
         #     self.what = pickle.load(f)
 
-        self.how = how_learners[how]
+        self.how = get_how_learner(how)
         self.how_instances = {}
 
         # self.where = Foil
@@ -324,7 +324,7 @@ class WhereWhenHow(BaseAgent):
             self.skills[label][exp]['examples'] = []
             self.skills[label][exp]['correct'] = []
             where = self.where()
-            when = when_learners[self.when](self.when_params)
+            when = get_when_learner(self.when)(self.when_params)
             # when = Pipeline([('dict_vect', DictVectorizer(sparse=False)),
             #                  ('clf', self.when())])
             self.skills[label][exp]['where_classifier'] = where

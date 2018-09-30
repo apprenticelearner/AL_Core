@@ -104,7 +104,7 @@ class QLearner:
     def __init__(self, q_init=0, discount=1, func=None):
         self.func = func
         if self.func is None:
-            self.func = Cobweb3Tree
+            self.func = Tabular
 
         self.Q = {}
         self.q_init = q_init
@@ -141,118 +141,63 @@ class QLearner:
 
 
 class RLAgent(BaseAgent):
-
-    def __init__(self, action_set):
-        self.Q = QLearner(func=Cobweb3Tree)
+    """
+    A new agent I'm developing while at SoarTech.
+    """
+    def __init__(self, feature_set, function_set):
+        self.feature_set = feature_set
+        self.function_set = function_set
+        self.Q = QLearner()
         self.last_state = None
         self.last_action = None
         self.reward = None
-        self.max_episodes = 5
-        self.action_set = action_set.name
+        self.search_depth = 1
+        self.epsilon = 0
 
     def request(self, state):
         tup = Tuplizer()
         flt = Flattener()
         state = flt.transform(tup.transform(state))
 
-        new = {}
-        for attr in state:
-            if (isinstance(attr, tuple) and attr[0] == 'value'):
-                new[('editable', attr[1])] = state[attr] == ''
-                for attr2 in state:
-                    if (isinstance(attr2, tuple) and attr2[0] == 'value'):
-                        if (attr2 == attr or attr < attr2 or (state[attr] == ""
-                                                              or state[attr2]
-                                                              == "")):
-                            continue
-                        if (state[attr] == state[attr2]):
-                            new[('eq', attr, attr2)] = True
-        state.update(new)
-        # pprint(state)
+        knowledge_base = FoPlanner([(self.ground(a),
+                                     state[a].replace('?', 'QM') if
+                                     isinstance(state[a], str) else state[a])
+                                    for a in state], self.feature_set)
+        knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
+        ostate = {self.unground(a): v.replace("QM", "?") if isinstance(v, str)
+                  else v for a, v in knowledge_base.facts}
 
-        # for episode in range(self.max_episodes):
-        while True:
+        knowledge_base = FoPlanner([(self.ground(a),
+                                     state[a].replace('?', 'QM') if
+                                     isinstance(state[a], str) else state[a])
+                                    for a in state], self.function_set)
+        knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
 
-            print("#########")
-            print("NEW TRACE")
-            print("#########")
-            kb = FoPlanner([(self.ground(a),
-                             state[a].replace('?', 'QM') if
-                             isinstance(state[a], str) else
-                             state[a])
-                            for a in state], functionsets[self.action_set])
+        state = {self.unground(a): v.replace("QM", "?") if isinstance(v, str)
+                 else v for a, v in knowledge_base.facts}
 
-            curr_state = {x[0]: x[1] for x in kb.facts}
-            next_actions = [a for a in kb.fc_get_actions(epsilon=epsilon)]
-            trace_actions = []
-            depth = 0
+        actions = [{'skill_label': 'NO_LABEL', 'foci_of_attention': [],
+                    'selection': vm['?selection'],
+                    'action': vm['?action'],
+                    'inputs': {e[0]: e[1] for e in vm['?inputs']}}
+                   for vm in knowledge_base.fc_query([(('sai', '?selection',
+                                                        '?action', '?inputs'),
+                                                       True)], max_depth=0,
+                                                     epsilon=0)]
 
-            while depth < search_depth:
-                actions = [(self.Q.evaluate(curr_state, get_action_key(a)), a)
-                           for a in next_actions]
+        actions = [(self.Q.evaluate(ostate, self.get_action_key(a)), random(),
+                    a) for a in actions]
 
-                print("NEXT ACTION WEIGHTS")
-                print(sorted([(w, a[0].name[0]) for w, a in actions],
-                             reverse=True))
+        actions.sort(reverse=True)
+        print(actions)
 
-                # operator, mapping, effects = weighted_choice(actions)
-                operator, mapping, effects = max_choice(actions)
-                # operator, mapping, effects = choice(action_space)
+        self.last_state = ostate
+        self.last_action = self.get_action_key(actions[0][2])
+        self.reward = 0
 
-                self.last_state = curr_state
-                self.last_action = get_action_key((operator, mapping, effects))
-                trace_actions.append(subst(mapping, operator.name))
-
-                for f in effects:
-                    kb.add_fact(f)
-
-                # if not termainal, then decrease reward
-                # self.reward = -1
-                self.reward = 0
-                curr_state = {x[0]: x[1] for x in kb.facts}
-                depth += 1
-
-                # check if we're in a terminal state
-                # if so, query oracle
-                for f in effects:
-                    f = self.unground(f)
-                    if f[0] == 'sai':
-                        response = {}
-                        response['label'] = str(trace_actions)
-                        response['selection'] = f[1]
-                        response['action'] = f[2]
-                        response['inputs'] = {'value': f[3]}
-                        # {a: rg_exp[3+i] for i, a in
-                        #                       enumerate(input_args)}
-                        # response['inputs'] = list(rg_exp[3:])
-                        response['foas'] = []
-                        # pprint(response)
-                        print("EXECUTING ACTION", self.last_action)
-                        print("Requesting oracle feedback")
-
-                        return response
-
-                # punish for failed search
-                if depth >= search_depth:
-                    # self.reward -= 3 * search_depth
-                    curr_state = None
-                    next_actions = []
-                else:
-                    # because we're not terminal we can compute next_actions
-                    next_actions = [a for a in
-                                    kb.fc_get_actions(epsilon=epsilon,
-                                                      must_match=effects)]
-
-                self.Q.update(self.last_state, self.last_action, self.reward,
-                              curr_state, next_actions)
-
-        # return {}
+        return actions[0][2]
 
     def train(self, state, label, foas, selection, action, inputs, correct):
-        # tup = Tuplizer()
-        # flt = Flattener()
-        # state = flt.transform(tup.transform(state))
-        # pprint(state)
         if ((self.last_state is None or self.last_action is None or
              self.reward is None)):
             return
@@ -261,9 +206,11 @@ class RLAgent(BaseAgent):
 
         # add reward based on feedback.
         if correct:
-            self.reward += 1  # * search_depth
-        # else:
-        #     self.reward -= 1  # 2 * search_depth
+            self.reward += 1
+        else:
+            self.reward -= 1
+
+        print('REWARD', self.reward)
 
         # terminal state, no next_actions
         next_actions = []
@@ -271,84 +218,10 @@ class RLAgent(BaseAgent):
         print("LAST ACTION", self.last_action, self.reward)
         self.Q.update(self.last_state, self.last_action, self.reward, None,
                       next_actions)
+        print(selection, action, inputs)
 
-        # print('searching for:', correct)
-        # for i in range(30):
-        #     kb = FoPlanner([(self.ground(a),
-        #                      state[a].replace('?', 'QM') if
-        #                      isinstance(state[a], str) else
-        #                      state[a])
-        #                     for a in state], functionsets[self.action_set])
-
-        #     cum_reward = 0
-        #     trace = [{str(a): v for a, v in kb.facts}]
-        #     rewards = [0]
-        #     while True:
-        #         action_space = [a for a in
-        #         kb.fc_get_actions(epsilon=epsilon)]
-
-        #         actions = []
-        #         for some_action in action_space:
-        #             new_state = {}
-        #             for f in kb.facts.union(some_action[2]):
-        #                 if isinstance(f, tuple) and len(f) == 2:
-        #                     new_state[str(f[0])] = f[1]
-        #                 else:
-        #                     new_state[str(f)]: True
-        #             utility = 0
-        #             if self.fit:
-        #                 utility =
-        #                 self.UtilityFun.predict(self.dv.transform([new_state]))[0]
-        #             actions.append((some_action, exp(utility)))
-
-        #         operator, mapping, effects = weighted_choice(actions)
-
-        #         # operator, mapping, effects = choice(action_space)
-
-        #         for f in effects:
-        #             kb.add_fact(f)
-
-        #         new_state = {}
-        #         for f in kb.facts.union(action[2]):
-        #             if isinstance(f, tuple) and len(f) == 2:
-        #                 new_state[str(f[0])] = f[1]
-        #             else:
-        #                 new_state[str(f)]: True
-        #         trace.append(new_state)
-
-        #         reward = 0
-
-        #         done = False
-        #         for f in effects:
-        #             if f[0] == 'sai':
-        #                 done = True
-        #                 gen_sai = f[:4]
-        #                 goal = ('sai', selection, action, '-1' if 'value' not
-        #                         in inputs else inputs['value'])
-        #                 # print(gen_sai, 'vs', goal)
-        #                 if gen_sai == goal:
-        #                     if correct:
-        #                         reward += 2 * search_depth
-        #                     else:
-        #                         reward -= 2 * search_depth
-        #                 else:
-        #                     if correct:
-        #                         reward -= 2 * search_depth
-        #                     # else:
-        #                     #     reward += search_depth * 2
-
-        #         rewards.append(reward)
-        #         cum_reward += reward
-
-        #         if done or cum_reward < -1 * search_depth:
-        #             break
-
-        #     self.X += trace
-        #     self.y += [sum(rewards[i:]) for i in range(len(rewards))]
-        #     print("reward obtained from sample %i: %i" % (i, cum_reward))
-
-        # self.UtilityFun.fit(self.dv.fit_transform(self.X), self.y)
-        # self.fit = True
+    def check(self, state, selection, action, inputs):
+        return False
 
     def ground(self, arg):
         if isinstance(arg, tuple):
@@ -365,3 +238,6 @@ class RLAgent(BaseAgent):
             return arg.replace('QM', '?')
         else:
             return arg
+
+    def get_action_key(self, a):
+        return frozenset(a['inputs'].items())
