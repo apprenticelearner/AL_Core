@@ -9,7 +9,8 @@ class Stub(BaseAgent):
     def request(self, state):
         return {}
 
-    def train(self, state, label, foas, selection, action, inputs, correct):
+    def train(self, state, selection, action, inputs, reward, skill_label,
+              foci_of_attention):
         pass
 
     def check(self, state, selection, action, inputs):

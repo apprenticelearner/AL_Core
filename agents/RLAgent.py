@@ -176,7 +176,8 @@ class RLAgent(BaseAgent):
         state = {self.unground(a): v.replace("QM", "?") if isinstance(v, str)
                  else v for a, v in knowledge_base.facts}
 
-        actions = [{'label': 'NO_LABEL', 'selection': vm['?selection'],
+        actions = [{'skill_label': 'NO_LABEL', 'foci_of_attention': [],
+                    'selection': vm['?selection'],
                     'action': vm['?action'],
                     'inputs': {e[0]: e[1] for e in vm['?inputs']}}
                    for vm in knowledge_base.fc_query([(('sai', '?selection',

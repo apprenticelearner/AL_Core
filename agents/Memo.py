@@ -8,16 +8,22 @@ class Memo(BaseAgent):
 
     Made for testing the API.
     """
-    def __init__(self, action_set):
+    def __init__(self, feature_set, function_set):
         self.lookup = {}
 
     def request(self, state):
-        print(state)
+        # print(state)
+        resp = self.lookup.get(state, ({}, 0))
 
-        action, _ = self.lookup.get(state, ({}, 0))
-        return action
+        return {'skill_label': resp[0],
+                'selection': resp[1],
+                'action': resp[2],
+                'inputs': resp[3],
+                'foci_of_attention': resp[4]}
 
-    def train(self, state, action, reward, label=None):
+    def train(self, state, selection, action, inputs, reward,
+              skill_label="NO_LABEL", foci_of_attention=None):
         prior_action, prior_reward = self.lookup.get(state, ({}, 0))
         if reward >= prior_reward:
-            self.lookup[state] = (action, reward)
+            self.lookup[state] = (skill_label, selection, action, inputs,
+                                  foci_of_attention, reward)

@@ -136,14 +136,14 @@ class WhereWhenHowNoFoa(BaseAgent):
                  for a, v in knowledge_base.facts}
 
         skillset = []
-        for label in self.skills:
-            for exp in self.skills[label]:
-                pos = self.skills[label][exp]['where'].num_pos()
-                neg = self.skills[label][exp]['where'].num_neg()
+        for skill_label in self.skills:
+            for exp in self.skills[skill_label]:
+                pos = self.skills[skill_label][exp]['where'].num_pos()
+                neg = self.skills[skill_label][exp]['where'].num_neg()
 
                 skillset.append((pos / (pos + neg), pos + neg,
-                                 random(), label, exp,
-                                 self.skills[label][exp]))
+                                 random(), skill_label, exp,
+                                 self.skills[skill_label][exp]))
         skillset.sort(reverse=True)
 
         # used for grounding out plans, don't need to build up each time.
@@ -156,7 +156,7 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         # TODO - would it be too expensive to make skillset contain some kind of Skill object?
         # because this for loop is ridiculous
-        for _, _, _, label, (exp, input_args), skill in skillset:
+        for _, _, _, skill_label, (exp, input_args), skill in skillset:
 
             # Continue until we either do something with the rule. For example,
             # generate an SAI or determine that the rule doesn't match. If we
@@ -199,38 +199,39 @@ class WhereWhenHowNoFoa(BaseAgent):
                         continue
 
                     response = {}
-                    response['label'] = label
+                    response['skill_label'] = skill_label
                     response['selection'] = rg_exp[1]
                     response['action'] = rg_exp[2]
                     response['inputs'] = {a: rg_exp[3+i] for i, a in
                                           enumerate(input_args)}
                     # response['inputs'] = list(rg_exp[3:])
-                    response['foas'] = []
+                    response['foci_of_attention'] = []
                     # pprint(response)
                     return response
 
         return {}
 
-    def train(self, state, label, foas, selection, action, inputs, correct):
+    def train(self, state, selection, action, inputs, reward, skill_label,
+              foci_of_attention):
         """
         Doc String
         """
-        print('label', label)
+        print('skill_label', skill_label)
         print('selection', selection)
         print('action', action)
         print('input', inputs)
-        print('correct', correct)
+        print('reward', reward)
 
         # label = 'math'
 
         # create example dict
         example = {}
         example['state'] = state
-        example['label'] = label
+        example['skill_label'] = skill_label
         example['selection'] = selection
         example['action'] = action
         example['inputs'] = inputs
-        example['correct'] = correct
+        example['reward'] = reward
 
         tup = Tuplizer()
         flt = Flattener()
@@ -249,8 +250,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                                               else v
                                  for a, v in knowledge_base.facts}
 
-        if label not in self.skills:
-            self.skills[label] = {}
+        if skill_label not in self.skills:
+            self.skills[skill_label] = {}
 
         explainations = []
         secondary_explainations = []
@@ -273,7 +274,7 @@ class WhereWhenHowNoFoa(BaseAgent):
         # FACTS AFTER USING FUNCTIONS.
         # pprint(kb.facts)
 
-        for exp, iargs in self.skills[label]:
+        for exp, iargs in self.skills[skill_label]:
             for match in explain_sai(knowledge_base, exp, sai, self.epsilon):
                 # print("COVERED", exp, m)
 
@@ -300,7 +301,7 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                 secondary_explainations.append(r_exp)
 
-                skill_where = self.skills[label][(exp, iargs)]['where']
+                skill_where = self.skills[skill_label][(exp, iargs)]['where']
                 if not skill_where.check_match(tup, example['flat_state']):
                     continue
 
@@ -352,7 +353,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             foa_mapping = {field: 'foa%s' % j for j, field in enumerate(args)}
             r_exp = (list(rename_flat({exp: True}, foa_vmapping))[0], input_args)
 
-            if r_exp not in self.skills[label]:
+            if r_exp not in self.skills[skill_label]:
 
                 #TODO - Hack for specific action set
                 # if self.action_set == "tutor knowledge":
@@ -366,19 +367,19 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                 w_args = tuple(['?foa%s' % j for j, _ in enumerate(args)])
 
-                self.skills[label][r_exp] = {}
+                self.skills[skill_label][r_exp] = {}
                 where_inst = self.where(args=w_args, constraints=constraints)
-                self.skills[label][r_exp]['where'] = where_inst
-                self.skills[label][r_exp]['when'] = self.when()
+                self.skills[skill_label][r_exp]['where'] = where_inst
+                self.skills[skill_label][r_exp]['when'] = self.when()
 
-            self.skills[label][r_exp]['where'].ifit(args, example['flat_state'], example['correct'])
+            self.skills[skill_label][r_exp]['where'].ifit(args, example['flat_state'], example['reward'])
             # print('done where learning')
 
             # TODO
             # Need to add computed features.
             # need to rename example with foa's that are not variables
             r_flat = rename_flat(example['flat_state'], foa_mapping)
-            self.skills[label][r_exp]['when'].ifit(r_flat, example['correct'])
+            self.skills[skill_label][r_exp]['when'].ifit(r_flat, example['reward'])
 
         # check for subsuming explainations (alternatively we could probably
         # just order the explainations by how many examples they cover
