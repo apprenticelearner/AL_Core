@@ -9,14 +9,28 @@
     <body role="document">
         <div class="container">
             <h1>Apprentice API Tester</h1>
-
-            <h2>Create</h2>
             <div class="row">
                 <div class="col">
-                    <textarea class="form-control" id="create-input" rows="20">
-{
-    "name":"demo_agent",
-    "agent_type":"Dummy|WhereWhenHowNoFoa|WhereWhenHow|RLAgent",
+                    <select class="form-control" id="agent-id">
+                        {% for agent in agents %}
+                            <option value="{{ agent.id }}"
+
+                        {% endfor %}
+                    </select>
+
+
+                    <input id="agent-id" type="text" class="form-control"/>
+                    <select class="form-control" id="api-target">
+                        <option value="{% url 'apprentice_learner:create' %}">Create</option>
+                        <option value="{% url 'apprentice_learner:request' 1 %}">Request</option>
+                        <option value="{% url 'apprentice_learner:train' 1 %}">Train</option>
+                        <option value="{% url 'apprentice_learner:check' 1 %}">Check</option>
+                        <option value="{% url 'apprentice_learner:report' 1 %}">Report</option>
+                    </select>
+
+                    <textarea class="form-control" id="request-content" rows="20">
+{"name":"demo_agent",
+    "agent_type":"WhereWhenHowNoFoa",
     "project_id":1,
     "feature_set":["add","subtract","multiply","divide"],
     "function_set":["add","subtract","multiple","divide"],
@@ -25,12 +39,11 @@
         "where":"GeneralToSpecific",
         "when":"trestle"
     }
-}
-                    </textarea>
-                    <button id="create-submit" type="submit" class="btn btn-primary">Submit</button>
+}</textarea>
+                    <button id="submit" type="submit" class="btn btn-primary">Submit</button>
                 </div>
                 <div class="col">
-                    <textarea class="form-control" id="create-result" rows=20 readonly></textarea>
+                    <textarea class="form-control" id="result-content" rows=20 readonly></textarea>
                 </div>
             </div>
         </div>
@@ -42,21 +55,21 @@
 
         <script>
             $(document).ready(function() {
-                $('#create-submit').click(function(){
+                $('#submit').click(function(){
                     $.ajax({
-                        url: "{% url 'apprentice_learner:create' %}",
+                        url: $('#api-target').val(),  //"{% url 'apprentice_learner:create' %}",
                         type: 'POST',
-                        data: $('#create-input').val(),
+                        data: $('#request-content').val().replace(/\n/g,""),
                         success: function(data,textStatus,jqXHR) {
-                            $('#create-result').val(data);
-                            $('#create-result').toggleClass('is-invalid',false);
+                            $('#result-content').val(data);
+                            $('#result-content').toggleClass('is-invalid',false);
                         },
                         error: function(msg,textStatus,errorThrown){
-                            $('#create-result').val(errorThrown + "\n" + msg.responseText.replace(/,/g,'\n'));
+                            $('#result-content').val(errorThrown + "\n" + msg.responseText.replace(/,/g,'\n'));
                             console.log(msg);
                             console.log(textStatus);
                             console.log(errorThrown);
-                            $('#create-result').toggleClass('is-invalid',true);
+                            $('#result-content').toggleClass('is-invalid',true);
                         }               
                     });
                 });

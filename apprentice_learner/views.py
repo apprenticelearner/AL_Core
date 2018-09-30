@@ -317,4 +317,5 @@ def report_by_name(http_request, agent_name):
 
 @csrf_exempt
 def test_view(http_request) :
-    return render(http_request, 'apprentice_learner/tester.html')
+    return render(http_request, 'apprentice_learner/tester.html',
+        {'agents':Agent.objects.all()})
