@@ -47,9 +47,11 @@ def parse_operator_set(data, set_name, errs=None):
                 op_set.append(opr.compile())
             except ObjectDoesNotExist:
                 errs.append("no operator with name {} exists".format(val))
-            #This case should be impossible but I'm going to leave the error catch in
+            # This case should be impossible but I'm going to leave the error
+            # catch in
             except MultipleObjectsReturned:
-                errs.append("multiple operators with name {} exist".format(val))
+                errs.append(
+                    "multiple operators with name {} exist".format(val))
         elif isinstance(val, int):
             try:
                 opr = Operator.objects.get(pk=val)
@@ -183,20 +185,22 @@ def train(http_request, agent_id):
 
         if 'state' not in data or data['state'] is None:
             errs.append("request body missing 'state'")
-        if 'label' not in data or data['label'] is None:
-            data['label'] = 'NO_LABEL'
-        if 'foas' not in data or data['foas'] is None:
-            data['foas'] = {}
+        if 'skill_label' not in data or data['skill_label'] is None:
+            data['skill_label'] = 'NO_LABEL'
+        if ('foci_of_attention' not in data or data['foci_of_attention'] is
+                None):
+            data['foci_of_attention'] = []
         if 'selection' not in data or data['selection'] is None:
             errs.append("request body missing 'selection'")
         if 'action' not in data or data['action'] is None:
             errs.append("request body missing 'action'")
         if 'inputs' not in data or data['inputs'] is None:
             errs.append("request body missing 'inputs'")
-        if 'correct' not in data or data['correct'] is None:
-            errs.append("request body missing 'correct'")
+        if 'reward' not in data or data['reward'] is None:
+            errs.append("request body missing 'reward'")
 
-        # Linter was complaining about too many returns so I consolidated all of the errors above
+        # Linter was complaining about too many returns so I consolidated all
+        # of the errors above
         if len(errs) > 0:
             print('errors: {}'.format(','.join(errs)))
             return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
@@ -204,9 +208,9 @@ def train(http_request, agent_id):
         agent = Agent.objects.get(id=agent_id)
         agent.inc_train()
 
-        agent.instance.train(data['state'], data['label'], data['foas'],
-                             data['selection'], data['action'], data['inputs'],
-                             data['correct'])
+        agent.instance.train(data['state'], data['selection'], data['action'],
+                             data['inputs'], data['reward'],
+                             data['skill_label'], data['foci_of_attention'])
         agent.save()
         return HttpResponse("OK")
 
@@ -315,7 +319,8 @@ def report_by_name(http_request, agent_name):
     agent = get_list_or_404(Agent, name=agent_name)[0]
     return report(http_request, agent.id)
 
+
 @csrf_exempt
-def test_view(http_request) :
+def test_view(http_request):
     return render(http_request, 'apprentice_learner/tester.html',
-        {'agents':Agent.objects.all()})
+                  {'agents': Agent.objects.all()})
