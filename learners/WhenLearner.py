@@ -179,7 +179,7 @@ class ScikitPyIBL(object):
             zero_situation = self.agent.situationDecision("0", tuple(x))
             one_situation = self.agent.situationDecision("1", tuple(x))
             predictions.append(int(self.agent.choose(zero_situation,
-                               one_situation)))
+                                                     one_situation)))
         return np.array(predictions)
 
 
@@ -298,22 +298,24 @@ class MajorityClass(object):
 parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss': 'perceptron'}
 
+
 def get_when_learner(name):
-    return WHEN_LEARNERS[name.lower.replace(' ', '').replace('_', '')]
+    return WHEN_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+
 
 WHEN_LEARNERS = {
-    'naivebayes':DictVectWrapper(BernoulliNB),
-    'decisiontree':DictVectWrapper(DecisionTreeClassifier),
-    'logisticregression':DictVectWrapper(CustomLogisticRegression),
-    'nearestneighbors':DictVectWrapper(CustomKNeighborsClassifier),
-    'random_forest':DictVectWrapper(RandomForestClassifier),
-    'svm':DictVectWrapper(CustomSVM),
-    'sgd':DictVectWrapper(CustomSGD),
-    'cobweb':ScikitCobweb,
-    'trestle':ScikitTrestle,
-    'pyibl':DictVectWrapper(ScikitPyIBL),
-    'majorityclass':MajorityClass,
-    'alwaystrue':AlwaysTrue
+    'naivebayes': DictVectWrapper(BernoulliNB),
+    'decisiontree': DictVectWrapper(DecisionTreeClassifier),
+    'logisticregression': DictVectWrapper(CustomLogisticRegression),
+    'nearestneighbors': DictVectWrapper(CustomKNeighborsClassifier),
+    'random_forest': DictVectWrapper(RandomForestClassifier),
+    'svm': DictVectWrapper(CustomSVM),
+    'sgd': DictVectWrapper(CustomSGD),
+    'cobweb': ScikitCobweb,
+    'trestle': ScikitTrestle,
+    'pyibl': DictVectWrapper(ScikitPyIBL),
+    'majorityclass': MajorityClass,
+    'alwaystrue': AlwaysTrue
 }
 
 # clf_class = Wrapper(GaussianNB)

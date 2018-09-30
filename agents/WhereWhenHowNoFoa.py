@@ -18,7 +18,8 @@ from planners.fo_planner import FoPlanner
 # search_depth = 1
 # epsilon = .9
 
-def explains_sai(knowledge_base, exp, sai, epsilon):
+
+def explain_sai(knowledge_base, exp, sai, epsilon):
     """
     Doc String
     """
@@ -273,7 +274,7 @@ class WhereWhenHowNoFoa(BaseAgent):
         # pprint(kb.facts)
 
         for exp, iargs in self.skills[label]:
-            for match in self.explains_sai(knowledge_base, exp, sai, self.epsilon):
+            for match in explain_sai(knowledge_base, exp, sai, self.epsilon):
                 # print("COVERED", exp, m)
 
                 # Need to check if it would have been actully generated
@@ -335,7 +336,7 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                     possible.append((arg, iv_m['?input']))
 
-                possible = [(self.compute_exp_depth(p), random(), p) for p in possible]
+                possible = [(compute_exp_depth(p), random(), p) for p in possible]
                 possible.sort()
 
                 if len(possible) > 0:
@@ -358,7 +359,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                 #     constraints = self.generate_tutor_constraints(r_exp[0])
                 # else:
                 #     constraints = self.extract_mg_h(r_exp[0])
-                constraints = self.extract_mg_h(r_exp[0])
+                constraints = extract_mg_h(r_exp[0])
 
                 print("CONSTRAINTS")
                 print(constraints)

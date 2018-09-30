@@ -1,6 +1,7 @@
 from agents.BaseAgent import BaseAgent
 
-class Dummy(BaseAgent):
+
+class Stub(BaseAgent):
     """
     Just a dummy agent that requests no actions, doesn't learn, and returns
     false for all checks. Made for testing the API.

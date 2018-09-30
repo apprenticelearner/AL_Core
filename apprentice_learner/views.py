@@ -19,15 +19,15 @@ from django.http import HttpResponseNotAllowed
 from apprentice_learner.models import Agent
 from apprentice_learner.models import Project
 from apprentice_learner.models import Operator
-from agents.Dummy import Dummy
-from agents.WhereWhenHow import WhereWhenHow
+from agents.Stub import Stub
+from agents.Memo import Memo
 from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from agents.RLAgent import RLAgent
 
-AGENTS = {'Dummy': Dummy,
-          'WhereWhenHowNoFoa': WhereWhenHowNoFoa,
-          'WhereWhenHow': WhereWhenHow,
-          'RLAgent': RLAgent}
+AGENTS = {'Stub': Stub,
+          'Memo': Memo,
+          'RLAgent': RLAgent,
+          'WhereWhenHowNoFoa': WhereWhenHowNoFoa}
 
 
 def parse_operator_set(data, set_name, errs=None):
