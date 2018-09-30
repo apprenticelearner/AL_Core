@@ -222,16 +222,17 @@ def train_agent(agent_class):
                     if correctness:
                         game.mark(row, col, game.current_player())
 
-                agent.train(original_state, 'move', [], 'table', 'move',
+                agent.train(original_state, 'table', 'move',
                             {'row': row, 'col': col, 'player': player},
-                            correctness)
+                            correctness, 'move', [])
 
             except ValueError:
                 print("############################")
                 print("# Invalid move, try again. #")
                 print("############################")
-                agent.train(original_state, 'move', [], 'table', 'move',
-                            {'row': row, 'col': col, 'player': player}, False)
+                agent.train(original_state, 'table', 'move',
+                            {'row': row, 'col': col, 'player': player}, False,
+                            'move', [])
 
         if game.winner() == "DRAW":
             print("DRAW")
