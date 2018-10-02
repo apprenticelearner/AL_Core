@@ -1,9 +1,11 @@
 from pprint import pprint
 from tabulate import tabulate
+import argparse
 
 from planners.fo_planner import Operator
 from agents.RLAgent import RLAgent
 from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
+from agents.Memo import Memo
 
 
 ttt_available = Operator(('available', '?s'),
@@ -245,5 +247,16 @@ def train_agent(agent_class):
 
 
 if __name__ == "__main__":
-    # train_agent(RLAgent)
-    train_agent(WhereWhenHowNoFoa)
+    parser = argparse.ArgumentParser(description='An interactive training demo for '
+                                                 'apprentice agents.')
+    parser.add_argument('-agent',choices=['WhereWhenHowNoFoa','RLAgent','Memo'],
+                            default='WhereWhenHowNoFoa',help='The agent type to use')
+
+    args = parser.parse_args()
+
+    if args.agent == 'Memo':
+        train_agent(Memo)
+    elif args.agent == 'RLAgent':
+        train_agent(RLAgent)
+    else:
+        train_agent(WhereWhenHowNoFoa)  
