@@ -1,0 +1,371 @@
+{% load static %}
+<html>
+
+<head>
+    <title>Form Task</title>
+    <meta charset="utf-8">
+    <link rel=stylesheet href="{% static 'ab_worksheet.css' %}" type="text/css">
+</head>
+
+<body>
+
+    <form id="ab_worksheet">
+        <div class="ws_element">
+            <h1>Name and Objective</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Plan Name<span class="required">*</span>:</label>
+            <input type="text" name="plan_name">
+        </div>
+
+        <div class="ws_element">
+            <label>Remarks:</label><textarea name='remarks' rows="4"></textarea>
+        </div>
+
+        <div class="ws_element">
+            <label>Select an objective:</label>
+            <div class="radio-group">
+                <div class="radio-element">
+                    <input type='radio' name='objective' value='attrition'> <strong>Attrition</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='objective' value='breakthrough'> <strong>Breakthrough</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='objective' value='clearing'> <strong>Clearing</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='objective' value='exploratory'> <strong>Exploratory</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='objective' value='reconnaissance'> <strong>Reconnaissance</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>Desired Effectiveness</h1>
+        </div>
+
+        <!--
+        <div class="ws_element">
+            <label>Computation Mode:</label>
+            <select name='computation_mode'>
+                <option value=""></option>
+                <option value="unknown">Unknown estimated number of mines in area</option>
+            </select>
+        </div>
+
+        <div class="ws_element">
+            <label>Maximum number of mines remaining in area (X):</label>
+            <input type="text" name="max_mines">
+        </div>
+
+        <div class="ws_element">
+            <label>Confidence Level, %<span class="required">*</span>:</label>
+            <input type="text" name="confidence_level">
+        </div>
+        -->
+
+        <div class="ws_element">
+            <label>Desired Effectiveness, %:</label>
+            <input type="text" name="desired_effectiveness">
+        </div>
+
+        <!--
+        <div class="ws_element">
+            <img src="confidence_level_by_effectiveness.png">
+        </div>
+
+        <div class="ws_element">
+            <label>Scale:</label>
+            <select name="scale">
+                <option value=""></option>
+                <option value="0-20">0-20 Mines</option>
+            </select>
+        </div>
+        -->
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>Area</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Select an area:</label>
+            <div class="radio-group">
+                <div class="radio-element">
+                    <input type='radio' name='area' value='channel_8_1_1_A_B'> <strong>Channel 8-1-1 (A-B)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='area' value='channel_8_1_1_B_C'> <strong>Channel 8-1-1 (B-C)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='area' value='channel_8_1_1_C_D'> <strong>Channel 8-1-1 (C-D)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='area' value='ita_egress_A_B'> <strong>ITA Egress (A-B)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='area' value='ita_ingress_A_B'> <strong>ITA Ingress (A-B)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='area' value='north_fires_cut_A_B'> <strong>North Fires Cut (A-B)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='area' value='south_fires_cut_A_B'> <strong>South Fires Cut (A-B)</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>Mine Threat</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Select a Mine Threat:</label>
+            <div class="radio-group">
+                <div class="radio-element">
+                    <input type='radio' name='mine_threat' value='BPK_512'> <strong>BPK_512 (bottom)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='mine_threat' value='BPK_512_1'> <strong>BPK_512 (1) (bottom)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='mine_threat' value='minethreat01'> <strong>MineThreat01 (bottom)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='mine_threat' value='minethreat11'> <strong>MineThreat11 (moored, 50ft)</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>Planning Water Depth</h1>
+        </div>
+
+        <div class="ws_element">
+            <button name="retreive_water_depth">Retreive Water Depth Table Values</button>
+        </div>
+
+        <div class="ws_element">
+            <table>
+                <tr>
+                    <th>Data Type</th>
+                    <th>Min</th>
+                    <th>Mean</th>
+                    <th>Max</th>
+                </tr>
+                <tr>
+                    <td>Depth (Mean Sea Level), ft</td>
+                    <td><input name="min_depth" type="text" readonly></td>
+                    <td><input name="avg_depth" type="text" readonly></td>
+                    <td><input name="max_depth" type="text" readonly></td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="ws_element">
+            <label>Planning Depth, ft<span class="required">*</span>:</label>
+            <input type="text" name="planning_depth">
+        </div>
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>Platform Class</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Select a platform class:</label>
+            <div class="radio-group">
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='ces_test_class'> <strong>CES TEST CLASS (SHIP)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='generic_eod'> <strong>GENERIC EOD (EOD)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='generic_helo'> <strong>GENERIC HELO (HELO)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='generic_ship'> <strong>GENERIC SHIP (SHIP)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='generic_uav'> <strong>GENERIC UAV (UAV)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='generic_usv'> <strong>GENERIC USV (USV)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='generic_uuv'> <strong>GENERIC UUV (UUV)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='mcm_1'> <strong>MCM 1 (SHIP)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='mk_538'> <strong>MK-538 (HELO)</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='platform_class' value='mk_406'> <strong>MK-406 (HELO)</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>Equipment Configuration</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Select a equipment configuration:</label>
+            <div class="radio-group">
+                <div class="radio-element">
+                    <input type='radio' name='equipment_configuration' value='detect'> <strong>Detect</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='equipment_configuration' value='detect_classify'> <strong>Detect + Classify</strong>
+                </div>
+                <div class="radio-element">
+                    <input type='radio' name='equipment_configuration' value='reacquire_classify'> <strong>Reacquire + Classify</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>MetOc Data</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Bottom Type:</label>
+            <select name="bottom_type">
+                <option value=""></option>
+                <option value='A1'>A1</option>
+                <option value='A2'>A2</option>
+                <option value='A3'>A3</option>
+                <option value='B1'>B1</option>
+                <option value='B2'>B2</option>
+                <option value='B3'>B3</option>
+                <option value='C2'>C2</option>
+                <option value='C3'>C3</option>
+            </select>
+        </div>
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>Operational Data</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Classification Tactic<span class="required">*</span>:</label>
+            <select name="classification_tactic">
+                <option value=""></option>
+                <option value='SCT'>SCT</option>
+            </select>
+        </div>
+
+        <div class="ws_element">
+            <label>Speed, kts<span class="required">*</span>:</label>
+            <input type="text" name='speed'>
+        </div>
+
+        <div class="ws_element">
+            <label>Turn Time, min<span class="required">*</span>:</label>
+            <input type="text" name='turn_time'>
+        </div>
+
+        <div class="ws_element">
+            <label>Equipment Navigation Error, yds<span class="required">*</span>:</label>
+            <input type="text" name='navigation_error'>
+        </div>
+
+        <div class="ws_element">
+            <hr>
+        </div>
+
+        <div class="ws_element">
+            <h1>Hunt Performance (A/Pd/Pc/μ)</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Search Width, yd (A)<span class="required">*</span>:</label>
+            <input type="text" name='search_width'>
+        </div>
+
+        <div class="ws_element">
+            <label>Prob Detect (Pd)<span class="required">*</span>:</label>
+            <input type="text" name='prob_detect'>
+        </div>
+
+        <div class="ws_element">
+            <label>Prob Classify (Pc)<span class="required">*</span>:</label>
+            <input type="text" name='prob_classify'>
+        </div>
+
+        <div class="ws_element">
+            <label>Fraction Undetected (μ)<span class="required">*</span>:</label>
+            <input type="text" name='fraction_undetected'>
+        </div>
+
+        <div class="ws_element">
+            <h1>Kill Chain</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Kill Chain<span class="required">*</span>:</label>
+            <select name="kill_chain">
+                <option value=""></option>
+                <option value='detect'>Detect</option>
+                <option value='detect_classify'>Detect-Classify</option>
+                <option value='detect_classify_neutralize'>Detect-Classify-Neutralize</option>
+            </select>
+        </div>
+
+        <div class="ws_element">
+            <h1>Plan Track</h1>
+        </div>
+
+        <div class="ws_element">
+            <label>Select Track Computation Method<span class="required">*</span>:</label>
+            <select name="track_computation_method">
+                <option value=""></option>
+                <option value='optimized'>Optimized</option>
+                <option value='uniform'>Uniform</option>
+            </select>
+        </div>
+
+    </form>
+
+    <script src="{% static 'jquery-min.js' %}"></script>
+    <script src="{% static 'ab_worksheet.js' %}"></script>
+</body>
+
+</html>

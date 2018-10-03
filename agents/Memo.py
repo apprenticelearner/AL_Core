@@ -13,7 +13,10 @@ class Memo(BaseAgent):
 
     def request(self, state):
         # print(state)
-        resp = self.lookup.get(state, ({}, 0))
+        resp = self.lookup.get(state, None)
+
+        if resp is None:
+            return {}
 
         return {'skill_label': resp[0],
                 'selection': resp[1],
@@ -23,7 +26,9 @@ class Memo(BaseAgent):
 
     def train(self, state, selection, action, inputs, reward,
               skill_label="NO_LABEL", foci_of_attention=None):
-        prior_action, prior_reward = self.lookup.get(state, ({}, 0))
-        if reward >= prior_reward:
+
+        resp = self.lookup.get(state, None)
+
+        if resp is None and resp[5] > 0 or reward >= resp[5]:
             self.lookup[state] = (skill_label, selection, action, inputs,
                                   foci_of_attention, reward)
