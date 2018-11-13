@@ -4,6 +4,7 @@ from tabulate import tabulate
 from planners.fo_planner import Operator
 from agents.RLAgent import RLAgent
 from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
+from agents.Memo import Memo
 
 
 ttt_available = Operator(('available', '?s'),
@@ -222,6 +223,10 @@ def train_agent(agent_class):
                     if correctness:
                         game.mark(row, col, game.current_player())
 
+                if correctness:
+                    correctness = 1
+                else:
+                    correctness = -1
                 agent.train(original_state, 'table', 'move',
                             {'row': row, 'col': col, 'player': player},
                             correctness, 'move', [])
@@ -231,7 +236,7 @@ def train_agent(agent_class):
                 print("# Invalid move, try again. #")
                 print("############################")
                 agent.train(original_state, 'table', 'move',
-                            {'row': row, 'col': col, 'player': player}, False,
+                            {'row': row, 'col': col, 'player': player}, -1,
                             'move', [])
 
         if game.winner() == "DRAW":
@@ -247,3 +252,4 @@ def train_agent(agent_class):
 if __name__ == "__main__":
     # train_agent(RLAgent)
     train_agent(WhereWhenHowNoFoa)
+    # train_agent(Memo)

@@ -112,6 +112,7 @@ class MostSpecific(BaseILP):
     This learner always returns the tuples it was trained with, after ensuring
     they meet any provided constraints.
     """
+
     def __init__(self, args, constraints=None):
         self.pos_count = 0
         self.neg_count = 0
@@ -192,14 +193,19 @@ class MostSpecific(BaseILP):
         # print(self.learner.get_hset())
 
         for t in self.tuples:
+            print('tuple', t)
             mapping = {a: t[i] for i, a in enumerate(self.args)}
+            print('mapping', mapping)
             operator = Operator(tuple(('Rule',) + self.args),
                                 frozenset().union(self.constraints), [])
+            print('constraints', self.constraints)
+            print("where match operator")
+            print(operator)
 
             for m in operator.match(index, epsilon=epsilon,
                                     initial_mapping=mapping):
                 result = tuple(ele.replace("QM", '?') for ele in t)
-                # print('GET MATCHES T', result)
+                print('GET MATCHES T', result)
                 yield result
                 break
 
@@ -207,10 +213,38 @@ class MostSpecific(BaseILP):
 
     def ifit(self, t, x, y):
 
-        if y == 1:
+        if y > 0:
             self.pos_count += 1
         else:
             self.neg_count += 1
+
+        # pull out all elements of x that contain elements from t
+        # from pprint import pprint
+        # print('where ifit t')
+        # print(t)
+        # print('where ifit x')
+        # pprint(x)
+
+        # pattern = {}
+        # for ele in x:
+        #     for te in t:
+        #         print(ele, te)
+        #         if te in ele:
+        #             print(True)
+        #             pattern[ele] = x[ele]
+        #         else:
+        #             print(False)
+
+        # print('sub pattern')
+        # pprint(pattern)
+
+        # rename them using args
+        # update constraints to include all facts that have not yet been contradicted.
+
+        # this will give things like.. name that already exist, but also value,
+        # and make sure they only fit specific name/value/etc elements. This is just a
+        # really basic anti-unification, so we don't get things trying to update
+        # elements that have just been updated (empty value to non-empty value).
 
         t = tuple(ground(e) for e in t)
         self.tuples.add(t)
@@ -565,7 +599,7 @@ class SpecificToGeneral(BaseILP):
         # pprint(x)
         self.concept.increment_counts(x)
 
-        if y == 1:
+        if y > 0:
             self.pos_concept.increment_counts(x)
         else:
             self.neg_concept.increment_counts(x)
@@ -626,6 +660,7 @@ class SpecificToGeneral(BaseILP):
                       [('not', (a, neg_instance[a])) for a in neg_instance])
 
         # print("========CONDITIONS======")
+        # from pprint import pprint
         # pprint(conditions)
         # print("========CONDITIONS======")
 
@@ -651,11 +686,12 @@ class SpecificToGeneral(BaseILP):
 def get_where_learner(name):
     return WHERE_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
 
+
 WHERE_LEARNERS = {
-    'mostspecific':MostSpecific,
-    'stateresponselearner':StateResponseLearner,
-    'relationallearner':RelationalLearner,
-    'specifictogeneral':SpecificToGeneral
+    'mostspecific': MostSpecific,
+    'stateresponselearner': StateResponseLearner,
+    'relationallearner': RelationalLearner,
+    'specifictogeneral': SpecificToGeneral
 }
 
 
@@ -663,7 +699,7 @@ if __name__ == "__main__":
 
     ssw = RelationalLearner(args=('?foa0',),
                             constraints=frozenset([('name', '?foa0',
-                                                  '?foa0val')]))
+                                                    '?foa0val')]))
 
     p1 = {('on', '?o1'): '?o2',
           ('name', '?o1'): "Block 1",

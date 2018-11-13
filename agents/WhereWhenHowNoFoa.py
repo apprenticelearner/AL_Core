@@ -12,6 +12,7 @@ from learners.WhereLearner import get_where_learner
 from planners.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
 
+from planners.rulesets import task_unigram_rule
 # from planners.rulesets import functionsets
 # from planners.rulesets import featuresets
 
@@ -103,15 +104,15 @@ class WhereWhenHowNoFoa(BaseAgent):
     """
     This is the basis for the 2 mechanism model.
     """
-    def __init__(self, featureset, functionset, 
-                 when_learner='trestle', where_learner='SpecificToGeneral',
+    def __init__(self, feature_set, function_set,
+                 when_learner='trestle', where_learner='MostSpecific',
                  search_depth=1, numerical_epsilon=0.0):
         self.where = get_where_learner(where_learner)
         self.when = get_when_learner(when_learner)
         self.skills = {}
         self.examples = {}
-        self.featureset = featureset
-        self.functionset = functionset
+        self.featureset = feature_set
+        self.functionset = function_set
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
 
@@ -124,16 +125,22 @@ class WhereWhenHowNoFoa(BaseAgent):
         flt = Flattener()
         state = flt.transform(tup.transform(state))
 
+        print("FEATURE SET")
+        pprint(self.featureset + [task_unigram_rule])
+
         knowledge_base = FoPlanner([(ground(a), state[a].replace('?', 'QM')
                                      if isinstance(state[a], str)
                                      else state[a])
                                     for a in state],
-                                   self.featureset)
+                                   self.featureset + [task_unigram_rule])
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
         state = {unground(a): v.replace("QM", "?")
                               if isinstance(v, str)
                               else v
                  for a, v in knowledge_base.facts}
+
+        print('REQUEST STATE')
+        pprint(state)
 
         skillset = []
         for skill_label in self.skills:
@@ -153,6 +160,9 @@ class WhereWhenHowNoFoa(BaseAgent):
                                     for a in state],
                                    self.functionset)
         knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
+
+        print('SKILLSET')
+        pprint(skillset)
 
         # TODO - would it be too expensive to make skillset contain some kind of Skill object?
         # because this for loop is ridiculous
@@ -193,9 +203,13 @@ class WhereWhenHowNoFoa(BaseAgent):
                     if len(rg_exp) != len(r_exp):
                         continue
 
+
+                    # print("state for when prediction")
+                    # pprint(r_state)
+
                     prediction = skill['when'].predict([r_state])[0]
 
-                    if prediction == 0:
+                    if prediction <= 0:
                         continue
 
                     response = {}
@@ -241,7 +255,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                      if isinstance(example['flat_state'][a], str)
                                      else example['flat_state'][a])
                                     for a in example['flat_state']],
-                                   self.featureset)
+                                   self.featureset + [task_unigram_rule])
 
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
 
@@ -271,8 +285,9 @@ class WhereWhenHowNoFoa(BaseAgent):
                                     for a in example['flat_state']],
                                    self.functionset)
         knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
+
         # FACTS AFTER USING FUNCTIONS.
-        # pprint(kb.facts)
+        # pprint(knowledge_base.facts)
 
         for exp, iargs in self.skills[skill_label]:
             for match in explain_sai(knowledge_base, exp, sai, self.epsilon):

@@ -174,6 +174,25 @@ def grammar_features(attr, val):
     raise Exception("Unable to parse val with grammar")
 
 
+def task_unigramize(attr, val):
+    ret = []
+    words = re.findall("[a-zA-Z0-9_']+|[^a-zA-Z0-9_\s]+",
+                       val.replace('QM', '?'))
+    # words = val.split(' ')
+
+    i = 0
+    for w in words:
+        if w == '':
+            continue
+        w = w.lower()
+        w = w.replace('?', 'QM')
+        i += 1
+
+        ret.append((('value', ('unigram-%s' % i, attr)), w))
+
+    return ret
+
+
 def unigramize(attr, val):
     ret = []
     words = re.findall("[a-zA-Z0-9_']+|[^a-zA-Z0-9_\s]+",
@@ -355,6 +374,10 @@ string_subtract_rule = Operator(('string-subtract-rule',
                                 [(('value', ('string-subtract-rule',
                                              '?x', '?y')),
                                  (subtract_strings, '?xv', '?yv'))])
+
+task_unigram_rule = Operator(('Extract-Task-Unigram-rule', '?x'),
+                                     [(('current_task', '?x'), '?xv')],
+                                     [(task_unigramize, '?x', '?xv')])
 
 unigram_rule = Operator(('Unigram-rule', '?x'),
                         [(('value', '?x'), '?xv')],

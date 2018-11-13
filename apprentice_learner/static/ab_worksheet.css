@@ -1,0 +1,55 @@
+#ab_worksheet {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.ws_element hr {
+    width: 400px;
+}
+
+td input {
+    width: 50px;
+    margin: 0 auto;
+}
+
+.ws_element table, th, td {
+    border: 1px solid black;
+}
+
+.ws_element {
+    width: 450px;
+    text-align: left;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    flex-direction: row;
+    margin-top: 5px;
+    flex-basis: content;
+}
+
+.ws_element * {
+    flex-grow: 1;
+}
+
+.ws_element label {
+    vertical-align: top;
+    text-align: right;
+    margin-right: 5px;
+    width: 175px;
+    flex-grow: 0;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+}
+
+
+.divider {
+    width: 100%;
+}
+
+.required {
+    color: red;
+}
