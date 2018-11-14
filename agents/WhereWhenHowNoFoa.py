@@ -131,8 +131,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                                    self.featureset)
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
         state = {unground(a): v.replace("QM", "?")
-                              if isinstance(v, str)
-                              else v
+                 if isinstance(v, str)
+                 else v
                  for a, v in knowledge_base.facts}
 
         skillset = []
@@ -195,14 +195,14 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                     prediction = skill['when'].predict([r_state])[0]
 
-                    if prediction == 0:
+                    if prediction <= 0:
                         continue
 
                     response = {}
                     response['skill_label'] = skill_label
                     response['selection'] = rg_exp[1]
                     response['action'] = rg_exp[2]
-                    response['inputs'] = {a: rg_exp[3+i] for i, a in
+                    response['inputs'] = {a: rg_exp[3 + i] for i, a in
                                           enumerate(input_args)}
                     # response['inputs'] = list(rg_exp[3:])
                     response['foci_of_attention'] = []
@@ -246,8 +246,8 @@ class WhereWhenHowNoFoa(BaseAgent):
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
 
         example['flat_state'] = {unground(a): v.replace("QM", "?")
-                                              if isinstance(v, str)
-                                              else v
+                                 if isinstance(v, str)
+                                 else v
                                  for a, v in knowledge_base.facts}
 
         if skill_label not in self.skills:
@@ -272,7 +272,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                    self.functionset)
         knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
         # FACTS AFTER USING FUNCTIONS.
-        # pprint(kb.facts)
+        # pprint(knowledge_base.facts)
 
         for exp, iargs in self.skills[skill_label]:
             for match in explain_sai(knowledge_base, exp, sai, self.epsilon):

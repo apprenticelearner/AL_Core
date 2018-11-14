@@ -124,3 +124,6 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = './static/'
+
+# A flag used in the apprentice API for whether to load custom operators or not.
+USE_CUSTOM_OPERATORS = True

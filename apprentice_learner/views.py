@@ -14,6 +14,7 @@ from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
 from django.http import HttpResponseNotAllowed
+from djagno.conf import settings
 
 # from apprentice_learner.models import ActionSet
 from apprentice_learner.models import Agent
@@ -23,6 +24,8 @@ from agents.Stub import Stub
 from agents.Memo import Memo
 from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from agents.RLAgent import RLAgent
+from planners.rulesets import custom_feature_set
+from planners.rulesets import custom_function_set
 
 AGENTS = {'Stub': Stub,
           'Memo': Memo,
@@ -84,7 +87,7 @@ def create(http_request):
 
     project_id = data.get('project_id', 1)
 
-    if project_id == 1:
+    if project_id == 1 or project_id == '':
         project = Project.objects.get_or_create(id=1)
     else:
         try:
@@ -111,6 +114,10 @@ def create(http_request):
     if project is not None:
         args['feature_set'] += project.compile_features()
         args['function_set'] += project.compile_functions()
+
+    if settings.USE_CUSTOM_OPERATORS:
+        args['feature_set'] += custom_feature_set()
+        args['function_set'] += custom_function_set()
 
     try:
         # args['action_set'] = action_set
@@ -324,3 +331,4 @@ def report_by_name(http_request, agent_name):
 def test_view(http_request):
     return render(http_request, 'apprentice_learner/tester.html',
                   {'agents': Agent.objects.all()})
+

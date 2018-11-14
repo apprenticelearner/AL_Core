@@ -10,6 +10,30 @@ from planners.fo_planner import FoPlanner
 _then_gensym_counter = 0
 
 
+def custom_feature_set():
+    """
+    Return a custom set of feature operators.
+
+    Use this function to expose any custom ruleset logic you want to add that
+    doesn't rely on the Operator model system. This function will be called by
+    all agents created by the system so you can use it for custom logic but we
+    should probably turn it off if we ever have a production server.
+    """
+    return []
+
+
+def custom_function_set():
+    """
+    Return a custom set of function operators.
+
+    Use this function to expose any custom ruleset logic you want to add that
+    doesn't rely on the Operator model system. This function will be called by
+    all agents created by the system so you can use it for custom logic but we
+    should probably turn it off if we ever have a production server.
+    """
+    return []
+
+
 def gensym():
     global _then_gensym_counter
     _then_gensym_counter += 1

@@ -223,6 +223,9 @@ def train_agent(agent_class):
 
                     if correctness:
                         game.mark(row, col, game.current_player())
+                        correctness = 1
+                    else:
+                        correctness = -1
 
                 agent.train(original_state, 'table', 'move',
                             {'row': row, 'col': col, 'player': player},
@@ -233,7 +236,7 @@ def train_agent(agent_class):
                 print("# Invalid move, try again. #")
                 print("############################")
                 agent.train(original_state, 'table', 'move',
-                            {'row': row, 'col': col, 'player': player}, False,
+                            {'row': row, 'col': col, 'player': player}, -1,
                             'move', [])
 
         if game.winner() == "DRAW":
@@ -259,4 +262,4 @@ if __name__ == "__main__":
     elif args.agent == 'RLAgent':
         train_agent(RLAgent)
     else:
-        train_agent(WhereWhenHowNoFoa)  
+        train_agent(WhereWhenHowNoFoa)

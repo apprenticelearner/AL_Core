@@ -207,7 +207,7 @@ class MostSpecific(BaseILP):
 
     def ifit(self, t, x, y):
 
-        if y == 1:
+        if y > 0:
             self.pos_count += 1
         else:
             self.neg_count += 1
@@ -565,7 +565,7 @@ class SpecificToGeneral(BaseILP):
         # pprint(x)
         self.concept.increment_counts(x)
 
-        if y == 1:
+        if y > 0:
             self.pos_concept.increment_counts(x)
         else:
             self.neg_concept.increment_counts(x)
@@ -651,11 +651,12 @@ class SpecificToGeneral(BaseILP):
 def get_where_learner(name):
     return WHERE_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
 
+
 WHERE_LEARNERS = {
-    'mostspecific':MostSpecific,
-    'stateresponselearner':StateResponseLearner,
-    'relationallearner':RelationalLearner,
-    'specifictogeneral':SpecificToGeneral
+    'mostspecific': MostSpecific,
+    'stateresponselearner': StateResponseLearner,
+    'relationallearner': RelationalLearner,
+    'specifictogeneral': SpecificToGeneral
 }
 
 
