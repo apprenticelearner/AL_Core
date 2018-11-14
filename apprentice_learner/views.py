@@ -14,7 +14,7 @@ from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
 from django.http import HttpResponseNotAllowed
-from djagno.conf import settings
+from django.conf import settings
 
 # from apprentice_learner.models import ActionSet
 from apprentice_learner.models import Agent
