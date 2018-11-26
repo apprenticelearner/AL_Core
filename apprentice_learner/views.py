@@ -88,7 +88,7 @@ def create(http_request):
     project_id = data.get('project_id', 1)
 
     if project_id == 1 or project_id == '':
-        project = Project.objects.get_or_create(id=1)
+        project, created = Project.objects.get_or_create(id=1)
     else:
         try:
             project = Project.objects.get(id=project_id)
@@ -110,6 +110,7 @@ def create(http_request):
 
     args['feature_set'] = feature_set
     args['function_set'] = function_set
+
 
     if project is not None:
         args['feature_set'] += project.compile_features()

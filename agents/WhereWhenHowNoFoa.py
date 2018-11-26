@@ -12,8 +12,8 @@ from learners.WhereLearner import get_where_learner
 from planners.fo_planner import FoPlanner
 # from ilp.fo_planner import Operator
 
-# from planners.rulesets import functionsets
-# from planners.rulesets import featuresets
+# from planners.rulesets import function_sets
+# from planners.rulesets import feature_sets
 
 # search_depth = 1
 # epsilon = .9
@@ -103,15 +103,15 @@ class WhereWhenHowNoFoa(BaseAgent):
     """
     This is the basis for the 2 mechanism model.
     """
-    def __init__(self, featureset, functionset, 
+    def __init__(self, feature_set, function_set, 
                  when_learner='trestle', where_learner='SpecificToGeneral',
                  search_depth=1, numerical_epsilon=0.0):
         self.where = get_where_learner(where_learner)
         self.when = get_when_learner(when_learner)
         self.skills = {}
         self.examples = {}
-        self.featureset = featureset
-        self.functionset = functionset
+        self.feature_set = feature_set
+        self.function_set = function_set
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
 
@@ -128,7 +128,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                      if isinstance(state[a], str)
                                      else state[a])
                                     for a in state],
-                                   self.featureset)
+                                   self.feature_set)
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
         state = {unground(a): v.replace("QM", "?")
                  if isinstance(v, str)
@@ -151,7 +151,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                      if isinstance(state[a], str)
                                      else state[a])
                                     for a in state],
-                                   self.functionset)
+                                   self.function_set)
         knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
 
         # TODO - would it be too expensive to make skillset contain some kind of Skill object?
@@ -241,7 +241,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                      if isinstance(example['flat_state'][a], str)
                                      else example['flat_state'][a])
                                     for a in example['flat_state']],
-                                   self.featureset)
+                                   self.feature_set)
 
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
 
@@ -263,13 +263,13 @@ class WhereWhenHowNoFoa(BaseAgent):
         # Need to do stuff with features here too.
 
         # used for grounding out plans, don't need to build up each time.
-        # print(functionsets[self.action_set])
+        # print(function_sets[self.action_set])
         knowledge_base = FoPlanner([(ground(a),
                                      example['flat_state'][a].replace('?', 'QM')
                                      if isinstance(example['flat_state'][a], str)
                                      else example['flat_state'][a])
                                     for a in example['flat_state']],
-                                   self.functionset)
+                                   self.function_set)
         knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
         # FACTS AFTER USING FUNCTIONS.
         # pprint(knowledge_base.facts)

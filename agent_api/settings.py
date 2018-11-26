@@ -127,3 +127,9 @@ STATIC_ROOT = './static/'
 
 # A flag used in the apprentice API for whether to load custom operators or not.
 USE_CUSTOM_OPERATORS = True
+
+
+CORS_ORIGIN_REGEX_WHITELIST = (
+    r'http://localhost:\d+$',
+    r'http://127.0.0.1:\d+$'
+)
