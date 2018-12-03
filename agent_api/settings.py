@@ -131,5 +131,6 @@ USE_CUSTOM_OPERATORS = True
 
 CORS_ORIGIN_REGEX_WHITELIST = (
     r'http://localhost:\d+$',
-    r'http://127.0.0.1:\d+$'
+    r'http://127.0.0.1:\d+$',
+    r'http://0.0.0.0:\d+$'
 )
