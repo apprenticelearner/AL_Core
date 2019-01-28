@@ -19,7 +19,7 @@ def custom_feature_set():
     all agents created by the system so you can use it for custom logic but we
     should probably turn it off if we ever have a production server.
     """
-    return []
+    return [equal_rule]
 
 
 def custom_function_set():
@@ -31,7 +31,7 @@ def custom_function_set():
     all agents created by the system so you can use it for custom logic but we
     should probably turn it off if we ever have a production server.
     """
-    return []
+    return [add_rule, sub_rule, mult_rule, div_rule, concatenate_rule]
 
 
 def gensym():

@@ -104,7 +104,7 @@ class WhereWhenHowNoFoa(BaseAgent):
     This is the basis for the 2 mechanism model.
     """
     def __init__(self, feature_set, function_set, 
-                 when_learner='trestle', where_learner='SpecificToGeneral',
+                 when_learner='cobweb', where_learner='MostSpecific',
                  search_depth=1, numerical_epsilon=0.0):
         self.where = get_where_learner(where_learner)
         self.when = get_when_learner(when_learner)
