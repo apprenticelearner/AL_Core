@@ -31,7 +31,7 @@ def custom_function_set():
     all agents created by the system so you can use it for custom logic but we
     should probably turn it off if we ever have a production server.
     """
-    return [add_rule, sub_rule, mult_rule, div_rule, concatenate_rule]
+    return [add_rule, sub_rule, mult_rule, div_rule]
 
 
 def gensym():
