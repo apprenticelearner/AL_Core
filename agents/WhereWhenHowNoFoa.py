@@ -171,7 +171,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                     if len(match) != len(set(match)):
                         continue
 
-                    # print("MATCH FOUND", label, exp, m)
+                    # print("MATCH FOUND", skill_label, exp, match)
                     vmapping = {'?foa' + str(i): ele for i, ele in enumerate(match)}
                     mapping = {'foa' + str(i): ele for i, ele in enumerate(match)}
 
@@ -221,6 +221,9 @@ class WhereWhenHowNoFoa(BaseAgent):
         print('action', action)
         print('input', inputs)
         print('reward', reward)
+        print('state')
+        pprint(state)
+
 
         # label = 'math'
 
@@ -355,12 +358,13 @@ class WhereWhenHowNoFoa(BaseAgent):
 
             if r_exp not in self.skills[skill_label]:
 
-                #TODO - Hack for specific action set
+                # TODO - Hack for specific action set
                 # if self.action_set == "tutor knowledge":
                 #     constraints = self.generate_tutor_constraints(r_exp[0])
                 # else:
                 #     constraints = self.extract_mg_h(r_exp[0])
-                constraints = extract_mg_h(r_exp[0])
+                # constraints = extract_mg_h(r_exp[0])
+                constraints = generate_html_tutor_constraints(r_exp[0])
 
                 print("CONSTRAINTS")
                 print(constraints)
@@ -379,6 +383,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             # Need to add computed features.
             # need to rename example with foa's that are not variables
             r_flat = rename_flat(example['flat_state'], foa_mapping)
+
             self.skills[skill_label][r_exp]['when'].ifit(r_flat, example['reward'])
 
         # check for subsuming explainations (alternatively we could probably
@@ -425,6 +430,43 @@ def generate_tutor_constraints(sai):
         constraints.add(('not', ('type', selection, 'MAIN::button')))
         constraints.add(('not', ('type', selection, 'MAIN::label')))
         # constraints.add(('type', selection, 'MAIN::cell'))
+
+    # value constraints, don't select empty values
+    for i, arg in enumerate(args[1:]):
+        constraints.add(('value', arg, '?foa%ival' % (i+1)))
+        constraints.add((is_not_empty_string, '?foa%ival' % (i+1)))
+        # constraints.add(('type', a, 'MAIN::cell'))
+
+    return frozenset(constraints)
+
+
+def generate_html_tutor_constraints(sai):
+    """
+    Given an SAI, this finds a set of constraints for the SAI, so it don't
+    fire in nonsensical situations.
+    """
+    constraints = set()
+    args = get_vars(sai)
+
+    # selection constraints, you can only select something that has an
+    # empty string value.
+
+    if len(args) == 0:
+        return frozenset()
+
+    # get action
+    action = sai[2]
+    if action == "ButtonPressed":
+        # Constrain the selection to be of type button
+        # constraints.add(('type', selection, 'MAIN::button'))
+        selection = args[0]
+        constraints.add(('id', selection, 'done'))
+    else:
+        # print("SAI", sai)
+        # print("ARGS", args)
+        selection = args[0]
+        constraints.add(('value', selection, '?selection-value'))
+        constraints.add((is_empty_string, '?selection-value'))
 
     # value constraints, don't select empty values
     for i, arg in enumerate(args[1:]):
