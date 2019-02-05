@@ -34,6 +34,8 @@ def explain_sai(knowledge_base, exp, sai, epsilon):
         else:
             goals.append((elem, sai[i]))
 
+    # print("GOALS" ,goals)
+
     for match in knowledge_base.fc_query(goals, max_depth=0, epsilon=epsilon):
         yield match
 
@@ -104,7 +106,7 @@ class WhereWhenHowNoFoa(BaseAgent):
     This is the basis for the 2 mechanism model.
     """
     def __init__(self, feature_set, function_set, 
-                 when_learner='cobweb', where_learner='MostSpecific',
+                 when_learner='trestle', where_learner='MostSpecific',
                  search_depth=1, numerical_epsilon=0.0):
         self.where = get_where_learner(where_learner)
         self.when = get_when_learner(when_learner)
@@ -136,6 +138,9 @@ class WhereWhenHowNoFoa(BaseAgent):
                  for a, v in knowledge_base.facts}
 
         skillset = []
+
+        # pprint(self.skills)
+
         for skill_label in self.skills:
             for exp in self.skills[skill_label]:
                 pos = self.skills[skill_label][exp]['where'].num_pos()
@@ -158,16 +163,35 @@ class WhereWhenHowNoFoa(BaseAgent):
         # because this for loop is ridiculous
         for _, _, _, skill_label, (exp, input_args), skill in skillset:
 
+
+            # print("STATE")
+            # pprint(state)
+            # print("--------")
+            # print(exp)
+            # print("contentEditable: ",state.get( ('contentEditable',"?ele-" + exp[1]) ,True) )
+            # if(state.get( ('contentEditable',"?ele-" + exp[1]) ,True) == False):
+            #     continue
+            # print("")
+            # print("REQUEST_EXPLAINS", exp)
+
             # Continue until we either do something with the rule. For example,
             # generate an SAI or determine that the rule doesn't match. If we
             # get some kind of failure, such as being unable to execute an
             # action sequence, then we want to learn from that and try again.
             failed = True
 
+            # print("SKILL: ",exp, input_args)
+
             while failed:
 
                 failed = False
+
+                # print("STATE")
+                # pprint(state)
+                # print("--------")
+
                 for match in skill['where'].get_matches(state, epsilon=self.epsilon):
+                    # print("REE1")
                     if len(match) != len(set(match)):
                         continue
 
@@ -175,29 +199,48 @@ class WhereWhenHowNoFoa(BaseAgent):
                     vmapping = {'?foa' + str(i): ele for i, ele in enumerate(match)}
                     mapping = {'foa' + str(i): ele for i, ele in enumerate(match)}
 
+                    # print("VMAP")
+                    # pprint(vmapping)
+                    # print("MAP")
+                    # pprint(mapping)
+
                     r_exp = list(rename_flat({exp: True}, vmapping))[0]
                     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
 
                     rg_exp = []
                     for ele in r_exp:
                         if isinstance(ele, tuple):
+                            # print("KB", knowledge_base)
                             for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
                                                                      max_depth=0,
                                                                      epsilon=self.epsilon):
+                                # print("VARM:",var_match, ground(ele))
                                 if var_match['?v'] != '':
                                     rg_exp.append(var_match['?v'])
                                 break
                         else:
                             rg_exp.append(ele)
 
+                    # print("REE2")
+
                     if len(rg_exp) != len(r_exp):
                         continue
 
+                    # print("EXP:", r_exp)
+                    # print("RSTATE ---------------")
+                    # pprint(r_state)
+                    # print("---------------")
+
+                    # print("REE3")
                     prediction = skill['when'].predict([r_state])[0]
+
+                    print("when", skill['when'])
+
+                    print("PREDICTION:", type(prediction), prediction)
 
                     if prediction <= 0:
                         continue
-
+                    # print("REE4")
                     response = {}
                     response['skill_label'] = skill_label
                     response['selection'] = rg_exp[1]
@@ -216,6 +259,9 @@ class WhereWhenHowNoFoa(BaseAgent):
         """
         Doc String
         """
+
+        # print('\n'*5)
+        # print('state', skill_label)
         print('skill_label', skill_label)
         print('selection', selection)
         print('action', action)
@@ -223,7 +269,6 @@ class WhereWhenHowNoFoa(BaseAgent):
         print('reward', reward)
         print('state')
         pprint(state)
-
 
         # label = 'math'
 
@@ -234,7 +279,7 @@ class WhereWhenHowNoFoa(BaseAgent):
         example['selection'] = selection
         example['action'] = action
         example['inputs'] = inputs
-        example['reward'] = reward
+        example['reward'] = float(reward)
 
         tup = Tuplizer()
         flt = Flattener()
@@ -279,6 +324,7 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         for exp, iargs in self.skills[skill_label]:
             for match in explain_sai(knowledge_base, exp, sai, self.epsilon):
+                # print("MATCH", match)
                 # print("COVERED", exp, m)
 
                 # Need to check if it would have been actully generated
@@ -289,6 +335,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                 if len(args) != len(match):
                     continue
 
+                # print("HERE1")
+
                 grounded = True
                 for ele in match:
                     if not isinstance(match[ele], str):
@@ -297,16 +345,21 @@ class WhereWhenHowNoFoa(BaseAgent):
                 if not grounded:
                     continue
 
+                # print("HERE2")
+
                 tup = tuple([match["?foa%s" % i].replace("QM", "?") for i in range(len(match))])
 
                 if len(tup) != len(set(tup)):
                     continue
+
+                # print("HERE3")
 
                 secondary_explainations.append(r_exp)
 
                 skill_where = self.skills[skill_label][(exp, iargs)]['where']
                 if not skill_where.check_match(tup, example['flat_state']):
                     continue
+
 
                 # print("ADDING", r_exp)
                 explainations.append(r_exp)
@@ -350,6 +403,7 @@ class WhereWhenHowNoFoa(BaseAgent):
 
             explainations.append(unground(('sai', selection_exp, action, *input_exps)))
 
+        # print("EXPLAINS", explainations)
         for exp in explainations:
             args = get_vars(exp)
             foa_vmapping = {field: '?foa%s' % j for j, field in enumerate(args)}
@@ -366,8 +420,8 @@ class WhereWhenHowNoFoa(BaseAgent):
                 # constraints = extract_mg_h(r_exp[0])
                 constraints = generate_html_tutor_constraints(r_exp[0])
 
-                print("CONSTRAINTS")
-                print(constraints)
+                # print("CONSTRAINTS")
+                # print(constraints)
 
                 w_args = tuple(['?foa%s' % j for j, _ in enumerate(args)])
 

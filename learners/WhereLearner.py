@@ -1,4 +1,4 @@
-# from pprint import pprint
+from pprint import pprint
 from concept_formation.cobweb3 import Cobweb3Node
 from concept_formation.cobweb import CobwebNode
 from concept_formation.preprocessor import NameStandardizer
@@ -186,18 +186,28 @@ class MostSpecific(BaseILP):
 
         # print("INDEX")
         # pprint(index)
+        print("ARGS")
+        print(self.args)
 
+        print("Tuples")
+        print(self.tuples) 
+
+        print("Constraints")
+        print(self.constraints)        
         # print("OPERATOR")
         # pprint(self.operator)
         # print(self.learner.get_hset())
 
         for t in self.tuples:
+            # print("TUPLE", t)
             mapping = {a: t[i] for i, a in enumerate(self.args)}
             operator = Operator(tuple(('Rule',) + self.args),
                                 frozenset().union(self.constraints), [])
+            # print("OP", str(operator))
 
             for m in operator.match(index, epsilon=epsilon,
                                     initial_mapping=mapping):
+                print("M", m)
                 result = tuple(ele.replace("QM", '?') for ele in t)
                 # print('GET MATCHES T', result)
                 yield result

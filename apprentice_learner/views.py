@@ -247,7 +247,10 @@ def train(http_request, agent_id):
         if 'inputs' not in data or data['inputs'] is None:
             errs.append("request body missing 'inputs'")
         if 'reward' not in data or data['reward'] is None:
-            errs.append("request body missing 'reward'")
+            if('correct' in data):
+                data['reward'] = 2*int(data['correct'] == True)-1
+            else:
+                errs.append("request body missing 'reward'")
 
         # Linter was complaining about too many returns so I consolidated all
         # of the errors above
