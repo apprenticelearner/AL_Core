@@ -83,17 +83,17 @@ class ScikitTrestle(object):
 
     def ifit(self, x, y):
         x = deepcopy(x)
-        x['_y_label'] = "%i" % y
+        x['_y_label'] = float(y)
         self.tree.ifit(x)
 
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
-            x['_y_label'] = "%i" % y[i]
+            x['_y_label'] = float(y)
         self.tree.fit(X, randomize_first=False)
 
     def predict(self, X):
-        return [int(self.tree.categorize(x).predict('_y_label')) for x in X]
+        return [self.tree.categorize(x).predict('_y_label') for x in X]
 
 
 class ScikitCobweb(object):
@@ -106,17 +106,17 @@ class ScikitCobweb(object):
 
     def ifit(self, x, y):
         x = deepcopy(x)
-        x['_y_label'] = "%i" % y
+        x['_y_label'] = float(y)
         self.tree.ifit(x)
 
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
-            x['_y_label'] = "%i" % y[i]
+            x['_y_label'] = float(y)
         self.tree.fit(X, randomize_first=False)
 
     def predict(self, X):
-        return [int(self.tree.categorize(x).predict('_y_label')) for x in X]
+        return [self.tree.categorize(x).predict('_y_label') for x in X]
 
 
 class ScikitPyIBL(object):
