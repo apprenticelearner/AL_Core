@@ -519,8 +519,9 @@ def generate_html_tutor_constraints(sai):
         # print("SAI", sai)
         # print("ARGS", args)
         selection = args[0]
-        constraints.add(('value', selection, '?selection-value'))
-        constraints.add((is_empty_string, '?selection-value'))
+        constraints.add(('contentEditable', selection, True))
+        # constraints.add(('value', selection, '?selection-value'))
+        # constraints.add((is_empty_string, '?selection-value'))
 
     # value constraints, don't select empty values
     for i, arg in enumerate(args[1:]):
