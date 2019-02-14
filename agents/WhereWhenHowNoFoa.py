@@ -234,9 +234,9 @@ class WhereWhenHowNoFoa(BaseAgent):
                     # print("REE3")
                     prediction = skill['when'].predict([r_state])[0]
 
-                    print("when", skill['when'])
+                    # print("when", skill['when'])
 
-                    print("PREDICTION:", type(prediction), prediction)
+                    # print("PREDICTION:", type(prediction), prediction)
 
                     if prediction <= 0:
                         continue
@@ -262,13 +262,13 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         # print('\n'*5)
         # print('state', skill_label)
-        print('skill_label', skill_label)
-        print('selection', selection)
-        print('action', action)
-        print('input', inputs)
-        print('reward', reward)
-        print('state')
-        pprint(state)
+        # print('skill_label', skill_label)
+        # print('selection', selection)
+        # print('action', action)
+        # print('input', inputs)
+        # print('reward', reward)
+        # print('state')
+        # pprint(state)
 
         # label = 'math'
 

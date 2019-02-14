@@ -186,14 +186,14 @@ class MostSpecific(BaseILP):
 
         # print("INDEX")
         # pprint(index)
-        print("ARGS")
-        print(self.args)
+        # print("ARGS")
+        # print(self.args)
 
-        print("Tuples")
-        print(self.tuples) 
+        # print("Tuples")
+        # print(self.tuples) 
 
-        print("Constraints")
-        print(self.constraints)        
+        # print("Constraints")
+        # print(self.constraints)        
         # print("OPERATOR")
         # pprint(self.operator)
         # print(self.learner.get_hset())
@@ -207,7 +207,7 @@ class MostSpecific(BaseILP):
 
             for m in operator.match(index, epsilon=epsilon,
                                     initial_mapping=mapping):
-                print("M", m)
+                # print("M", m)
                 result = tuple(ele.replace("QM", '?') for ele in t)
                 # print('GET MATCHES T', result)
                 yield result
