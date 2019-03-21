@@ -640,6 +640,7 @@ class FoPlanner:
 
     def get_effects(self, op_eps):
         operator, epsilon = op_eps
+        # print(operator.effects)
         ret = []
         for m in operator.match(self.index, epsilon):
             try:
@@ -648,6 +649,7 @@ class FoPlanner:
                 while len(unprocessed) > 0:
                     ele = unprocessed.pop()
                     f = execute_functions(subst(m, ele))
+                    # print(ele)
                     if isinstance(f, list):
                         unprocessed.extend(f)
                     else:

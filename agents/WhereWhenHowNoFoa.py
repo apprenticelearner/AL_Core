@@ -9,7 +9,7 @@ from concept_formation.structure_mapper import rename_flat
 from agents.BaseAgent import BaseAgent
 from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner
-from planners.fo_planner import FoPlanner
+from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 # from ilp.fo_planner import Operator
 
 # from planners.rulesets import function_sets
@@ -152,12 +152,12 @@ class WhereWhenHowNoFoa(BaseAgent):
         skillset.sort(reverse=True)
 
         # used for grounding out plans, don't need to build up each time.
-        knowledge_base = FoPlanner([(ground(a), state[a].replace('?', 'QM')
-                                     if isinstance(state[a], str)
-                                     else state[a])
-                                    for a in state],
-                                   self.function_set)
-        knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
+        # knowledge_base = FoPlanner([(ground(a), state[a].replace('?', 'QM')
+        #                              if isinstance(state[a], str)
+        #                              else state[a])
+        #                             for a in state],
+        #                            self.function_set)
+        # knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
 
         # TODO - would it be too expensive to make skillset contain some kind of Skill object?
         # because this for loop is ridiculous
@@ -207,17 +207,53 @@ class WhereWhenHowNoFoa(BaseAgent):
                     r_exp = list(rename_flat({exp: True}, vmapping))[0]
                     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
 
+
+                    # print("KB", knowledge_base)
                     rg_exp = []
                     for ele in r_exp:
                         if isinstance(ele, tuple):
-                            # print("KB", knowledge_base)
+                            # print("THIS HAPPENED", ele, ground(ele), execute_functions(ground(ele)))
+
+                            
+                                    
+                                    # execute_functions(subt(u))
+                                    # rg_exp.append()
+
+                                # print("BLEHH:", operator.effects) 
+                            
                             for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
                                                                      max_depth=0,
-                                                                     epsilon=self.epsilon):
+                                                                      epsilon=self.epsilon):
                                 # print("VARM:",var_match, ground(ele))
                                 if var_match['?v'] != '':
                                     rg_exp.append(var_match['?v'])
+                                    print("HERE_A",rg_exp[-1])
                                 break
+
+                            operator_output = None
+                            for operator in self.function_set:
+                                effect = list(operator.effects)[0]
+                                pattern = effect[0]
+                                u_mapping = unify(pattern, ground(ele), {})
+                                if(u_mapping):
+                                    # print(operator.conditions,"\n")
+                                    # print(u_mapping,"\n")
+                                    # print(effect[1],"\n")
+                                    # print("BEEP", [subst(u_mapping,x) for x in operator.conditions],"\n")
+                                    value_map = next(knowledge_base.fc_query([subst(u_mapping,x) for x in operator.conditions], max_depth=0, epsilon=self.epsilon))
+                                    # print(value_map)
+                                    # print()
+                                    operator_output = execute_functions(subst(value_map,effect[1]))
+                                    if(operator_output != ""):
+                                        rg_exp.append(operator_output)
+                                        print("HERE_B",operator_output)
+                                    break
+
+
+                            # if(operator_output != None):
+                            #     rg_exp.append(operator_output)
+
+
                         else:
                             rg_exp.append(ele)
 
