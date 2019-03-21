@@ -223,6 +223,10 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                     # print("REE2")
 
+
+                    # print("rg_exp:", rg_exp)
+                    # print("r_exp:", r_exp)
+                    
                     if len(rg_exp) != len(r_exp):
                         continue
 
@@ -322,33 +326,60 @@ class WhereWhenHowNoFoa(BaseAgent):
         # FACTS AFTER USING FUNCTIONS.
         # pprint(knowledge_base.facts)
 
+
+        #DANNY: The gist of this is to find_ applicable_skills (explanations because the inputs/outputs are literals)
         for exp, iargs in self.skills[skill_label]:
             for match in explain_sai(knowledge_base, exp, sai, self.epsilon):
                 # print("MATCH", match)
                 # print("COVERED", exp, m)
 
-                # Need to check if it would have been actully generated
-                # under where and when.
+                #DANNY NOTES:
+                #sai = ('sai', 'JCommTable5.R0C0', 'UpdateTextArea', '16')
+                #exp  =  ('sai', ('id', '?foa0'), 'UpdateTextArea', ('value', ('Multiply', ('value', '?foa1'), ('value', '?foa2'))))
+                #r_exp  =  the explanation renamed with the match literals 
+                #ARGS = A list of input arguements to the explanations
+                #IARGS: = A tuple of outputs? Or maybe a set of property names (i.e. 'value').
+                #Match = A dictionary mapping from ?foas to element strings (the element names have QM instead of ?)
+
+                
                 r_exp = unground(list(rename_flat({exp: True}, match))[0])
                 args = get_vars(exp)
 
+                # print("sai:", sai)
+                # print("exp:", exp)
+                # print("r_exp:", r_exp)
+                # print("ARGS:", args)
+                # print("IARGS:", iargs, type(iargs))
+                # print("match", match)
+
+
+                # Need to check if it would have been actully generated
+                # under where and when.
+                # Danny: Makes sure that there is a match for every arguement 
                 if len(args) != len(match):
                     continue
 
                 # print("HERE1")
 
+                #DANNY: Checks that the match resolves to string elements
                 grounded = True
                 for ele in match:
                     if not isinstance(match[ele], str):
                         grounded = False
                         break
                 if not grounded:
+                    #DANNY: Doesn't really happen... not sure in what circumstances this would happen
+                    # print("BAD MATCH: ", match)
                     continue
 
                 # print("HERE2")
 
                 tup = tuple([match["?foa%s" % i].replace("QM", "?") for i in range(len(match))])
 
+                # print("tup:", tup)
+
+                #tup = a tuple of the matches 
+                #Danny: Makes sure that the explanation hasn't used an foa twice 
                 if len(tup) != len(set(tup)):
                     continue
 
@@ -356,6 +387,9 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                 secondary_explainations.append(r_exp)
 
+                #Danny: Check that the where learner approves of the match
+                #       It seems like the where learner should have just generated this if it was going to check it anyway
+                #       This is only at the end it seems to allow for secondary explanations which the where learner is not yet aware of
                 skill_where = self.skills[skill_label][(exp, iargs)]['where']
                 if not skill_where.check_match(tup, example['flat_state']):
                     continue
@@ -368,15 +402,21 @@ class WhereWhenHowNoFoa(BaseAgent):
             explainations.append(choice(secondary_explainations))
 
         elif len(explainations) == 0:
+
+            #Danny: these lines figure out what property holds the selection
             selection_exp = selection
             for sel_match in knowledge_base.fc_query([('?selection', selection)],
                                                      max_depth=0,
                                                      epsilon=self.epsilon):
+
                 selection_exp = sel_match['?selection']
+                # print("selection_exp", selection_exp)
+                #selection_exp: ('id', 'QMele-done')
                 break
 
             input_exps = []
 
+            
             for arg in input_args:
                 input_exp = input_val = inputs[arg]
                 # print('trying to explain', [((a, '?input'), iv)])
@@ -386,10 +426,14 @@ class WhereWhenHowNoFoa(BaseAgent):
                 # one. Maybe the shortest (less deep).
 
                 # f = False
+
+                #Danny: This populates a list of explanations found earlier in How search that work"
                 possible = []
                 for iv_m in knowledge_base.fc_query([((arg, '?input'), input_val)],
                                                     max_depth=0,
                                                     epsilon=self.epsilon):
+
+                    # print("iv_m:", iv_m)
 
                     possible.append((arg, iv_m['?input']))
 
@@ -400,9 +444,11 @@ class WhereWhenHowNoFoa(BaseAgent):
                     _, _, input_exp = possible[0]
 
                 input_exps.append(input_exp)
+                print("input_exp:", input_exp)
 
             explainations.append(unground(('sai', selection_exp, action, *input_exps)))
 
+        #Danny: Do the training for all the applicable explanations
         # print("EXPLAINS", explainations)
         for exp in explainations:
             args = get_vars(exp)
