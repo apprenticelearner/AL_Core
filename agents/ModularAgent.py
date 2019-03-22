@@ -115,14 +115,16 @@ class ModularAgent(BaseAgent):
 	def __init__(self, feature_set, function_set, 
 									 when_learner='trestle', where_learner='MostSpecific',
 									 search_depth=1, numerical_epsilon=0.0):
-		self.where = get_where_learner(where_learner)
-		self.when = get_when_learner(when_learner)
-		self.skills = {}
-		self.examples = {}
+		self.where_learner = get_where_learner(where_learner)
+		self.when_learner = get_when_learner(when_learner)
+		self.skills = []
+		self.skills_by_label = {}
+		# self.examples = {}
 		self.feature_set = feature_set
 		self.function_set = function_set
 		self.search_depth = search_depth
 		self.epsilon = numerical_epsilon
+		self.skill_counter = 0
 
 
 	#######-----------------------MISC----------------------------##########
@@ -148,12 +150,12 @@ class ModularAgent(BaseAgent):
 	#######---------------Needs to be implemented elsewhere--------------------##########
 	# def when_learner.applicable_skills(state,skills=None):
 	# 	pass
-	def which_learner.most_relevant(explanations):
-		pass
-	def which_learner.cull_how(explanations):
-		pass
-	def where_learner.check_match(explanation):
-		pass
+	# def which_learner.most_relevant(explanations):
+	# 	pass
+	# def which_learner.cull_how(explanations):
+	# 	pass
+	# def where_learner.check_match(explanation):
+	# 	pass
 	def how_learner.how_search(state,sai):
 		pass
 
@@ -163,14 +165,14 @@ class ModularAgent(BaseAgent):
 		if(skills == None): skills = self.skills
 
 		#order here might need to be switched depending on when learner implementation (see nitty gritty questions below)
-		if(when_learner.state_format == "state_only"):
+		if(self.when_learner.state_format == "state_only"):
 			skills = when_learner.applicable_skills(state, skills=skills)
 		else:
 			skills = self.skills
 
 		for skill in skills:
 		######## ------------------  Vectorizable-----------------------#######
-			for match in where_learner.get_matches(skill,state):
+			for match in self.where_learner.get_matches(skill,state):
 				#TODO: Should this even ever be produced?
 				if len(match) != len(set(match)): continue
 
@@ -214,8 +216,11 @@ class ModularAgent(BaseAgent):
 	def explanations_from_how_search(self,state, sai):# -> return Iterator<skill>
 		return how_learner.how_search(state,sai)
 
-	def add_skill(self,skill): #-> return None
+	def add_skill(self,skill,skill_label="DEFAULT_SKILL"): #-> return None
+		skill._id_num = self.skill_counter
+		self.skill_counter += 1
 		self.skills.append(skill)
+		self.skill_dict[skill_label] = skill
 		where_learner.add_skill(skill)
 		when_learner.add_skill(skill)
 
@@ -279,7 +284,9 @@ class Operator(object):
 
 
 class Skill(object):
-	def __init__(conditions, action, operator_chain, input_selections, output_selection):
+	def __init__(conditions, action, operator_chain, input_selections, output_selection, label=None):
+		self.label = label
+		self._id_num = None
 		self.conditions = conditions
 		self.action = action
 		self.operator_chain = operator_chain
@@ -287,6 +294,16 @@ class Skill(object):
 		self.output_selection = output_selection
 		
 	def to_xml(self,agent=None): #-> needs some way of representing itself including its when/where/how parts
+		pass
+	def chain_length(self):
+		pass
+
+	def __hash__(self):
+		return self._id_num
+
+	def __eq__(self,other):
+		return self._id_num == other._id_num
+
 
 
 class Explanation(object):

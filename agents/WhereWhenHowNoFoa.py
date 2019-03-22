@@ -354,7 +354,7 @@ class WhereWhenHowNoFoa(BaseAgent):
             # print(exp)
             # print()
             # print(m)
-            # print("CLOOOL",get_vars(exp))
+            # print("CLOOOL",get_vars(exp), exp)
             mapping = {var:val for var,val in zip(get_vars(exp),match)}
             grounded_exp = subst(mapping, exp)
             rg_exp = tuple(eval_expression(grounded_exp,knowledge_base,self.function_set,self.epsilon))

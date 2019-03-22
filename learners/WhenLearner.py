@@ -73,13 +73,59 @@ def DictVectWrapper(clf):
     return fun
 
 
+
+
+class WhenLearner(object):
+    STATE_FORMAT_OPTIONS = ["var_foas_state",  "state_only"]
+    WHEN_TYPE_OPTIONS = ["one_learner_per_skill", "one_learner_per_label"]
+
+    def __init__(self, learner_name, when_type = "one_learner_per_skill", state_format="var_foas_state",learner_kwargs={}):
+        assert state_format in x.__class__.STATE_FORMAT_OPTIONS
+        assert when_type in x.__class__.WHEN_TYPE_OPTIONS
+
+        self.learner_kwargs = learner_kwargs
+        self.learner_name = learner_name
+        self.type = when_type
+        self.state_format = state_format
+        self.skill_dict = {}
+            
+        # (self.type == "one_learner_per_skill"):
+        self.learners = {}
+
+
+    def add_skill(self, skill, skill_label):
+        if(self.type == "one_learner_per_skill"):
+            self.learners[skill] = get_when_agent(self.learner_name,learner_kwargs)
+        skills = self.skill_dict.get(skill_label,[])
+        skills.append(skill)
+        self.skill_dict[skill_label] = skills
+
+
+    def ifit(self,skill, skill_label, state,reward):
+        if(self.type == "one_learner_per_label"):
+            if(not skill_label in self.learner):
+                self.learner[skill_label] = get_when_agent(self.learner_name,learner_kwargs)
+            self.learner[skill_label].ifit(state,reward)
+        elif(self.type == "one_learner_per_skill"):
+            self.learners[skill].ifit(state,reward)
+
+    def predict(self,skill,skill_label,state,reward):
+        if(self.type == "one_learner_per_label"):
+            return self.predict(state)
+        elif(self.type == "one_learner_per_skill"):
+            return self.learners[skill].predict(state)        
+
+    def applicable_skills(self,state,skill_label,skills=None):
+        if(skills == None): skills = self.skill_dict[skill_label]
+        raise NotImplementedError("Still need to write applicable_skills")
+
+
+
+
 class ScikitTrestle(object):
 
-    def __init__(self, params=None):
-        if params is None:
-            self.tree = TrestleTree()
-        else:
-            self.tree = TrestleTree(**params)
+    def __init__(self, **kwargs):
+        self.tree = TrestleTree(**kwargs)
         self.state_format = "var_foas_state"
 
     def ifit(self, x, y):
@@ -99,11 +145,8 @@ class ScikitTrestle(object):
 
 class ScikitCobweb(object):
 
-    def __init__(self, params=None):
-        if params is None:
-            self.tree = Cobweb3Tree()
-        else:
-            self.tree = Cobweb3Tree(**params)
+    def __init__(self, **kwargs):
+        self.tree = Cobweb3Tree(**kwargs)
         self.state_format = "var_foas_state"
 
     def ifit(self, x, y):
@@ -310,11 +353,25 @@ parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss': 'perceptron'}
 
 
-def get_when_learner(name):
-    return WHEN_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+#######-------------------UTILITIES----------------#######
 
 
-WHEN_LEARNERS = {
+def get_when_agent(name,learner_kwargs={}):
+    return WHEN_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+
+def get_when_learner(name,learner_kwargs={}):
+    inp_d = WHEN_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+    inp_d['learner_kwargs'] = learner_kwargs
+    return WhenLearner(**inp_d)
+
+
+WHEN_LEARNERS ={
+    "decisiontree" : {"learner" : "decisiontree", "when_type" : "one_learner_per_skill", "state_format":"var_foas_state"}
+    "cobweb" : {"learner" : "cobweb", "when_type" : "one_learner_per_skill", "state_format":"var_foas_state"}
+    "trestle" : {"learner" : "cobweb", "when_type" : "one_learner_per_skill", "state_format":"var_foas_state"}
+}
+
+WHEN_LEARNER_AGENTS = {
     'naivebayes': DictVectWrapper(BernoulliNB),
     'decisiontree': DictVectWrapper(DecisionTreeClassifier),
     'logisticregression': DictVectWrapper(CustomLogisticRegression),

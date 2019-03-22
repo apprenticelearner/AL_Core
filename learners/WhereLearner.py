@@ -107,6 +107,36 @@ def get_vars(arg):
         return []
 
 
+class WhereLearner(object):
+
+    def __init__(self, learner_name,learner_kwargs):
+        
+        self.learner_name = learner_name
+        self.skill_dict = {}
+        self.learners = {}
+
+    def add_skill(self,skill):
+        self.learners[skill] = get_where_agent(self.learner_name)
+        skills = self.skill_dict.get(skill_label,[])
+        skills.append(skill)
+        self.skill_dict[skill_label] = skills
+
+    def check_match(self, skill, t, x):
+        return self.learners[skill].check_match(t,x)
+
+    def get_match(self,skill, X):
+        return self.learners[skill].get_match(X)
+
+    def get_all_matches(self,skill, X):
+        return self.learners[skill].get_all_matches(X)
+
+    def ifit(self,skill, X, y):
+        return self.learners[skill].ifit(X,y)
+
+    def fit(self,skill, X, y):
+        return self.learners[skill].fit(X,y)
+
+
 class MostSpecific(BaseILP):
     """
     This learner always returns the tuples it was trained with, after ensuring
@@ -658,11 +688,13 @@ class SpecificToGeneral(BaseILP):
             self.ifit(t, X[i], y[i])
 
 
-def get_where_learner(name):
-    return WHERE_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+def get_where_agent(name,learner_kwargs={}):
+    return WHERE_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
+def get_where_learner(name,learner_kwargs={}):
+    return WhereLearner(name,learner_kwargs)
 
-WHERE_LEARNERS = {
+WHERE_LEARNER_AGENTS = {
     'mostspecific': MostSpecific,
     'stateresponselearner': StateResponseLearner,
     'relationallearner': RelationalLearner,
