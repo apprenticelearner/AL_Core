@@ -19,25 +19,7 @@ from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 # epsilon = .9
 
 
-def explain_sai(knowledge_base, exp, sai, epsilon):
-    """
-    Doc String
-    """
-    # print('trying', exp, 'with', sai)
-    if len(exp) != len(sai):
-        return
 
-    goals = []
-    for i, elem in enumerate(exp):
-        if elem == sai[i]:
-            continue
-        else:
-            goals.append((elem, sai[i]))
-
-    # print("GOALS" ,goals)
-
-    for match in knowledge_base.fc_query(goals, max_depth=0, epsilon=epsilon):
-        yield match
 
 def compute_exp_depth(exp):
     """
@@ -100,6 +82,81 @@ def replace_vars(arg, i=0):
         return '?foa%s' % (str(i)), i+1
     else:
         return arg, i
+
+def eval_expression(r_exp,knowledge_base,function_set,epsilon):
+    rg_exp = []
+    # print("E", r_ele)
+    for ele in r_exp:
+        if isinstance(ele, tuple):
+            # print("THIS HAPPENED", ele, ground(ele), execute_functions(ground(ele)))
+
+            
+                    
+                    # execute_functions(subt(u))
+                    # rg_exp.append()
+
+                # print("BLEHH:", operator.effects) 
+            ok = False
+            for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
+                                                     max_depth=0,
+                                                      epsilon=epsilon):
+                # print("VARM:",var_match, ground(ele))
+                if var_match['?v'] != '':
+                    # print("V", var_match['?v'])
+                    rg_exp.append(var_match['?v'])
+                    # print("HERE_A",rg_exp[-1])
+                    ok = True
+                break
+
+            if(not ok):
+                operator_output = apply_operators(ele,function_set,knowledge_base,epsilon)
+                # print("OPERATOR_OUTPUT", ele, "->", operator_output)
+                if(operator_output != None and operator_output != ""):
+                    # print("O", operator_output)
+                    rg_exp.append(operator_output)
+                    ok = True
+
+            if(not ok):
+                rg_exp.append(None)
+                # print("HERE_B",operator_output)
+            
+
+
+            # if(operator_output != None):
+            #     rg_exp.append(operator_output)
+
+
+        else:
+            rg_exp.append(ele)
+    return rg_exp
+
+
+#TODO MAKE RECURSIVE SO THAT CAN USE HIGHER DEPTHS
+def apply_operators(ele, operators, knowledge_base,epsilon):
+    operator_output = None
+    for operator in operators:
+        effect = list(operator.effects)[0]
+        pattern = effect[0]
+        u_mapping = unify(pattern, ground(ele), {}) #Returns a mapping to name the values in the expression
+        if(u_mapping):
+            # print(operator.conditions,"\n")
+            # print(u_mapping,"\n")
+            # print(effect[1],"\n")
+            # print("BEEP", [subst(u_mapping,x) for x in operator.conditions],"\n")
+            condition_sub = [subst(u_mapping,x) for x in operator.conditions]
+            # print("CS", condition_sub)
+
+
+
+            value_map = next(knowledge_base.fc_query(condition_sub, max_depth=0, epsilon=epsilon))
+            # print(value_map)
+            # print()
+            try:
+                operator_output = execute_functions(subst(value_map,effect[1]))
+            except:
+                continue
+
+            return operator_output
 
 class WhereWhenHowNoFoa(BaseAgent):
     """
@@ -209,53 +266,41 @@ class WhereWhenHowNoFoa(BaseAgent):
 
 
                     # print("KB", knowledge_base)
-                    rg_exp = []
-                    for ele in r_exp:
-                        if isinstance(ele, tuple):
-                            # print("THIS HAPPENED", ele, ground(ele), execute_functions(ground(ele)))
+                    rg_exp = eval_expression(r_exp,knowledge_base,self.function_set,self.epsilon)
+                    # for ele in r_exp:
+                    #     if isinstance(ele, tuple):
+                    #         # print("THIS HAPPENED", ele, ground(ele), execute_functions(ground(ele)))
 
                             
                                     
-                                    # execute_functions(subt(u))
-                                    # rg_exp.append()
+                    #                 # execute_functions(subt(u))
+                    #                 # rg_exp.append()
 
-                                # print("BLEHH:", operator.effects) 
+                    #             # print("BLEHH:", operator.effects) 
                             
-                            for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
-                                                                     max_depth=0,
-                                                                      epsilon=self.epsilon):
-                                # print("VARM:",var_match, ground(ele))
-                                if var_match['?v'] != '':
-                                    rg_exp.append(var_match['?v'])
-                                    print("HERE_A",rg_exp[-1])
-                                break
+                    #         for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
+                    #                                                  max_depth=0,
+                    #                                                   epsilon=self.epsilon):
+                    #             # print("VARM:",var_match, ground(ele))
+                    #             if var_match['?v'] != '':
+                    #                 rg_exp.append(var_match['?v'])
+                    #                 # print("HERE_A",rg_exp[-1])
+                    #             break
 
-                            operator_output = None
-                            for operator in self.function_set:
-                                effect = list(operator.effects)[0]
-                                pattern = effect[0]
-                                u_mapping = unify(pattern, ground(ele), {})
-                                if(u_mapping):
-                                    # print(operator.conditions,"\n")
-                                    # print(u_mapping,"\n")
-                                    # print(effect[1],"\n")
-                                    # print("BEEP", [subst(u_mapping,x) for x in operator.conditions],"\n")
-                                    value_map = next(knowledge_base.fc_query([subst(u_mapping,x) for x in operator.conditions], max_depth=0, epsilon=self.epsilon))
-                                    # print(value_map)
-                                    # print()
-                                    operator_output = execute_functions(subst(value_map,effect[1]))
-                                    if(operator_output != ""):
-                                        rg_exp.append(operator_output)
-                                        print("HERE_B",operator_output)
-                                    break
+                    #         operator_output = apply_operators(ele,self.function_set,knowledge_base,self.epsilon)
+                    #         # print(operator_output)
+                    #         if(operator_output != None and operator_output != ""):
+                    #             rg_exp.append(operator_output)
+                    #             # print("HERE_B",operator_output)
+                            
 
 
-                            # if(operator_output != None):
-                            #     rg_exp.append(operator_output)
+                    #         # if(operator_output != None):
+                    #         #     rg_exp.append(operator_output)
 
 
-                        else:
-                            rg_exp.append(ele)
+                    #     else:
+                    #         rg_exp.append(ele)
 
                     # print("REE2")
 
@@ -289,10 +334,120 @@ class WhereWhenHowNoFoa(BaseAgent):
                                           enumerate(input_args)}
                     # response['inputs'] = list(rg_exp[3:])
                     response['foci_of_attention'] = []
-                    # pprint(response)
+                    pprint(response)
                     return response
 
         return {}
+
+    def explain_sai(self, skill, learner_dict, sai, knowledge_base,state):
+        """
+        Doc String
+        """
+        # print(skill)
+        # print(skill['where'])
+        exp, iargs = skill
+        skill_where = learner_dict['where']
+
+#
+        # print("SAI", sai)
+        for match in skill_where.get_matches(state):
+            # print(exp)
+            # print()
+            # print(m)
+            # print("CLOOOL",get_vars(exp))
+            mapping = {var:val for var,val in zip(get_vars(exp),match)}
+            grounded_exp = subst(mapping, exp)
+            rg_exp = tuple(eval_expression(grounded_exp,knowledge_base,self.function_set,self.epsilon))
+
+            # print("RG_EXP", rg_exp)
+
+            if(rg_exp == sai):
+                yield mapping
+            # if()
+            
+
+            # apply_operators(grounded_exp,self.function_set, knowledge_base, self.epsilon)
+
+        # if not skill_where.check_match(tup, example['flat_state']):
+            # continue
+        # print('trying', exp, 'with', sai)
+        # # print(skill_where)
+
+        # if len(exp) != len(sai):
+        #     return
+
+        # goals = []
+        # for i, elem in enumerate(exp):
+        #     if elem == sai[i]:
+        #         continue
+        #     else:
+        #         goals.append((elem, sai[i]))
+
+        # # print("GOALS" ,goals)
+
+        # for match in knowledge_base.fc_query(goals, max_depth=0, epsilon=self.epsilon):
+        #     yield match
+    def explanations_from_how_search(self,state,sai,input_args):
+        explanations = []
+
+        _, selection, action, inputs = sai
+        knowledge_base = FoPlanner([(ground(a),
+                                     state[a].replace('?', 'QM')
+                                     if isinstance(state[a], str)
+                                     else state[a])
+                                    for a in state],
+                                   self.function_set)
+        knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
+
+        
+
+        #Danny: these lines figure out what property holds the selection
+        selection_exp = selection
+        for sel_match in knowledge_base.fc_query([('?selection', selection)],
+                                                 max_depth=0,
+                                                 epsilon=self.epsilon):
+
+            selection_exp = sel_match['?selection']
+            # print("selection_exp", selection_exp)
+            #selection_exp: ('id', 'QMele-done')
+            break
+
+        input_exps = []
+
+        
+        for arg in input_args:
+            input_exp = input_val = inputs[arg]
+            # print('trying to explain', [((a, '?input'), iv)])
+
+            # TODO not sure what the best approach is for choosing among
+            # the possible explanations. Perhaps we should choose more than
+            # one. Maybe the shortest (less deep).
+
+            # f = False
+
+            #Danny: This populates a list of explanations found earlier in How search that work"
+            possible = []
+            for iv_m in knowledge_base.fc_query([((arg, '?input'), input_val)],
+                                                max_depth=0,
+                                                epsilon=self.epsilon):
+
+                # print("iv_m:", iv_m)
+
+                possible.append((arg, iv_m['?input']))
+
+            possible = [(compute_exp_depth(p), random(), p) for p in possible]
+            possible.sort()
+
+            if len(possible) > 0:
+                _, _, input_exp = possible[0]
+
+            input_exps.append(input_exp)
+            print("input_exp:", input_exp)
+
+        explanations.append(unground(('sai', selection_exp, action, *input_exps)))
+        print("EXPLANATIONS:", explanations)
+        return explanations
+
 
     def train(self, state, selection, action, inputs, reward, skill_label,
               foci_of_attention):
@@ -305,7 +460,7 @@ class WhereWhenHowNoFoa(BaseAgent):
         # print('skill_label', skill_label)
         # print('selection', selection)
         # print('action', action)
-        # print('input', inputs)
+        # print('inputs', inputs)
         # print('reward', reward)
         # print('state')
         # pprint(state)
@@ -341,8 +496,8 @@ class WhereWhenHowNoFoa(BaseAgent):
         if skill_label not in self.skills:
             self.skills[skill_label] = {}
 
-        explainations = []
-        secondary_explainations = []
+        explanations = []
+        secondary_explanations = []
 
         # the base explaination (the constants)
         input_args = tuple(sorted([arg for arg in inputs]))
@@ -352,20 +507,24 @@ class WhereWhenHowNoFoa(BaseAgent):
 
         # used for grounding out plans, don't need to build up each time.
         # print(function_sets[self.action_set])
-        knowledge_base = FoPlanner([(ground(a),
-                                     example['flat_state'][a].replace('?', 'QM')
-                                     if isinstance(example['flat_state'][a], str)
-                                     else example['flat_state'][a])
-                                    for a in example['flat_state']],
-                                   self.function_set)
-        knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
+
+        # knowledge_base = FoPlanner([(ground(a),
+        #                              example['flat_state'][a].replace('?', 'QM')
+        #                              if isinstance(example['flat_state'][a], str)
+        #                              else example['flat_state'][a])
+        #                             for a in example['flat_state']],
+        #                            self.function_set)
+        # knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
+        
         # FACTS AFTER USING FUNCTIONS.
         # pprint(knowledge_base.facts)
 
 
         #DANNY: The gist of this is to find_ applicable_skills (explanations because the inputs/outputs are literals)
-        for exp, iargs in self.skills[skill_label]:
-            for match in explain_sai(knowledge_base, exp, sai, self.epsilon):
+        for skill,learner_dict in self.skills[skill_label].items():
+            exp, iargs = skill
+            for match in self.explain_sai(skill, learner_dict, sai, knowledge_base, example['flat_state']):
+
                 # print("MATCH", match)
                 # print("COVERED", exp, m)
 
@@ -421,72 +580,31 @@ class WhereWhenHowNoFoa(BaseAgent):
 
                 # print("HERE3")
 
-                secondary_explainations.append(r_exp)
+                secondary_explanations.append(r_exp)
 
                 #Danny: Check that the where learner approves of the match
                 #       It seems like the where learner should have just generated this if it was going to check it anyway
                 #       This is only at the end it seems to allow for secondary explanations which the where learner is not yet aware of
+                # print("A", self.skills[skill_label])
+                # print("B", self.skills[skill_label][(exp, iargs)])
                 skill_where = self.skills[skill_label][(exp, iargs)]['where']
                 if not skill_where.check_match(tup, example['flat_state']):
                     continue
 
 
                 # print("ADDING", r_exp)
-                explainations.append(r_exp)
+                explanations.append(r_exp)
 
-        if len(explainations) == 0 and len(secondary_explainations) > 0:
-            explainations.append(choice(secondary_explainations))
+        if len(explanations) == 0 and len(secondary_explanations) > 0:
+            explanations.append(choice(secondary_explanations))
 
-        elif len(explainations) == 0:
+        elif len(explanations) == 0:
 
-            #Danny: these lines figure out what property holds the selection
-            selection_exp = selection
-            for sel_match in knowledge_base.fc_query([('?selection', selection)],
-                                                     max_depth=0,
-                                                     epsilon=self.epsilon):
-
-                selection_exp = sel_match['?selection']
-                # print("selection_exp", selection_exp)
-                #selection_exp: ('id', 'QMele-done')
-                break
-
-            input_exps = []
-
-            
-            for arg in input_args:
-                input_exp = input_val = inputs[arg]
-                # print('trying to explain', [((a, '?input'), iv)])
-
-                # TODO not sure what the best approach is for choosing among
-                # the possible explanations. Perhaps we should choose more than
-                # one. Maybe the shortest (less deep).
-
-                # f = False
-
-                #Danny: This populates a list of explanations found earlier in How search that work"
-                possible = []
-                for iv_m in knowledge_base.fc_query([((arg, '?input'), input_val)],
-                                                    max_depth=0,
-                                                    epsilon=self.epsilon):
-
-                    # print("iv_m:", iv_m)
-
-                    possible.append((arg, iv_m['?input']))
-
-                possible = [(compute_exp_depth(p), random(), p) for p in possible]
-                possible.sort()
-
-                if len(possible) > 0:
-                    _, _, input_exp = possible[0]
-
-                input_exps.append(input_exp)
-                print("input_exp:", input_exp)
-
-            explainations.append(unground(('sai', selection_exp, action, *input_exps)))
+            explanations = self.explanations_from_how_search(example['flat_state'], ('sai', selection, action, inputs) ,input_args)
 
         #Danny: Do the training for all the applicable explanations
-        # print("EXPLAINS", explainations)
-        for exp in explainations:
+        # print("EXPLAINS", explanations)
+        for exp in explanations:
             args = get_vars(exp)
             foa_vmapping = {field: '?foa%s' % j for j, field in enumerate(args)}
             foa_mapping = {field: 'foa%s' % j for j, field in enumerate(args)}
@@ -522,8 +640,8 @@ class WhereWhenHowNoFoa(BaseAgent):
 
             self.skills[skill_label][r_exp]['when'].ifit(r_flat, example['reward'])
 
-        # check for subsuming explainations (alternatively we could probably
-        # just order the explainations by how many examples they cover
+        # check for subsuming explanations (alternatively we could probably
+        # just order the explanations by how many examples they cover
 
 
     def check(self, state, selection, action, inputs):

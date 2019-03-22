@@ -80,6 +80,7 @@ class ScikitTrestle(object):
             self.tree = TrestleTree()
         else:
             self.tree = TrestleTree(**params)
+        self.state_format = "var_foas_state"
 
     def ifit(self, x, y):
         x = deepcopy(x)
@@ -103,6 +104,7 @@ class ScikitCobweb(object):
             self.tree = Cobweb3Tree()
         else:
             self.tree = Cobweb3Tree(**params)
+        self.state_format = "var_foas_state"
 
     def ifit(self, x, y):
         x = deepcopy(x)
@@ -135,6 +137,7 @@ class ScikitPyIBL(object):
                 self.decay = params['decay']
             if 'temperature' in params:
                 self.temperature = params['temperature']
+        self.state_format = "var_foas_state"
 
     def ifit(self, x, y):
         if 'X' not in self:
@@ -193,6 +196,7 @@ class CustomLogisticRegression(LogisticRegression):
             return self
         else:
             return super(CustomLogisticRegression, self).fit(X, y)
+        self.state_format = "var_foas_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -211,6 +215,7 @@ class CustomSVM(SVC):
             return self
         else:
             return super(CustomSVM, self).fit(X, y)
+        self.state_format = "var_foas_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -229,6 +234,7 @@ class CustomSGD(SGDClassifier):
             return self
         else:
             return super(CustomSGD, self).fit(X, y)
+        self.state_format = "var_foas_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -250,6 +256,7 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
             return self
         else:
             return super(CustomKNeighborsClassifier, self).fit(X, y)
+        self.state_format = "var_foas_state"
 
     def predict(self, X):
         if self.is_sample_less:
@@ -259,6 +266,9 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
 
 
 class AlwaysTrue(object):
+
+    def __init__(self):
+        self.state_format = "var_foas_state"
 
     def ifit(self, x, y):
         pass
@@ -275,6 +285,7 @@ class MajorityClass(object):
     def __init__(self):
         self.pos = 0
         self.neg = 0
+        self.state_format = "var_foas_state"
 
     def ifit(self, x, y):
         if y == 1:

@@ -16,6 +16,7 @@
 # -Each Learner Should own its own parts. Should not be kept in skills -> makes things more modular.
 
 
+#TODO: Translate
 def explain_sai(knowledge_base, exp, sai, epsilon):
     """
     Doc String
@@ -103,7 +104,7 @@ def variablize_by_where(state,match):
     
     # vmapping = {'?foa' + str(i): ele for i, ele in enumerate(match)}
     # r_exp = list(rename_flat({exp: True}, vmapping))[0]
-    
+
     mapping = {'foa' + str(i): ele for i, ele in enumerate(match)}
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     return r_state
@@ -151,7 +152,10 @@ class ModularAgent(BaseAgent):
 		pass
 	def which_learner.cull_how(explanations):
 		pass
-
+	def where_learner.check_match(explanation):
+		pass
+	def how_learner.how_search(state,sai):
+		pass
 
 	#####-----------------------REQUEST--------------------------###########
 
@@ -172,7 +176,7 @@ class ModularAgent(BaseAgent):
 
 				explanation = Explanation(skill,match)
 				if(explanation.conditions_apply()):
-					if(when_learner.type == "var_foas_state" and when_learner.predict(skill, variablize_by_where(state, match))) <= 0:
+					if(when_learner.state_format == "var_foas_state" and when_learner.predict(skill, variablize_by_where(state, match))) <= 0:
 						continue
 
 
@@ -201,10 +205,10 @@ class ModularAgent(BaseAgent):
 	def explanations_from_skills(self,state, sai,skills): # -> return Iterator<skill>
 		for skill in skills:
 			######## ------------------  Vectorizable-----------------------#######
-			for match in explain_sai(knowledge_base, exp, sai, self.epsilon):
+			for explanation in explain_sai(state, skill,sai):
 				explanation = Explanation(skill,match)
-				if(explanation.output_selection == sai.selection && explanation.compute(state) == sai.input):
-					yield explanation
+				# if(explanation.output_selection == sai.selection && explanation.compute(state) == sai.input):
+				yield explanation
 			######## -------------------------------------------------------#######
 
 	def explanations_from_how_search(self,state, sai):# -> return Iterator<skill>
@@ -250,11 +254,12 @@ class ModularAgent(BaseAgent):
 #####--------------------------CLASS DEFINITIONS-----------------------------###########
 
 
-class SAI(object):
-	def __init__(self,selection, action, inp):
+class SAIS(object):
+	def __init__(self,selection, action, inp,state=None):
 		self.selection = selection
 		self.action = action
 		self.input = inp# functions that return boolean 
+		self.state = state
 
 
 class Operator(object):
@@ -286,7 +291,7 @@ class Skill(object):
 
 class Explanation(object):
 	
-	def __init__(skill, mapping):
+	def __init__(self,skill, mapping):
 		self.skill = skill
 		self.selections_mapping = mapping
 		self.input_selections = [mapping[s] for s in skill.input_selections]#The Literal 
@@ -300,6 +305,7 @@ class Explanation(object):
 		return SAI(self.input_selections,self.skill.action, self.compute)
 
 	def to_xml(self,agent=None): #-> needs some way of representing itself including its when/where/how parts
+		pass
 
 
  	#????? Should this be an object?, Should there be ways of translating between different types of states ???????
