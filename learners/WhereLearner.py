@@ -116,9 +116,11 @@ class WhereLearner(object):
         self.skills_by_label = {}
         self.learners = {}
 
-    def add_skill(self,skill):
+    def add_skill(self,skill, constraints):
         # args = [skill.selection_var] + skill.input_vars
-        self.learners[skill] = get_where_agent(self.learner_name,args=tuple(skill.all_vars),**self.learner_kwargs)
+        self.learners[skill] = get_where_agent(self.learner_name,
+            args=tuple(skill.all_vars),constraints=constraints,**self.learner_kwargs)
+        
         skills = self.skills_by_label.get(skill.label,[])
         skills.append(skill)
         self.skills_by_label[skill.label] = skills

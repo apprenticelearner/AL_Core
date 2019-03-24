@@ -75,6 +75,7 @@ def DictVectWrapper(clf):
 
 
 
+
 class WhenLearner(object):
     STATE_FORMAT_OPTIONS = ["variablized_state",  "state_only"]
     WHEN_TYPE_OPTIONS = ["one_learner_per_skill", "one_learner_per_label"]
@@ -103,6 +104,7 @@ class WhenLearner(object):
 
 
     def ifit(self,skill, state,reward):
+        # print("FIT_STATe", state)
         if(self.type == "one_learner_per_label"):
             if(not skill_label in self.learner):
                 self.learner[skill.label] = get_when_agent(self.learner_name,**self.learner_kwargs)
@@ -110,11 +112,13 @@ class WhenLearner(object):
         elif(self.type == "one_learner_per_skill"):
             self.learners[skill].ifit(state,reward)
 
-    def predict(self,skill,skill_label,state,reward):
+    def predict(self,skill,state):
+        # print("STATE:",state, type(state))
+        
         if(self.type == "one_learner_per_label"):
-            return self.predict(state)
+            return self.learners[skill.label].predict([state])[0]
         elif(self.type == "one_learner_per_skill"):
-            return self.learners[skill].predict(state)        
+            return self.learners[skill].predict([state])[0]        
 
     def applicable_skills(self,state,skill_label,skills=None):
         if(skills == None): skills = self.skills_by_label[skill_label]

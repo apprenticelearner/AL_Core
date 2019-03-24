@@ -166,7 +166,7 @@ class ModularAgent(BaseAgent):
 				 if isinstance(v, str)
 				 else v
 				 for a, v in knowledge_base.facts}
-		return state
+		return state,knowledge_base
 
 
 	#######---------------Needs to be implemented elsewhere--------------------##########
@@ -188,7 +188,7 @@ class ModularAgent(BaseAgent):
 
 		#order here might need to be switched depending on when learner implementation (see nitty gritty questions below)
 		if(self.when_learner.state_format == "state_only"):
-			skills = when_learner.applicable_skills(state, skills=skills)
+			skills = self.when_learner.applicable_skills(state, skills=skills)
 		else:
 			skills = self.skills
 
@@ -197,10 +197,12 @@ class ModularAgent(BaseAgent):
 			for match in self.where_learner.get_matches(skill,state):
 				#TODO: Should this even ever be produced?
 				if len(match) != len(set(match)): continue
-				print("MATCH",match)
-				explanation = Explanation(skill,match)
+				explanation = Explanation(skill,{v:m for v,m in zip(skill.all_vars,match)})
 				if(explanation.conditions_apply()):
-					if(when_learner.state_format == "variablized_state" and when_learner.predict(skill, variablize_by_where(state, match))) <= 0:
+					# print(match)
+					# print("PRED:",self.when_learner.predict(skill, variablize_by_where(state, match)))
+					if(self.when_learner.state_format == "variablized_state" and 
+						self.when_learner.predict(skill, variablize_by_where(state, match)) <= 0) :
 						continue
 
 
@@ -209,11 +211,11 @@ class ModularAgent(BaseAgent):
 		
 
 	def request(self,state): #-> Returns sai
-		state_featurized = self.apply_featureset(state)
+		state_featurized,knowledge_base = self.apply_featureset(state)
 		skills = self.which_learner.sort_by_heuristic(self.skills,state_featurized)
 		explanations = self.applicable_explanations(state_featurized, skills=skills)
 		explanation = next(explanations,None)
-		return to_response.to_sai() if explanation != None else EMPTY_RESPONSE
+		return explanation.to_response(knowledge_base,self.function_set,self.epsilon) if explanation != None else EMPTY_RESPONSE
 
 
 	#####-----------------------TRAIN --------------------------###########
@@ -221,28 +223,30 @@ class ModularAgent(BaseAgent):
 	def where_matches(self,explanations,state): #-> list<Explanation>, list<Explanation>
 		matching_explanations, nonmatching_explanations = [], []
 		for exp in explanations:
-			if(where_learner.check_match(list(exp.mapping.keys()), state)):
+			if(self.where_learner.check_match(exp.skill, list(exp.mapping.values()), state)):
 				matching_explanations.append(exp)
 			else:
 				nonmatching_explanations.append(exp)
 		return matching_explanations, nonmatching_explanations
 
 	def _explain_sai(self, skill, sai, knowledge_base,state):
-		exp, iargs = skill
+		# exp, iargs = skill
 		# skill_where = learner_dict['where']
+		if(skill.action == sai.action):
+			for match in self.where_learner.get_matches(skill,state):
+				mapping = {var:val for var,val in zip(skill.all_vars,match)}
+				grounded_sel = subst(mapping, skill.selection_rule)
+				grounded_inp = subst(mapping, skill.input_rule)
+				rg_exp = tuple(eval_expression([grounded_sel,grounded_inp], knowledge_base, self.function_set, self.epsilon))
+				# print("COMPARE", rg_exp,sai)
+				# print(mapping)
+				if(rg_exp[0] == sai.selection and {skill.input_args[0]:rg_exp[1]} == sai.inputs):
+					yield Explanation(skill,mapping)
 
-		for match in self.where_learner.get_matches(skill,state):
-			mapping = {var:val for var,val in zip(get_vars(exp),match)}
-			grounded_exp = subst(mapping, exp)
-			rg_exp = tuple(eval_expression(grounded_exp,knowledge_base,self.function_set,self.epsilon))
-
-			if(rg_exp == sai):
-				yield Explanation(skill,match)
-
-	def explanations_from_skills(self,state, sai,skills): # -> return Iterator<skill>
+	def explanations_from_skills(self,state,knowledge_base, sai,skills): # -> return Iterator<skill>
 		for skill in skills:
 			######## ------------------  Vectorizable-----------------------#######
-			for explanation in self._explain_sai(state, skill,sai):
+			for explanation in self._explain_sai(skill, sai, knowledge_base, state):
 				# explanation = Explanation(skill,match)
 				# if(explanation.output_selection == sai.selection && explanation.compute(state) == sai.input):
 				yield explanation
@@ -254,7 +258,7 @@ class ModularAgent(BaseAgent):
 		input_args = tuple(sorted([arg for arg in sai.inputs.keys()]))
 
 		explanations = []
-		print(state)
+		# print(state)
 		knowledge_base = FoPlanner([(ground(a),
 									 state[a].replace('?', 'QM')
 									 if isinstance(state[a], str)
@@ -282,6 +286,7 @@ class ModularAgent(BaseAgent):
 			#Danny: This populates a list of explanations found earlier in How search that work"
 			
 			possible = []
+			exp_exists = False
 			for iv_m in knowledge_base.fc_query([((arg, '?input'), input_val)],
 												max_depth=0,
 												epsilon=self.epsilon):
@@ -291,12 +296,20 @@ class ModularAgent(BaseAgent):
 				vmapping = {v:k for k,v in foa_vmapping.items()}
 				r_exp = list(rename_flat({(arg, iv_m['?input']): True}, vmapping).keys())[0]
 
-				ordered_mapping = {"?selection": }
-				ordered_mapping.update({k:ground(v) for k,v in vmapping.items()})
+				ordered_mapping = {"?selection": get_vars(unground(selection_exp))[0]}
+				ordered_mapping.update({k:unground(v) for k,v in vmapping.items()})
+
+				# print(ordered_mapping)
 
 
-				skill = Skill(selection_exp, sai.action, r_exp, "?selection", list(vmapping.keys()) )
+				skill = Skill(selection_exp, sai.action, r_exp, "?selection", list(vmapping.keys()), list(sai.inputs.keys()) )
 				# vmapping["?selection"] = 
+
+				exp_exists = True
+				yield Explanation(skill, ordered_mapping)
+			if(not exp_exists):
+				skill = Skill(selection_exp, sai.action, input_exp, "?selection", [], list(sai.inputs.keys()) )
+				ordered_mapping = {"?selection": get_vars(unground(selection_exp))[0]}
 				yield Explanation(skill, ordered_mapping)
 				# possible.append((arg, iv_m['?input']))
 
@@ -314,28 +327,40 @@ class ModularAgent(BaseAgent):
 		# return explanations
 
 	def add_skill(self,skill,skill_label="DEFAULT_SKILL"): #-> return None
+
+		# print("ADD SKILL")
 		skill._id_num = self.skill_counter
 		self.skill_counter += 1
 		self.skills.append(skill)
 		self.skills_by_label[skill_label] = skill
-		self.where_learner.add_skill(skill)
+
+		constraints = generate_html_tutor_constraints(skill)
+		self.where_learner.add_skill(skill,constraints)
 		self.when_learner.add_skill(skill)
 		self.which_learner.add_skill(skill)
 
 
 	def fit(self,explanations, state, reward): #-> return None
 		for exp in explanations:
-			self.when_learner.ifit(exp.skill, state, reward)
+			if(self.when_learner.state_format == 'variablized_state'):
+				# print("FIT_WHEN:", exp.mapping.values(), reward)
+				self.when_learner.ifit(exp.skill, variablize_by_where(state,exp.mapping.values()), reward)
+			else:
+				self.when_learner.ifit(exp.skill, state, reward)
 			self.which_learner.ifit(exp.skill, state, reward)
-			print("TRAIN ON", list(exp.mapping.values()))
+			# print("TRAIN ON", list(exp.mapping.values()))
 			self.where_learner.ifit(exp.skill, list(exp.mapping.values()), state, reward)
 
 
 	def train(self,state, selection, action, inputs, reward, skill_label, foci_of_attention):# -> return None
 		sai = SAIS(selection, action, inputs)
-		state_featurized = self.apply_featureset(state)
-		explanations = self.explanations_from_skills(state_featurized,sai,self.skills)
+		state_featurized,knowledge_base = self.apply_featureset(state)
+		# print("TOTAL SKILLS:", len(self.skills))
+		explanations = self.explanations_from_skills(state_featurized,knowledge_base,sai,self.skills)
+		explanations = [x for x in explanations]
+		# print("SKILL EXPS:", len(explanations))
 		explanations, nonmatching_explanations = self.where_matches(explanations,state_featurized)
+		# print("WHERE EXPS:", len(explanations))
 		if(len(explanations) == 0 ):
 			if(len(nonmatching_explanations) > 0):
 				explanations = [choice(nonmatching_explanations)]
@@ -351,7 +376,7 @@ class ModularAgent(BaseAgent):
 	#####--------------------------CHECK-----------------------------###########
 
 	def check(self, state, sai):
-		state_featurized = self.apply_featureset(state)
+		state_featurized,knowledge_base = self.apply_featureset(state)
 		explanations = self.explanations_from_skills(state,sai,self.skills)
 		explanations, nonmatching_explanations = self.where_matches(explanations)
 		return len(explanations) > 0
@@ -366,6 +391,8 @@ class SAIS(object):
 		self.action = action
 		self.inputs = inputs# functions that return boolean 
 		self.state = state
+	def __repr__(self):
+		return "S:%r, A:%r, I:%r" %(self.selection,self.action, self.inputs)
 
 
 # class Operator(object):
@@ -385,12 +412,13 @@ class SAIS(object):
 
 
 class Skill(object):
-	def __init__(self,selection_rule, action, input_rule, selection_var, input_vars, conditions=[],label=None):
+	def __init__(self,selection_rule, action, input_rule, selection_var, input_vars, input_args,conditions=[],label=None):
 		self.selection_rule = selection_rule
 		self.action = action
 		self.input_rule = input_rule
 		self.selection_var = selection_var
 		self.input_vars = input_vars
+		self.input_args = input_args
 		self.all_vars = tuple([self.selection_var] + self.input_vars)
 
 		self.conditions = conditions
@@ -416,26 +444,36 @@ class Skill(object):
 class Explanation(object):
 	
 	def __init__(self,skill, mapping):
+		assert isinstance(mapping,dict), "Mapping must be type dict got type %r" % type(mapping)
 		self.skill = skill
 		self.mapping = mapping
 		self.selection_literal = mapping[skill.selection_var]
 		self.input_literals = [mapping[s] for s in skill.input_vars]#The Literal 
 
-	def compute(self, state):
-		return operator_graph(input_selections)
-	def conditions_apply():
+	def compute(self, knowledge_base,operators,epsilon):
+
+		# print("input_rule:", self.skill.input_rule)
+		# print("selection_rule:", self.skill.selection_rule)
+		v = eval_expression([subst(self.mapping,self.skill.input_rule)], knowledge_base,operators,epsilon)[0]
+
+		return {self.skill.input_args[0]:v}
+	def conditions_apply(self):
 		return True
 		# for c in self.skill.conditions:
 		# 	c.applies(...)
 	# def to_sai():
 	# 	return SAI(self.input_selections,self.skill.action, self.compute)
-	def to_response(self):
+	def to_response(self, knowledge_base,operators,epsilon):
+		# print("SHOULD BE", eval_expression([subst(self.mapping,self.skill.selection_rule)], knowledge_base,operators,epsilon))
+
 		response = {}
 		response['skill_label'] = self.skill.label
-		response['selection'] = self.selection_literal
+		response['selection'] = self.selection_literal.replace("?ele-","")
+		# print('selection',response['selection'])
 		response['action'] = self.skill.action
 		# computed_inputs = self.compute()
-		response['inputs'] = self.compute()#{a: rg_exp[3 + i] for i, a in
+		response['inputs'] = self.compute(knowledge_base,operators,epsilon)#{a: rg_exp[3 + i] for i, a in
+		# print('inputs',response['inputs'])
 							  #enumerate(input_args)}
 		# response['inputs'] = list(rg_exp[3:])
 		response['foci_of_attention'] = []
@@ -455,9 +493,106 @@ class Explanation(object):
 
 
 
+def apply_operators(ele, knowledge_base,operators,epsilon):
+    operator_output = None
+    for operator in operators:
+        effect = list(operator.effects)[0]
+        pattern = effect[0]
 
+        # print("pattern:",pattern)
+        # print("ground(ele):",ground(ele))
+        u_mapping = unify(pattern, ground(ele), {}) #Returns a mapping to name the values in the expression
+        # print("u_mapping:",u_mapping)
+        if(u_mapping):
+            # print(operator.conditions,"\n")
+            # print(u_mapping,"\n")
+            # print(effect[1],"\n")
+            # print("BEEP", [subst(u_mapping,x) for x in operator.conditions],"\n")
+            condition_sub = [subst(u_mapping,x) for x in operator.conditions]
+            # print("CS", condition_sub)
+
+
+            # print("HERE1")
+            value_map = next(knowledge_base.fc_query(condition_sub, max_depth=0, epsilon=epsilon))
+            # print("HERE2")
+            # print(value_map)
+            # print()
+            try:
+                operator_output = execute_functions(subst(value_map,effect[1]))
+            except:
+                continue
+
+            # print("HERE3")
+            return operator_output
 		
 	
-		
+def eval_expression(r_exp,knowledge_base,function_set,epsilon):
+    rg_exp = []
+    # print("E", r_ele)
+    for ele in r_exp:
+        if isinstance(ele, tuple):
+            # print("THIS HAPPENED", ele, ground(ele), execute_functions(ground(ele)))
 
-	
+            
+                    
+                    # execute_functions(subt(u))
+                    # rg_exp.append()
+
+                # print("BLEHH:", operator.effects) 
+            ok = False
+            for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
+                                                     max_depth=0,
+                                                      epsilon=epsilon):
+                # print("VARM:",var_match, ground(ele))
+                if var_match['?v'] != '':
+                    # print("V", var_match['?v'])
+                    rg_exp.append(var_match['?v'])
+                    # print("HERE_A",rg_exp[-1])
+                    ok = True
+                break
+
+            if(not ok):
+                operator_output = apply_operators(ele,knowledge_base,function_set,epsilon)
+                # print("OPERATOR_OUTPUT", ele, "->", operator_output)
+                if(operator_output != None and operator_output != ""):
+                    # print("O", operator_output)
+                    rg_exp.append(operator_output)
+                    ok = True
+
+            if(not ok):
+                rg_exp.append(None)
+                # print("HERE_B",operator_output)
+            
+
+
+            # if(operator_output != None):
+            #     rg_exp.append(operator_output)
+
+
+        else:
+            rg_exp.append(ele)
+    return rg_exp
+
+def generate_html_tutor_constraints(skill):
+    """
+    Given an skill, this finds a set of constraints for the SAI, so it don't
+    fire in nonsensical situations.
+    """
+    constraints = set()
+
+    # get action
+    if skill.action == "ButtonPressed":
+        constraints.add(('id', skill.selection_var, 'done'))
+    else:
+        constraints.add(('contentEditable', skill.selection_var, True))
+
+    # value constraints, don't select empty values
+    for i, arg in enumerate(skill.input_vars):
+        constraints.add(('value', arg, '?foa%ival' % (i+1)))
+        constraints.add((is_not_empty_string, '?foa%ival' % (i+1)))
+        # constraints.add(('type', a, 'MAIN::cell'))
+
+    return frozenset(constraints)
+
+def is_not_empty_string(sting):
+    return sting != ''
