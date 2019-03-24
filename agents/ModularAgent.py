@@ -17,25 +17,25 @@
 
 
 #TODO: Translate
-def explain_sai(knowledge_base, exp, sai, epsilon):
-    """
-    Doc String
-    """
-    # print('trying', exp, 'with', sai)
-    if len(exp) != len(sai):
-        return
+# def explain_sai(knowledge_base, exp, sai, epsilon):
+#     """
+#     Doc String
+#     """
+#     # print('trying', exp, 'with', sai)
+#     if len(exp) != len(sai):
+#         return
 
-    goals = []
-    for i, elem in enumerate(exp):
-        if elem == sai[i]:
-            continue
-        else:
-            goals.append((elem, sai[i]))
+#     goals = []
+#     for i, elem in enumerate(exp):
+#         if elem == sai[i]:
+#             continue
+#         else:
+#             goals.append((elem, sai[i]))
 
-    # print("GOALS" ,goals)
+#     # print("GOALS" ,goals)
 
-    for match in knowledge_base.fc_query(goals, max_depth=0, epsilon=epsilon):
-        yield match
+#     for match in knowledge_base.fc_query(goals, max_depth=0, epsilon=epsilon):
+#         yield match
 
 def compute_exp_depth(exp):
     """
@@ -156,8 +156,8 @@ class ModularAgent(BaseAgent):
 	# 	pass
 	# def where_learner.check_match(explanation):
 	# 	pass
-	def how_learner.how_search(state,sai):
-		pass
+	# def how_learner.how_search(state,sai):
+	# 	pass
 
 	#####-----------------------REQUEST--------------------------###########
 
@@ -204,17 +204,77 @@ class ModularAgent(BaseAgent):
 				nonmatching_explanations.append(exp)
 		return matching_explanations, nonmatching_explanations
 
+	def explain_sai(self, skill, learner_dict, sai, knowledge_base,state):
+        exp, iargs = skill
+        skill_where = learner_dict['where']
+
+        for match in skill_where.get_matches(state):
+            mapping = {var:val for var,val in zip(get_vars(exp),match)}
+            grounded_exp = subst(mapping, exp)
+            rg_exp = tuple(eval_expression(grounded_exp,knowledge_base,self.function_set,self.epsilon))
+
+            if(rg_exp == sai):
+                yield Explanation(skill,match)
+
 	def explanations_from_skills(self,state, sai,skills): # -> return Iterator<skill>
 		for skill in skills:
 			######## ------------------  Vectorizable-----------------------#######
 			for explanation in explain_sai(state, skill,sai):
-				explanation = Explanation(skill,match)
+				# explanation = Explanation(skill,match)
 				# if(explanation.output_selection == sai.selection && explanation.compute(state) == sai.input):
 				yield explanation
 			######## -------------------------------------------------------#######
 
-	def explanations_from_how_search(self,state, sai):# -> return Iterator<skill>
-		return how_learner.how_search(state,sai)
+	def explanations_from_how_search(self,state, sai):# -> return Iterator<Explanation>
+		# def explanations_from_how_search(self,state,sai,input_args):
+        explanations = []
+
+        _, selection, action, inputs = sai
+        knowledge_base = FoPlanner([(ground(a),
+                                     state[a].replace('?', 'QM')
+                                     if isinstance(state[a], str)
+                                     else state[a])
+                                    for a in state],
+                                   self.function_set)
+        knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
+
+        #Danny: these lines figure out what property holds the selection
+        selection_exp = selection
+        for sel_match in knowledge_base.fc_query([('?selection', selection)],
+                                                 max_depth=0,
+                                                 epsilon=self.epsilon):
+
+            selection_exp = sel_match['?selection']
+            # print("selection_exp", selection_exp)
+            #selection_exp: ('id', 'QMele-done')
+            break
+
+        input_exps = []
+        
+        for arg in input_args:
+            input_exp = input_val = inputs[arg]
+            # print('trying to explain', [((a, '?input'), iv)])
+            #Danny: This populates a list of explanations found earlier in How search that work"
+            skill = Skill(input_selections, output_selection, action, (arg, iv_m['?input']))
+            possible = []
+            for iv_m in knowledge_base.fc_query([((arg, '?input'), input_val)],
+                                                max_depth=0,
+                                                epsilon=self.epsilon):
+            	yield Explanation(skill, iv_m)
+                # possible.append((arg, iv_m['?input']))
+
+            # possible = [(compute_exp_depth(p), random(), p) for p in possible]
+            # possible.sort()
+
+            # if len(possible) > 0:
+            #     _, _, input_exp = possible[0]
+
+            # input_exps.append(input_exp)
+            # print("input_exp:", input_exp)
+            	
+        # explanations.append(unground(('sai', selection_exp, action, *input_exps)))
+        # print("EXPLANATIONS:", explanations)
+        # return explanations
 
 	def add_skill(self,skill,skill_label="DEFAULT_SKILL"): #-> return None
 		skill._id_num = self.skill_counter
@@ -240,7 +300,7 @@ class ModularAgent(BaseAgent):
 				explanations = [choice(nonmatching_explanations)]
 			else:
 				explanations = explanations_from_how_search(state,sai)
-				explanations = which_learner.cull_how(skills) #Choose all or just the most parsimonious 
+				explanations = which_learner.cull_how(explanations) #Choose all or just the most parsimonious 
 				for exp in explanations:
 					self.add_skill(exp.skill)
 		# skill = which_learner.most_relevant(skills)
@@ -284,19 +344,22 @@ class Operator(object):
 
 
 class Skill(object):
-	def __init__(conditions, action, operator_chain, input_selections, output_selection, label=None):
+	def __init__(input_selections, output_selection, action, operator_graph, conditions=[],label=None):
 		self.label = label
 		self._id_num = None
 		self.conditions = conditions
 		self.action = action
-		self.operator_chain = operator_chain
+		self.operator_graph = operator_graph
 		self.input_selections = input_selections
 		self.output_selection = output_selection
+		self._how_depth = None
 		
 	def to_xml(self,agent=None): #-> needs some way of representing itself including its when/where/how parts
 		pass
-	def chain_length(self):
-		pass
+	def get_how_depth(self):
+		if(self._how_depth == None):
+			self._how_depth = compute_exp_depth(self.operator_graph)
+		return self._how_depth
 
 	def __hash__(self):
 		return self._id_num
@@ -314,7 +377,7 @@ class Explanation(object):
 		self.input_selections = [mapping[s] for s in skill.input_selections]#The Literal 
 		self.output_selection = mapping[skill.output_selection] 
 	def compute(self, state):
-		return operator_chain(input_selections)
+		return operator_graph(input_selections)
 	def conditions_apply():
 		for c in self.skill.conditions:
 			c.applies(...)
@@ -323,6 +386,9 @@ class Explanation(object):
 
 	def to_xml(self,agent=None): #-> needs some way of representing itself including its when/where/how parts
 		pass
+
+	def get_how_depth(self):
+		return self.skill.get_how_depth()
 
 
  	#????? Should this be an object?, Should there be ways of translating between different types of states ???????
