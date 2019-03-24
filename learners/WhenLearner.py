@@ -76,36 +76,37 @@ def DictVectWrapper(clf):
 
 
 class WhenLearner(object):
-    STATE_FORMAT_OPTIONS = ["var_foas_state",  "state_only"]
+    STATE_FORMAT_OPTIONS = ["variablized_state",  "state_only"]
     WHEN_TYPE_OPTIONS = ["one_learner_per_skill", "one_learner_per_label"]
 
-    def __init__(self, learner_name, when_type = "one_learner_per_skill", state_format="var_foas_state",learner_kwargs={}):
-        assert state_format in x.__class__.STATE_FORMAT_OPTIONS
-        assert when_type in x.__class__.WHEN_TYPE_OPTIONS
+    def __init__(self, learner, when_type = "one_learner_per_skill", state_format="variablized_state",learner_kwargs={}):
+        assert state_format in self.__class__.STATE_FORMAT_OPTIONS
+        assert when_type in self.__class__.WHEN_TYPE_OPTIONS
 
+        self.learner_name = learner
         self.learner_kwargs = learner_kwargs
-        self.learner_name = learner_name
+        
         self.type = when_type
         self.state_format = state_format
-        self.skill_dict = {}
+        self.skills_by_label = {}
             
         # (self.type == "one_learner_per_skill"):
         self.learners = {}
 
 
-    def add_skill(self, skill, skill_label):
+    def add_skill(self, skill):
         if(self.type == "one_learner_per_skill"):
-            self.learners[skill] = get_when_agent(self.learner_name,learner_kwargs)
-        skills = self.skill_dict.get(skill_label,[])
+            self.learners[skill] = get_when_agent(self.learner_name,**self.learner_kwargs)
+        skills = self.skills_by_label.get(skill.label,[])
         skills.append(skill)
-        self.skill_dict[skill_label] = skills
+        self.skills_by_label[skill.label] = skills
 
 
-    def ifit(self,skill, skill_label, state,reward):
+    def ifit(self,skill, state,reward):
         if(self.type == "one_learner_per_label"):
             if(not skill_label in self.learner):
-                self.learner[skill_label] = get_when_agent(self.learner_name,learner_kwargs)
-            self.learner[skill_label].ifit(state,reward)
+                self.learner[skill.label] = get_when_agent(self.learner_name,**self.learner_kwargs)
+            self.learner[skill.label].ifit(state,reward)
         elif(self.type == "one_learner_per_skill"):
             self.learners[skill].ifit(state,reward)
 
@@ -116,7 +117,7 @@ class WhenLearner(object):
             return self.learners[skill].predict(state)        
 
     def applicable_skills(self,state,skill_label,skills=None):
-        if(skills == None): skills = self.skill_dict[skill_label]
+        if(skills == None): skills = self.skills_by_label[skill_label]
         raise NotImplementedError("Still need to write applicable_skills")
 
 
@@ -126,7 +127,7 @@ class ScikitTrestle(object):
 
     def __init__(self, **kwargs):
         self.tree = TrestleTree(**kwargs)
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         x = deepcopy(x)
@@ -147,7 +148,7 @@ class ScikitCobweb(object):
 
     def __init__(self, **kwargs):
         self.tree = Cobweb3Tree(**kwargs)
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         x = deepcopy(x)
@@ -180,7 +181,7 @@ class ScikitPyIBL(object):
                 self.decay = params['decay']
             if 'temperature' in params:
                 self.temperature = params['temperature']
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         if 'X' not in self:
@@ -239,7 +240,7 @@ class CustomLogisticRegression(LogisticRegression):
             return self
         else:
             return super(CustomLogisticRegression, self).fit(X, y)
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -258,7 +259,7 @@ class CustomSVM(SVC):
             return self
         else:
             return super(CustomSVM, self).fit(X, y)
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -277,7 +278,7 @@ class CustomSGD(SGDClassifier):
             return self
         else:
             return super(CustomSGD, self).fit(X, y)
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -299,7 +300,7 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
             return self
         else:
             return super(CustomKNeighborsClassifier, self).fit(X, y)
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def predict(self, X):
         if self.is_sample_less:
@@ -311,7 +312,7 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
 class AlwaysTrue(object):
 
     def __init__(self):
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         pass
@@ -328,7 +329,7 @@ class MajorityClass(object):
     def __init__(self):
         self.pos = 0
         self.neg = 0
-        self.state_format = "var_foas_state"
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         if y == 1:
@@ -356,7 +357,7 @@ parameters_sgd = {'loss': 'perceptron'}
 #######-------------------UTILITIES----------------#######
 
 
-def get_when_agent(name,learner_kwargs={}):
+def get_when_agent(name,**learner_kwargs):
     return WHEN_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
 def get_when_learner(name,learner_kwargs={}):
@@ -366,9 +367,9 @@ def get_when_learner(name,learner_kwargs={}):
 
 
 WHEN_LEARNERS ={
-    "decisiontree" : {"learner" : "decisiontree", "when_type" : "one_learner_per_skill", "state_format":"var_foas_state"}
-    "cobweb" : {"learner" : "cobweb", "when_type" : "one_learner_per_skill", "state_format":"var_foas_state"}
-    "trestle" : {"learner" : "cobweb", "when_type" : "one_learner_per_skill", "state_format":"var_foas_state"}
+    "decisiontree" : {"learner" : "decisiontree", "when_type" : "one_learner_per_skill", "state_format":"variablized_state"},
+    "cobweb" : {"learner" : "cobweb", "when_type" : "one_learner_per_skill", "state_format":"variablized_state"},
+    "trestle" : {"learner" : "cobweb", "when_type" : "one_learner_per_skill", "state_format":"variablized_state"}
 }
 
 WHEN_LEARNER_AGENTS = {
