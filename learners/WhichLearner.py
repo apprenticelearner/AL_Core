@@ -23,6 +23,9 @@ class WhichLearner(object):
         return self.learners[skill].ifit(state, reward)
 
     def sort_by_heuristic(self,skills,state):
+        # print([(x._id_num,self.learners[x].heuristic(state)) for x in skills])
+        # out = sorted(skills,reverse=True, key=lambda x:self.learners[x].heuristic(state))
+        # print([(x._id_num,self.learners[x].heuristic(state)) for x in out])
         return sorted(skills,reverse=True, key=lambda x:self.learners[x].heuristic(state))
 
     def cull_how(self,skills):

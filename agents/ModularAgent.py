@@ -189,24 +189,27 @@ class ModularAgent(BaseAgent):
 		#order here might need to be switched depending on when learner implementation (see nitty gritty questions below)
 		if(self.when_learner.state_format == "state_only"):
 			skills = self.when_learner.applicable_skills(state, skills=skills)
-		else:
-			skills = self.skills
+		# else:
+		# 	skills = self.skills
 
 		for skill in skills:
+
+			# print("SKILL TRY:", skill._id_num)
 		######## ------------------  Vectorizable-----------------------#######
 			for match in self.where_learner.get_matches(skill,state):
 				#TODO: Should this even ever be produced?
 				if len(match) != len(set(match)): continue
-				explanation = Explanation(skill,{v:m for v,m in zip(skill.all_vars,match)})
-				if(explanation.conditions_apply()):
+				
+				# if(explanation.conditions_apply()):
 					# print(match)
-					# print("PRED:",self.when_learner.predict(skill, variablize_by_where(state, match)))
-					if(self.when_learner.state_format == "variablized_state" and 
-						self.when_learner.predict(skill, variablize_by_where(state, match)) <= 0) :
-						continue
+				# print("PRED:",self.when_learner.predict(skill, variablize_by_where(state, match)))
+				if(self.when_learner.state_format == "variablized_state" and 
+					self.when_learner.predict(skill, variablize_by_where(state, match)) <= 0) :
+					continue
+				explanation = Explanation(skill,{v:m for v,m in zip(skill.all_vars,match)})
 
 
-					yield explanation
+				yield explanation
 		######## -------------------------------------------------------#######
 		
 
@@ -215,6 +218,9 @@ class ModularAgent(BaseAgent):
 		skills = self.which_learner.sort_by_heuristic(self.skills,state_featurized)
 		explanations = self.applicable_explanations(state_featurized, skills=skills)
 		explanation = next(explanations,None)
+		# exp = explanation
+		# if(exp != None):
+		# 	print("REQUEST:", exp.skill._id_num, list(exp.mapping.values()), exp.skill.input_rule if isinstance(exp.skill.input_rule,int) else exp.skill.input_rule[1][0])
 		return explanation.to_response(knowledge_base,self.function_set,self.epsilon) if explanation != None else EMPTY_RESPONSE
 
 
@@ -343,7 +349,7 @@ class ModularAgent(BaseAgent):
 	def fit(self,explanations, state, reward): #-> return None
 		for exp in explanations:
 			if(self.when_learner.state_format == 'variablized_state'):
-				# print("FIT_WHEN:", exp.mapping.values(), reward)
+				# print("FIT_WHEN:",exp.skill._id_num, list(exp.mapping.values()), exp.skill.input_rule if isinstance(exp.skill.input_rule,int) else exp.skill.input_rule[1][0],  reward)
 				self.when_learner.ifit(exp.skill, variablize_by_where(state,exp.mapping.values()), reward)
 			else:
 				self.when_learner.ifit(exp.skill, state, reward)
@@ -357,7 +363,7 @@ class ModularAgent(BaseAgent):
 		state_featurized,knowledge_base = self.apply_featureset(state)
 		# print("TOTAL SKILLS:", len(self.skills))
 		explanations = self.explanations_from_skills(state_featurized,knowledge_base,sai,self.skills)
-		explanations = [x for x in explanations]
+		# explanations = [x for x in explanations]
 		# print("SKILL EXPS:", len(explanations))
 		explanations, nonmatching_explanations = self.where_matches(explanations,state_featurized)
 		# print("WHERE EXPS:", len(explanations))
