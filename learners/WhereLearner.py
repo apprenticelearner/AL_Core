@@ -253,6 +253,7 @@ class MostSpecific(BaseILP):
         # print("GOT ALL THE MATCHES!")
 
     def ifit(self, t, x, y):
+        # print("TUPIN", t)
 
         if y > 0:
             self.pos_count += 1

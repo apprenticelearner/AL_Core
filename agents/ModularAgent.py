@@ -141,6 +141,7 @@ class ModularAgent(BaseAgent):
 		self.which_learner = get_which_learner(heuristic_learner,how_cull_rule)
 		self.skills = []
 		self.skills_by_label = {}
+		self.skills_by_how = {}
 		# self.examples = {}
 		self.feature_set = feature_set
 		self.function_set = function_set
@@ -201,7 +202,7 @@ class ModularAgent(BaseAgent):
 				if len(match) != len(set(match)): continue
 				
 				# if(explanation.conditions_apply()):
-					# print(match)
+				# print("MATHCH", match)
 				# print("PRED:",self.when_learner.predict(skill, variablize_by_where(state, match)))
 				if(self.when_learner.state_format == "variablized_state" and 
 					self.when_learner.predict(skill, variablize_by_where(state, match)) <= 0) :
@@ -280,6 +281,10 @@ class ModularAgent(BaseAgent):
 												 epsilon=self.epsilon):
 
 			selection_exp = sel_match['?selection']
+			# print("match", sel_match)
+			 
+			sel_mapping = {ground(get_vars(unground(selection_exp))[0]) : '?selection'}
+			selection_exp = list(rename_flat({selection_exp: True}, sel_mapping).keys())[0]
 			# print("selection_exp", selection_exp)
 			#selection_exp: ('id', 'QMele-done')
 			break
@@ -298,24 +303,38 @@ class ModularAgent(BaseAgent):
 												epsilon=self.epsilon):
 
 				varz = get_vars(  unground(  (arg, iv_m['?input'])  )  )
-				foa_vmapping = {field: '?foa%s' % j for j, field in enumerate(varz)}
-				vmapping = {v:k for k,v in foa_vmapping.items()}
-				r_exp = list(rename_flat({(arg, iv_m['?input']): True}, vmapping).keys())[0]
 
-				ordered_mapping = {"?selection": get_vars(unground(selection_exp))[0]}
+				#Don't allow redundencies in the where
+				#TODO: Does this even matter, should we just let it be? 
+				#... certainly in a vectorized version we gain no speed by culling these out.
+				# print()
+				# if(len(varz) != len(set(varz))):
+				# 	continue
+
+				# print(var)
+				foa_vmapping = {ground(field): '?foa%s' % j for j, field in enumerate(varz)}
+				vmapping = {v:k for k,v in foa_vmapping.items()}
+				r_exp = list(rename_flat({(arg, iv_m['?input']): True}, foa_vmapping).keys())[0]
+
+				# print("iv_m", iv_m)
+				# print(foa_vmapping)
+				# print(rename_flat({(arg, iv_m['?input']): True}, foa_vmapping))
+
+				ordered_mapping = {v:k for k,v in sel_mapping.items()}
 				ordered_mapping.update({k:unground(v) for k,v in vmapping.items()})
 
 				# print(ordered_mapping)
 
 
 				skill = Skill(selection_exp, sai.action, r_exp, "?selection", list(vmapping.keys()), list(sai.inputs.keys()) )
+				# print("BLEEP",skill.selection_rule, skill.input_rule)
 				# vmapping["?selection"] = 
 
 				exp_exists = True
 				yield Explanation(skill, ordered_mapping)
 			if(not exp_exists):
 				skill = Skill(selection_exp, sai.action, input_exp, "?selection", [], list(sai.inputs.keys()) )
-				ordered_mapping = {"?selection": get_vars(unground(selection_exp))[0]}
+				ordered_mapping = ordered_mapping = {v:k for k,v in sel_mapping.items()}
 				yield Explanation(skill, ordered_mapping)
 				# possible.append((arg, iv_m['?input']))
 
@@ -366,15 +385,32 @@ class ModularAgent(BaseAgent):
 		# explanations = [x for x in explanations]
 		# print("SKILL EXPS:", len(explanations))
 		explanations, nonmatching_explanations = self.where_matches(explanations,state_featurized)
+
+		#TODO: DOES THIS EVER HAPPEN???? MAKING IT BREAK BECAUSE I WANT TO SEE IT. (maybe will happen with a different wherelearner)
+		if(len(nonmatching_explanations) > 0):
+			raise ValueError()
+		print("MATCHING:", len(explanations), "NON-MATCHING:", len(nonmatching_explanations), "TOTAL:", len(self.skills))
+		# for x in self.skills:
+		# 	print(x.input_rule)
 		# print("WHERE EXPS:", len(explanations))
+
 		if(len(explanations) == 0 ):
 			if(len(nonmatching_explanations) > 0):
 				explanations = [choice(nonmatching_explanations)]
 			else:
 				explanations = self.explanations_from_how_search(state_featurized,sai)
 				explanations = self.which_learner.cull_how(explanations) #Choose all or just the most parsimonious 
+
+				skills_by_how = self.skills_by_how.get(skill_label, {})
 				for exp in explanations:
-					self.add_skill(exp.skill)
+					if(exp.skill.as_tuple in skills_by_how):
+						exp.skill = skills_by_how[exp.skill.as_tuple] 
+					else:
+						skills_by_how[exp.skill.as_tuple] = exp.skill
+						self.skills_by_how[skill_label] = skills_by_how
+						self.add_skill(exp.skill)
+							
+					
 		# skill = which_learner.most_relevant(skills)
 		self.fit(explanations,state_featurized,reward)
 
@@ -426,12 +462,15 @@ class Skill(object):
 		self.input_vars = input_vars
 		self.input_args = input_args
 		self.all_vars = tuple([self.selection_var] + self.input_vars)
+		self.as_tuple = (self.selection_rule,self.action,self.input_rule)
 
 		self.conditions = conditions
 		self.label = label
 		self._how_depth = None
 		self._id_num = None
-		
+	
+	# def to_tuple():
+	# 	return (self.selection_rule,self.action,self.input_rule)
 	def to_xml(self,agent=None): #-> needs some way of representing itself including its when/where/how parts
 		pass
 	def get_how_depth(self):
@@ -566,6 +605,7 @@ def eval_expression(r_exp,knowledge_base,function_set,epsilon):
                     ok = True
 
             if(not ok):
+                print("BLAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARG")
                 rg_exp.append(None)
                 # print("HERE_B",operator_output)
             
