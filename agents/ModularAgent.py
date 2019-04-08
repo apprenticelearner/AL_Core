@@ -266,6 +266,7 @@ class ModularAgent(BaseAgent):
 
 		explanations = []
 		# print(state)
+		print("SEARCH DEPTH", self.search_depth)
 		knowledge_base = FoPlanner([(ground(a),
 									 state[a].replace('?', 'QM')
 									 if isinstance(state[a], str)
@@ -390,8 +391,8 @@ class ModularAgent(BaseAgent):
 		if(len(nonmatching_explanations) > 0):
 			raise ValueError()
 		print("MATCHING:", len(explanations), "NON-MATCHING:", len(nonmatching_explanations), "TOTAL:", len(self.skills))
-		# for x in self.skills:
-		# 	print(x.input_rule)
+		for x in self.skills:
+			print(x.input_rule)
 		# print("WHERE EXPS:", len(explanations))
 
 		if(len(explanations) == 0 ):

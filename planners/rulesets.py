@@ -31,7 +31,9 @@ def custom_function_set():
     all agents created by the system so you can use it for custom logic but we
     should probably turn it off if we ever have a production server.
     """
+    # return [add_rule, sub_rule, mult_rule, div_rule,ones,tens]
     return [add_rule, sub_rule, mult_rule, div_rule]
+    # return [add_then_tens, add_then_ones,add_then_tens3,add_then_ones3]
 
 
 def gensym():
@@ -251,6 +253,40 @@ def concatenate_with_space(x, y):
 def concatenate_without_space(x, y):
     return "%s%s" % (x, y)
 
+def ones_digit(x):
+  return x[-1]
+
+def tens_digit(x):
+  return x[-2]
+
+def int2_float_add_then_ones(x, y):
+  z = float(x) + float(y)
+  z = z % 10
+  if z.is_integer():
+    z = int(z)
+  return str(z)
+
+def int2_float_add_then_tens(x, y):
+  z = float(x) + float(y)
+  z = z // 10
+  if z.is_integer():
+    z = int(z)
+  return str(z)
+
+
+def int3_float_add_then_ones(x, y, w):
+  z = float(x) + float(y) + float(w)
+  z = z % 10
+  if z.is_integer():
+    z = int(z)
+  return str(z)
+
+def int3_float_add_then_tens(x, y, w):
+  z = float(x) + float(y) + float(w)
+  z = z // 10
+  if z.is_integer():
+    z = int(z)
+  return str(z)
 
 add_rule = Operator(('Add', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
@@ -259,6 +295,54 @@ add_rule = Operator(('Add', '?x', '?y'),
                      ],
                     [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
                       (int_float_add, '?xv', '?yv'))])
+
+add_then_ones = Operator(('Add_Then_Ones', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv'),
+                     # (lambda x, y: x <= y, '?x', '?y')
+                     ],
+                    [(('value', ('Add_Then_Ones', ('value', '?x'), ('value', '?y'))),
+                      (int2_float_add_then_ones, '?xv', '?yv'))])
+
+add_then_tens = Operator(('Add_Then_Tens', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv'),
+                     # (lambda x, y: x <= y, '?x', '?y')
+                     ],
+                    [(('value', ('Add_Then_Tens', ('value', '?x'), ('value', '?y'))),
+                      (int2_float_add_then_tens, '?xv', '?yv'))])
+
+add_then_ones3 = Operator(('Add_Then_Ones3', '?x', '?y', '?w'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv'),
+                     (('value', '?w'), '?wv'),
+                     # (lambda x, y: x <= y, '?x', '?y')
+                     ],
+                    [(('value', ('Add_Then_Ones3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
+                      (int3_float_add_then_ones, '?xv', '?yv', '?wv'))])
+
+add_then_tens3 = Operator(('Add_Then_Tens3', '?x', '?y', '?w'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv'),
+                     (('value', '?w'), '?wv'),
+                     # (lambda x, y: x <= y, '?x', '?y')
+                     ],
+                    [(('value', ('Add_Then_Tens3', ('value', '?x'), ('value', '?y'),('value', '?w'))),
+                      (int3_float_add_then_tens, '?xv', '?yv', '?wv'))])
+
+
+ones =    Operator(('Ones', '?x'),
+                    [(('value', '?x'), '?xv'),
+                    (lambda x: x != "" and float(x) > 1, '?xv'),
+                     ],
+                    [(('value', ('Ones', ('value', '?x'))),
+                      (ones_digit, '?xv'))])
+tens =    Operator(('Tens', '?x'),
+                    [(('value', '?x'), '?xv'),
+                    (lambda x: x != "" and float(x) > 10, '?xv'),
+                     ],
+                    [(('value', ('Tens', ('value', '?x'))),
+                      (tens_digit, '?xv'))])
 
 
 update_rule = Operator(('sai', '?sel', 'UpdateTable', '?val', '?ele'),
