@@ -8,28 +8,28 @@ class WhichLearner(object):
         self.heuristic_name = heuristic_learner
         self.how_cull_name = how_cull_rule
         self.learner_kwargs = learner_kwargs
-        self.skills_by_label = {}
+        self.rhs_by_label = {}
         self.learners = {}
         self.how_cull_rule = get_how_cull_rule(how_cull_rule)
 
 
-    def add_skill(self,skill):
-        self.learners[skill] = get_heuristic_agent(self.heuristic_name,**self.learner_kwargs)
-        skills = self.skills_by_label.get(skill.label,[])
-        skills.append(skill)
-        self.skills_by_label[skill.label] = skills
+    def add_rhs(self,rhs):
+        self.learners[rhs] = get_heuristic_agent(self.heuristic_name,**self.learner_kwargs)
+        rhs_list = self.rhs_by_label.get(rhs.label,[])
+        rhs_list.append(rhs)
+        self.rhs_by_label[rhs.label] = rhs_list
 
-    def ifit(self,skill, state, reward):
-        return self.learners[skill].ifit(state, reward)
+    def ifit(self,rhs, state, reward):
+        return self.learners[rhs].ifit(state, reward)
 
-    def sort_by_heuristic(self,skills,state):
+    def sort_by_heuristic(self,rhs_list,state):
         # print([(x._id_num,self.learners[x].heuristic(state)) for x in skills])
         # out = sorted(skills,reverse=True, key=lambda x:self.learners[x].heuristic(state))
         # print([(x._id_num,self.learners[x].heuristic(state)) for x in out])
-        return sorted(skills,reverse=True, key=lambda x:self.learners[x].heuristic(state))
+        return sorted(rhs_list,reverse=True, key=lambda x:self.learners[x].heuristic(state))
 
-    def cull_how(self,skills):
-        return self.how_cull_rule(skills)
+    def cull_how(self,rhs_list):
+        return self.how_cull_rule(rhs_list)
 
 
 ####---------------HEURISTIC------------########
@@ -62,11 +62,11 @@ class ProportionCorrect(TotalCorrect):
 
 ####---------------HOW CULL RULE------------########
 
-def first(skills):
-    return [next(iter(skills))]
+def first(rhs_list):
+    return [next(iter(rhs_list))]
 
-def most_parsimonious(skills):
-    return [sorted(skills,key=lambda x:x.get_how_depth())[0]]
+def most_parsimonious(rhs_list):
+    return [sorted(rhs_list,key=lambda x:x.get_how_depth())[0]]
 
 
 #####---------------UTILITIES------------------#####

@@ -113,35 +113,35 @@ class WhereLearner(object):
         
         self.learner_name = learner_name
         self.learner_kwargs = learner_kwargs
-        self.skills_by_label = {}
+        self.rhs_by_label = {}
         self.learners = {}
 
-    def add_skill(self,skill, constraints):
+    def add_rhs(self,rhs, constraints):
         # args = [skill.selection_var] + skill.input_vars
-        self.learners[skill] = get_where_agent(self.learner_name,
-            args=tuple(skill.all_vars),constraints=constraints,**self.learner_kwargs)
+        self.learners[rhs] = get_where_agent(self.learner_name,
+            args=tuple(rhs.all_vars),constraints=constraints,**self.learner_kwargs)
         
-        skills = self.skills_by_label.get(skill.label,[])
-        skills.append(skill)
-        self.skills_by_label[skill.label] = skills
+        rhs_list = self.rhs_by_label.get(rhs.label,[])
+        rhs_list.append(rhs)
+        self.rhs_by_label[rhs.label] = rhs_list
 
-    def check_match(self, skill, t, x):
-        return self.learners[skill].check_match(t,x)
+    def check_match(self, rhs, t, x):
+        return self.learners[rhs].check_match(t,x)
 
-    def get_match(self,skill, X):
+    def get_match(self,rhs, X):
         # args = [skill.selection_var] + skill.input_vars
-        return self.learners[skill].get_match(X)
+        return self.learners[rhs].get_match(X)
 
-    def get_matches(self,skill, X):
+    def get_matches(self,rhs, X):
         # args = [skill.selection_var] + skill.input_vars
-        return self.learners[skill].get_matches(X)
+        return self.learners[rhs].get_matches(X)
 
-    def ifit(self,skill, t, X, y):
+    def ifit(self,rhs, t, X, y):
         # args = [skill.selection_var] + skill.input_vars
-        return self.learners[skill].ifit(t,X,y)
+        return self.learners[rhs].ifit(t,X,y)
 
-    def fit(self,skill, T, X, y):
-        return self.learners[skill].fit(T,X,y)
+    def fit(self,rhs, T, X, y):
+        return self.learners[rhs].fit(T,X,y)
 
 
 class MostSpecific(BaseILP):

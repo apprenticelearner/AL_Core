@@ -78,9 +78,9 @@ def DictVectWrapper(clf):
 
 class WhenLearner(object):
     STATE_FORMAT_OPTIONS = ["variablized_state",  "state_only"]
-    WHEN_TYPE_OPTIONS = ["one_learner_per_skill", "one_learner_per_label"]
+    WHEN_TYPE_OPTIONS = ["one_learner_per_rhs", "one_learner_per_label"]
 
-    def __init__(self, learner, when_type = "one_learner_per_skill", state_format="variablized_state",learner_kwargs={}):
+    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state",learner_kwargs={}):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS
         assert when_type in self.__class__.WHEN_TYPE_OPTIONS
 
@@ -89,40 +89,40 @@ class WhenLearner(object):
         
         self.type = when_type
         self.state_format = state_format
-        self.skills_by_label = {}
+        self.rhs_by_label = {}
             
-        # (self.type == "one_learner_per_skill"):
+        # (self.type == "one_learner_per_rhs"):
         self.learners = {}
 
 
-    def add_skill(self, skill):
-        if(self.type == "one_learner_per_skill"):
-            self.learners[skill] = get_when_agent(self.learner_name,**self.learner_kwargs)
-        skills = self.skills_by_label.get(skill.label,[])
-        skills.append(skill)
-        self.skills_by_label[skill.label] = skills
+    def add_rhs(self, rhs):
+        if(self.type == "one_learner_per_rhs"):
+            self.learners[rhs] = get_when_agent(self.learner_name,**self.learner_kwargs)
+        rhs_list = self.rhs_by_label.get(rhs.label,[])
+        rhs_list.append(rhs)
+        self.rhs_by_label[rhs.label] = rhs_list
 
 
-    def ifit(self,skill, state,reward):
+    def ifit(self,rhs, state,reward):
         # print("FIT_STATe", state)
         if(self.type == "one_learner_per_label"):
             if(not skill_label in self.learner):
-                self.learner[skill.label] = get_when_agent(self.learner_name,**self.learner_kwargs)
-            self.learner[skill.label].ifit(state,reward)
-        elif(self.type == "one_learner_per_skill"):
-            self.learners[skill].ifit(state,reward)
+                self.learner[rhs.label] = get_when_agent(self.learner_name,**self.learner_kwargs)
+            self.learner[rhs.label].ifit(state,reward)
+        elif(self.type == "one_learner_per_rhs"):
+            self.learners[rhs].ifit(state,reward)
 
-    def predict(self,skill,state):
+    def predict(self,rhs,state):
         # print("STATE:",state, type(state))
         
         if(self.type == "one_learner_per_label"):
-            return self.learners[skill.label].predict([state])[0]
-        elif(self.type == "one_learner_per_skill"):
-            return self.learners[skill].predict([state])[0]        
+            return self.learners[rhs.label].predict([state])[0]
+        elif(self.type == "one_learner_per_rhs"):
+            return self.learners[rhs].predict([state])[0]        
 
-    def applicable_skills(self,state,skill_label,skills=None):
-        if(skills == None): skills = self.skills_by_label[skill_label]
-        raise NotImplementedError("Still need to write applicable_skills")
+    # def applicable_skills(self,state,skill_label,skills=None):
+    #     if(skills == None): skills = self.skills_by_label[skill_label]
+    #     raise NotImplementedError("Still need to write applicable_skills")
 
 
 
@@ -371,9 +371,9 @@ def get_when_learner(name,learner_kwargs={}):
 
 
 WHEN_LEARNERS ={
-    "decisiontree" : {"learner" : "decisiontree", "when_type" : "one_learner_per_skill", "state_format":"variablized_state"},
-    "cobweb" : {"learner" : "cobweb", "when_type" : "one_learner_per_skill", "state_format":"variablized_state"},
-    "trestle" : {"learner" : "cobweb", "when_type" : "one_learner_per_skill", "state_format":"variablized_state"}
+    "decisiontree" : {"learner" : "decisiontree", "when_type" : "one_learner_per_rhs", "state_format":"variablized_state"},
+    "cobweb" : {"learner" : "cobweb", "when_type" : "one_learner_per_rhs", "state_format":"variablized_state"},
+    "trestle" : {"learner" : "cobweb", "when_type" : "one_learner_per_rhs", "state_format":"variablized_state"}
 }
 
 WHEN_LEARNER_AGENTS = {
