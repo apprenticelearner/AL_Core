@@ -79,17 +79,27 @@ def DictVectWrapper(clf):
 class WhenLearner(object):
     STATE_FORMAT_OPTIONS = ["variablized_state",  "state_only"]
     WHEN_TYPE_OPTIONS = ["one_learner_per_rhs", "one_learner_per_label"]
+    CROSS_RHS_INFERENCE = ["none", "implicit_negatives", "rhs_in_label"]
 
-    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state",learner_kwargs={}):
-        assert state_format in self.__class__.STATE_FORMAT_OPTIONS
-        assert when_type in self.__class__.WHEN_TYPE_OPTIONS
+
+    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state", cross_rhs_inference="none", learner_kwargs={}):
+        assert state_format in self.__class__.STATE_FORMAT_OPTIONS, "state_format must be one of %s but got %s" % (STATE_FORMAT_OPTIONS,state_format) 
+        assert when_type in self.__class__.WHEN_TYPE_OPTIONS, "when_type must be one of %s but got %s" % (WHEN_TYPE_OPTIONS,when_type)
+        assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, "cross_rhs_inference must be one of %s but got %s" % (CROSS_RHS_INFERENCE,cross_rhs_inference)
+
+        if(cross_rhs_inference == "rhs_in_label"):
+            assert when_type == "one_learner_per_label", "when_type must be 'one_learner_per_label' if using cross_rhs_inference = 'rhs_in_label', but got %r " % when_type
 
         self.learner_name = learner
         self.learner_kwargs = learner_kwargs
         
         self.type = when_type
         self.state_format = state_format
+        self.cross_rhs_inference = cross_rhs_inference
         self.rhs_by_label = {}
+        if(cross_rhs_inference == "implicit_negatives"):
+            self.examples = {}
+            self.implicit_examples = {}
             
         # (self.type == "one_learner_per_rhs"):
         self.learners = {}
@@ -97,28 +107,73 @@ class WhenLearner(object):
 
     def add_rhs(self, rhs):
         if(self.type == "one_learner_per_rhs"):
-            self.learners[rhs] = get_when_agent(self.learner_name,**self.learner_kwargs)
+            self.learners[rhs] = get_when_sublearner(self.learner_name,**self.learner_kwargs)
         rhs_list = self.rhs_by_label.get(rhs.label,[])
         rhs_list.append(rhs)
         self.rhs_by_label[rhs.label] = rhs_list
 
+        if(cross_rhs_inference == "implicit_negatives"):
+            self.examples[rhs]['state'] = []
+            self.examples[rhs]['reward'] = []
+            self.implicit_examples[rhs]['state'] = []
+            self.implicit_examples[rhs]['reward'] = []
+
 
     def ifit(self,rhs, state,reward):
         # print("FIT_STATe", state)
-        if(self.type == "one_learner_per_label"):
-            if(not skill_label in self.learner):
-                self.learner[rhs.label] = get_when_agent(self.learner_name,**self.learner_kwargs)
-            self.learner[rhs.label].ifit(state,reward)
-        elif(self.type == "one_learner_per_rhs"):
-            self.learners[rhs].ifit(state,reward)
+        if(self.cross_rhs_inference == "implicit_negatives"):
+            if(self.type == "one_learner_per_label"):
+                key = rhs.label                
+            elif(self.type == "one_learner_per_rhs"):
+                key = rhs
+
+            states = self.examples[key]['state']
+            rewards = self.examples[key]['reward']
+            states.append(state)
+            rewards.append(reward)
+
+            implicit_states = self.implicit_examples[key]['state']
+            implicit_rewards = self.implicit_examples[key]['reward']
+            
+
+            if(reward > 0):
+                for other_key, other_impl_exs in self.implicit_examples.items():
+                    if(other_key != key):
+                        other_impl_exs['state'].append(state)
+                        other_impl_exs['reward'].append(-1)
+                implicit_states = self.implicit_examples[rhs]['state'] = []
+                implicit_rewards = self.implicit_examples[rhs]['reward'] = []
+
+
+            l = self.learners[key] = get_when_sublearner(self.learner_name,**self.learner_kwargs)
+            l.fit(states,rewards)
+            
+        else:
+            if(self.type == "one_learner_per_label"):
+                if(not skill_label in self.learner):
+                    self.learners[rhs.label] = get_when_sublearner(self.learner_name,**self.learner_kwargs)
+                if(self.cross_rhs_inference == "rhs_in_label"):
+                    self.learners[rhs.label].ifit(state,(rhs._id_num,reward))
+                else:
+                    self.learners[rhs.label].ifit(state,reward)
+            elif(self.type == "one_learner_per_rhs"):
+                self.learners[rhs].ifit(state,reward)
 
     def predict(self,rhs,state):
         # print("STATE:",state, type(state))
-        
         if(self.type == "one_learner_per_label"):
-            return self.learners[rhs.label].predict([state])[0]
+            prediction = self.learners[rhs.label].predict([state])[0]
         elif(self.type == "one_learner_per_rhs"):
-            return self.learners[rhs].predict([state])[0]        
+            # print(self.learners[rhs].predict([state])[0]        )
+            prediction = self.learners[rhs].predict([state])[0]        
+
+        if(self.cross_rhs_inference == "rhs_in_label"):
+            rhs_pred , rew_pred = prediction
+            if(rhs_pred != rhs._id_num):
+                rew_pred = -1
+            return rew_pred
+        else:
+            return prediction
 
     # def applicable_skills(self,state,skill_label,skills=None):
     #     if(skills == None): skills = self.skills_by_label[skill_label]
@@ -361,7 +416,7 @@ parameters_sgd = {'loss': 'perceptron'}
 #######-------------------UTILITIES----------------#######
 
 
-def get_when_agent(name,**learner_kwargs):
+def get_when_sublearner(name,**learner_kwargs):
     return WHEN_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
 def get_when_learner(name,learner_kwargs={}):
