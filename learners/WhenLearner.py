@@ -38,7 +38,18 @@ class CustomPipeline(Pipeline):
         self.X.append(tup.undo_transform(ft.transform(x)))
         self.y.append(int(y) if not isinstance(y,tuple) else y)
         # print(self.y)
-        return self.fit(self.X, self.y)
+        return super(CustomPipeline, self).fit(self.X, self.y)
+
+    def fit(self,X,y):
+
+
+        ft = Flattener()
+        tup = Tuplizer()
+
+        self.X = [tup.undo_transform(ft.transform(x)) for x in X]
+        self.y = [int(x) if not isinstance(x,tuple) else x for x in y]
+
+        super(CustomPipeline, self).fit(self.X, self.y)
 
     def predict(self, X):
         ft = Flattener()
@@ -64,10 +75,10 @@ def iFitWrapper(clf):
 def DictVectWrapper(clf):
     def fun(x=None):
         if x is None:
-            return CustomPipeline([('dict vect', DictVectorizer(sparse=False)),
+            return CustomPipeline([('dict vect', DictVectorizer(sparse=False,sort=False)),
                                    ('clf', clf())])
         else:
-            return CustomPipeline([('dict vect', DictVectorizer(sparse=False)),
+            return CustomPipeline([('dict vect', DictVectorizer(sparse=False,sort=False)),
                                    ('clf', clf(**x))])
 
     return fun
@@ -145,16 +156,25 @@ class WhenLearner(object):
             if(reward > 0):
                 for other_key, other_impl_exs in self.implicit_examples.items():
                     if(other_key != key):
+                        print(other_key.input_rule)
                         other_impl_exs['state'].append(state)
                         other_impl_exs['reward'].append(-1)
                 implicit_states = self.implicit_examples[rhs]['state'] = []
                 implicit_rewards = self.implicit_examples[rhs]['reward'] = []
 
 
+            #PRINT AREA
+            # for x in self.implicit_examples:
+            #     print("%s : %s" % (x.input_rule,self.implicit_examples[x]['reward']))
+            # for x in self.examples:
+            #     print("%s : %s" % (x.input_rule,self.examples[x]['reward']))
+            # pprint(self.implicit_examples)
+
             l = self.learners[key] = get_when_sublearner(self.learner_name,**self.learner_kwargs)
-            pprint(states)
-            pprint(rewards)
+            # pprint(states)
+            # pprint(rewards)
             l.fit(states,rewards)
+            print(self.learners[key])
             
         else:
             if(self.type == "one_learner_per_label"):
