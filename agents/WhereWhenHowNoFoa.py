@@ -334,7 +334,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                           enumerate(input_args)}
                     # response['inputs'] = list(rg_exp[3:])
                     response['foci_of_attention'] = []
-                    pprint(response)
+                    # pprint(response)
                     return response
 
         return {}

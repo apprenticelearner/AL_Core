@@ -36,18 +36,9 @@ class CustomPipeline(Pipeline):
 
         # pprint(x)
         self.X.append(tup.undo_transform(ft.transform(x)))
-        print(y)
-        self.y.append(int(y))
+        self.y.append(int(y) if not isinstance(y,tuple) else y)
         # print(self.y)
-        return super(CustomPipeline, self).fit(self.X, self.y)
-
-    def fit(self, X,Y):
-        ft = Flattener()
-        tup = Tuplizer()
-        self.X = [tup.undo_transform(ft.transform(x)) for x in X]
-        self.y = [int(x) for x in Y]
-        return super(CustomPipeline, self).fit(self.X, self.y)        
-        
+        return self.fit(self.X, self.y)
 
     def predict(self, X):
         ft = Flattener()
@@ -88,22 +79,16 @@ def DictVectWrapper(clf):
 class WhenLearner(object):
     STATE_FORMAT_OPTIONS = ["variablized_state",  "state_only"]
     WHEN_TYPE_OPTIONS = ["one_learner_per_rhs", "one_learner_per_label"]
-    CROSS_RHS_INFERENCE = ["none", "implicit_negatives", "rhs_in_label"]
+    CROSS_RHS_INFERENCE = ["none", "implicit_negatives", "rhs_in_y"]
 
 
-    def __init__(self,
-                 learner,
-                when_type = "one_learner_per_label",
-                state_format="variablized_state",
-                cross_rhs_inference="rhs_in_label",
-                learner_kwargs={}):
-
+    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state", cross_rhs_inference="implicit_negatives", learner_kwargs={}):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS, "state_format must be one of %s but got %s" % (STATE_FORMAT_OPTIONS,state_format) 
         assert when_type in self.__class__.WHEN_TYPE_OPTIONS, "when_type must be one of %s but got %s" % (WHEN_TYPE_OPTIONS,when_type)
         assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, "cross_rhs_inference must be one of %s but got %s" % (CROSS_RHS_INFERENCE,cross_rhs_inference)
 
-        if(cross_rhs_inference == "rhs_in_label"):
-            assert when_type == "one_learner_per_label", "when_type must be 'one_learner_per_label' if using cross_rhs_inference = 'rhs_in_label', but got %r " % when_type
+        if(cross_rhs_inference == "rhs_in_y"):
+            assert when_type == "one_learner_per_label", "when_type must be 'one_learner_per_label' if using cross_rhs_inference = 'rhs_in_y', but got %r " % when_type
 
         self.learner_name = learner
         self.learner_kwargs = learner_kwargs
@@ -123,17 +108,21 @@ class WhenLearner(object):
     def add_rhs(self, rhs):
         if(self.type == "one_learner_per_rhs"):
             self.learners[rhs] = get_when_sublearner(self.learner_name,**self.learner_kwargs)
+            key = rhs
+        else:
+            key = rhs.label
         rhs_list = self.rhs_by_label.get(rhs.label,[])
         rhs_list.append(rhs)
         self.rhs_by_label[rhs.label] = rhs_list
 
+
         if(self.cross_rhs_inference == "implicit_negatives"):
-            self.examples[rhs] = {}
-            self.examples[rhs]['state'] = []
-            self.examples[rhs]['reward'] = []
-            self.implicit_examples[rhs] = {}
-            self.implicit_examples[rhs]['state'] = []
-            self.implicit_examples[rhs]['reward'] = []
+            self.examples[key] = {}
+            self.examples[key]['state'] = []
+            self.examples[key]['reward'] = []
+            self.implicit_examples[key] = {}
+            self.implicit_examples[key]['state'] = []
+            self.implicit_examples[key]['reward'] = []
 
 
     def ifit(self,rhs, state,reward):
@@ -163,18 +152,15 @@ class WhenLearner(object):
 
 
             l = self.learners[key] = get_when_sublearner(self.learner_name,**self.learner_kwargs)
-
-            # print(rewards)
-            # print(states)
-            # for x in states[0]:
-            #     print(x)
+            pprint(states)
+            pprint(rewards)
             l.fit(states,rewards)
             
         else:
             if(self.type == "one_learner_per_label"):
                 if(not rhs.label in self.learners):
                     self.learners[rhs.label] = get_when_sublearner(self.learner_name,**self.learner_kwargs)
-                if(self.cross_rhs_inference == "rhs_in_label"):
+                if(self.cross_rhs_inference == "rhs_in_y"):
                     self.learners[rhs.label].ifit(state,(rhs._id_num,reward))
                 else:
                     self.learners[rhs.label].ifit(state,reward)
@@ -189,7 +175,7 @@ class WhenLearner(object):
             # print(self.learners[rhs].predict([state])[0]        )
             prediction = self.learners[rhs].predict([state])[0]        
 
-        if(self.cross_rhs_inference == "rhs_in_label"):
+        if(self.cross_rhs_inference == "rhs_in_y"):
             rhs_pred , rew_pred = prediction
             if(rhs_pred != rhs._id_num):
                 rew_pred = -1
@@ -448,7 +434,7 @@ def get_when_learner(name,learner_kwargs={}):
 
 
 WHEN_LEARNERS ={
-    "decisiontree" : {"learner" : "decisiontree",  "state_format":"variablized_state"},
+    "decisiontree" : {"learner" : "decisiontree", "state_format":"variablized_state"},
     "cobweb" : {"learner" : "cobweb", "when_type" : "one_learner_per_rhs", "state_format":"variablized_state"},
     "trestle" : {"learner" : "cobweb", "when_type" : "one_learner_per_rhs", "state_format":"variablized_state"}
 }

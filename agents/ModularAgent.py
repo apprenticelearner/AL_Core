@@ -154,6 +154,8 @@ class ModularAgent(BaseAgent):
 		
 
 	def request(self,state): #-> Returns sai
+		# pprint(state)
+
 		state_featurized,knowledge_base = self.apply_featureset(state)
 		rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list,state_featurized)
 		explanations = self.applicable_explanations(state_featurized, rhs_list=rhs_list)
@@ -185,9 +187,12 @@ class ModularAgent(BaseAgent):
 					yield Explanation(rhs,mapping)
 
 	def explanations_from_skills(self,state,knowledge_base, sai,rhs_list): # -> return Iterator<skill>
+		
 		for rhs in rhs_list:
 			for explanation in self._explain_sai(rhs, sai, knowledge_base, state):
 				yield explanation
+
+	# def how_search
 
 	def explanations_from_how_search(self,state, sai):# -> return Iterator<Explanation>
 		#TODO: Make this a method of sai ... or does it need to be sorted?
