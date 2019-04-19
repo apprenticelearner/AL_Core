@@ -151,16 +151,18 @@ class WhenLearner(object):
 
             implicit_states = self.implicit_examples[key]['state']
             implicit_rewards = self.implicit_examples[key]['reward']
+
+
             
 
             if(reward > 0):
                 for other_key, other_impl_exs in self.implicit_examples.items():
                     if(other_key != key):
-                        print(other_key.input_rule)
+                        # print(other_key.input_rule)
                         other_impl_exs['state'].append(state)
                         other_impl_exs['reward'].append(-1)
-                implicit_states = self.implicit_examples[rhs]['state'] = []
-                implicit_rewards = self.implicit_examples[rhs]['reward'] = []
+                implicit_states = self.implicit_examples[key]['state'] = []
+                implicit_rewards = self.implicit_examples[key]['reward'] = []
 
 
             #PRINT AREA
@@ -173,7 +175,7 @@ class WhenLearner(object):
             l = self.learners[key] = get_when_sublearner(self.learner_name,**self.learner_kwargs)
             # pprint(states)
             # pprint(rewards)
-            l.fit(states,rewards)
+            l.fit(states+implicit_states,rewards+implicit_rewards)
             print(self.learners[key])
             
         else:
