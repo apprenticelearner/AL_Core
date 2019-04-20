@@ -11,7 +11,9 @@ from agents.BaseAgent import BaseAgent
 from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner
 from learners.WhichLearner import get_which_learner
+from learners.HowLearner import get_how_learner
 from planners.fo_planner import FoPlanner, execute_functions, unify, subst
+import itertools
 # Chris Questions:
 # Why does the explanation have 'value' deference instead of there being a whole path to the value in the resolved thing?
 # How can we make where an actual thing?
@@ -92,6 +94,43 @@ def variablize_by_where(state,match):
 	r_state = rename_flat(state, {mapping[a]: a for a in mapping})
 	return r_state
 
+def expr_comparitor(fact,expr, mapping={}):
+	if(isinstance(expr,dict)):
+		if(isinstance(fact,dict)):
+			if(not expr_comparitor(list(fact.keys())[0],list(expr.keys())[0],mapping)):
+				return False
+			if(not expr_comparitor(list(fact.values())[0],list(expr.values())[0],mapping)):
+				return False
+			return True
+		else:
+			return False
+	if(isinstance(expr,tuple)):
+		if(isinstance(fact,tuple) and len(fact) == len(expr)):
+			for x,y in zip(fact,expr):
+				# print(x,y)
+				if(not expr_comparitor(x,y,mapping)):
+					return False
+			return True
+		else:
+			return False
+	elif expr[0] == "?" and mapping.get(expr,None) != fact:
+		mapping[expr] = fact
+		return True
+	elif(expr == fact):
+		return True
+	else:
+		return False
+
+
+def expression_matches(expression,state):
+	for fact_expr,value in state.items():
+		if(isinstance(expression,dict)):
+			fact_expr = {fact_expr:value}
+
+		mapping = {}
+		if(expr_comparitor(fact_expr,expression,mapping)):
+			yield mapping
+
 
 EMPTY_RESPONSE = {}
 
@@ -100,10 +139,11 @@ class ModularAgent(BaseAgent):
 	def __init__(self, feature_set, function_set, 
 									 when_learner='trestle', where_learner='MostSpecific',
 									 heuristic_learner='proportion_correct', how_cull_rule='most_parsimonious',
-									 search_depth=1, numerical_epsilon=0.0):
+									 how_learner = 'base',search_depth=1, numerical_epsilon=0.0):
 		self.where_learner = get_where_learner(where_learner)
 		self.when_learner = get_when_learner(when_learner)
 		self.which_learner = get_which_learner(heuristic_learner,how_cull_rule)
+		self.how_learner = get_how_learner(how_learner)
 		self.rhs_list = []
 		self.rhs_by_label = {}
 		self.rhs_by_how = {}
@@ -137,13 +177,13 @@ class ModularAgent(BaseAgent):
 
 	def applicable_explanations(self,state,rhs_list=None):# -> returns Iterator<Explanation>
 		if(rhs_list == None): rhs_list = self.rhs_list
-
+		# print(rhs_list)
 		for rhs in rhs_list:
 
 			for match in self.where_learner.get_matches(rhs,state):
 				#TODO: Should this even ever be produced?
 				if len(match) != len(set(match)): continue
-				
+				# print("Print",self.when_learner.predict(rhs, variablize_by_where(state, match)) <= 0)
 				if(self.when_learner.state_format == "variablized_state" and 
 					self.when_learner.predict(rhs, variablize_by_where(state, match)) <= 0) :
 					continue
@@ -160,8 +200,10 @@ class ModularAgent(BaseAgent):
 		rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list,state_featurized)
 		explanations = self.applicable_explanations(state_featurized, rhs_list=rhs_list)
 		explanation = next(explanations,None)
-
-		return explanation.to_response(knowledge_base,self.function_set,self.epsilon) if explanation != None else EMPTY_RESPONSE
+		if explanation != None:
+			return explanation.to_response(knowledge_base,self.function_set,self.epsilon)
+		else:	
+			return EMPTY_RESPONSE
 
 
 	#####-----------------------TRAIN --------------------------###########
@@ -175,10 +217,26 @@ class ModularAgent(BaseAgent):
 				nonmatching_explanations.append(exp)
 		return matching_explanations, nonmatching_explanations
 
-	def _explain_sai(self, rhs, sai, knowledge_base,state):
+	def _matches_from_foas(self,rhs,sai,foci_of_attention):
+		iter_func = itertools.permutations
+		#TODO use combinations on commuting functions
+		for combo in iter_func(foci_of_attention):
+			d = {k:v for k,v in zip(rhs.input_vars,combo) }
+			d[rhs.selection_var] = sai.selection
+			yield d
+
+
+
+	def _explain_sai(self, rhs, sai, knowledge_base,state,foci_of_attention):
 		
 		if(rhs.action == sai.action):
-			for match in self.where_learner.get_matches(rhs,state):
+			if(foci_of_attention == None):
+				print("NO FOCI")
+				matches = self.where_learner.get_matches(rhs,state)
+			else:
+				matches = self._matches_from_foas(rhs,sai,foci_of_attention)
+
+			for match in matches:
 				mapping = {var:val for var,val in zip(rhs.all_vars,match)}
 				grounded_sel = subst(mapping, rhs.selection_expression)
 				grounded_inp = subst(mapping, rhs.input_rule)
@@ -186,75 +244,24 @@ class ModularAgent(BaseAgent):
 				if(rg_exp[0] == sai.selection and {rhs.input_args[0]:rg_exp[1]} == sai.inputs):
 					yield Explanation(rhs,mapping)
 
-	def explanations_from_skills(self,state,knowledge_base, sai,rhs_list): # -> return Iterator<skill>
+	def explanations_from_skills(self,state,knowledge_base, sai,rhs_list,foci_of_attention=None): # -> return Iterator<skill>
 		
 		for rhs in rhs_list:
-			for explanation in self._explain_sai(rhs, sai, knowledge_base, state):
+			for explanation in self._explain_sai(rhs, sai, knowledge_base, state,foci_of_attention):
 				yield explanation
 
 	# def how_search
 
-	def explanations_from_how_search(self,state, sai):# -> return Iterator<Explanation>
-		#TODO: Make this a method of sai ... or does it need to be sorted?
-		input_args = tuple(sorted([arg for arg in sai.inputs.keys()]))
-
-		explanations = []
-		print("SEARCH DEPTH", self.search_depth)
-		knowledge_base = FoPlanner([(ground(a),
-									 state[a].replace('?', 'QM')
-									 if isinstance(state[a], str)
-									 else state[a])
-									for a in state],
-								   self.function_set)
-		knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
-
-		#Danny: these lines figure out what property holds the selection
-		selection_exp = sai.selection
-		for sel_match in knowledge_base.fc_query([('?selection', sai.selection)],
-												 max_depth=0,
-												 epsilon=self.epsilon):
-
-			selection_exp = sel_match['?selection']
-			 
-			sel_mapping = {ground(get_vars(unground(selection_exp))[0]) : '?selection'}
-			selection_exp = list(rename_flat({selection_exp: True}, sel_mapping).keys())[0]
-			break
-
-		input_exps = []
-		
-		for arg in input_args:
-			input_exp = input_val = sai.inputs[arg]
-			
-			#Danny: This populates a list of explanations found earlier in How search that work"
-			possible = []
-			exp_exists = False
-			for iv_m in knowledge_base.fc_query([((arg, '?input'), input_val)],
-												max_depth=0,
-												epsilon=self.epsilon):
-
-				varz = get_vars(  unground(  (arg, iv_m['?input'])  )  )
-
-				#Don't allow redundencies in the where
-				#TODO: Does this even matter, should we just let it be? 
-				#... certainly in a vectorized version we gain no speed by culling these out.
-				# if(len(varz) != len(set(varz))):
-				# 	continue
-
-				foa_vmapping = {ground(field): '?foa%s' % j for j, field in enumerate(varz)}
-				vmapping = {v:k for k,v in foa_vmapping.items()}
-				r_exp = list(rename_flat({(arg, iv_m['?input']): True}, foa_vmapping).keys())[0]
-
-				ordered_mapping = {v:k for k,v in sel_mapping.items()}
-				ordered_mapping.update({k:unground(v) for k,v in vmapping.items()})
-
-				rhs = RHS(selection_exp, sai.action, r_exp, "?selection", list(vmapping.keys()), list(sai.inputs.keys()) )
-
-				exp_exists = True
-				yield Explanation(rhs, ordered_mapping)
-			if(not exp_exists):
-				rhs = RHS(selection_exp, sai.action, input_exp, "?selection", [], list(sai.inputs.keys()) )
-				ordered_mapping = ordered_mapping = {v:k for k,v in sel_mapping.items()}
-				yield Explanation(rhs, ordered_mapping)
+	def explanations_from_how_search(self,state, sai,foci_of_attention):# -> return Iterator<Explanation>
+		sel_match = next(expression_matches({('?sel_prop', '?selection'):sai.selection},state),None)
+		selection_rule = (sel_match['?selection'], '?selection') if sel_match != None else sai.selection
+		for input_rule,mapping in self.how_learner.how_search(state,sai,self.function_set,foci_of_attention):
+			inp_vars = list(mapping.keys())
+			varz = list(mapping.values())
+			rhs = RHS(selection_rule, sai.action, input_rule, "?selection", inp_vars, list(sai.inputs.keys()) )
+			ordered_mapping = {k:v for k,v in zip(rhs.all_vars, [sel_match['?selection']] + varz)}
+			# print("NEW_OM", ordered_mapping)
+			yield Explanation(rhs, ordered_mapping)
 				
 
 	def add_rhs(self,rhs,skill_label="DEFAULT_SKILL"): #-> return None
@@ -280,10 +287,10 @@ class ModularAgent(BaseAgent):
 
 
 	def train(self,state, selection, action, inputs, reward, skill_label, foci_of_attention):# -> return None
-
+		# print(foci_of_attention)
 		sai = SAIS(selection, action, inputs)
 		state_featurized,knowledge_base = self.apply_featureset(state)
-		explanations = self.explanations_from_skills(state_featurized,knowledge_base,sai,self.rhs_list)
+		explanations = self.explanations_from_skills(state_featurized,knowledge_base,sai,self.rhs_list,foci_of_attention)
 		explanations, nonmatching_explanations = self.where_matches(explanations,state_featurized)
 
 		#TODO: DOES THIS EVER HAPPEN???? MAKING IT BREAK BECAUSE I WANT TO SEE IT. (maybe will happen with a different wherelearner)
@@ -294,8 +301,22 @@ class ModularAgent(BaseAgent):
 			if(len(nonmatching_explanations) > 0):
 				explanations = [choice(nonmatching_explanations)]
 			else:
-				explanations = self.explanations_from_how_search(state_featurized,sai)
-				explanations = self.which_learner.cull_how(explanations) #Choose all or just the most parsimonious 
+				explanations = self.explanations_from_how_search(state_featurized,sai,foci_of_attention)
+
+				# for exp in explanations:
+				# 	print(exp.mapping)
+				# 	print(exp.rhs.input_rule)
+
+
+				# exp = next(explanations)
+
+				# vals = 
+				# sel = ["?selection"]
+				# print(knowledge_base)
+
+				
+
+				explanations = self.which_learner.cull_how(explanations,knowledge_base) #Choose all or just the most parsimonious 
 
 				rhs_by_how = self.rhs_by_how.get(skill_label, {})
 				for exp in explanations:
@@ -389,7 +410,6 @@ class Explanation(object):
 		response['selection'] = self.selection_literal.replace("?ele-","")
 		response['action'] = self.rhs.action
 		response['inputs'] = self.compute(knowledge_base,operators,epsilon)#{a: rg_exp[3 + i] for i, a in
-		response['foci_of_attention'] = []
 		return response
 
 

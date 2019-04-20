@@ -232,6 +232,7 @@ def train(http_request, agent_id):
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(http_request.body.decode('utf-8'))
 
+        # print(data)
 
         errs = []
 
@@ -241,7 +242,7 @@ def train(http_request, agent_id):
             data['skill_label'] = 'NO_LABEL'
         if ('foci_of_attention' not in data or data['foci_of_attention'] is
                 None):
-            data['foci_of_attention'] = []
+            data['foci_of_attention'] = None
         if 'selection' not in data or data['selection'] is None:
             errs.append("request body missing 'selection'")
         if 'action' not in data or data['action'] is None:

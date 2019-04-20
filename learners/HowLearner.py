@@ -1,143 +1,123 @@
-from pprint import pprint
-
-from agents.utils import tup_sai
-
-
-class IncrementalMany(object):
-
-    def __init__(self, planner):
-        self.planner = planner
-        self.explanations = {}
-        self.examples = []
-
-    def ifit(self, example):
-        found = False
-        for exp in self.explanations:
-            if self.explains(exp, example):
-                self.explanations[exp].append(example)
-                found = True
-    
-        if not found and example['correct'] is True:
-            sai = tup_sai(example['selection'], example['action'],
-                          example['inputs'])
-            exp = tuple(self.planner.explain_sai(example['limited_state'],
-                                                 sai))[0]
-            self.explanations[exp] = [example]
-            for e in self.examples:
-                if self.explains(exp, e):
-                    self.explanations[exp].append(e)
-
-        self.examples.append(example)
-        self.remove_subsumed()
-        return self.explanations
-
-    def remove_subsumed(self):
-        unnecessary = set()
-
-        explanations = list(self.explanations)
-        for i, exp1 in enumerate(explanations):
-            for exp2 in explanations[i+1:]:
-                if self.subsumes(exp1, exp2):
-                    unnecessary.add(exp2)
-                elif self.subsumes(exp2, exp1):
-                    unnecessary.add(exp1)
-
-        for exp in unnecessary:
-            del self.explanations[exp]
-
-    def subsumes(self, exp1, exp2):
-        """
-        Checks if one explanation subsumes another. However, this only applies
-        to the positive examples. The negative examples are kept around in
-        self.examples, but we don't need explainations that only cover negative
-        examples.  
-        """
-        for e in self.explanations[exp2]:
-            if e['correct'] is False:
-                continue
-            if e not in self.explanations[exp1]:
-                return False
-        return True
-
-    def fit(self, examples):
-        self.explanations = {}
-        for e in examples:
-            self.ifit(e)
-        return self.explanations
-
-    def explains(self, explanation, example):
-        """
-        Checks if an explanation successfully explains an example
-        """
-        try:
-            sai = tup_sai(example['selection'], example['action'],
-                          [example['inputs'][a] for a in example['inputs']])
-            grounded_plan = tuple([self.planner.execute_plan(ele,
-                                    example['limited_state'])
-                                    for ele in explanation])
-            print()
-            print(sai, 'VS', grounded_plan)
-            print()
-            return self.planner.is_sais_equal(grounded_plan, sai)
-        except Exception as e:
-            print(e)
-            print('plan could not execute')
-            pprint(explanation)
-            pprint(example['limited_state'])
-            return False
+# from agents.ModularAgent import get_vars
+from concept_formation.preprocessor import Flattener
+from concept_formation.preprocessor import Tuplizer
+from planners.fo_planner import FoPlanner, execute_functions, unify, subst
+from concept_formation.structure_mapper import rename_flat
 
 
-class SimStudentHow(IncrementalMany):
+def get_vars(arg):
+	"""
+	Doc String
+	"""
+	if isinstance(arg, tuple):
+		lis = []
+		for elem in arg:
+			for val in get_vars(elem):
+				if val not in lis:
+					lis.append(val)
+		return lis
+		# return [v for e in arg for v in self.get_vars(e)]
+	elif isinstance(arg, str) and len(arg) > 0 and arg[0] == '?':
+		return [arg]
+	else:
+		return []
 
-    def ifit(self, example):
-        found = False
+def ground(arg):
+	"""
+	Doc String
+	"""
+	if isinstance(arg, tuple):
+		return tuple(ground(e) for e in arg)
+	elif isinstance(arg, str):
+		return arg.replace('?', 'QM')
+	else:
+		return arg
 
-        for exp in list(self.explanations):
-            if self.explains(exp, example):
-                self.explanations[exp].append(example)
-                found = True
-            elif not found and example['correct'] is True:
-                seed = self.explanations[exp][0]
-                sai = tup_sai(seed['selection'], seed['action'],
-                              seed['inputs'])
+def unground(arg):
+	"""
+	Doc String
+	"""
+	if isinstance(arg, tuple):
+		return tuple(unground(e) for e in arg)
+	elif isinstance(arg, str):
+		return arg.replace('QM', '?')
+	else:
+		return arg
 
-                print("LIMITED STATE FOR HOW")
-                pprint(seed['limited_state'])
+class BaseHowLearner(object):
+	def __init__(self):
+		pass
+		# self.search_depth = search_depth
 
-                for new_exp in self.planner.explain_sai_iter(seed['limited_state'],
-                                                        sai):
-                    if not self.explains(new_exp, example):
-                        continue
-                    covers = True
-                    for e in self.explanations[exp][1:]:
-                        if e['correct'] and not self.explains(new_exp, e):
-                            covers = False
-                            break
-                    if covers:
-                        self.explanations[new_exp] = [example]
-                        for e in self.examples:
-                            if self.explains(new_exp, e):
-                                self.explanations[new_exp].append(e)
-                        found = True
-                        break
-        if not found and example['correct']:
-            sai = tup_sai(example['selection'], example['action'],
-                          example['inputs'])
-            exp = tuple(self.planner.explain_sai(example['limited_state'],
-                                                 sai))[0]
-            self.explanations[exp] = [example]
-            for e in self.examples:
-                if self.explains(exp, e):
-                    self.explanations[exp].append(e)
 
-        self.examples.append(example)
-        self.remove_subsumed()
-        return self.explanations
+	def apply_featureset(self, state):
+		tup = Tuplizer()
+		flt = Flattener()
+		state = flt.transform(tup.transform(state))
 
-def get_how_learner(name):
-    return HOW_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+		knowledge_base = FoPlanner([(ground(a), state[a].replace('?', 'QM')
+									 if isinstance(state[a], str)
+									 else state[a])
+									for a in state],
+								   self.feature_set)
+		knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
+		state = {unground(a): v.replace("QM", "?")
+				 if isinstance(v, str)
+				 else v
+				 for a, v in knowledge_base.facts}
+		return state,knowledge_base
+
+
+	def how_search(self,state,sai,operators,foci_of_attention=None,search_depth=1,epsilon=0.0):
+		# pprint(state)
+		# print("SEARCH DEPTH", self.search_depth)
+		knowledge_base = FoPlanner([(ground(a),
+									 state[a].replace('?', 'QM')
+									 if isinstance(state[a], str)
+									 else state[a])
+									for a in state],
+								   operators)
+		knowledge_base.fc_infer(depth=search_depth, epsilon=epsilon)
+
+		input_args = tuple(sorted([arg for arg in sai.inputs.keys()]))
+		for arg in input_args:
+			input_exp = input_val = sai.inputs[arg]
+			
+			#Danny: This populates a list of explanations found earlier in How search that work"
+			exp_exists = False
+			for iv_m in knowledge_base.fc_query([((arg, '?input'), input_val)],
+												max_depth=0,
+												epsilon=epsilon):
+				# print("iv_m:",iv_m)
+				varz = get_vars(  unground(  (arg, iv_m['?input'])  )  )
+
+				if(foci_of_attention != None):
+					if(not all([v.replace("?ele-","") in foci_of_attention for v in varz])):
+						continue
+
+				#Don't allow redundencies in the where
+				#TODO: Does this even matter, should we just let it be? 
+				#... certainly in a vectorized version we gain no speed by culling these out.
+				if(len(varz) != len(set(varz))):
+					continue
+
+				exp_exists = True
+
+				foa_vmapping = {ground(field): '?foa%s' % j for j, field in enumerate(varz)}
+				vmapping = {v:k for k,v in foa_vmapping.items()}
+				expression = list(rename_flat({(arg, iv_m['?input']): True}, foa_vmapping).keys())[0]
+				yield expression,vmapping
+			if(not exp_exists):
+				yield input_exp,{}
+
+
+def get_how_learner(name,**learner_kwargs):
+    return HOW_LEARNERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+
+# def get_how_learner(name,):
+#     return WhichLearner(heuristic_learner,how_cull_rule,learner_kwargs)
 
 HOW_LEARNERS = {
-    'incremental':IncrementalMany,
-    'simstudent':SimStudentHow
+    'base':BaseHowLearner,
+    # 'simstudent':SimStudentHow
 }

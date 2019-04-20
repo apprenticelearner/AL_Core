@@ -93,7 +93,7 @@ class WhenLearner(object):
     CROSS_RHS_INFERENCE = ["none", "implicit_negatives", "rhs_in_y"]
 
 
-    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state", cross_rhs_inference="implicit_negatives", learner_kwargs={}):
+    def __init__(self, learner, when_type = "one_learner_per_label", state_format="variablized_state", cross_rhs_inference="rhs_in_y", learner_kwargs={}):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS, "state_format must be one of %s but got %s" % (STATE_FORMAT_OPTIONS,state_format) 
         assert when_type in self.__class__.WHEN_TYPE_OPTIONS, "when_type must be one of %s but got %s" % (WHEN_TYPE_OPTIONS,when_type)
         assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, "cross_rhs_inference must be one of %s but got %s" % (CROSS_RHS_INFERENCE,cross_rhs_inference)
@@ -152,17 +152,25 @@ class WhenLearner(object):
             implicit_states = self.implicit_examples[key]['state']
             implicit_rewards = self.implicit_examples[key]['reward']
 
-
-            
-
             if(reward > 0):
                 for other_key, other_impl_exs in self.implicit_examples.items():
                     if(other_key != key):
-                        # print(other_key.input_rule)
-                        other_impl_exs['state'].append(state)
-                        other_impl_exs['reward'].append(-1)
-                implicit_states = self.implicit_examples[key]['state'] = []
-                implicit_rewards = self.implicit_examples[key]['reward'] = []
+
+                        #Add implicit negative examples to any rhs that doesn't already have this state
+                        #TODO: Do this for all bindings not just for the given state
+                        if(not state in self.examples[other_key]['state']):
+                            other_impl_exs['state'].append(state)
+                            other_impl_exs['reward'].append(-1)
+
+                #Remove any implicit negative examples in this rhs with the current state
+                try:
+                    index_value = self.implicit_examples[key]['state'].index(state)
+                except ValueError:
+                    index_value = -1
+
+                if(index_value != -1):
+                    del self.implicit_examples[key]['state'][index_value]
+                    del self.implicit_examples[key]['reward'][index_value]
 
 
             #PRINT AREA
@@ -176,7 +184,7 @@ class WhenLearner(object):
             # pprint(states)
             # pprint(rewards)
             l.fit(states+implicit_states,rewards+implicit_rewards)
-            print(self.learners[key])
+            # print(self.learners[key])
             
         else:
             if(self.type == "one_learner_per_label"):
