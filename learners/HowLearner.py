@@ -3,6 +3,8 @@ from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 from concept_formation.structure_mapper import rename_flat
+from planners.rulesets import custom_function_set
+from learners.VectorizedHowLearner import VectorizedHowLearner
 
 
 def get_vars(arg):
@@ -44,10 +46,39 @@ def unground(arg):
 	else:
 		return arg
 
-class BaseHowLearner(object):
-	def __init__(self):
-		pass
-		# self.search_depth = search_depth
+class FO_State(dict):
+	pass
+	# def __init__(self,state,knowledge_base):
+	# 	dict.__init__(state)
+	# 	self.knowledge_base = knowledge_base
+	# def __equal__
+
+
+
+def apply_operators(ele, knowledge_base,operators,epsilon):
+	operator_output = None
+	for operator in operators:
+		effect = list(operator.effects)[0]
+		pattern = effect[0]
+
+		u_mapping = unify(pattern, ground(ele), {}) #Returns a mapping to name the values in the expression
+		if(u_mapping):
+			condition_sub = [subst(u_mapping,x) for x in operator.conditions]
+			value_map = next(knowledge_base.fc_query(condition_sub, max_depth=0, epsilon=epsilon))
+			try:
+				operator_output = execute_functions(subst(value_map,effect[1]))
+			except:
+				continue
+
+			return operator_output
+
+
+class FOL_HowLearner(object):
+	def __init__(self,search_depth,function_set,feature_set):
+		self.function_set = function_set
+		self.feature_set = feature_set
+		self.epsilon = 0.0
+		self.search_depth = search_depth
 
 
 	def apply_featureset(self, state):
@@ -65,12 +96,15 @@ class BaseHowLearner(object):
 				 if isinstance(v, str)
 				 else v
 				 for a, v in knowledge_base.facts}
-		return state,knowledge_base
+		out = FO_State(state)
+		out.knowledge_base = knowledge_base
+		return out
 
 
-	def how_search(self,state,sai,operators,foci_of_attention=None,search_depth=1,epsilon=0.0):
+	def how_search(self,state,sai,operators=None,foci_of_attention=None,search_depth=1,epsilon=0.0):
 		# pprint(state)
 		# print("SEARCH DEPTH", self.search_depth)
+		if(operators == None): operators = self.function_set
 		knowledge_base = FoPlanner([(ground(a),
 									 state[a].replace('?', 'QM')
 									 if isinstance(state[a], str)
@@ -111,6 +145,37 @@ class BaseHowLearner(object):
 				yield input_exp,{}
 
 
+	def eval_expression(self,r_exp,mapping,state,function_set=None,epsilon=0.0):
+		# r_exp = subst(mapping,r_exp)
+		if(function_set == None): function_set = self.function_set
+		rg_exp = []
+		for ele in r_exp:
+			ele = subst(mapping,ele)
+			if isinstance(ele, tuple):
+				ok = False
+				for var_match in state.knowledge_base.fc_query([(ground(ele), '?v')],
+														 max_depth=0,
+														  epsilon=epsilon):
+					if var_match['?v'] != '':
+						rg_exp.append(var_match['?v'])
+						ok = True
+					break
+
+				if(not ok):
+					operator_output = apply_operators(ele,state.knowledge_base,function_set,epsilon)
+					if(operator_output != None and operator_output != ""):
+						rg_exp.append(operator_output)
+						ok = True
+
+				if(not ok):
+					rg_exp.append(None)
+
+			else:
+				rg_exp.append(ele)
+		return rg_exp
+
+
+
 def get_how_learner(name,**learner_kwargs):
     return HOW_LEARNERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
@@ -118,6 +183,7 @@ def get_how_learner(name,**learner_kwargs):
 #     return WhichLearner(heuristic_learner,how_cull_rule,learner_kwargs)
 
 HOW_LEARNERS = {
-    'base':BaseHowLearner,
+    'fol':FOL_HowLearner,
+    'vectorized': VectorizedHowLearner
     # 'simstudent':SimStudentHow
 }

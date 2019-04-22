@@ -37,6 +37,8 @@ class CustomPipeline(Pipeline):
         # pprint(x)
         self.X.append(tup.undo_transform(ft.transform(x)))
         self.y.append(int(y) if not isinstance(y,tuple) else y)
+
+        # print("IFIT:",self.X)
         # print(self.y)
         return super(CustomPipeline, self).fit(self.X, self.y)
 
@@ -55,6 +57,9 @@ class CustomPipeline(Pipeline):
         ft = Flattener()
         tup = Tuplizer()
         X = [tup.undo_transform(ft.transform(x)) for x in X]
+
+        # print("PRED:",X)
+        # print("VAL:", super(CustomPipeline, self).predict(X))
         return super(CustomPipeline, self).predict(X)
 
     def __repr__(self):
@@ -93,7 +98,7 @@ class WhenLearner(object):
     CROSS_RHS_INFERENCE = ["none", "implicit_negatives", "rhs_in_y"]
 
 
-    def __init__(self, learner, when_type = "one_learner_per_label", state_format="variablized_state", cross_rhs_inference="rhs_in_y", learner_kwargs={}):
+    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state", cross_rhs_inference="none", learner_kwargs={}):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS, "state_format must be one of %s but got %s" % (STATE_FORMAT_OPTIONS,state_format) 
         assert when_type in self.__class__.WHEN_TYPE_OPTIONS, "when_type must be one of %s but got %s" % (WHEN_TYPE_OPTIONS,when_type)
         assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, "cross_rhs_inference must be one of %s but got %s" % (CROSS_RHS_INFERENCE,cross_rhs_inference)
@@ -138,6 +143,10 @@ class WhenLearner(object):
 
     def ifit(self,rhs, state,reward):
         # print("FIT_STATe", state)
+        # print([str(x.input_rule) for x in self.learners.keys()])
+        # print("REQARD", reward)
+        print("LEARNERS",self.learners)
+        print("LEARNER",id(self.learners[rhs]))
         if(self.cross_rhs_inference == "implicit_negatives"):
             if(self.type == "one_learner_per_label"):
                 key = rhs.label                
@@ -255,6 +264,7 @@ class ScikitCobweb(object):
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
+            print(y)
             x['_y_label'] = float(y)
         self.tree.fit(X, randomize_first=False)
 

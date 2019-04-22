@@ -30,8 +30,8 @@ class WhichLearner(object):
         # print([(x._id_num,self.learners[x].heuristic(state)) for x in out])
         return sorted(rhs_list,reverse=True, key=lambda x:self.learners[x].heuristic(state))
 
-    def cull_how(self,expl_iter, knowledge_base):
-        return self.how_cull_rule(expl_iter,knowledge_base)
+    def cull_how(self,expl_iter):
+        return self.how_cull_rule(expl_iter)
 
 
 ####---------------HEURISTIC------------########
@@ -64,37 +64,37 @@ class ProportionCorrect(TotalCorrect):
 
 ####---------------HOW CULL RULE------------########
 
-def first(expl_iter,knowledge_base):
+def first(expl_iter):
     return [next(iter(expl_iter))]
 
-def most_parsimonious(expl_iter,knowledge_base):
+def most_parsimonious(expl_iter):
     l = sorted(expl_iter,key=lambda x:x.get_how_depth())
     return l[:1]
 
-import itertools
-def closest(expl_iter,knowledge_base):
+# import itertools
+# def closest(expl_iter,knowledge_base):
 
-    expl_iter = sorted(expl_iter,key=lambda x:x.get_how_depth())
-    closest = None
-    min_dist = float("inf")
-    for exp in expl_iter:
-        coords = []
-        for v in exp.mapping.values():
-            b = [x for x in knowledge_base.fc_query([(("offsetTop",v),"?top"),(("offsetLeft",v),"?left")],max_depth=0)]
-            coords.append((b[0]["?left"],b[0]["?top"]))
+#     expl_iter = sorted(expl_iter,key=lambda x:x.get_how_depth())
+#     closest = None
+#     min_dist = float("inf")
+#     for exp in expl_iter:
+#         coords = []
+#         for v in exp.mapping.values():
+#             b = [x for x in knowledge_base.fc_query([(("offsetTop",v),"?top"),(("offsetLeft",v),"?left")],max_depth=0)]
+#             coords.append((b[0]["?left"],b[0]["?top"]))
 
-        l1_dist = 0
-        pairs = list(itertools.combinations(coords, 2))
-        for pair in pairs:
-            l1_dist += np.abs(pair[0][0] - pair[1][0]) + np.abs(pair[0][1] - pair[1][1])
-        l1_dist = float(l1_dist) / max(float(len(pairs)), 1)
-        if(l1_dist < min_dist):
-            closest = exp
-            min_dist = l1_dist
-        # print(l1_dist)
-    if(closest != None):
-        print("HERE",list(closest.mapping.values()),min_dist)
-    return [closest] if closest != None else []
+#         l1_dist = 0
+#         pairs = list(itertools.combinations(coords, 2))
+#         for pair in pairs:
+#             l1_dist += np.abs(pair[0][0] - pair[1][0]) + np.abs(pair[0][1] - pair[1][1])
+#         l1_dist = float(l1_dist) / max(float(len(pairs)), 1)
+#         if(l1_dist < min_dist):
+#             closest = exp
+#             min_dist = l1_dist
+#         # print(l1_dist)
+#     if(closest != None):
+#         print("HERE",list(closest.mapping.values()),min_dist)
+#     return [closest] if closest != None else []
     
 
 
@@ -119,5 +119,5 @@ WHICH_HEURISTIC_AGENTS = {
 CULL_HOW_RULES = {
     'first': first,
     'mostparsimonious': most_parsimonious,   
-    'closest': closest,   
+    # 'closest': closest,   
 }
