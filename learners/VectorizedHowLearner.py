@@ -48,6 +48,18 @@ class Add(BaseOperator):
 	def forward(self, x,y):
 		return x+y
 
+class Add3(BaseOperator):
+	def __init__(self):
+		super().__init__()
+
+		self.num_flt_inputs = 3;
+		self.in_arg_types= ["value","value","value"]
+		self.template = "({} + {} + {})"
+		self.commutative = True;
+
+	def forward(self, x,y,z):
+		return x+y+z
+
 class Subtract(BaseOperator):
 	def __init__(self):
 		super().__init__()
@@ -466,6 +478,12 @@ def how_search(state,
 		goal = float(goal)
 	except ValueError:
 		yield goal, {}
+		return
+
+	#TODO: Find source of weird memory overflow when -1 is a goal
+	if(goal == -1):
+		goal = 1
+	print("GOAL:", goal)
 	
 	if(operators == None): operators = self.function_set
 
@@ -481,35 +499,38 @@ def how_search(state,
 	with torch.no_grad():
 		
 		d_len = [numerical_values.shape[0]] 
-
-		# print(search_depth)
-		for d in range(search_depth):
-			numerical_values, d_len = forward_one(numerical_values, d_len,operators)
-
-			# print(numerical_values.shape)
-			# print(type(numerical_values))
-
-		indicies = (numerical_values == goal).nonzero()
-
-		# print(numerical_values[indicies[-20:]])
-		# print(indicies)
-		# print("d_len",d_len)
-		# print("NUM RESULTS", indicies.shape)
 		exp_exists = False
-		for tup in indicies_to_operator_graph(indicies,torch.tensor(d_len),operators,operator_nf_inps):
-			if(not allow_copy and isinstance(tup, int)):
-				continue
-			inps = rule_inputs(tup)
-			if(len(set(inps)) == len(inps) and inps == sorted(inps)):
-				exp_exists = True
-				og = OperatorGraph(tup)
-				vals = [backmap[x][1] for x in inps]
-				yield OperatorGraph(tup), {k:v for k,v in zip(og.in_args,vals)}
+		if(d_len[0] != 0):
+			
+			# if(not )
+			# print(search_depth)
+			for d in range(search_depth):
+				numerical_values, d_len = forward_one(numerical_values, d_len,operators)
+
+				# print(numerical_values.shape)
+				# print(type(numerical_values))
+
+			indicies = (numerical_values == goal).nonzero()
+
+			# print(numerical_values[indicies[-20:]])
+			# print(indicies)
+			# print("d_len",d_len)
+			# print("NUM RESULTS", indicies.shape)
+			
+			for tup in indicies_to_operator_graph(indicies,torch.tensor(d_len),operators,operator_nf_inps):
+				if(not allow_copy and isinstance(tup, int)):
+					continue
+				inps = rule_inputs(tup)
+				if(len(set(inps)) == len(inps) and inps == sorted(inps)):
+					exp_exists = True
+					og = OperatorGraph(tup)
+					vals = [backmap[x][1] for x in inps]
+					yield OperatorGraph(tup), {k:v for k,v in zip(og.in_args,vals)}
 		if(allow_bottomout and not exp_exists):
 			yield goal,{}
 
 
-operator_class_set = [Add,Mod10,Div10]
+operator_class_set = [Add,Add3,Mod10,Div10]
 function_set = [c() for c in operator_class_set ]
 
 class VectorizedHowLearner(object):
@@ -572,13 +593,21 @@ class VectorizedHowLearner(object):
 		if(search_depth == None): search_depth = self.search_depth
 		if(operators == None): operators = self.function_set
 
-		
+		# print("foci_of_attention:",foci_of_attention)
+		# print(state)
+		if(foci_of_attention != None):
+			state = {k:v for k,v in state.items() if k[1].replace("?ele-","") in foci_of_attention}
+		# print(state)
 
 		how_itr = how_search(state,goal,search_depth=search_depth,
 							operators=operators,
 							allow_bottomout=allow_bottomout,
 							allow_copy=allow_copy)
 		for expr,mapping in how_itr:
+			if(foci_of_attention != None and len(foci_of_attention) != len(mapping)):
+				print("continue",expr,mapping)
+				continue
+			print(expr)
 			# print(expr,type(expr))
 			# print(mapping,type(mapping))
 			# print("From HOW:", search_depth)

@@ -256,7 +256,8 @@ class ModularAgent(BaseAgent):
 			# print(x)
 		for rhs in rhs_list:
 			if(isinstance(rhs.input_rule,(int,float,str))):
-				search_itr = [(rhs.input_rule,{})]
+
+				search_itr = [(rhs.input_rule,{})] if sai.inputs["value"] == rhs.input_rule else []
 			else:
 				search_itr = self.how_learner.how_search(state,sai,operators=[rhs.input_rule],
 					foci_of_attention=foci_of_attention,search_depth=1,
@@ -265,7 +266,7 @@ class ModularAgent(BaseAgent):
 			for input_rule, mapping in search_itr:
 				m = {"?selection":"?ele-" + sai.selection}
 				m.update(mapping)
-				# print(input_rule)
+				print("input_rule",input_rule)
 				# print(rhs.input_rule)
 				# print("mapping",mapping)
 				# print(input_rules)
