@@ -235,7 +235,7 @@ def create_mask(n,d,f=torch.eq):
 	sel = (f(torch.conv1d(a,w, None,1,0,1,1), 0)).all(2).view([n]*d)
 	return sel.byte()
 
-def resolve_inputs(flat_input_indices, op_inds,n_elems):
+def resolve_inputs(flat_input_indices, op_inds,n_elems,operator_nf_inps):
 	# print(op_inds)
 
 	nf_inps = operator_nf_inps.gather(0,op_inds)
@@ -264,7 +264,7 @@ def resolve_inputs(flat_input_indices, op_inds,n_elems):
 	# print(nf_inps)
 	return torch.cat(args,1)
 
-def resolve_operator(offset_indicies,offset):
+def resolve_operator(offset_indicies,offset,operator_nf_inps):
 	offset_indicies -= offset
 
 	# print("offset_indicies",offset_indicies)
@@ -288,7 +288,7 @@ def resolve_operator(offset_indicies,offset):
 	# print("input_indicies", input_indicies)
 	# print("-------------")
 
-	args = resolve_inputs(input_indicies,op_inds,offset)
+	args = resolve_inputs(input_indicies,op_inds,offset,operator_nf_inps)
 	# print(args)
 
 	return op_inds, args
@@ -309,7 +309,7 @@ def resolve_operator(offset_indicies,offset):
 	# print(op_inds)
 	# print(op_offset)
 
-def indicies_to_operator_graph(indicies, d_len,operators):
+def indicies_to_operator_graph(indicies, d_len,operators,operator_nf_inps):
 	# if(len(indicies) != 1):
 	# 	print(indicies)
 	# print(index > torch.tensor(d_len).view(1,-1))
@@ -339,7 +339,7 @@ def indicies_to_operator_graph(indicies, d_len,operators):
 
 		if(d > 0 and offset_indicies.shape[0] > 0):
 			
-			op_inds, args = resolve_operator(offset_indicies,offset)
+			op_inds, args = resolve_operator(offset_indicies,offset,operator_nf_inps)
 			# print(op_inds)
 			# print(args)
 			# if(len(indicies) != 1):
@@ -359,7 +359,7 @@ def indicies_to_operator_graph(indicies, d_len,operators):
 				# print(arg_set)
 				# print(op_ind)
 				
-				yield [operators[op_ind], *[x.item() if x.item() < d_len[0] else next(indicies_to_operator_graph(x.view(1),d_len,operators)) for x in arg_set]] 
+				yield [operators[op_ind], *[x.item() if x.item() < d_len[0] else next(indicies_to_operator_graph(x.view(1),d_len,operators,operator_nf_inps)) for x in arg_set]] 
 		else:
 			# print("MOOOO")
 			for indx in offset_indicies:
@@ -467,8 +467,9 @@ def how_search(state,
 	except ValueError:
 		yield goal, {}
 	
-	if(operators == None):
-		operators = self.function_set
+	if(operators == None): operators = self.function_set
+
+	operator_nf_inps = torch.tensor([x.num_flt_inputs for x in operators])
 
 	if(isinstance(state, dict)):
 		numerical_values,backmap = state_to_tensors(state)
@@ -495,7 +496,7 @@ def how_search(state,
 		# print("d_len",d_len)
 		# print("NUM RESULTS", indicies.shape)
 		exp_exists = False
-		for tup in indicies_to_operator_graph(indicies,torch.tensor(d_len),operators):
+		for tup in indicies_to_operator_graph(indicies,torch.tensor(d_len),operators,operator_nf_inps):
 			if(not allow_copy and isinstance(tup, int)):
 				continue
 			inps = rule_inputs(tup)
@@ -510,7 +511,7 @@ def how_search(state,
 
 operator_class_set = [Add,Mod10,Div10]
 function_set = [c() for c in operator_class_set ]
-operator_nf_inps = torch.tensor([x.num_flt_inputs for x in function_set])
+
 class VectorizedHowLearner(object):
 	def __init__(self,search_depth,**kwargs):
 
@@ -564,10 +565,17 @@ class VectorizedHowLearner(object):
 					allow_copy=True,
 					epsilon=0.0):
 		goal = sai.inputs["value"]
+
+
+
 		# print("search_depth",search_depth)
 		if(search_depth == None): search_depth = self.search_depth
+		if(operators == None): operators = self.function_set
+
+		
+
 		how_itr = how_search(state,goal,search_depth=search_depth,
-							operators=self.function_set,
+							operators=operators,
 							allow_bottomout=allow_bottomout,
 							allow_copy=allow_copy)
 		for expr,mapping in how_itr:

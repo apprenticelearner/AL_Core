@@ -23,82 +23,13 @@ from concept_formation.preprocessor import Flattener
 # cobweb, pyibl, nearest neighbor, logistic regression
 
 
-class CustomPipeline(Pipeline):
-
-    def ifit(self, x, y):
-        if not hasattr(self, 'X'):
-            self.X = []
-        if not hasattr(self, 'y'):
-            self.y = []
-
-        ft = Flattener()
-        tup = Tuplizer()
-
-        # pprint(x)
-        self.X.append(tup.undo_transform(ft.transform(x)))
-        self.y.append(int(y) if not isinstance(y,tuple) else y)
-
-        # print("IFIT:",self.X)
-        # print(self.y)
-        return super(CustomPipeline, self).fit(self.X, self.y)
-
-    def fit(self,X,y):
-
-
-        ft = Flattener()
-        tup = Tuplizer()
-
-        self.X = [tup.undo_transform(ft.transform(x)) for x in X]
-        self.y = [int(x) if not isinstance(x,tuple) else x for x in y]
-
-        super(CustomPipeline, self).fit(self.X, self.y)
-
-    def predict(self, X):
-        ft = Flattener()
-        tup = Tuplizer()
-        X = [tup.undo_transform(ft.transform(x)) for x in X]
-
-        # print("PRED:",X)
-        # print("VAL:", super(CustomPipeline, self).predict(X))
-        return super(CustomPipeline, self).predict(X)
-
-    def __repr__(self):
-        return repr(self.named_steps['clf'])
-
-
-def iFitWrapper(clf):
-
-    def fun(x=None):
-        if x is None:
-            return CustomPipeline([('clf', clf())])
-        else:
-            return CustomPipeline([('clf', clf(**x))])
-
-    return fun
-
-
-def DictVectWrapper(clf):
-    def fun(x=None):
-        if x is None:
-            return CustomPipeline([('dict vect', DictVectorizer(sparse=False,sort=False)),
-                                   ('clf', clf())])
-        else:
-            return CustomPipeline([('dict vect', DictVectorizer(sparse=False,sort=False)),
-                                   ('clf', clf(**x))])
-
-    return fun
-
-
-
-
-
 class WhenLearner(object):
     STATE_FORMAT_OPTIONS = ["variablized_state",  "state_only"]
     WHEN_TYPE_OPTIONS = ["one_learner_per_rhs", "one_learner_per_label"]
     CROSS_RHS_INFERENCE = ["none", "implicit_negatives", "rhs_in_y"]
 
 
-    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state", cross_rhs_inference="none", learner_kwargs={}):
+    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state", cross_rhs_inference="implicit_negatives", learner_kwargs={}):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS, "state_format must be one of %s but got %s" % (STATE_FORMAT_OPTIONS,state_format) 
         assert when_type in self.__class__.WHEN_TYPE_OPTIONS, "when_type must be one of %s but got %s" % (WHEN_TYPE_OPTIONS,when_type)
         assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, "cross_rhs_inference must be one of %s but got %s" % (CROSS_RHS_INFERENCE,cross_rhs_inference)
@@ -145,8 +76,8 @@ class WhenLearner(object):
         # print("FIT_STATe", state)
         # print([str(x.input_rule) for x in self.learners.keys()])
         # print("REQARD", reward)
-        print("LEARNERS",self.learners)
-        print("LEARNER",id(self.learners[rhs]))
+        # print("LEARNERS",self.learners)
+        # print("LEARNER",id(self.learners[rhs]))
         if(self.cross_rhs_inference == "implicit_negatives"):
             if(self.type == "one_learner_per_label"):
                 key = rhs.label                
@@ -221,6 +152,73 @@ class WhenLearner(object):
             return rew_pred
         else:
             return prediction
+
+
+class CustomPipeline(Pipeline):
+
+    def ifit(self, x, y):
+        if not hasattr(self, 'X'):
+            self.X = []
+        if not hasattr(self, 'y'):
+            self.y = []
+
+        ft = Flattener()
+        tup = Tuplizer()
+
+        # pprint(x)
+        self.X.append(tup.undo_transform(ft.transform(x)))
+        self.y.append(int(y) if not isinstance(y,tuple) else y)
+
+        # print("IFIT:",self.X)
+        # print(self.y)
+        return super(CustomPipeline, self).fit(self.X, self.y)
+
+    def fit(self,X,y):
+
+
+        ft = Flattener()
+        tup = Tuplizer()
+
+        self.X = [tup.undo_transform(ft.transform(x)) for x in X]
+        self.y = [int(x) if not isinstance(x,tuple) else x for x in y]
+
+        super(CustomPipeline, self).fit(self.X, self.y)
+
+    def predict(self, X):
+        ft = Flattener()
+        tup = Tuplizer()
+        X = [tup.undo_transform(ft.transform(x)) for x in X]
+
+        # print("PRED:",X)
+        # print("VAL:", super(CustomPipeline, self).predict(X))
+        return super(CustomPipeline, self).predict(X)
+
+    def __repr__(self):
+        return repr(self.named_steps['clf'])
+
+
+def iFitWrapper(clf):
+
+    def fun(x=None):
+        if x is None:
+            return CustomPipeline([('clf', clf())])
+        else:
+            return CustomPipeline([('clf', clf(**x))])
+
+    return fun
+
+
+def DictVectWrapper(clf):
+    def fun(x=None):
+        if x is None:
+            return CustomPipeline([('dict vect', DictVectorizer(sparse=False,sort=False)),
+                                   ('clf', clf())])
+        else:
+            return CustomPipeline([('dict vect', DictVectorizer(sparse=False,sort=False)),
+                                   ('clf', clf(**x))])
+
+    return fun
+
 
     # def applicable_skills(self,state,skill_label,skills=None):
     #     if(skills == None): skills = self.skills_by_label[skill_label]

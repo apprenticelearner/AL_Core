@@ -71,6 +71,9 @@ def most_parsimonious(expl_iter):
     l = sorted(expl_iter,key=lambda x:x.get_how_depth())
     return l[:1]
 
+def return_all(expl_iter):
+    return [x for x in expl_iter]
+
 # import itertools
 # def closest(expl_iter,knowledge_base):
 
@@ -119,5 +122,6 @@ WHICH_HEURISTIC_AGENTS = {
 CULL_HOW_RULES = {
     'first': first,
     'mostparsimonious': most_parsimonious,   
+    'all': return_all,   
     # 'closest': closest,   
 }

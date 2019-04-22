@@ -138,7 +138,7 @@ class ModularAgent(BaseAgent):
 
 	def __init__(self, feature_set, function_set, 
 									 when_learner='decisiontree', where_learner='MostSpecific',
-									 heuristic_learner='proportion_correct', how_cull_rule='most_parsimonious',
+									 heuristic_learner='proportion_correct', how_cull_rule='all',
 									 how_learner = 'vectorized',search_depth=1, numerical_epsilon=0.0):
 		self.where_learner = get_where_learner(where_learner)
 		self.when_learner = get_when_learner(when_learner)
@@ -179,20 +179,18 @@ class ModularAgent(BaseAgent):
 		if(rhs_list == None): rhs_list = self.rhs_list
 		# print(rhs_list)
 		for rhs in rhs_list:
-
 			for match in self.where_learner.get_matches(rhs,state):
 				#TODO: Should this even ever be produced?
 				if len(match) != len(set(match)): continue
 				# print("VARIABLIZED:",variablize_by_where(state, match))
-				print("Print",self.when_learner.predict(rhs, variablize_by_where(state, match)))
+				# print("PREDICTION:",self.when_learner.predict(rhs, variablize_by_where(state, match)))
 				# print("Format",self.when_learner.state_format)
 				if(self.when_learner.state_format == "variablized_state" and 
 					self.when_learner.predict(rhs, variablize_by_where(state, match)) <= 0) :
-					print("CONTINUE")
+					# print("CONTINUE")
 					continue
 				explanation = Explanation(rhs,{v:m for v,m in zip(rhs.all_vars,match)})
-				print("From Skills:")
-				print(explanation.rhs.input_rule, str(match[1:]) + "->" + str(match[0]))
+				
 
 				yield explanation
 		######## -------------------------------------------------------#######
@@ -202,8 +200,12 @@ class ModularAgent(BaseAgent):
 		# pprint(state)
 		state_featurized = self.how_learner.apply_featureset(state)
 		rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list,state_featurized)
-		explanations = self.applicable_explanations(state_featurized, rhs_list=rhs_list)
-		explanation = next(explanations,None)
+		explanations = [x for x in self.applicable_explanations(state_featurized, rhs_list=rhs_list)]
+		print("APPLICABLE EXPLANATIONS:")
+		print("\n".join([str(x) for x in explanations]))
+		print("----------------------")
+		explanation = next(iter(explanations),None)
+		# explanation = next(explanations,None)
 		if explanation != None:
 			return explanation.to_response(state_featurized,self)
 		else:	
@@ -231,41 +233,45 @@ class ModularAgent(BaseAgent):
 
 
 
-	def _explain_sai(self, rhs, sai,state,foci_of_attention):
+	# def _explain_sai(self, rhs, sai,state,foci_of_attention):
 		
-		if(rhs.action == sai.action):
-			if(foci_of_attention == None):
-				matches = self.where_learner.get_matches(rhs,state)
-			else:
-				matches = self._matches_from_foas(rhs,sai,foci_of_attention)
+	# 	if(rhs.action == sai.action):
+	# 		if(foci_of_attention == None):
+	# 			matches = self.where_learner.get_matches(rhs,state)
+	# 		else:
+	# 			matches = self._matches_from_foas(rhs,sai,foci_of_attention)
 
-			for match in matches:
-				mapping = {var:val for var,val in zip(rhs.all_vars,match)}
-				# grounded_sel = subst(mapping, rhs.selection_expression)
-				# grounded_inp = subst(mapping, rhs.input_rule)
-				rg_exp = tuple(self.how_learner.eval_expression([rhs.selection_expression,rhs.input_rule], mapping, state,
-							 function_set= self.function_set, epsilon=self.epsilon))
-				if(rg_exp[0] == sai.selection and {rhs.input_args[0]:rg_exp[1]} == sai.inputs):
-					yield Explanation(rhs,mapping)
+	# 		for match in matches:
+	# 			mapping = {var:val for var,val in zip(rhs.all_vars,match)}
+	# 			# grounded_sel = subst(mapping, rhs.selection_expression)
+	# 			# grounded_inp = subst(mapping, rhs.input_rule)
+	# 			rg_exp = tuple(self.how_learner.eval_expression([rhs.selection_expression,rhs.input_rule], mapping, state,
+	# 						 function_set= self.function_set, epsilon=self.epsilon))
+	# 			if(rg_exp[0] == sai.selection and {rhs.input_args[0]:rg_exp[1]} == sai.inputs):
+	# 				yield Explanation(rhs,mapping)
 
 	def explanations_from_skills(self,state, sai,rhs_list,foci_of_attention=None): # -> return Iterator<skill>
 		# input_rules = [rhs.input_rule for rhs in rhs_list]
 		print([str(rhs.input_rule) for rhs in rhs_list])
 			# print(x)
 		for rhs in rhs_list:
-			search_itr = self.how_learner.how_search(state,sai,operators=[rhs.input_rule],
-				foci_of_attention=foci_of_attention,search_depth=1,
-				allow_bottomout=False,allow_copy=False)
+			if(isinstance(rhs.input_rule,(int,float,str))):
+				search_itr = [(rhs.input_rule,{})]
+			else:
+				search_itr = self.how_learner.how_search(state,sai,operators=[rhs.input_rule],
+					foci_of_attention=foci_of_attention,search_depth=1,
+					allow_bottomout=False,allow_copy=False)
 
 			for input_rule, mapping in search_itr:
-				mapping["?selection"] = sai.selection
+				m = {"?selection":"?ele-" + sai.selection}
+				m.update(mapping)
 				# print(input_rule)
 				# print(rhs.input_rule)
 				# print("mapping",mapping)
 				# print(input_rules)
 				# rhs = rhs_list[input_rules.index(input_rule)]
 				# print(rhs.input_rule)
-				yield Explanation(rhs,mapping) 
+				yield Explanation(rhs,m) 
 
 
 		# for rhs in rhs_list:
@@ -277,7 +283,7 @@ class ModularAgent(BaseAgent):
 	def explanations_from_how_search(self,state, sai,foci_of_attention):# -> return Iterator<Explanation>
 		sel_match = next(expression_matches({('?sel_prop', '?selection'):sai.selection},state),None)
 		selection_rule = (sel_match['?sel_prop'], '?selection') if sel_match != None else sai.selection
-		for input_rule,mapping in self.how_learner.how_search(state,sai,self.function_set,foci_of_attention):
+		for input_rule,mapping in self.how_learner.how_search(state,sai,foci_of_attention=foci_of_attention):
 			inp_vars = list(mapping.keys())
 			varz = list(mapping.values())
 			rhs = RHS(selection_rule, sai.action, input_rule, "?selection", inp_vars, list(sai.inputs.keys()) )
@@ -300,12 +306,15 @@ class ModularAgent(BaseAgent):
 
 	def fit(self,explanations, state, reward): #-> return None
 		for exp in explanations:
-			print("BLEEP",exp.rhs,exp.rhs._id_num)
+			# print("BLEEP",exp.rhs,exp.rhs._id_num)
 			if(self.when_learner.state_format == 'variablized_state'):
 				self.when_learner.ifit(exp.rhs, variablize_by_where(state,exp.mapping.values()), reward)
 			else:
 				self.when_learner.ifit(exp.rhs, state, reward)
 			self.which_learner.ifit(exp.rhs, state, reward)
+			# print("To Train", reward)
+			# print(str(exp.rhs.input_rule), list(exp.mapping.values()))
+			# print("-----------------------------------")
 			self.where_learner.ifit(exp.rhs, list(exp.mapping.values()), state, reward)
 
 
@@ -315,10 +324,23 @@ class ModularAgent(BaseAgent):
 		state_featurized = self.how_learner.apply_featureset(state)
 		explanations = self.explanations_from_skills(state_featurized,sai,self.rhs_list,foci_of_attention)
 		explanations, nonmatching_explanations = self.where_matches(explanations,state_featurized)
+
+		print("EXPLANTIONS FROM SKILLS", len(explanations),len(nonmatching_explanations))
 		
+		print("MATHCING")
+		print("\n".join([str(x) for x in explanations]))
+		print("---------------------------")
+		print("NON MATHCING")
+		print("\n".join([str(x) for x in nonmatching_explanations]))
+
 		if(len(explanations) == 0 ):
+
 			if(len(nonmatching_explanations) > 0):
+				#TODO : Why do we same why not all of them?
+				# explanations = nonmatching_explanations
 				explanations = [choice(nonmatching_explanations)]
+				
+
 			else:
 				print("HOW SEARCH")
 				explanations = self.explanations_from_how_search(state_featurized,sai,foci_of_attention)
@@ -340,18 +362,18 @@ class ModularAgent(BaseAgent):
 
 				rhs_by_how = self.rhs_by_how.get(skill_label, {})
 				for exp in explanations:
-					print("TUPLE:", exp.rhs.as_tuple)
-					print("TUPLE:", hash(exp.rhs.as_tuple))
-					print(exp.rhs.as_tuple in rhs_by_how)
+					# print("TUPLE:", exp.rhs.as_tuple)
+					# print("TUPLE:", hash(exp.rhs.as_tuple))
+					# print(exp.rhs.as_tuple in rhs_by_how)
 					if(exp.rhs.as_tuple in rhs_by_how):
 						exp.rhs = rhs_by_how[exp.rhs.as_tuple] 
-						print(str(exp.rhs.input_rule))
+						# print(str(exp.rhs.input_rule))
 					else:
 						rhs_by_how[exp.rhs.as_tuple] = exp.rhs
 						self.rhs_by_how[skill_label] = rhs_by_how
 
-						print([str(x.input_rule) for x in self.rhs_list])
-						print(exp.rhs.input_rule, list(exp.mapping.values()))
+						# print([str(x.input_rule) for x in self.rhs_list])
+						# print(exp.rhs.input_rule, list(exp.mapping.values()))
 						self.add_rhs(exp.rhs)
 												
 		self.fit(explanations,state_featurized,reward)
@@ -444,6 +466,9 @@ class Explanation(object):
 
 	def get_how_depth(self):
 		return self.rhs.get_how_depth()
+
+	def __str__(self):
+		return str(self.rhs.input_rule) + ":(" + ",".join([x.replace("?ele-","") for x in self.input_literals]) + ")->" + self.selection_literal.replace("?ele-","")
 
 
 
