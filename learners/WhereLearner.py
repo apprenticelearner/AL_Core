@@ -1,4 +1,4 @@
-# from pprint import pprint
+from pprint import pprint
 from concept_formation.cobweb3 import Cobweb3Node
 from concept_formation.cobweb import CobwebNode
 from concept_formation.preprocessor import NameStandardizer
@@ -52,7 +52,7 @@ class BaseILP(object):
     def get_match(self, X):
         pass
 
-    def get_all_matches(self, X):
+    def get_matches(self, X):
         pass
 
     def ifit(self, X, y):
@@ -105,6 +105,43 @@ def get_vars(arg):
         return [arg]
     else:
         return []
+
+
+class WhereLearner(object):
+
+    def __init__(self, learner_name,learner_kwargs={}):
+        
+        self.learner_name = learner_name
+        self.learner_kwargs = learner_kwargs
+        self.rhs_by_label = {}
+        self.learners = {}
+
+    def add_rhs(self,rhs, constraints):
+        # args = [skill.selection_var] + skill.input_vars
+        self.learners[rhs] = get_where_agent(self.learner_name,
+            args=tuple(rhs.all_vars),constraints=constraints,**self.learner_kwargs)
+        
+        rhs_list = self.rhs_by_label.get(rhs.label,[])
+        rhs_list.append(rhs)
+        self.rhs_by_label[rhs.label] = rhs_list
+
+    def check_match(self, rhs, t, x):
+        return self.learners[rhs].check_match(t,x)
+
+    def get_match(self,rhs, X):
+        # args = [skill.selection_var] + skill.input_vars
+        return self.learners[rhs].get_match(X)
+
+    def get_matches(self,rhs, X):
+        # args = [skill.selection_var] + skill.input_vars
+        return self.learners[rhs].get_matches(X)
+
+    def ifit(self,rhs, t, X, y):
+        # args = [skill.selection_var] + skill.input_vars
+        return self.learners[rhs].ifit(t,X,y)
+
+    def fit(self,rhs, T, X, y):
+        return self.learners[rhs].fit(T,X,y)
 
 
 class MostSpecific(BaseILP):
@@ -186,18 +223,28 @@ class MostSpecific(BaseILP):
 
         # print("INDEX")
         # pprint(index)
+        # print("ARGS")
+        # print(self.args)
 
+        # print("Tuples")
+        # print(self.tuples) 
+
+        # print("Constraints")
+        # print(self.constraints)        
         # print("OPERATOR")
         # pprint(self.operator)
         # print(self.learner.get_hset())
 
         for t in self.tuples:
+            # print("TUPLE", t)
             mapping = {a: t[i] for i, a in enumerate(self.args)}
             operator = Operator(tuple(('Rule',) + self.args),
                                 frozenset().union(self.constraints), [])
+            # print("OP", str(operator))
 
             for m in operator.match(index, epsilon=epsilon,
                                     initial_mapping=mapping):
+                # print("M", m)
                 result = tuple(ele.replace("QM", '?') for ele in t)
                 # print('GET MATCHES T', result)
                 yield result
@@ -206,6 +253,7 @@ class MostSpecific(BaseILP):
         # print("GOT ALL THE MATCHES!")
 
     def ifit(self, t, x, y):
+        # print("TUPIN", t)
 
         if y > 0:
             self.pos_count += 1
@@ -648,11 +696,13 @@ class SpecificToGeneral(BaseILP):
             self.ifit(t, X[i], y[i])
 
 
-def get_where_learner(name):
-    return WHERE_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+def get_where_agent(name,**learner_kwargs):
+    return WHERE_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
+def get_where_learner(name,learner_kwargs={}):
+    return WhereLearner(name,learner_kwargs)
 
-WHERE_LEARNERS = {
+WHERE_LEARNER_AGENTS = {
     'mostspecific': MostSpecific,
     'stateresponselearner': StateResponseLearner,
     'relationallearner': RelationalLearner,

@@ -73,50 +73,100 @@ def DictVectWrapper(clf):
     return fun
 
 
+
+
+
+class WhenLearner(object):
+    STATE_FORMAT_OPTIONS = ["variablized_state",  "state_only"]
+    WHEN_TYPE_OPTIONS = ["one_learner_per_rhs", "one_learner_per_label"]
+
+    def __init__(self, learner, when_type = "one_learner_per_rhs", state_format="variablized_state",learner_kwargs={}):
+        assert state_format in self.__class__.STATE_FORMAT_OPTIONS
+        assert when_type in self.__class__.WHEN_TYPE_OPTIONS
+
+        self.learner_name = learner
+        self.learner_kwargs = learner_kwargs
+        
+        self.type = when_type
+        self.state_format = state_format
+        self.rhs_by_label = {}
+            
+        # (self.type == "one_learner_per_rhs"):
+        self.learners = {}
+
+
+    def add_rhs(self, rhs):
+        if(self.type == "one_learner_per_rhs"):
+            self.learners[rhs] = get_when_agent(self.learner_name,**self.learner_kwargs)
+        rhs_list = self.rhs_by_label.get(rhs.label,[])
+        rhs_list.append(rhs)
+        self.rhs_by_label[rhs.label] = rhs_list
+
+
+    def ifit(self,rhs, state,reward):
+        # print("FIT_STATe", state)
+        if(self.type == "one_learner_per_label"):
+            if(not skill_label in self.learner):
+                self.learner[rhs.label] = get_when_agent(self.learner_name,**self.learner_kwargs)
+            self.learner[rhs.label].ifit(state,reward)
+        elif(self.type == "one_learner_per_rhs"):
+            self.learners[rhs].ifit(state,reward)
+
+    def predict(self,rhs,state):
+        # print("STATE:",state, type(state))
+        
+        if(self.type == "one_learner_per_label"):
+            return self.learners[rhs.label].predict([state])[0]
+        elif(self.type == "one_learner_per_rhs"):
+            return self.learners[rhs].predict([state])[0]        
+
+    # def applicable_skills(self,state,skill_label,skills=None):
+    #     if(skills == None): skills = self.skills_by_label[skill_label]
+    #     raise NotImplementedError("Still need to write applicable_skills")
+
+
+
+
 class ScikitTrestle(object):
 
-    def __init__(self, params=None):
-        if params is None:
-            self.tree = TrestleTree()
-        else:
-            self.tree = TrestleTree(**params)
+    def __init__(self, **kwargs):
+        self.tree = TrestleTree(**kwargs)
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         x = deepcopy(x)
-        x['_y_label'] = "%i" % y
+        x['_y_label'] = float(y)
         self.tree.ifit(x)
 
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
-            x['_y_label'] = "%i" % y[i]
+            x['_y_label'] = float(y)
         self.tree.fit(X, randomize_first=False)
 
     def predict(self, X):
-        return [int(self.tree.categorize(x).predict('_y_label')) for x in X]
+        return [self.tree.categorize(x).predict('_y_label') for x in X]
 
 
 class ScikitCobweb(object):
 
-    def __init__(self, params=None):
-        if params is None:
-            self.tree = Cobweb3Tree()
-        else:
-            self.tree = Cobweb3Tree(**params)
+    def __init__(self, **kwargs):
+        self.tree = Cobweb3Tree(**kwargs)
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         x = deepcopy(x)
-        x['_y_label'] = "%i" % y
+        x['_y_label'] = float(y)
         self.tree.ifit(x)
 
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
-            x['_y_label'] = "%i" % y[i]
+            x['_y_label'] = float(y)
         self.tree.fit(X, randomize_first=False)
 
     def predict(self, X):
-        return [int(self.tree.categorize(x).predict('_y_label')) for x in X]
+        return [self.tree.categorize(x).predict('_y_label') for x in X]
 
 
 class ScikitPyIBL(object):
@@ -135,6 +185,7 @@ class ScikitPyIBL(object):
                 self.decay = params['decay']
             if 'temperature' in params:
                 self.temperature = params['temperature']
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         if 'X' not in self:
@@ -193,6 +244,7 @@ class CustomLogisticRegression(LogisticRegression):
             return self
         else:
             return super(CustomLogisticRegression, self).fit(X, y)
+        self.state_format = "variablized_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -211,6 +263,7 @@ class CustomSVM(SVC):
             return self
         else:
             return super(CustomSVM, self).fit(X, y)
+        self.state_format = "variablized_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -229,6 +282,7 @@ class CustomSGD(SGDClassifier):
             return self
         else:
             return super(CustomSGD, self).fit(X, y)
+        self.state_format = "variablized_state"
 
     def predict(self, X):
         if self.is_single_class:
@@ -250,6 +304,7 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
             return self
         else:
             return super(CustomKNeighborsClassifier, self).fit(X, y)
+        self.state_format = "variablized_state"
 
     def predict(self, X):
         if self.is_sample_less:
@@ -259,6 +314,9 @@ class CustomKNeighborsClassifier(KNeighborsClassifier):
 
 
 class AlwaysTrue(object):
+
+    def __init__(self):
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         pass
@@ -275,6 +333,7 @@ class MajorityClass(object):
     def __init__(self):
         self.pos = 0
         self.neg = 0
+        self.state_format = "variablized_state"
 
     def ifit(self, x, y):
         if y == 1:
@@ -299,11 +358,25 @@ parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss': 'perceptron'}
 
 
-def get_when_learner(name):
-    return WHEN_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+#######-------------------UTILITIES----------------#######
 
 
-WHEN_LEARNERS = {
+def get_when_agent(name,**learner_kwargs):
+    return WHEN_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+
+def get_when_learner(name,learner_kwargs={}):
+    inp_d = WHEN_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
+    inp_d['learner_kwargs'] = learner_kwargs
+    return WhenLearner(**inp_d)
+
+
+WHEN_LEARNERS ={
+    "decisiontree" : {"learner" : "decisiontree", "when_type" : "one_learner_per_rhs", "state_format":"variablized_state"},
+    "cobweb" : {"learner" : "cobweb", "when_type" : "one_learner_per_rhs", "state_format":"variablized_state"},
+    "trestle" : {"learner" : "cobweb", "when_type" : "one_learner_per_rhs", "state_format":"variablized_state"}
+}
+
+WHEN_LEARNER_AGENTS = {
     'naivebayes': DictVectWrapper(BernoulliNB),
     'decisiontree': DictVectWrapper(DecisionTreeClassifier),
     'logisticregression': DictVectWrapper(CustomLogisticRegression),

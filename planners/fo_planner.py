@@ -640,6 +640,7 @@ class FoPlanner:
 
     def get_effects(self, op_eps):
         operator, epsilon = op_eps
+        # print(operator.effects)
         ret = []
         for m in operator.match(self.index, epsilon):
             try:
@@ -648,6 +649,7 @@ class FoPlanner:
                 while len(unprocessed) > 0:
                     ele = unprocessed.pop()
                     f = execute_functions(subst(m, ele))
+                    # print(ele)
                     if isinstance(f, list):
                         unprocessed.extend(f)
                     else:
@@ -806,7 +808,7 @@ class Operator:
     def __str__(self):
         pprint(self.conditions)
         pprint(self.effects)
-        return "%s" % (str(self.name))
+        return "n:%s\nc:%s\ne:%s" % (str(self.name), self.conditions,self.effects)
 
     def __repr__(self):
         return str(self)
@@ -820,7 +822,9 @@ class Operator:
             initial_mapping = {}
 
         # print("HEAD CONDITIONS")
-        # pprint(self.head_conditions)
+        # print(self.head_conditions)
+        # print("NEG CONDITIONS")
+        # print(self.negative_conditions)
 
         for head_match in pattern_match(self.head_conditions.union(
                                         set([('not', c) for c in
@@ -830,6 +834,7 @@ class Operator:
             # if initial_mapping is not None:
             # print("HEAD MAPPING", head_match)
             # print("INITIAL VS. HEAD", initial_mapping, head_match)
+            # print("non_head_conditions", self.non_head_conditions)
             for full_match in pattern_match(self.non_head_conditions.union(
                                             set([('not', c) for c in
                                                  self.negative_conditions])),

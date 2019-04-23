@@ -23,14 +23,34 @@ from apprentice_learner.models import Operator
 from agents.Stub import Stub
 from agents.Memo import Memo
 from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
+from agents.ModularAgent import ModularAgent
 from agents.RLAgent import RLAgent
 from planners.rulesets import custom_feature_set
 from planners.rulesets import custom_function_set
 
+# import cProfile
+# pr = cProfile.Profile()
+
+
+active_agent = None
+active_agent_id = None
+dont_save = False
+
+
 AGENTS = {'Stub': Stub,
           'Memo': Memo,
           'RLAgent': RLAgent,
-          'WhereWhenHowNoFoa': WhereWhenHowNoFoa}
+          'WhereWhenHowNoFoa': WhereWhenHowNoFoa,
+          'ModularAgent' : ModularAgent}
+
+def get_agent_by_id(id):
+    global active_agent, active_agent_id, dont_save
+    if(id == active_agent_id):
+        agent = active_agent
+    else:
+        agent = Agent.objects.get(id=id)
+    return agent
+
 
 
 def parse_operator_set(data, set_name, errs=None):
@@ -135,6 +155,16 @@ def create(http_request):
                                        "ensure provided args are "
                                        "correct.")
 
+    global active_agent, active_agent_id, dont_save
+    if(active_agent != None):
+        active_agent = None
+        active_agent_id = None
+        dont_save = False
+    if(str(data.get("stay_active",False)).lower() == 'true'):
+        active_agent = agent
+        active_agent_id = str(agent.id)
+        dont_save = str(data.get("dont_save", False)).lower() == "true"
+
     return HttpResponse(json.dumps(ret_data))
 
 
@@ -147,6 +177,7 @@ def request(http_request, agent_id):
     That object should have the following fields:
     """
 
+    # pr.enable()
     try:
         if http_request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
@@ -156,15 +187,25 @@ def request(http_request, agent_id):
             print("request body missing 'state'")
             return HttpResponseBadRequest("request body missing 'state'")
 
-        agent = Agent.objects.get(id=agent_id)
+        agent = get_agent_by_id(agent_id)
         agent.inc_request()
         response = agent.instance.request(data['state'])
-        agent.save()
+
+        global dont_save
+        if(not dont_save): agent.save()
+
+        # pr.disable()
+        # pr.dump_stats("al.cprof")
+
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
         traceback.print_exc()
+
+        # pr.disable()
+        # pr.dump_stats("al.cprof")
         return HttpResponseServerError(str(exp))
+    
 
 
 @csrf_exempt
@@ -184,10 +225,13 @@ def train(http_request, agent_id):
     Trains the Agent with an state annotated with the SAI used / with
     feedback.
     """
+
+    # pr.enable()
     try:
         if http_request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(http_request.body.decode('utf-8'))
+
 
         errs = []
 
@@ -205,7 +249,10 @@ def train(http_request, agent_id):
         if 'inputs' not in data or data['inputs'] is None:
             errs.append("request body missing 'inputs'")
         if 'reward' not in data or data['reward'] is None:
-            errs.append("request body missing 'reward'")
+            if('correct' in data):
+                data['reward'] = 2*int(data['correct'] == True)-1
+            else:
+                errs.append("request body missing 'reward'")
 
         # Linter was complaining about too many returns so I consolidated all
         # of the errors above
@@ -213,17 +260,25 @@ def train(http_request, agent_id):
             print('errors: {}'.format(','.join(errs)))
             return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
 
-        agent = Agent.objects.get(id=agent_id)
+        agent = get_agent_by_id(agent_id)
         agent.inc_train()
 
         agent.instance.train(data['state'], data['selection'], data['action'],
                              data['inputs'], data['reward'],
                              data['skill_label'], data['foci_of_attention'])
-        agent.save()
+        global dont_save
+        if(not dont_save): agent.save()
+
+        # pr.disable()
+        # pr.dump_stats("al.cprof")
+
         return HttpResponse("OK")
 
     except Exception as exp:
         traceback.print_exc()
+
+        # pr.disable()
+        # pr.dump_stats("al.cprof")
         return HttpResponseServerError(str(exp))
 
 
