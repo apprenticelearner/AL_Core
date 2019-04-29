@@ -267,11 +267,13 @@ class ModularAgent(BaseAgent):
 				m = {"?selection":"?ele-" + sai.selection}
 				m.update(mapping)
 				print("input_rule",input_rule)
+				print("rhs",rhs.input_rule)
 				# print(rhs.input_rule)
 				# print("mapping",mapping)
 				# print(input_rules)
 				# rhs = rhs_list[input_rules.index(input_rule)]
 				# print(rhs.input_rule)
+				# print(rhs)
 				yield Explanation(rhs,m) 
 
 
@@ -387,6 +389,19 @@ class ModularAgent(BaseAgent):
 		explanations = self.explanations_from_skills(state,sai,self.rhs_list)
 		explanations, nonmatching_explanations = self.where_matches(explanations)
 		return len(explanations) > 0
+
+
+
+	def get_skills(self,states=None):
+		out = []
+		print("STATES:", len(states))
+		# print(states)
+		for state in states:
+			# r = 
+			out.append(self.request(state))
+			# print(out)
+		print([r['inputs']['value'] for r in out if r != {} ])
+		return out
 
 
 #####--------------------------CLASS DEFINITIONS-----------------------------###########

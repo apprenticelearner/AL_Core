@@ -206,7 +206,39 @@ def request(http_request, agent_id):
         # pr.dump_stats("al.cprof")
         return HttpResponseServerError(str(exp))
     
+@csrf_exempt
+def get_skills(http_request, agent_id):
+    """
+    """
 
+    # pr.enable()
+    try:
+        if http_request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        data = json.loads(http_request.body.decode('utf-8'))
+
+        if 'states' not in data or data['states'] is None:
+            print("request body missing 'states'")
+            return HttpResponseBadRequest("request body missing 'states'")
+
+        agent = get_agent_by_id(agent_id)
+        agent.inc_request()
+        response = agent.instance.get_skills(data['states'])
+
+        global dont_save
+        if(not dont_save): agent.save()
+
+        # pr.disable()
+        # pr.dump_stats("al.cprof")
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        traceback.print_exc()
+
+        # pr.disable()
+        # pr.dump_stats("al.cprof")
+        return HttpResponseServerError(str(exp))
 
 @csrf_exempt
 def request_by_name(http_request, agent_name):

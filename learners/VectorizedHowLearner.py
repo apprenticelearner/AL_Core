@@ -587,7 +587,9 @@ class VectorizedHowLearner(object):
 					epsilon=0.0):
 		goal = sai.inputs["value"]
 
-
+		if(operators == None and sai.selection == "done"):
+			yield -1,{}
+			return
 
 		# print("search_depth",search_depth)
 		if(search_depth == None): search_depth = self.search_depth
