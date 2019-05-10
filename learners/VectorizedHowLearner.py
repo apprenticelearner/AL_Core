@@ -119,6 +119,29 @@ class Div10(BaseOperator):
 	def search_mask(self,x):
 		return [torch.where(x >= 10, x, NaN)]
 
+class AddOne(BaseOperator):
+	def __init__(self):
+		super().__init__()
+
+		self.num_flt_inputs = 1;
+		self.template = "({} + 1)"
+		self.in_arg_types = ["value"]
+
+	def forward(self, x):
+		return x + 1
+
+class Append25(BaseOperator):
+	def __init__(self):
+		super().__init__()
+
+		self.num_flt_inputs = 1;
+		self.template = "({}*100 + 25)"
+		self.in_arg_types = ["value"]
+
+	def forward(self, x):
+		return x*100 + 25
+
+
 class Equals(BaseOperator):
 	def __init__(self):
 		super().__init__()
@@ -530,6 +553,7 @@ def how_search(state,
 			yield goal,{}
 
 
+# operator_class_set = [AddOne,Append25,Multiply,Div10]
 operator_class_set = [Add,Add3,Mod10,Div10]
 function_set = [c() for c in operator_class_set ]
 

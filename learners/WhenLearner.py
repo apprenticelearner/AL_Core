@@ -153,6 +153,15 @@ class WhenLearner(object):
         else:
             return prediction
 
+    def skill_info(self,rhs, state):
+        key = rhs if(self.type == "one_learner_per_rhs") else rhs.label
+        sublearner = self.learners[key]
+
+        if(isinstance(sublearner,Pipeline)):
+            feature_names = sublearner.named_steps["dict vect"].get_feature_names()
+
+        return sublearner.skill_info(state)
+
 
 class CustomPipeline(Pipeline):
 
@@ -175,7 +184,10 @@ class CustomPipeline(Pipeline):
 
     def fit(self,X,y):
 
-
+        # print("X",X)
+        #NOTE: Only using boolean values
+        X = [{k:v for k,v in d.items() if isinstance(v,bool)} for d in X]
+        print("FITX", X)
         ft = Flattener()
         tup = Tuplizer()
 
@@ -188,10 +200,38 @@ class CustomPipeline(Pipeline):
         ft = Flattener()
         tup = Tuplizer()
         X = [tup.undo_transform(ft.transform(x)) for x in X]
-
+        # print("BEEP", X)
         # print("PRED:",X)
         # print("VAL:", super(CustomPipeline, self).predict(X))
         return super(CustomPipeline, self).predict(X)
+
+    def skill_info(self,X):
+        X = [X] if not isinstance(X,list) else X
+        feature_names = self.named_steps["dict vect"].get_feature_names()
+        classifier = self.steps[-1][-1]
+
+        ft = Flattener()
+        tup = Tuplizer()
+        X = [tup.undo_transform(ft.transform(x)) for x in X]
+
+        # X = self.named_steps["dict vect"].transform(x)
+        # X = self._transform(X)
+        
+        # ft = Flattener()
+        # tup = Tuplizer()
+        # print("BAE1",X)
+        # print("PEEP",feature_names)
+        # print("BAE",[tup.transform(x) for x in X])
+        # print(type(self))
+        # X = [tup.undo_transform(ft.transform(x)) for x in X]
+        Xt = X
+        for name, transform in self.steps[:-1]:
+            if transform is not None:
+                # print("HEY",transform.get_feature_names())
+                Xt = transform.transform(Xt)
+                # print("BAE_"+name,Xt)
+        
+        return classifier.skill_info(Xt,feature_names)
 
     def __repr__(self):
         return repr(self.named_steps['clf'])
@@ -225,6 +265,47 @@ def DictVectWrapper(clf):
     #     raise NotImplementedError("Still need to write applicable_skills")
 
 
+from sklearn.tree import _tree
+class DecisionTree(DecisionTreeClassifier):
+
+    # def fit(self,X,y):
+    #     print("MOOP",X)
+    #     super(DecisionTree,self).fit(X,y)
+
+    def predict(self,X):
+        print("MOOP",X)
+        return super(DecisionTree,self).predict(X)
+    
+    def skill_info(self,examples,feature_names=None):
+        print("SLOOP",examples)
+        tree = self
+        tree_ = tree.tree_
+        print("feature_names",feature_names)
+        feature_name = [
+            feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
+            for i in tree_.feature
+        ]
+        node_indicator = tree.decision_path(examples)
+        dense_ind = np.array(node_indicator.todense())
+        
+        def recurse(node,ind):
+            if(tree_.feature[node] != _tree.TREE_UNDEFINED ):
+                l = tree_.children_left[node]
+                less = ind[l]
+                if(not less):
+                    s = recurse(tree_.children_right[node],ind)
+                else:
+                    s = recurse(tree_.children_left[node],ind)
+
+                name = feature_name[node]
+                ineq = "<=" if less else ">"
+                thresh = str(tree_.threshold[node])
+                return  [(name.replace("?ele-",""), ineq, thresh)] + s 
+            else:
+                return []
+        for ind in dense_ind:
+            return recurse(0,ind)
+
 
 
 class ScikitTrestle(object):
@@ -243,6 +324,9 @@ class ScikitTrestle(object):
         for i, x in enumerate(X):
             x['_y_label'] = float(y)
         self.tree.fit(X, randomize_first=False)
+
+    def skill_info(self,X):
+        raise NotImplementedError("Not implemented Erik H. says there is a way to serialize this -> TODO")
 
     def predict(self, X):
         return [self.tree.categorize(x).predict('_y_label') for x in X]
@@ -265,6 +349,9 @@ class ScikitCobweb(object):
             print(y)
             x['_y_label'] = float(y)
         self.tree.fit(X, randomize_first=False)
+
+    def skill_info(self,X):
+        raise NotImplementedError("Not implemented Erik H. says there is a way to serialize this -> TODO")
 
     def predict(self, X):
         return [self.tree.categorize(x).predict('_y_label') for x in X]
@@ -479,7 +566,7 @@ WHEN_LEARNERS ={
 
 WHEN_LEARNER_AGENTS = {
     'naivebayes': DictVectWrapper(BernoulliNB),
-    'decisiontree': DictVectWrapper(DecisionTreeClassifier),
+    'decisiontree': DictVectWrapper(DecisionTree),
     'logisticregression': DictVectWrapper(CustomLogisticRegression),
     'nearestneighbors': DictVectWrapper(CustomKNeighborsClassifier),
     'random_forest': DictVectWrapper(RandomForestClassifier),

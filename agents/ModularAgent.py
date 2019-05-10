@@ -94,6 +94,11 @@ def variablize_by_where(state,match):
 	r_state = rename_flat(state, {mapping[a]: a for a in mapping})
 	return r_state
 
+def unvariablize_by_where(state,match):
+	mapping = {ele:'foa' + str(i) for i, ele in enumerate(match)}
+	r_state = rename_flat(state, {mapping[a]: a for a in mapping})
+	return r_state
+
 def expr_comparitor(fact,expr, mapping={}):
 	if(isinstance(expr,dict)):
 		if(isinstance(fact,dict)):
@@ -130,6 +135,11 @@ def expression_matches(expression,state):
 		mapping = {}
 		if(expr_comparitor(fact_expr,expression,mapping)):
 			yield mapping
+
+# class HashableDict(dict):
+#     def __hash__(self):
+#         return hash(frozenset(self))
+
 
 
 EMPTY_RESPONSE = {}
@@ -175,9 +185,10 @@ class ModularAgent(BaseAgent):
 
 	#####-----------------------REQUEST--------------------------###########
 
-	def applicable_explanations(self,state,rhs_list=None):# -> returns Iterator<Explanation>
+	def applicable_explanations(self,state,rhs_list=None,add_skill_info=False):# -> returns Iterator<Explanation>
 		if(rhs_list == None): rhs_list = self.rhs_list
 		# print(rhs_list)
+		print("add_skill_info", add_skill_info)
 		for rhs in rhs_list:
 			for match in self.where_learner.get_matches(rhs,state):
 				#TODO: Should this even ever be produced?
@@ -185,31 +196,48 @@ class ModularAgent(BaseAgent):
 				# print("VARIABLIZED:",variablize_by_where(state, match))
 				# print("PREDICTION:",self.when_learner.predict(rhs, variablize_by_where(state, match)))
 				# print("Format",self.when_learner.state_format)
-				if(self.when_learner.state_format == "variablized_state" and 
-					self.when_learner.predict(rhs, variablize_by_where(state, match)) <= 0) :
+				pred_state = variablize_by_where(state, match) if(self.when_learner.state_format == "variablized_state") else state
+				if(self.when_learner.predict(rhs, pred_state) <= 0) :
 					# print("CONTINUE")
 					continue
 				explanation = Explanation(rhs,{v:m for v,m in zip(rhs.all_vars,match)})
-				
 
-				yield explanation
+				if(add_skill_info):
+					#Don't DELETE
+					# when = tuple(unvariablize_by_where(dict.fromkeys(tuple(self.when_learner.skill_info(rhs,pred_state))),match).keys())
+					skill_info = {"when": tuple(self.when_learner.skill_info(rhs,pred_state)),
+								  "where": tuple([x.replace("?ele-", "") for x in match]),
+								  "how" : str(rhs.input_rule),
+								  "which" : 0.0}
+				else: 
+					skill_info = None
+
+				yield explanation, skill_info
 		######## -------------------------------------------------------#######
 		
 
-	def request(self,state): #-> Returns sai
+	def request(self,state,add_skill_info=True): #-> Returns sai
 		# pprint(state)
 		state_featurized = self.how_learner.apply_featureset(state)
 		rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list,state_featurized)
-		explanations = [x for x in self.applicable_explanations(state_featurized, rhs_list=rhs_list)]
+		explanations = [x for x in self.applicable_explanations(state_featurized, rhs_list=rhs_list,add_skill_info=add_skill_info)]
 		print("APPLICABLE EXPLANATIONS:")
 		print("\n".join([str(x) for x in explanations]))
 		print("----------------------")
-		explanation = next(iter(explanations),None)
+		explanation,skill_info = next(iter(explanations),(None,None))
+		print(explanation)
+		print(skill_info)
 		# explanation = next(explanations,None)
 		if explanation != None:
-			return explanation.to_response(state_featurized,self)
+			response = explanation.to_response(state_featurized,self)
+			if(add_skill_info):
+				response["skill_info"] = skill_info
+				# print("skill_info",skill_info)
+
 		else:	
-			return EMPTY_RESPONSE
+			response = EMPTY_RESPONSE
+		
+		return response
 
 
 	#####-----------------------TRAIN --------------------------###########
@@ -398,10 +426,19 @@ class ModularAgent(BaseAgent):
 		# print(states)
 		for state in states:
 			# r = 
-			out.append(self.request(state))
-			# print(out)
-		print([r['inputs']['value'] for r in out if r != {} ])
-		return out
+			req = self.request(state,add_skill_info=True).get('skill_info',None)
+
+			# print("REQ:",req)
+			if(req != None):
+				out.append(frozenset([(k,v) for k,v in req.items()]))
+
+		# print("SET", set(out))
+		#Ordered Set
+		unique = [{k:v for k,v in x} for x in list(dict.fromkeys(out).keys())]# set(out)]
+		print(len(out),len(unique))
+		print(unique)
+		# print([r['inputs']['value'] for r in out if r != {} ])
+		return unique
 
 
 #####--------------------------CLASS DEFINITIONS-----------------------------###########
