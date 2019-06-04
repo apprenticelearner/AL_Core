@@ -1,6 +1,7 @@
 if(__name__ == "__main__"):
-    import sys, os
+    import sys
     sys.path.append("../")
+
 from pprint import pprint
 from concept_formation.cobweb3 import Cobweb3Node
 from concept_formation.cobweb import CobwebNode
@@ -12,6 +13,7 @@ from learners.IncrementalHeuristic import IncrementalHeuristic
 from planners.fo_planner import Operator
 from planners.fo_planner import build_index
 from planners.fo_planner import subst
+import numpy as np
 
 global my_gensym_counter
 my_gensym_counter = 0
@@ -112,39 +114,38 @@ def get_vars(arg):
 
 class WhereLearner(object):
 
-    def __init__(self, learner_name,learner_kwargs={}):
-        
+    def __init__(self, learner_name, learner_kwargs={}):
         self.learner_name = learner_name
         self.learner_kwargs = learner_kwargs
         self.rhs_by_label = {}
         self.learners = {}
 
-    def add_rhs(self,rhs, constraints):
+    def add_rhs(self, rhs, constraints):
         # args = [skill.selection_var] + skill.input_vars
         self.learners[rhs] = get_where_agent(self.learner_name,
-            args=tuple(rhs.all_vars),constraints=constraints,**self.learner_kwargs)
-        
-        rhs_list = self.rhs_by_label.get(rhs.label,[])
+                args=tuple(rhs.all_vars), constraints=constraints, **self.learner_kwargs)
+
+        rhs_list = self.rhs_by_label.get(rhs.label, [])
         rhs_list.append(rhs)
         self.rhs_by_label[rhs.label] = rhs_list
 
     def check_match(self, rhs, t, x):
-        return self.learners[rhs].check_match(t,x)
+        return self.learners[rhs].check_match(t, x)
 
-    def get_match(self,rhs, X):
+    def get_match(self, rhs, X):
         # args = [skill.selection_var] + skill.input_vars
         return self.learners[rhs].get_match(X)
 
-    def get_matches(self,rhs, X):
+    def get_matches(self, rhs, X):
         # args = [skill.selection_var] + skill.input_vars
         return self.learners[rhs].get_matches(X)
 
-    def ifit(self,rhs, t, X, y):
+    def ifit(self, rhs, t, X, y):
         # args = [skill.selection_var] + skill.input_vars
-        return self.learners[rhs].ifit(t,X,y)
+        return self.learners[rhs].ifit(t, X, y)
 
-    def fit(self,rhs, T, X, y):
-        return self.learners[rhs].fit(T,X,y)
+    def fit(self, rhs, T, X, y):
+        return self.learners[rhs].fit(T, X, y)
 
 
 class MostSpecific(BaseILP):
@@ -606,12 +607,9 @@ class SpecificToGeneral(BaseILP):
 
         # print(foa_mapping)
 
-
-
         # for j,field in enumerate(t):
         #     x[('foa%s' % j, field)] = True
         x = rename_flat(x, foa_mapping)
-        
 
         # print("adding:")
 
@@ -659,16 +657,14 @@ class SpecificToGeneral(BaseILP):
         pprint(pos_args)
         print("av_counts")
         pprint(self.pos_concept.av_counts)
-        
 
-
-            # if len(self.pos_concept.av_counts[attr]) == 1:
-            #     for val in self.pos_concept.av_counts[attr]:
-            #         if ((self.pos_concept.av_counts[attr][val] ==
-            #              self.pos_concept.count)):
-            #             args = get_vars(attr)
-            #             pos_args.update(args)
-            #             pos_instance[attr] = val
+        # if len(self.pos_concept.av_counts[attr]) == 1:
+        #     for val in self.pos_concept.av_counts[attr]:
+        #         if ((self.pos_concept.av_counts[attr][val] ==
+        #              self.pos_concept.count)):
+        #             args = get_vars(attr)
+        #             pos_args.update(args)
+        #             pos_instance[attr] = val
 
         # print('POS ARGS', pos_args)
 
@@ -718,11 +714,13 @@ class SpecificToGeneral(BaseILP):
             self.ifit(t, X[i], y[i])
 
 
-def get_where_agent(name,**learner_kwargs):
+def get_where_agent(name, **learner_kwargs):
     return WHERE_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
-def get_where_learner(name,learner_kwargs={}):
-    return WhereLearner(name,learner_kwargs)
+
+def get_where_learner(name, learner_kwargs={}):
+    return WhereLearner(name, learner_kwargs)
+
 
 WHERE_LEARNER_AGENTS = {
     'mostspecific': MostSpecific,
@@ -730,8 +728,6 @@ WHERE_LEARNER_AGENTS = {
     'relationallearner': RelationalLearner,
     'specifictogeneral': SpecificToGeneral
 }
-
-
 
 
 # if __name__ == "__main__":
@@ -813,11 +809,180 @@ import torch
 def mask_select(x,m):
     return x[m.nonzero().view(-1)]
 
-class VersionSpaceILP(BaseILP):
+class VersionSpace(BaseILP):
+    def __init__(self, use_neg=True,propose_gens=True):
+        self.pos_concepts = None
+        self.neg_concepts = None
+        self.propose_gens = propose_gens
+        self.use_neg = use_neg
+        self.elem_slices = None
+        self.elem_types = None
+
+
+    def initialize(self, n):
+        assert n >= 1, "not enough elements"
+
+        self.num_elems = n
+        self.pos_concepts = VersionSpaceILP()
+        if(self.use_neg):
+            self.neg_concepts = VersionSpaceILP()
+        self.enumerizer = Enumerizer(start_num=1, force_add=[None] + ['?sel'] + ['?arg%d' % i for i in range(n-1)])
+
+
+    def ifit(self, t, x, y):
+        # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
+        assert not False in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
+
+        if(self.pos_concepts == None):
+            self.initialize(len(t))
+            self.elem_types = [x[t_name]["type"] for t_name in t]
+        assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
+
+        _rename_values = lambda x : rename_values(x,{ele:"?sel" if i == 0 else "?arg%d" % (i-1) for i,ele in enumerate(t)})
+        instances = [_rename_values(x[t_name]) for t_name in t]
+        vs_elems = self.enumerizer.transform(instances)
+
+        if(self.elem_slices == None):
+            self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
+            
+
+        self.pos_concepts.ifit(vs_elems, y)
+        if(self.use_neg):
+            # print("NEG!!")
+            self.neg_concepts.ifit(vs_elems, 0 if y > 0 else 1)
+
+        # for i in range(self.num_elems):
+
+
+
+
+        # self.positive_concepts.ifit()
+
+    # def match_elem(self,t_name):
+
+    def check_match(self,t, x):
+        # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
+
+        _rename_values = lambda x : rename_values(x,{ele:"?sel" if i == 0 else "?arg%d" % (i-1) for i,ele in enumerate(t)})
+        instances = [_rename_values(x[t_name]) for t_name in t]
+        vs_elem = self.enumerizer.transform(instances)
+        print(torch.tensor(vs_elem).view(3,-1))
+        if(self.use_neg):
+            x = torch.tensor(vs_elem,dtype=torch.uint8).view(1,-1)
+            ps,pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+            ns,ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+            ZERO = self.pos_concepts.ZERO
+            spec_consistency = (( (ps == ZERO) ) | (ps == x)).all(dim=-1)
+            gen_consistency = (( (pg == ZERO) ) | (pg == x)).all(dim=-1)
+            neg_gen_consistency =  ( (ng == ZERO) | (ng == ps) | (ng != x) ).all(dim=-1)
+            neg_spec_consistency = ( (ns == ZERO) | (ns == ps) | (ns != x) ).all(dim=-1)
+            # neg_spec_consistency = (( (ns == ZERO) | (ns != x) ) ).all(dim=-1)
+
+
+
+            print("x")
+            print(x)
+            # print((( ng == ZERO) | (ng != x) ) )
+            # print(ng)
+            # print((ps == ZERO) & (ns != ps) & (ns != x))
+            # print((ns != ZERO) & (ns != ps) & (ns == x))
+            print(ns)
+            # print("spec")
+            print(ps)
+            # print(ns)
+            # print(ng)
+            # print("con")
+            # print((( (ps == ZERO) & (ns != x) ) | (ps == x)))
+            # print(spec_consistency)
+            print(neg_spec_consistency)
+            print(spec_consistency.any(), gen_consistency.all())
+            print(neg_gen_consistency,neg_gen_consistency.any())
+            # print(neg_spec_consistency)
+            return (spec_consistency.any() & gen_consistency.all() & neg_gen_consistency.any() & neg_spec_consistency.any()).item()
+        else:
+            return self.pos_concepts.check_match(vs_elem) > 0
+
+    def get_matches(self,x):
+        if(self.elem_slices == None):
+            return
+
+        all_elems = [val for val in x.values()]
+        all_elem_names = [key for key in x.keys()]
+        print(all_elems)
+        elems_scrubbed = self.enumerizer.transform(all_elems,{ele:0 for ele in x})
+        elems = self.enumerizer.transform([val for val in x.values()])
+        
+        ps,pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+        ns,ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+
+        s = self.elem_slices
+        split_ps = [ps[:,s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        split_ns = [ns[:,s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        
+        
+        concept_candidates = []
+        for typ, ps_i,ns_i in zip(self.elem_types, split_ps,split_ns):
+            candidate_indices = [i for i,e in enumerate(all_elem_names) if x[e]["type"] == typ]
+            cnd = torch.tensor([elems_scrubbed[i] for i in candidate_indices],dtype=torch.uint8)
+            cnd = cnd.view(len(candidate_indices),1,ps_i.size(-1))
+            ps_i,ns_i = ps_i.unsqueeze(0),ns_i.unsqueeze(0)
+            # print(ps_i.size(),ps_i.dtype)
+            # print(ns_i.size(),ns_i.dtype)
+            # print(ns_i.size(),ns_i.dtype)
+
+            ZERO = self.pos_concepts.ZERO
+            ps_consistency = ((ps_i == ZERO) | (ps_i == cnd) | (cnd == ZERO)).all(dim=-1).any(dim=-1)
+            ns_consistency = ((ns_i == ZERO) | (ns_i != cnd) | (ps_i == ns_i) | (cnd == ZERO)).all(dim=-1).any(dim=-1)
+            consistency = ps_consistency & ns_consistency
+            conistency_indices = consistency.nonzero().view(-1)
+            concept_candidates.append(conistency_indices.tolist())
+
+            print(ps_i)
+            print(ns_i)
+            print(conistency_indices)
+
+        most_constrained_order = np.argsort([len(cands) for cands in concept_candidates])
+        
+        
+        itr = [a for a in  zip(self.elem_types,concept_candidates,split_ps,split_ns)]
+        itr = [itr[i] for i in most_constrained_order]
+
+        # for cand_inds, ps_i,ns_i in itr:
+
+
+
+        print(most_constrained_order)
+        
+        
+            # print(ns_consistency)
+            # print([len(b) for b in elems_scrubbed])
+            # print(ps_i.size(-1))
+            # for j in candidate_indices:
+            #     es = elems_scrubbed[j]
+            #     print("es")
+            #     print(es)
+            #     print(ps_i)
+            #     print(ns_i)
+
+        print("split")
+        print(split_ps)
+        print(split_ns)
+
+
+        
+        # print(elems_scrubbed)
+        # print(elems)
+
+
+        
+
+
+class VersionSpaceILP(object):
     def __init__(self):
         self.spec_concepts = None
         self.gen_concepts = None
         self.ZERO = None
+        self.unused_concepts = []
 
     def ifit(self,x,y):
 
@@ -830,60 +995,65 @@ class VersionSpaceILP(BaseILP):
                 self.spec_concepts = x
                 self.gen_concepts = torch.zeros(x.shape,dtype=torch.uint8)
                 self.ZERO = torch.tensor(0,dtype=torch.uint8)
+                for _x,_y in self.unused_concepts:
+                    self.ifit(_x,_y)
+                self.unused_concepts = None
             else:
-                #Generalize the specific concepts to incorperate the positive example
+                # Generalize the specific concepts to incorperate the positive example
                 self.spec_concepts = torch.where(x != self.spec_concepts, self.ZERO,self.spec_concepts)
-                
-                #Prune the general concepts that are inconsistent with the positive example
+
+                # Prune the general concepts that are inconsistent with the positive example
                 gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
                 self.gen_concepts = mask_select(self.gen_concepts,gen_consistency.all(dim=1))
-                
 
         else:
             if(isinstance(self.spec_concepts, type(None))):
+                self.unused_concepts.append((x,y))
                 return
             else:
-                #### Start: Make the General Concepts more specific #### 
+                # ### Start: Make the General Concepts more specific #### 
                 spec_inconsistency = ~((self.spec_concepts == self.ZERO) | (self.spec_concepts == x))
                 gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
 
-                #The set of general concepts which are contain the negative example and must be specialized 
-                to_specilz_concepts = mask_select(self.gen_concepts,gen_consistency.all(dim=1))
-                #The set of general concepts which do not contain the negative example an so we leave alone
-                to_keep_concepts = mask_select(self.gen_concepts,(~gen_consistency).any(dim=1))
+                # The set of general concepts which are contain the negative example and must be specialized 
+                to_specilz_concepts = mask_select(self.gen_concepts, gen_consistency.all(dim=1))
+                # The set of general concepts which do not contain the negative example an so we leave alone
+                to_keep_concepts = mask_select(self.gen_concepts, (~gen_consistency).any(dim=1))
 
-                #The set of concepts with only one specific element which are present in
-                    #the most specific concept but not this negative example.
-                specialization_candidates = torch.eye(clen,dtype=torch.uint8).view(1,clen,clen)*(spec_inconsistency*self.spec_concepts).view(-1,1,clen)
+                # The set of concepts with only one specific element which are present in
+                # the most specific concept but not this negative example.
+                specialization_candidates = torch.eye(clen, dtype=torch.uint8).view(1,clen,clen)*(spec_inconsistency*self.spec_concepts).view(-1,1,clen)
                 specialization_candidates = mask_select(specialization_candidates.view(-1,clen),spec_inconsistency.view(-1))
 
-                #Specialize each concept (among those we found earlier that contain the negative example)
+                # Specialize each concept (among those we found earlier that contain the negative example)
                 #   creating all new possible general concepts for each element which is still general
-                sc,tsc, = specialization_candidates.view(1,-1,clen), to_specilz_concepts.view(-1,1,clen)
-                possible_specialized_gens = torch.where((tsc == self.ZERO), sc,tsc).view(-1,clen)
+                sc, tsc, = specialization_candidates.view(1, -1, clen), to_specilz_concepts.view(-1, 1, clen)
+                possible_specialized_gens = torch.where((tsc == self.ZERO), sc, tsc).view(-1, clen)
                 # specialized_gens = torch.where((tsc == self.ZERO) & gen_consistency.view(1,-1,clen), sc,tsc).view(-1,clen)
-                
-                #If a possible specialization is consistent with the non-specialized general concepts then keep it
-                new_gen_consistency = (to_keep_concepts.view(1,-1,clen) == self.ZERO) | (to_keep_concepts.view(1,-1,clen) == possible_specialized_gens.view(-1,1,clen))
-                inconsistent_w_keepers = (~new_gen_consistency).any(dim=-1).all(dim=-1) 
-                specialized_gens = mask_select(possible_specialized_gens,inconsistent_w_keepers)
-                
-                #Join the tensors of non-specialized and specialized concepts
-                self.gen_concepts = torch.cat([to_keep_concepts, specialized_gens],dim=0)
-                
-                #### Start: Prune Specific Concepts ####
-                #TODO: Never happens? What does it look like if we allow for multiple specific concepts?
-                self.spec_concepts = mask_select(self.spec_concepts,spec_inconsistency.any(dim=1))
 
+                # If a possible specialization is consistent with the non-specialized general concepts then keep it
+                new_gen_consistency = (to_keep_concepts.view(1, -1, clen) == self.ZERO) | (to_keep_concepts.view(1, -1, clen) == possible_specialized_gens.view(-1, 1, clen))
+                inconsistent_w_keepers = (~new_gen_consistency).any(dim=-1).all(dim=-1) 
+                specialized_gens = mask_select(possible_specialized_gens, inconsistent_w_keepers)
+
+                # Join the tensors of non-specialized and specialized concepts
+                self.gen_concepts = torch.cat([to_keep_concepts, specialized_gens],dim=0)
+
+                # ### Start: Prune Specific Concepts ####
+                # TODO: Never happens? What does it look like if we allow for multiple specific concepts?
+                # self.spec_concepts = mask_select(self.spec_concepts, spec_inconsistency.any(dim=1))
 
         print("GENERAL")
         print(self.gen_concepts)
         print("SPECIFIC")
         print(self.spec_concepts,self.spec_concepts.shape)
-        
+
         print("---------------------------------")
 
-    def check_match(self,x):
+
+
+
+    def check_match(self, x):
         '''Returns true if x is consistent with all general concepts and any specific concept'''
         x = torch.tensor(x,dtype=torch.uint8).view(1,-1)
         spec_consistency = ((self.spec_concepts == self.ZERO) | (self.spec_concepts == x)).all(dim=-1)
@@ -891,39 +1061,76 @@ class VersionSpaceILP(BaseILP):
         return (spec_consistency.any() & gen_consistency.all()).item()
 
 
+
+
+
+
+
+
+def rename_values(x,mapping,rename_keys=False): 
+    if(isinstance(x,dict)):
+        if(rename_keys):
+            return {rename_values(name,mapping):rename_values(val,mapping) for name, val in x.items()}
+        else:
+            return {name:rename_values(val,mapping) for name, val in x.items()}
+    elif(isinstance(x,list)):
+        return [rename_values(val,mapping) for val in x.items()]
+    elif(isinstance(x,tuple)):
+        return tuple([rename_values(val,mapping) for val in x.items()])
+    elif(x in mapping):
+        return mapping[x]
+    else:
+        return x
+
+
+
 from concept_formation.preprocessor import Preprocessor
 class Enumerizer(Preprocessor):
-    def __init__(self,start_num=0):
+    def __init__(self,start_num=0, force_add=[]):
         self.start_num = start_num
         self.attr_maps = {}
+        self.force_add = force_add
         # self.attr_counts = {}
         self.back_maps = {}
         self.keys = []
 
     '''Maps nominals to unsigned integers'''
-    def transform(self, instance):
+    #TODO: MAKE IT ASSERT A FIXED REPRESENTATION SOMEHOW
+    def transform(self, instances,force_map=None):
         """
         Transforms an instance.
         """
-        as_list = []
-        print(instance)
-        for key,value in instance.items():
-            if(not key in self.attr_maps):
-                self.attr_maps[key] = {}
-                # self.attr_counts[key] = self.start_num
-                self.back_maps[key] = [None for i in range(self.start_num)]
-                self.keys.append(key)
-            attr_map = self.attr_maps[key]
-            if(not value in attr_map):
-                attr_map[value] = len(self.back_maps[key])
-                self.back_maps[key].append(value)
-                # self.attr_counts[key] += 1
-            as_list.append(attr_map[value])
-
-        return as_list
-
+        if(isinstance(instances,dict)):
+            instances = [instances]
 
         
+        # print(instances)
+        enumerized_instances = []
+        for i, instance in enumerate(instances):
+            enumerized_instance = []
+            for k, value in instance.items():
+                if(k == "type"):
+                    continue
+                # print(value)
+                if(force_map != None and value in force_map):
+                    enumerized_instance.append(force_map[value])
+                else:
+                    key = (instance["type"],k)
+                    if(key not in self.attr_maps):
+                        # if(fail_on_grow):
+                        #     raise ValueError("Dynamic") 
+                        self.attr_maps[key] = {x:i+self.start_num for i, x in enumerate(self.force_add)}
+                        # self.attr_counts[key] = self.start_num
+                        self.back_maps[key] = [None for i in range(self.start_num)] + self.force_add
+                        self.keys.append(key)
+                    attr_map = self.attr_maps[key]
+                    if(value not in attr_map):
+                        attr_map[value] = len(self.back_maps[key])
+                        self.back_maps[key].append(value)
+                        # self.attr_counts[key] += 1
+                    enumerized_instance.append(attr_map[value])
+            enumerized_instances.append(enumerized_instance)
+        return enumerized_instances
 
     def undo_transform(self, instance):
         """
@@ -933,12 +1140,10 @@ class Enumerizer(Preprocessor):
 
         d = {}
 
-        for enum,key in zip(instance,self.keys):
+        for enum, key in zip(instance, self.keys):
             d[key] = self.back_maps[key][enum]
 
         return d
-
-
 
 # def version_space():
 
@@ -954,9 +1159,6 @@ if __name__ == "__main__":
     print(vthang.check_match([1,1,1,2,1]))
     print(vthang.check_match([1,2,2,1,2]))
 
-
-
-
     vthang = VersionSpaceILP()
 
     print("@@@@@@@")
@@ -970,92 +1172,134 @@ if __name__ == "__main__":
     vthang.ifit([1,1,2,1],0)
     vthang.ifit([1,1,2,2],0)
     vthang.ifit([1,1,1,2],0)
-    
+
     # vthang.ifit([1,1,1,1,1,1,1],1)
     # vthang.ifit([1,0,0,0,1,1,1],1)
     # vthang.ifit([1,1,1,0,0,0,1],1)
     # vthang.ifit([1,1,1,0,0,0,0],0)
 
-
     state = {
-        "A1" : {
-            "value" : 1,
-            "above" : None,
-            "below" : "B1",
-            "left"  : "A2",
-            "right" : None,
+        "A1": {
+            "type" : "text",
+            "value": 1,
+            "above": None,
+            "below": "B1",
+            "left" : "A2",
+            "right": None,
         },
-        "A2" : {
-            "value" : 2,
-            "above" : None,
-            "below" : "B2",
-            "left"  : "A3",
-            "right" : "A1",
+        "A2": {
+            "type" : "text",
+            "value": 2,
+            "above": None,
+            "below": "B2",
+            "left" : "A3",
+            "right": "A1",
         },
-        "A3" : {
-            "value" : 3,
-            "above" : None,
-            "below" : "B3",
-            "left"  : None,
-            "right" : "A2",
+        "A3": {
+            "type" : "text",
+            "value": 3,
+            "above": None,
+            "below": "B3",
+            "left" : None,
+            "right": "A2",
         },
-        "B1" : {
-            "value" : 4,
-            "above" : "A1",
-            "below" : "C1",
-            "left"  : "B2",
-            "right" : None,
+        "B1": {
+            "type" : "text",
+            "value": 4,
+            "above": "A1",
+            "below": "C1",
+            "left" : "B2",
+            "right": None,
         },
-        "B2" : {
-            "value" : 5,
-            "above" : "A2",
-            "below" : "C2",
-            "left"  : "B3",
-            "right" : "B1",
+        "B2": {
+            "type" : "text",
+            "value": 5,
+            "above": "A2",
+            "below": "C2",
+            "left" : "B3",
+            "right": "B1",
         },
-        "B3" : {
-            "value" : 6,
-            "above" : "A3",
-            "below" : "C3",
-            "left"  : None,
-            "right" : "B2",
+        "B3": {
+            "type" : "text",
+            "value": 6,
+            "above": "A3",
+            "below": "C3",
+            "left" : None,
+            "right": "B2",
         },
-        "C1" : {
-            "value" : 7,
-            "above" : "B1",
-            "below" : None,
-            "left"  : "C2",
-            "right" : None,
+        "C1": {
+            "type" : "text",
+            "value": 7,
+            "above": "B1",
+            "below": None,
+            "left" : "C2",
+            "right": None,
         },
-        "C2" : {
-            "value" : 8,
-            "above" : "B2",
-            "below" : None,
-            "left"  : "C1",
-            "right" : "C3",
+        "C2": {
+            "type" : "text",
+            "value": 8,
+            "above": "B2",
+            "below": None,
+            "left" : "C1",
+            "right": "C3",
         },
-        "C3" : {
-            "value" : 9,
-            "above" : "B3",
-            "below" : None,
-            "left"  : "C2",
-            "right" : None,
+        "C3": {
+            "type" : "text",
+            "value": 9,
+            "above": "B3",
+            "below": None,
+            "left" : None,
+            "right": "C2",
         }
     }
 
-    enumer = Enumerizer(start_num=1)
 
-    Av = VersionSpaceILP()
-    Bv = VersionSpaceILP()
+    # enumer = Enumerizer(start_num=1, force_add=[None])
 
-    for key,ele in state.items():
-        ele_tensor = enumer.transform(ele)
-        print("G",ele_tensor)
-        if("A" in key):
-            # Av.ifit(ele_tensor,1)
-            Bv.ifit(ele_tensor,0)
-        elif("B" in key):
-            # Av.ifit(ele_tensor,0)
-            Bv.ifit(ele_tensor,1)
+    # Av = VersionSpaceILP()
+    # Bv = VersionSpaceILP()
+
+    # inv = [(k, e) for k, e in state.items()][::-1]
+    # for key, ele in inv:
+    #     # for key,ele in state.items():
+    #     ele_tensor = enumer.transform(ele)
+    #     print("G", ele_tensor)
+    #     if("A" in key):
+    #         # Av.ifit(ele_tensor,1)
+    #         Bv.ifit(ele_tensor, 0)
+    #     elif("B" in key):
+    #         # Av.ifit(ele_tensor,0)
+    #         Bv.ifit(ele_tensor, 1)
+
+    vs = VersionSpace(use_neg=True)
+    vs.ifit(["C1","A1","B1"],state,1)
+    vs.ifit(["C1","B1","A1"],state,0)
+    vs.ifit(["C2","A2","B2"],state,1)
+    vs.ifit(["C1","B2","A2"],state,0)
+    # vs.ifit(["C3","A3","B3"],state,1)
+    vs.ifit(["C3","A3","A2"],state,0)
+
+    print(vs.check_match(["C1","A1","B1"],state), 1)
+    print(vs.check_match(["C1","B1","A1"],state), 0)
+    print(vs.check_match(["C2","A2","B2"],state), 1)
+    print(vs.check_match(["C1","B2","A2"],state), 0)
+    print(vs.check_match(["C3","A3","B3"],state), 1)
+    print(vs.check_match(["C3","A3","A2"],state), 0)
+    print(vs.check_match(["C3","A1","A3"],state), 0)
+    print(vs.check_match(["A2","A3","B3"],state), 0)
+    print(vs.check_match(["C1","A3","C3"],state), 0)
+    print(vs.check_match(["C1","A2","B2"],state), 0)
+    print(vs.check_match(["C1","B2","B1"],state), 0)
+
+
+    print(rename_values(state,{"C1": "sel", "A1" : "arg0", "B1": "arg1"},False))
+    print(vs.get_matches(state))
+    # print(vs.pos_concepts.spec_concepts.view(3,-1))
+    # print(vs.pos_concepts.gen_concepts.view(3,-1))
+    # print(vs.neg_concepts.spec_concepts.view(3,-1))
+    # print(vs.neg_concepts.gen_concepts.view(3,3,-1))
+    # print()
     # print()
     # pprint(enumer.batch_undo(enumer.batch_transform(state.values())))
+
+
