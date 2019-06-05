@@ -150,6 +150,7 @@ def create(http_request):
         ret_data = {'agent_id': str(agent.id)}
 
     except Exception as exp:
+        traceback.print_exc()
         print("Failed to create agent", exp)
         return HttpResponseServerError("Failed to create agent, "
                                        "ensure provided args are "
