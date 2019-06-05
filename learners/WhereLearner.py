@@ -100,12 +100,12 @@ def value_gensym():
 
 def get_vars(arg):
     if isinstance(arg, tuple):
-        l = []
+        lst = []
         for e in arg:
             for v in get_vars(e):
-                if v not in l:
-                    l.append(v)
-        return l
+                if v not in lst:
+                    lst.append(v)
+        return lst
     elif isinstance(arg, str) and len(arg) > 0 and arg[0] == '?':
         return [arg]
     else:
@@ -123,7 +123,7 @@ class WhereLearner(object):
     def add_rhs(self, rhs, constraints):
         # args = [skill.selection_var] + skill.input_vars
         self.learners[rhs] = get_where_agent(self.learner_name,
-                args=tuple(rhs.all_vars), constraints=constraints, **self.learner_kwargs)
+            args=tuple(rhs.all_vars), constraints=constraints, **self.learner_kwargs)
 
         rhs_list = self.rhs_by_label.get(rhs.label, [])
         rhs_list.append(rhs)
@@ -805,19 +805,18 @@ WHERE_LEARNER_AGENTS = {
     #    print('OP MATCH', m)
 
 import torch
-
-def mask_select(x,m):
+def mask_select(x, m):
     return x[m.nonzero().view(-1)]
 
+
 class VersionSpace(BaseILP):
-    def __init__(self, use_neg=True,propose_gens=True):
+    def __init__(self, use_neg=True, propose_gens=True):
         self.pos_concepts = None
         self.neg_concepts = None
         self.propose_gens = propose_gens
         self.use_neg = use_neg
         self.elem_slices = None
         self.elem_types = None
-
 
     def initialize(self, n):
         assert n >= 1, "not enough elements"
@@ -828,23 +827,23 @@ class VersionSpace(BaseILP):
             self.neg_concepts = VersionSpaceILP()
         self.enumerizer = Enumerizer(start_num=1, force_add=[None] + ['?sel'] + ['?arg%d' % i for i in range(n-1)])
 
-
     def ifit(self, t, x, y):
         # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
-        assert not False in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
+        assert False not in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
 
         if(self.pos_concepts == None):
             self.initialize(len(t))
             self.elem_types = [x[t_name]["type"] for t_name in t]
         assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
 
-        _rename_values = lambda x : rename_values(x,{ele:"?sel" if i == 0 else "?arg%d" % (i-1) for i,ele in enumerate(t)})
+        def _rename_values(x):
+            return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
+
         instances = [_rename_values(x[t_name]) for t_name in t]
         vs_elems = self.enumerizer.transform(instances)
 
         if(self.elem_slices == None):
             self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
-            
 
         self.pos_concepts.ifit(vs_elems, y)
         if(self.use_neg):
@@ -853,32 +852,29 @@ class VersionSpace(BaseILP):
 
         # for i in range(self.num_elems):
 
-
-
-
         # self.positive_concepts.ifit()
 
     # def match_elem(self,t_name):
 
-    def check_match(self,t, x):
+    def check_match(self, t, x):
         # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
 
-        _rename_values = lambda x : rename_values(x,{ele:"?sel" if i == 0 else "?arg%d" % (i-1) for i,ele in enumerate(t)})
+        def _rename_values(x):
+            return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
+
         instances = [_rename_values(x[t_name]) for t_name in t]
         vs_elem = self.enumerizer.transform(instances)
-        print(torch.tensor(vs_elem).view(3,-1))
+        print(torch.tensor(vs_elem).view(3, -1))
         if(self.use_neg):
-            x = torch.tensor(vs_elem,dtype=torch.uint8).view(1,-1)
-            ps,pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-            ns,ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+            x = torch.tensor(vs_elem, dtype=torch.uint8).view(1, -1)
+            ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+            ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
             ZERO = self.pos_concepts.ZERO
-            spec_consistency = (( (ps == ZERO) ) | (ps == x)).all(dim=-1)
-            gen_consistency = (( (pg == ZERO) ) | (pg == x)).all(dim=-1)
-            neg_gen_consistency =  ( (ng == ZERO) | (ng == ps) | (ng != x) ).all(dim=-1)
-            neg_spec_consistency = ( (ns == ZERO) | (ns == ps) | (ns != x) ).all(dim=-1)
+            spec_consistency = (((ps == ZERO)) | (ps == x)).all(dim=-1)
+            gen_consistency = (((pg == ZERO)) | (pg == x)).all(dim=-1)
+            neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
+            neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(dim=-1)
             # neg_spec_consistency = (( (ns == ZERO) | (ns != x) ) ).all(dim=-1)
-
-
 
             print("x")
             print(x)
@@ -896,36 +892,35 @@ class VersionSpace(BaseILP):
             # print(spec_consistency)
             print(neg_spec_consistency)
             print(spec_consistency.any(), gen_consistency.all())
-            print(neg_gen_consistency,neg_gen_consistency.any())
+            print(neg_gen_consistency, neg_gen_consistency.any())
             # print(neg_spec_consistency)
             return (spec_consistency.any() & gen_consistency.all() & neg_gen_consistency.any() & neg_spec_consistency.any()).item()
         else:
             return self.pos_concepts.check_match(vs_elem) > 0
 
-    def get_matches(self,x):
+    def get_matches(self, x):
         if(self.elem_slices == None):
             return
 
         all_elems = [val for val in x.values()]
         all_elem_names = [key for key in x.keys()]
         print(all_elems)
-        elems_scrubbed = self.enumerizer.transform(all_elems,{ele:0 for ele in x})
+        elems_scrubbed = self.enumerizer.transform(all_elems, {ele: 0 for ele in x})
         elems = self.enumerizer.transform([val for val in x.values()])
-        
-        ps,pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-        ns,ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+
+        ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+        ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
 
         s = self.elem_slices
-        split_ps = [ps[:,s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-        split_ns = [ns[:,s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-        
-        
+        split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+
         concept_candidates = []
-        for typ, ps_i,ns_i in zip(self.elem_types, split_ps,split_ns):
-            candidate_indices = [i for i,e in enumerate(all_elem_names) if x[e]["type"] == typ]
-            cnd = torch.tensor([elems_scrubbed[i] for i in candidate_indices],dtype=torch.uint8)
-            cnd = cnd.view(len(candidate_indices),1,ps_i.size(-1))
-            ps_i,ns_i = ps_i.unsqueeze(0),ns_i.unsqueeze(0)
+        for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
+            candidate_indices = [i for i, e in enumerate(all_elem_names) if x[e]["type"] == typ]
+            cnd = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
+            cnd = cnd.view(len(candidate_indices), 1, ps_i.size(-1))
+            ps_i, ns_i = ps_i.unsqueeze(0), ns_i.unsqueeze(0)
             # print(ps_i.size(),ps_i.dtype)
             # print(ns_i.size(),ns_i.dtype)
             # print(ns_i.size(),ns_i.dtype)
@@ -942,18 +937,14 @@ class VersionSpace(BaseILP):
             print(conistency_indices)
 
         most_constrained_order = np.argsort([len(cands) for cands in concept_candidates])
-        
-        
-        itr = [a for a in  zip(self.elem_types,concept_candidates,split_ps,split_ns)]
+
+        itr = [a for a in zip(self.elem_types, concept_candidates, split_ps, split_ns)]
         itr = [itr[i] for i in most_constrained_order]
 
         # for cand_inds, ps_i,ns_i in itr:
 
-
-
         print(most_constrained_order)
-        
-        
+
             # print(ns_consistency)
             # print([len(b) for b in elems_scrubbed])
             # print(ps_i.size(-1))
@@ -968,13 +959,8 @@ class VersionSpace(BaseILP):
         print(split_ps)
         print(split_ns)
 
-
-        
         # print(elems_scrubbed)
         # print(elems)
-
-
-        
 
 
 class VersionSpaceILP(object):
@@ -984,34 +970,34 @@ class VersionSpaceILP(object):
         self.ZERO = None
         self.unused_concepts = []
 
-    def ifit(self,x,y):
+    def ifit(self, x, y):
 
-        x = torch.tensor(x,dtype=torch.uint8).view(1,-1)
+        x = torch.tensor(x, dtype=torch.uint8).view(1, -1)
         print("x", y)
         print(x)
         clen = self.clen = x.shape[-1]
         if(y > 0):
             if(isinstance(self.spec_concepts, type(None))):
                 self.spec_concepts = x
-                self.gen_concepts = torch.zeros(x.shape,dtype=torch.uint8)
-                self.ZERO = torch.tensor(0,dtype=torch.uint8)
-                for _x,_y in self.unused_concepts:
-                    self.ifit(_x,_y)
+                self.gen_concepts = torch.zeros(x.shape, dtype=torch.uint8)
+                self.ZERO = torch.tensor(0, dtype=torch.uint8)
+                for _x, _y in self.unused_concepts:
+                    self.ifit(_x, _y)
                 self.unused_concepts = None
             else:
                 # Generalize the specific concepts to incorperate the positive example
-                self.spec_concepts = torch.where(x != self.spec_concepts, self.ZERO,self.spec_concepts)
+                self.spec_concepts = torch.where(x != self.spec_concepts, self.ZERO, self.spec_concepts)
 
                 # Prune the general concepts that are inconsistent with the positive example
                 gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
-                self.gen_concepts = mask_select(self.gen_concepts,gen_consistency.all(dim=1))
+                self.gen_concepts = mask_select(self.gen_concepts, gen_consistency.all(dim=1))
 
         else:
             if(isinstance(self.spec_concepts, type(None))):
-                self.unused_concepts.append((x,y))
+                self.unused_concepts.append((x, y))
                 return
             else:
-                # ### Start: Make the General Concepts more specific #### 
+                # ### Start: Make the General Concepts more specific ####
                 spec_inconsistency = ~((self.spec_concepts == self.ZERO) | (self.spec_concepts == x))
                 gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
 
@@ -1022,8 +1008,8 @@ class VersionSpaceILP(object):
 
                 # The set of concepts with only one specific element which are present in
                 # the most specific concept but not this negative example.
-                specialization_candidates = torch.eye(clen, dtype=torch.uint8).view(1,clen,clen)*(spec_inconsistency*self.spec_concepts).view(-1,1,clen)
-                specialization_candidates = mask_select(specialization_candidates.view(-1,clen),spec_inconsistency.view(-1))
+                specialization_candidates = torch.eye(clen, dtype=torch.uint8).view(1, clen, clen)*(spec_inconsistency*self.spec_concepts).view(-1, 1, clen)
+                specialization_candidates = mask_select(specialization_candidates.view(-1, clen), spec_inconsistency.view(-1))
 
                 # Specialize each concept (among those we found earlier that contain the negative example)
                 #   creating all new possible general concepts for each element which is still general
@@ -1033,11 +1019,11 @@ class VersionSpaceILP(object):
 
                 # If a possible specialization is consistent with the non-specialized general concepts then keep it
                 new_gen_consistency = (to_keep_concepts.view(1, -1, clen) == self.ZERO) | (to_keep_concepts.view(1, -1, clen) == possible_specialized_gens.view(-1, 1, clen))
-                inconsistent_w_keepers = (~new_gen_consistency).any(dim=-1).all(dim=-1) 
+                inconsistent_w_keepers = (~new_gen_consistency).any(dim=-1).all(dim=-1)
                 specialized_gens = mask_select(possible_specialized_gens, inconsistent_w_keepers)
 
                 # Join the tensors of non-specialized and specialized concepts
-                self.gen_concepts = torch.cat([to_keep_concepts, specialized_gens],dim=0)
+                self.gen_concepts = torch.cat([to_keep_concepts, specialized_gens], dim=0)
 
                 # ### Start: Prune Specific Concepts ####
                 # TODO: Never happens? What does it look like if we allow for multiple specific concepts?
@@ -1046,47 +1032,36 @@ class VersionSpaceILP(object):
         print("GENERAL")
         print(self.gen_concepts)
         print("SPECIFIC")
-        print(self.spec_concepts,self.spec_concepts.shape)
+        print(self.spec_concepts, self.spec_concepts.shape)
 
         print("---------------------------------")
 
-
-
-
     def check_match(self, x):
         '''Returns true if x is consistent with all general concepts and any specific concept'''
-        x = torch.tensor(x,dtype=torch.uint8).view(1,-1)
+        x = torch.tensor(x, dtype=torch.uint8).view(1, -1)
         spec_consistency = ((self.spec_concepts == self.ZERO) | (self.spec_concepts == x)).all(dim=-1)
         gen_consistency = ((self.gen_concepts == self.ZERO) | (self.gen_concepts == x)).all(dim=-1)
         return (spec_consistency.any() & gen_consistency.all()).item()
 
 
-
-
-
-
-
-
-def rename_values(x,mapping,rename_keys=False): 
-    if(isinstance(x,dict)):
+def rename_values(x, mapping, rename_keys=False): 
+    if(isinstance(x, dict)):
         if(rename_keys):
-            return {rename_values(name,mapping):rename_values(val,mapping) for name, val in x.items()}
+            return {rename_values(name, mapping): rename_values(val, mapping) for name, val in x.items()}
         else:
-            return {name:rename_values(val,mapping) for name, val in x.items()}
-    elif(isinstance(x,list)):
-        return [rename_values(val,mapping) for val in x.items()]
-    elif(isinstance(x,tuple)):
-        return tuple([rename_values(val,mapping) for val in x.items()])
+            return {name: rename_values(val, mapping) for name, val in x.items()}
+    elif(isinstance(x, list)):
+        return [rename_values(val, mapping) for val in x.items()]
+    elif(isinstance(x, tuple)):
+        return tuple([rename_values(val, mapping) for val in x.items()])
     elif(x in mapping):
         return mapping[x]
     else:
         return x
 
-
-
 from concept_formation.preprocessor import Preprocessor
 class Enumerizer(Preprocessor):
-    def __init__(self,start_num=0, force_add=[]):
+    def __init__(self, start_num=0, force_add=[]):
         self.start_num = start_num
         self.attr_maps = {}
         self.force_add = force_add
@@ -1096,11 +1071,11 @@ class Enumerizer(Preprocessor):
 
     '''Maps nominals to unsigned integers'''
     #TODO: MAKE IT ASSERT A FIXED REPRESENTATION SOMEHOW
-    def transform(self, instances,force_map=None):
+    def transform(self, instances, force_map=None):
         """
         Transforms an instance.
         """
-        if(isinstance(instances,dict)):
+        if(isinstance(instances, dict)):
             instances = [instances]
 
         
@@ -1118,8 +1093,8 @@ class Enumerizer(Preprocessor):
                     key = (instance["type"],k)
                     if(key not in self.attr_maps):
                         # if(fail_on_grow):
-                        #     raise ValueError("Dynamic") 
-                        self.attr_maps[key] = {x:i+self.start_num for i, x in enumerate(self.force_add)}
+                        #     raise ValueError("Dynamic")
+                        self.attr_maps[key] = {x: i+self.start_num for i, x in enumerate(self.force_add)}
                         # self.attr_counts[key] = self.start_num
                         self.back_maps[key] = [None for i in range(self.start_num)] + self.force_add
                         self.keys.append(key)
@@ -1253,7 +1228,6 @@ if __name__ == "__main__":
         }
     }
 
-
     # enumer = Enumerizer(start_num=1, force_add=[None])
 
     # Av = VersionSpaceILP()
@@ -1291,7 +1265,6 @@ if __name__ == "__main__":
     print(vs.check_match(["C1","A2","B2"],state), 0)
     print(vs.check_match(["C1","B2","B1"],state), 0)
 
-
     print(rename_values(state,{"C1": "sel", "A1" : "arg0", "B1": "arg1"},False))
     print(vs.get_matches(state))
     # print(vs.pos_concepts.spec_concepts.view(3,-1))
@@ -1301,5 +1274,3 @@ if __name__ == "__main__":
     # print()
     # print()
     # pprint(enumer.batch_undo(enumer.batch_transform(state.values())))
-
-
