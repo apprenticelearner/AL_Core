@@ -122,7 +122,7 @@ class WhereLearner(object):
 
     def add_rhs(self, rhs, constraints):
         # args = [skill.selection_var] + skill.input_vars
-        self.learners[rhs] = get_where_agent(self.learner_name,
+        self.learners[rhs] = get_where_sublearner(self.learner_name,
             args=tuple(rhs.all_vars), constraints=constraints, **self.learner_kwargs)
 
         rhs_list = self.rhs_by_label.get(rhs.label, [])
@@ -186,6 +186,7 @@ class MostSpecific(BaseILP):
         return grounded
 
     def check_match(self, t, x):
+        x = x.get_view("flat_ungrounded")
         # print("CHECK MATCHES T", t)
 
         t = tuple(ground(ele) for ele in t)
@@ -214,6 +215,7 @@ class MostSpecific(BaseILP):
         return False
 
     def get_matches(self, x, epsilon=0.0):
+        x = x.get_view("flat_ungrounded")
 
         # print("GETTING MATCHES")
         # pprint(self.tuples)
@@ -493,6 +495,7 @@ class SpecificToGeneral(BaseILP):
         else returns False
         """
         # print("CHECK MATCHES T", t)
+        x = x.get_view("flat_ungrounded")
 
         if self.operator is None:
             return
@@ -514,6 +517,8 @@ class SpecificToGeneral(BaseILP):
         return False
 
     def get_matches(self, x, constraints=None, epsilon=0.0):
+        x = x.get_view("flat_ungrounded")
+
         if self.operator is None:
             return
 
@@ -571,6 +576,7 @@ class SpecificToGeneral(BaseILP):
         return False
 
     def ifit(self, t, x, y):
+        x = x.get_view("flat_ungrounded")
         # print("IFIT T", t)
         # if y == 0:
         #     return
@@ -714,7 +720,7 @@ class SpecificToGeneral(BaseILP):
             self.ifit(t, X[i], y[i])
 
 
-def get_where_agent(name, **learner_kwargs):
+def get_where_sublearner(name, **learner_kwargs):
     return WHERE_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
 
@@ -828,6 +834,7 @@ class VersionSpace(BaseILP):
         self.enumerizer = Enumerizer(start_num=1, force_add=[None] + ['?sel'] + ['?arg%d' % i for i in range(n-1)])
 
     def ifit(self, t, x, y):
+        x = x.get_view("object")
         # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
         assert False not in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
 
@@ -857,6 +864,7 @@ class VersionSpace(BaseILP):
     # def match_elem(self,t_name):
 
     def check_match(self, t, x):
+        x = x.get_view("object")
         # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
 
         def _rename_values(x):
@@ -899,6 +907,8 @@ class VersionSpace(BaseILP):
             return self.pos_concepts.check_match(vs_elem) > 0
 
     def get_matches(self, x):
+        x = x.get_view("object")
+
         if(self.elem_slices == None):
             return
 

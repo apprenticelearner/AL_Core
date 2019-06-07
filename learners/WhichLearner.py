@@ -16,7 +16,7 @@ class WhichLearner(object):
 
 
     def add_rhs(self,rhs):
-        self.learners[rhs] = get_heuristic_agent(self.heuristic_name,**self.learner_kwargs)
+        self.learners[rhs] = get_heuristic_sublearner(self.heuristic_name,**self.learner_kwargs)
         rhs_list = self.rhs_by_label.get(rhs.label,[])
         rhs_list.append(rhs)
         self.rhs_by_label[rhs.label] = rhs_list
@@ -106,7 +106,7 @@ def return_all(expl_iter):
 def get_how_cull_rule(name):
     return CULL_HOW_RULES[name.lower().replace(' ', '').replace('_', '')]
 
-def get_heuristic_agent(name,**learner_kwargs):
+def get_heuristic_sublearner(name,**learner_kwargs):
     return WHICH_HEURISTIC_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
 def get_which_learner(heuristic_learner,how_cull_rule,learner_kwargs={}):

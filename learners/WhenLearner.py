@@ -336,8 +336,8 @@ class ScikitCobweb(object):
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
-            print(y)
-            x['_y_label'] = float(y)
+            # print(y)
+            x['_y_label'] = float(y) if not isinstance(y,list) else y[i]
         self.tree.fit(X, randomize_first=False)
 
     def skill_info(self, X):
@@ -539,7 +539,7 @@ parameters_sgd = {'loss': 'perceptron'}
 
 
 def get_when_sublearner(name, **learner_kwargs):
-    return WHEN_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+    return WHEN_CLASSIFIERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
 
 def get_when_learner(name, learner_kwargs={}):
@@ -554,7 +554,7 @@ WHEN_LEARNERS ={
     "trestle": {"learner": "cobweb", "when_type": "one_learner_per_rhs", "state_format": "variablized_state"}
 }
 
-WHEN_LEARNER_AGENTS = {
+WHEN_CLASSIFIERS = {
     'naivebayes': DictVectWrapper(BernoulliNB),
     'decisiontree': DictVectWrapper(DecisionTree),
     'logisticregression': DictVectWrapper(CustomLogisticRegression),
