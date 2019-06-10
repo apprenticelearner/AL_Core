@@ -28,13 +28,23 @@ class WhenLearner(object):
     WHEN_TYPE_OPTIONS = ["one_learner_per_rhs", "one_learner_per_label"]
     CROSS_RHS_INFERENCE = ["none", "implicit_negatives", "rhs_in_y"]
 
-    def __init__(self, learner, when_type="one_learner_per_rhs", state_format="variablized_state", cross_rhs_inference="implicit_negatives", learner_kwargs={}):
-        assert state_format in self.__class__.STATE_FORMAT_OPTIONS, "state_format must be one of %s but got %s" % (STATE_FORMAT_OPTIONS, state_format) 
-        assert when_type in self.__class__.WHEN_TYPE_OPTIONS, "when_type must be one of %s but got %s" % (WHEN_TYPE_OPTIONS,when_type)
-        assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, "cross_rhs_inference must be one of %s but got %s" % (CROSS_RHS_INFERENCE, cross_rhs_inference)
+    def __init__(self, learner, when_type="one_learner_per_rhs",
+                 state_format="variablized_state",
+                 cross_rhs_inference="implicit_negatives", learner_kwargs={}):
+        assert state_format in self.__class__.STATE_FORMAT_OPTIONS, \
+               "state_format must be one of %s but got %s" % \
+               (self.__class__.STATE_FORMAT_OPTIONS, state_format)
+        assert when_type in self.__class__.WHEN_TYPE_OPTIONS, \
+               "when_type must be one of %s but got %s" % \
+               (self.__class__.WHEN_TYPE_OPTIONS, when_type)
+        assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, \
+               "cross_rhs_inference must be one of %s but got %s" % \
+               (self.__class__.CROSS_RHS_INFERENCE, cross_rhs_inference)
 
         if(cross_rhs_inference == "rhs_in_y"):
-            assert when_type == "one_learner_per_label", "when_type must be 'one_learner_per_label' if using cross_rhs_inference = 'rhs_in_y', but got %r " % when_type
+            assert when_type == "one_learner_per_label", \
+                   "when_type must be 'one_learner_per_label' if using \
+                    cross_rhs_inference = 'rhs_in_y', but got %r " % when_type
 
         self.learner_name = learner
         self.learner_kwargs = learner_kwargs
@@ -50,7 +60,8 @@ class WhenLearner(object):
 
     def add_rhs(self, rhs):
         if(self.type == "one_learner_per_rhs"):
-            self.learners[rhs] = get_when_sublearner(self.learner_name, **self.learner_kwargs)
+            self.learners[rhs] = get_when_sublearner(self.learner_name,
+                                                     **self.learner_kwargs)
             key = rhs
         else:
             key = rhs.label
@@ -92,7 +103,7 @@ class WhenLearner(object):
 
                         # Add implicit negative examples to any rhs that doesn't already have this state
                         # TODO: Do this for all bindings not just for the given state
-                        if(not state in self.examples[other_key]['state']):
+                        if(state not in self.examples[other_key]['state']):
                             other_impl_exs['state'].append(state)
                             other_impl_exs['reward'].append(-1)
 
@@ -113,21 +124,25 @@ class WhenLearner(object):
             #     print("%s : %s" % (x.input_rule,self.examples[x]['reward']))
             # pprint(self.implicit_examples)
 
-            l = self.learners[key] = get_when_sublearner(self.learner_name, **self.learner_kwargs)
+            self.learners[key] = get_when_sublearner(self.learner_name,
+                                                     **self.learner_kwargs)
             # pprint(states)
             # pprint(rewards)
-            l.fit(states+implicit_states,rewards+implicit_rewards)
+            self.learners[key].fit(states+implicit_states,
+                                   rewards+implicit_rewards)
             # print(self.learners[key])
         else:
             if(self.type == "one_learner_per_label"):
-                if(not rhs.label in self.learners):
-                    self.learners[rhs.label] = get_when_sublearner(self.learner_name, **self.learner_kwargs)
+                if(rhs.label not in self.learners):
+                    self.learners[rhs.label] = get_when_sublearner(
+                                                self.learner_name,
+                                                **self.learner_kwargs)
                 if(self.cross_rhs_inference == "rhs_in_y"):
                     self.learners[rhs.label].ifit(state, (rhs._id_num, reward))
                 else:
                     self.learners[rhs.label].ifit(state, reward)
             elif(self.type == "one_learner_per_rhs"):
-                self.learners[rhs].ifit(state,reward)
+                self.learners[rhs].ifit(state, reward)
 
     def predict(self, rhs, state):
         # print("STATE:",state, type(state))
@@ -242,11 +257,12 @@ def iFitWrapper(clf):
 
 def DictVectWrapper(clf):
     def fun(x=None):
+        dv = DictVectorizer(sparse=False, sort=False)
         if x is None:
-            return CustomPipeline([('dict vect', DictVectorizer(sparse=False, sort=False)),
+            return CustomPipeline([('dict vect', dv),
                                    ('clf', clf())])
         else:
-            return CustomPipeline([('dict vect', DictVectorizer(sparse=False, sort=False)),
+            return CustomPipeline([('dict vect', dv),
                                    ('clf', clf(**x))])
 
     return fun
@@ -316,7 +332,8 @@ class ScikitTrestle(object):
         self.tree.fit(X, randomize_first=False)
 
     def skill_info(self, X):
-        raise NotImplementedError("Not implemented Erik H. says there is a way to serialize this -> TODO")
+        raise NotImplementedError("Not implemented Erik H. says there is a way \
+             to serialize this -> TODO")
 
     def predict(self, X):
         return [self.tree.categorize(x).predict('_y_label') for x in X]
@@ -341,7 +358,8 @@ class ScikitCobweb(object):
         self.tree.fit(X, randomize_first=False)
 
     def skill_info(self, X):
-        raise NotImplementedError("Not implemented Erik H. says there is a way to serialize this -> TODO")
+        raise NotImplementedError("Not implemented Erik H. says there \
+                 is a way to serialize this -> TODO")
 
     def predict(self, X):
         return [self.tree.categorize(x).predict('_y_label') for x in X]
@@ -535,7 +553,7 @@ class MajorityClass(object):
 parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss': 'perceptron'}
 
-#######-------------------UTILITIES----------------#######
+# --------------------------------UTILITIES--------------------------------
 
 
 def get_when_sublearner(name, **learner_kwargs):
@@ -548,10 +566,13 @@ def get_when_learner(name, learner_kwargs={}):
     return WhenLearner(**inp_d)
 
 
-WHEN_LEARNERS ={
-    "decisiontree": {"learner": "decisiontree", "state_format": "variablized_state"},
-    "cobweb": {"learner": "cobweb", "when_type": "one_learner_per_rhs", "state_format": "variablized_state"},
-    "trestle": {"learner": "cobweb", "when_type": "one_learner_per_rhs", "state_format": "variablized_state"}
+WHEN_LEARNERS = {
+    "decisiontree": {"learner": "decisiontree",
+                     "state_format": "variablized_state"},
+    "cobweb": {"learner": "cobweb", "when_type": "one_learner_per_rhs",
+               "state_format": "variablized_state"},
+    "trestle": {"learner": "cobweb", "when_type": "one_learner_per_rhs",
+                "state_format": "variablized_state"}
 }
 
 WHEN_CLASSIFIERS = {
