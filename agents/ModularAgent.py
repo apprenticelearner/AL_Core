@@ -12,6 +12,7 @@ from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner
 from learners.WhichLearner import get_which_learner
 from planners.base_planner import get_planner
+from planners.VectorizedPlanner import VectorizedPlanner
 # from learners.HowLearner import get_planner
 from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 import itertools
@@ -115,7 +116,7 @@ class ModularAgent(BaseAgent):
     def __init__(self, feature_set, function_set,
                                      when_learner='decisiontree', where_learner='MostSpecific',
                                      heuristic_learner='proportion_correct', how_cull_rule='all',
-                                     planner='foplanner', search_depth=1, numerical_epsilon=0.0):
+                                     planner='fo_planner', search_depth=1, numerical_epsilon=0.0):
         print(planner)
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
@@ -131,48 +132,21 @@ class ModularAgent(BaseAgent):
         self.rhs_counter = 0
 
 
-    #######-----------------------MISC----------------------------##########
-    # def apply_featureset(self, state):
-    #   tup = Tuplizer()
-    #   flt = Flattener()
-    #   state = flt.transform(tup.transform(state))
-
-    #   knowledge_base = FoPlanner([(ground(a), state[a].replace('?', 'QM')
-    #                                if isinstance(state[a], str)
-    #                                else state[a])
-    #                               for a in state],
-    #                              self.feature_set)
-    #   knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
-    #   state = {unground(a): v.replace("QM", "?")
-    #            if isinstance(v, str)
-    #            else v
-    #            for a, v in knowledge_base.facts}
-    #   return state,knowledge_base
-
-
     #####-----------------------REQUEST--------------------------###########
 
     def applicable_explanations(self, state, rhs_list=None, add_skill_info=False):# -> returns Iterator<Explanation>
         if(rhs_list == None): rhs_list = self.rhs_list
-        # print(rhs_list)
-        print("add_skill_info", add_skill_info)
         for rhs in rhs_list:
             for match in self.where_learner.get_matches(rhs, state):
-                #TODO: Should this even ever be produced?
                 if len(match) != len(set(match)):
                     continue
-                # print("VARIABLIZED:",variablize_by_where(state, match))
-                # print("PREDICTION:",self.when_learner.predict(rhs, variablize_by_where(state, match)))
-                # print("Format",self.when_learner.state_format)
+
                 pred_state = variablize_by_where(state.get_view("flat_ungrounded"), match) if(self.when_learner.state_format == "variablized_state") else state
                 if(self.when_learner.predict(rhs, pred_state) <= 0):
-                    # print("CONTINUE")
                     continue
                 explanation = Explanation(rhs, {v: m for v, m in zip(rhs.all_vars, match)})
 
                 if(add_skill_info):
-                    #Don't DELETE
-                    # when = tuple(unvariablize_by_where(dict.fromkeys(tuple(self.when_learner.skill_info(rhs,pred_state))),match).keys())
                     skill_info = {"when": tuple(self.when_learner.skill_info(rhs, pred_state)),
                                   "where": tuple([x.replace("?ele-", "") for x in match]),
                                   "how": str(rhs.input_rule),
@@ -185,23 +159,15 @@ class ModularAgent(BaseAgent):
         
 
     def request(self, state, add_skill_info=False):#-> Returns sai
-        # pprint(state)
         state = StateMultiView("object",state)
         state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
         explanations = [x for x in self.applicable_explanations(state, rhs_list=rhs_list, add_skill_info=add_skill_info)]
-        print("APPLICABLE EXPLANATIONS:")
-        print("\n".join([str(x[0].rhs.input_rule) for x in explanations]))
-        print("----------------------")
         explanation, skill_info = next(iter(explanations), (None, None))
-        print(explanation)
-        print(skill_info)
-        # explanation = next(explanations,None)
         if explanation != None:
             response = explanation.to_response(state, self)
             if(add_skill_info):
                 response["skill_info"] = skill_info
-                # print("skill_info",skill_info)
 
         else:   
             response = EMPTY_RESPONSE
@@ -222,35 +188,12 @@ class ModularAgent(BaseAgent):
 
     def _matches_from_foas(self, rhs, sai, foci_of_attention):
         iter_func = itertools.permutations
-        #TODO use combinations on commuting functions
         for combo in iter_func(foci_of_attention):
             d = {k: v for k, v in zip(rhs.input_vars, combo)}
             d[rhs.selection_var] = sai.selection
             yield d
 
-
-
-    # def _explain_sai(self, rhs, sai,state,foci_of_attention):
-        
-    #   if(rhs.action == sai.action):
-    #       if(foci_of_attention == None):
-    #           matches = self.where_learner.get_matches(rhs,state)
-    #       else:
-    #           matches = self._matches_from_foas(rhs,sai,foci_of_attention)
-
-    #       for match in matches:
-    #           mapping = {var:val for var,val in zip(rhs.all_vars,match)}
-    #           # grounded_sel = subst(mapping, rhs.selection_expression)
-    #           # grounded_inp = subst(mapping, rhs.input_rule)
-    #           rg_exp = tuple(self.planner.eval_expression([rhs.selection_expression,rhs.input_rule], mapping, state,
-    #                        function_set= self.function_set, epsilon=self.epsilon))
-    #           if(rg_exp[0] == sai.selection and {rhs.input_args[0]:rg_exp[1]} == sai.inputs):
-    #               yield Explanation(rhs,mapping)
-
     def explanations_from_skills(self, state, sai, rhs_list, foci_of_attention=None): # -> return Iterator<skill>
-        # input_rules = [rhs.input_rule for rhs in rhs_list]
-        print([str(rhs.input_rule) for rhs in rhs_list])
-            # print(x)
         for rhs in rhs_list:
             if(isinstance(rhs.input_rule, (int, float, str))):
 
@@ -263,24 +206,7 @@ class ModularAgent(BaseAgent):
             for input_rule, mapping in search_itr:
                 m = {"?selection": "?ele-" + sai.selection}
                 m.update(mapping)
-
-                print("input_rule:", input_rule)
-                print("rhs:", rhs.input_rule)
-                print()
-                # print(rhs.input_rule)
-                # print("mapping",mapping)
-                # print(input_rules)
-                # rhs = rhs_list[input_rules.index(input_rule)]
-                # print(rhs.input_rule)
-                # print(rhs)
                 yield Explanation(rhs, m)
-
-
-        # for rhs in rhs_list:
-            # for explanation in self._explain_sai(rhs, sai, state,foci_of_attention):
-                # yield explanation
-
-    # def how_search
 
     def explanations_from_how_search(self, state, sai, foci_of_attention):# -> return Iterator<Explanation>
         sel_match = next(expression_matches({('?sel_prop', '?selection'): sai.selection}, state), None)
@@ -290,7 +216,6 @@ class ModularAgent(BaseAgent):
             varz = list(mapping.values())
             rhs = RHS(selection_rule, sai.action, input_rule, "?selection", inp_vars, list(sai.inputs.keys()))
             ordered_mapping = {k: v for k, v in zip(rhs.all_vars, [sel_match['?selection']] + varz)}
-            # print("NEW_OM", ordered_mapping)
             yield Explanation(rhs, ordered_mapping)
                 
 
@@ -308,77 +233,37 @@ class ModularAgent(BaseAgent):
 
     def fit(self, explanations, state, reward):#-> return None
         for exp in explanations:
-            # print("BLEEP",exp.rhs,exp.rhs._id_num)
             if(self.when_learner.state_format == 'variablized_state'):
                 self.when_learner.ifit(exp.rhs, variablize_by_where(state.get_view("flat_ungrounded"), exp.mapping.values()), reward)
             else:
                 self.when_learner.ifit(exp.rhs, state, reward)
             self.which_learner.ifit(exp.rhs, state, reward)
-            # print("To Train", reward)
-            # print(str(exp.rhs.input_rule), list(exp.mapping.values()))
-            # print("-----------------------------------")
             self.where_learner.ifit(exp.rhs, list(exp.mapping.values()), state, reward)
 
 
     def train(self, state, selection, action, inputs, reward, skill_label, foci_of_attention):# -> return None
-        # print(state)
-        # print(foci_of_attention)
         state = StateMultiView("object",state)
         sai = SAIS(selection, action, inputs)
         state_featurized = self.planner.apply_featureset(state)
-        # print(state_featurized)
         explanations = self.explanations_from_skills(state_featurized, sai, self.rhs_list, foci_of_attention)
         explanations, nonmatching_explanations = self.where_matches(explanations, state_featurized)
-
-        print("EXPLANTIONS FROM SKILLS", len(explanations), len(nonmatching_explanations))
-        
-        print("MATHCING")
-        print("\n".join([str(x) for x in explanations]))
-        print("---------------------------")
-        print("NON MATHCING")
-        print("\n".join([str(x) for x in nonmatching_explanations]))
 
         if(len(explanations) == 0):
 
             if(len(nonmatching_explanations) > 0):
-                #TODO : Why do we same why not all of them?
-                # explanations = nonmatching_explanations
-                explanations = [choice(nonmatching_explanations)]
-                
+                explanations = [choice(nonmatching_explanations)]                
 
             else:
-                print("HOW SEARCH")
-                explanations = self.explanations_from_how_search(state_featurized, sai, foci_of_attention)
-
-                # for exp in explanations:
-                #   print(exp.mapping)
-                #   print(exp.rhs.input_rule)
-
-
-                # exp = next(explanations)
-
-                # vals = 
-                # sel = ["?selection"]
-                # print(knowledge_base)
-
-                
-
+                explanations = self.explanations_from_how_search(state_featurized, sai, foci_of_attention)                
                 explanations = self.which_learner.cull_how(explanations)#Choose all or just the most parsimonious 
 
                 rhs_by_how = self.rhs_by_how.get(skill_label, {})
                 for exp in explanations:
-                    # print("TUPLE:", exp.rhs.as_tuple)
-                    # print("TUPLE:", hash(exp.rhs.as_tuple))
-                    # print(exp.rhs.as_tuple in rhs_by_how)
                     if(exp.rhs.as_tuple in rhs_by_how):
                         exp.rhs = rhs_by_how[exp.rhs.as_tuple]
-                        # print(str(exp.rhs.input_rule))
                     else:
                         rhs_by_how[exp.rhs.as_tuple] = exp.rhs
                         self.rhs_by_how[skill_label] = rhs_by_how
-
-                        # print([str(x.input_rule) for x in self.rhs_list])
-                        # print(exp.rhs.input_rule, list(exp.mapping.values()))
                         self.add_rhs(exp.rhs)
                                                 
         self.fit(explanations,state_featurized,reward)
@@ -396,22 +281,13 @@ class ModularAgent(BaseAgent):
 
     def get_skills(self, states=None):
         out = []
-        print("STATES:", len(states))
-        # print(states)
         for state in states:
-            # r = 
             req = self.request(state, add_skill_info=True).get('skill_info', None)
 
-            # print("REQ:",req)
             if(req != None):
                 out.append(frozenset([(k, v) for k, v in req.items()]))
 
-        # print("SET", set(out))
-        #Ordered Set
         unique = [{k: v for k, v in x} for x in list(dict.fromkeys(out).keys())]# set(out)]
-        print(len(out), len(unique))
-        print(unique)
-        # print([r['inputs']['value'] for r in out if r != {} ])
         return unique
 
 
@@ -559,8 +435,6 @@ class Explanation(object):
         self.rhs = rhs
         self.mapping = mapping
         self.selection_literal = mapping[rhs.selection_var]
-        # print(rhs.input_rule)
-        print(rhs.input_vars,mapping)
         self.input_literals = [mapping[s] for s in rhs.input_vars]#The Literal 
 
     def compute(self, state, agent):

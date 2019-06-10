@@ -194,17 +194,11 @@ class MostSpecific(BaseILP):
         # Update to include initial args
         mapping = {a: t[i] for i, a in enumerate(self.args)}
 
-        # print("MY MAPPING", mapping)
-
-        # print("CHECKING MATCHES")
 
         if t not in self.tuples:
             return False
 
         grounded = self.ground_example(x)
-        # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
-        # pprint(grounded)
-        # pprint(mapping)
         index = build_index(grounded)
 
         # Update to include initial args
@@ -217,46 +211,21 @@ class MostSpecific(BaseILP):
     def get_matches(self, x, epsilon=0.0):
         x = x.get_view("flat_ungrounded")
 
-        # print("GETTING MATCHES")
-        # pprint(self.tuples)
         grounded = self.ground_example(x)
-        # grounded = [(ground(a), x[a]) for a in x if (isinstance(a, tuple))]
-        # print("FACTS")
-
-        # pprint(grounded)
 
         index = build_index(grounded)
 
-        # print("INDEX")
-        # pprint(index)
-        # print("ARGS")
-        # print(self.args)
-
-        # print("Tuples")
-        # print(self.tuples) 
-
-        # print("Constraints")
-        # print(self.constraints)        
-        # print("OPERATOR")
-        # pprint(self.operator)
-        # print(self.learner.get_hset())
-
         for t in self.tuples:
-            # print("TUPLE", t)
             mapping = {a: t[i] for i, a in enumerate(self.args)}
             operator = Operator(tuple(('Rule',) + self.args),
                                 frozenset().union(self.constraints), [])
-            # print("OP", str(operator))
 
             for m in operator.match(index, epsilon=epsilon,
                                     initial_mapping=mapping):
-                # print("M", m)
                 result = tuple(ele.replace("QM", '?') for ele in t)
-                # print('GET MATCHES T', result)
                 yield result
                 break
 
-        # print("GOT ALL THE MATCHES!")
 
     def ifit(self, t, x, y):
         # print("TUPIN", t)
@@ -865,7 +834,6 @@ class VersionSpace(BaseILP):
 
     def check_match(self, t, x):
         x = x.get_view("object")
-        # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
 
         def _rename_values(x):
             return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
@@ -882,26 +850,7 @@ class VersionSpace(BaseILP):
             gen_consistency = (((pg == ZERO)) | (pg == x)).all(dim=-1)
             neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
             neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(dim=-1)
-            # neg_spec_consistency = (( (ns == ZERO) | (ns != x) ) ).all(dim=-1)
-
-            print("x")
-            print(x)
-            # print((( ng == ZERO) | (ng != x) ) )
-            # print(ng)
-            # print((ps == ZERO) & (ns != ps) & (ns != x))
-            # print((ns != ZERO) & (ns != ps) & (ns == x))
-            print(ns)
-            # print("spec")
-            print(ps)
-            # print(ns)
-            # print(ng)
-            # print("con")
-            # print((( (ps == ZERO) & (ns != x) ) | (ps == x)))
-            # print(spec_consistency)
-            print(neg_spec_consistency)
-            print(spec_consistency.any(), gen_consistency.all())
-            print(neg_gen_consistency, neg_gen_consistency.any())
-            # print(neg_spec_consistency)
+            
             return (spec_consistency.any() & gen_consistency.all() & neg_gen_consistency.any() & neg_spec_consistency.any()).item()
         else:
             return self.pos_concepts.check_match(vs_elem) > 0
@@ -931,9 +880,6 @@ class VersionSpace(BaseILP):
             cnd = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
             cnd = cnd.view(len(candidate_indices), 1, ps_i.size(-1))
             ps_i, ns_i = ps_i.unsqueeze(0), ns_i.unsqueeze(0)
-            # print(ps_i.size(),ps_i.dtype)
-            # print(ns_i.size(),ns_i.dtype)
-            # print(ns_i.size(),ns_i.dtype)
 
             ZERO = self.pos_concepts.ZERO
             ps_consistency = ((ps_i == ZERO) | (ps_i == cnd) | (cnd == ZERO)).all(dim=-1).any(dim=-1)
@@ -1237,6 +1183,8 @@ if __name__ == "__main__":
             "right": "C2",
         }
     }
+    from agents.ModularAgent import StateMultiView
+    state = StateMultiView("object",state)
 
     # enumer = Enumerizer(start_num=1, force_add=[None])
 

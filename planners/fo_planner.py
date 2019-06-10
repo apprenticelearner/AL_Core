@@ -380,7 +380,6 @@ def pattern_match(pattern, index, substitution, epsilon=0.0):
         ele = ps[0][2]
         new_ele = subst(substitution, ps[0][2])
         key = index_key(new_ele)
-        # print('INDEX KEY', key)
 
         if key in index:
             elements = [e for e in index[key]]
@@ -481,8 +480,6 @@ class FC_Problem(Problem):
                                                        build_index(rfacts),
                                                        sub,
                                                        epsilon):
-                                    # print("Level: %i, # Operators: %i" %
-                                    # (depth, count))
                                     return depth
 
                     new.update(effects)
@@ -500,16 +497,12 @@ class FC_Problem(Problem):
         operators, index, epsilon = node.extra
 
         for o in operators:
-            # print(o.name)
             for m in o.match(index, epsilon):
-                # print(m)
                 try:
                     adds = frozenset([execute_functions(subst(m, f))
                                       for f in o.add_effects])
-                    # print("adds", adds)
                     dels = frozenset([execute_functions(subst(m, f))
                                       for f in o.delete_effects])
-                    # print("dels", dels)
                 except:
                     continue
 
@@ -599,27 +592,14 @@ def apply_operators(ele, operators, knowledge_base,epsilon):
         effect = list(operator.effects)[0]
         pattern = effect[0][1]
         u_mapping = unify(pattern, ground(ele), {}) #Returns a mapping to name the values in the expression
-        print("umapping")
-        # print(effect)
-        print(pattern)
-        print(ele)
+        
         if(u_mapping):
-            # print(operator.conditions,"\n")
-            # print(u_mapping,"\n")
-            # print(effect[1],"\n")
-            # print("BEEP", [subst(u_mapping,x) for x in operator.conditions],"\n")
             condition_sub = [subst(u_mapping,x) for x in operator.conditions]
-            # print("CS", condition_sub)
-
-
-
             value_map = next(knowledge_base.fc_query(condition_sub, max_depth=0, epsilon=epsilon))
-            # print(value_map)
-            # print()
+            
             try:
                 operator_output = execute_functions(subst(value_map,effect[1]))
             except:
-                # print("ERROR")
                 continue
 
             return operator_output
@@ -639,11 +619,11 @@ class FoPlannerModule(BasePlanner):
                     allow_bottomout=True,
                     allow_copy=True,
                     epsilon=0.0):
-        # _, selection, action, inputs = sai
         _ = state.get_view("flat_ungrounded")
 
         if(not state.contains_view("func_knowledge_base")):
-            knowledge_base = FoPlanner(state.compute_from("key_vals_grounded","flat_ungrounded"),
+            key_vals_grounded = state.compute_from("key_vals_grounded","flat_ungrounded")
+            knowledge_base = FoPlanner(key_vals_grounded,
                                         self.function_set)
             
             knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
@@ -654,8 +634,6 @@ class FoPlannerModule(BasePlanner):
         
 
         for attr,input_val in sai.inputs.items():
-            
-
             #Danny: This populates a list of explanations found earlier in How search that work"
             possible = []
             for iv_m in knowledge_base.fc_query([((attr, '?input'), input_val)],
@@ -667,6 +645,7 @@ class FoPlannerModule(BasePlanner):
                 mapping = {"?arg%d"%i: arg for i,arg in enumerate(args)}
                 input_rule = replace_vars(input_rule)[0]
 
+                #Special case to handle copies
                 if(isinstance(input_rule,str)):
                     input_rule = (attr, input_rule)
 
@@ -681,35 +660,21 @@ class FoPlannerModule(BasePlanner):
 
 
     def apply_featureset(self, state):
-        # tup = Tuplizer()
-        # flt = Flattener()
-        # state = flt.transform(tup.transform(state))
         _ = state.get_view("flat_ungrounded")
-        # state.compute("flat_ungrounded")
 
-        knowledge_base = FoPlanner(state.compute_from("key_vals_grounded","flat_ungrounded"),
-                                    self.feature_set)#[(ground(a), state[a].replace('?', 'QM')
-                                  #  if isinstance(state[a], str)
-                                  #  else state[a])
-                                  # for a in state],
-                                  
+        key_vals_grounded = state.compute_from("key_vals_grounded","flat_ungrounded")
+        knowledge_base = FoPlanner(key_vals_grounded,
+                                    self.feature_set)
                                  
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
 
         state.set_view("feat_knowledge_base",knowledge_base)
         state.compute_from("flat_ungrounded","feat_knowledge_base")
-        # state = {unground(a): v.replace("QM", "?")
-        #        if isinstance(v, str)
-        #        else v
-        #        for a, v in knowledge_base.facts}
-        return state#,knowledge_base
+        return state
 
-    # def eval_expression(self,x,mapping,state):
-    #     raise NotImplementedError()
 
     def eval_expression(self,x,mapping,state):
         rg_exp = []
-        # print("E", r_ele)
         try:
             knowledge_base = state.get_view("func_knowledge_base")
         except:
@@ -718,43 +683,24 @@ class FoPlannerModule(BasePlanner):
         x = rename_relation(x,mapping)
         for ele in x:
             if isinstance(ele, tuple):
-                # print("THIS HAPPENED", ele, ground(ele), execute_functions(ground(ele)))
 
-                
-                        
-                        # execute_functions(subt(u))
-                        # rg_exp.append()
-
-                    # print("BLEHH:", operator.effects) 
                 ok = False
                 for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
                                                          max_depth=0,
                                                           epsilon=self.epsilon):
-                    # print("VARM:",var_match, ground(ele))
                     if var_match['?v'] != '':
-                        # print("V", var_match['?v'])
                         rg_exp.append(var_match['?v'])
-                        # print("HERE_A",rg_exp[-1])
                         ok = True
                     break
 
                 if(not ok):
                     operator_output = apply_operators(ele,self.function_set,knowledge_base,self.epsilon)
-                    print("OPERATOR_OUTPUT", ele, "->", operator_output)
                     if(operator_output != None and operator_output != ""):
-                        # print("O", operator_output)
                         rg_exp.append(operator_output)
                         ok = True
 
                 if(not ok):
                     rg_exp.append(None)
-                    # print("HERE_B",operator_output)
-                
-
-
-                # if(operator_output != None):
-                #     rg_exp.append(operator_output)
-
 
             else:
                 rg_exp.append(ele)
@@ -837,16 +783,7 @@ class FoPlanner:
                 if must_match is not None:
                     conditions = set([subst(m, c) for c in o.conditions])
                     if len(must_match.intersection(conditions)) == 0:
-                        # print("USELESS MATCH")
-                        # print(conditions)
-                        # print("VS")
-                        # print(must_match)
                         continue
-                    # else:
-                        # print("GOOD MATCH!")
-                        # print(conditions)
-                        # print("VS")
-                        # print(must_match)
 
                 try:
                     effects = set([execute_functions(subst(m, f))
