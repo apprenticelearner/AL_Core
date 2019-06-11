@@ -818,6 +818,9 @@ class VersionSpace(BaseILP):
         instances = [_rename_values(x[t_name]) for t_name in t]
         vs_elems = self.enumerizer.transform(instances)
 
+        print("VS")
+        print(self.enumerizer.transform(list(x.values())))
+
         if(self.elem_slices == None):
             self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
 
@@ -857,15 +860,31 @@ class VersionSpace(BaseILP):
 
     def get_matches(self, x):
         x = x.get_view("object")
+        # assert False not in [for x in range(self.num_elems), \
+        # "It is not the case that the enum for argX == X+2"
+        print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
 
         if(self.elem_slices == None):
             return
 
         all_elems = [val for val in x.values()]
         all_elem_names = [key for key in x.keys()]
+        where_part_vals = self.enumerizer.transform_values(
+                          ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)])
+
+        where_part_vals = torch.tensor(where_part_vals,dtype=torch.uint8)
+        where_min = torch.tensor(min(where_part_vals))
+        where_max = torch.tensor(max(where_part_vals))
+
+        # all_elem_vals = 
+
         print(all_elems)
         elems_scrubbed = self.enumerizer.transform(all_elems, {ele: 0 for ele in x})
-        elems = self.enumerizer.transform([val for val in x.values()])
+        elems = self.enumerizer.transform(all_elems)
+        elem_names = self.enumerizer.transform_values(all_elem_names)
+        elem_names = torch.tensor(elem_names,dtype=torch.uint8)
+
+        print("elem_names",elem_names)
 
         ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
         ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
@@ -874,32 +893,153 @@ class VersionSpace(BaseILP):
         split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
         split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
 
+        consistencies = []
         concept_candidates = []
+        inds_by_type = {}
+        candidates_by_type = {}
+
+        ZERO = self.pos_concepts.ZERO
+
+        where_part_consistencies = []
+        # ONE = torch.tensor(1,dtype=torch.uint8)
         for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
-            candidate_indices = [i for i, e in enumerate(all_elem_names) if x[e]["type"] == typ]
-            cnd = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
-            cnd = cnd.view(len(candidate_indices), 1, ps_i.size(-1))
+            if(typ not in inds_by_type):
+                candidate_indices = [i for i, e in enumerate(all_elem_names) if x[e]["type"] == typ]
+                inds_by_type[typ] = candidate_indices
+
+                cnd = torch.tensor([elems[i] for i in candidate_indices], dtype=torch.uint8)
+                # cnd = cnd.view(len(candidate_indices), 1, ps_i.size(-1))
+                candidates_by_type[typ] = cnd
+            else:
+
+                candidate_indices = inds_by_type[typ]
+
+            cnd_s = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
+            # cnd = torch.tensor([elems[i] for i in candidate_indices], dtype=torch.uint8)
+            cnd_s = cnd_s.view(len(candidate_indices), 1, ps_i.size(-1))
+            # cnd = cnd.view(len(candidate_indices), 1, ps_i.size(-1))
+            # cnd_i = torch.tensor(candidate_indices, dtype=torch.long) 
+
             ps_i, ns_i = ps_i.unsqueeze(0), ns_i.unsqueeze(0)
 
-            ZERO = self.pos_concepts.ZERO
-            ps_consistency = ((ps_i == ZERO) | (ps_i == cnd) | (cnd == ZERO)).all(dim=-1).any(dim=-1)
-            ns_consistency = ((ns_i == ZERO) | (ns_i != cnd) | (ps_i == ns_i) | (cnd == ZERO)).all(dim=-1).any(dim=-1)
+            
+            ps_consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
+            ns_consistency = ((ns_i == ZERO) | (ns_i != cnd_s) | (ps_i == ns_i) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
             consistency = ps_consistency & ns_consistency
-            conistency_indices = consistency.nonzero().view(-1)
-            concept_candidates.append(conistency_indices.tolist())
 
-            print(ps_i)
-            print(ns_i)
-            print(conistency_indices)
+            consistencies.append(consistency)
 
-        most_constrained_order = np.argsort([len(cands) for cands in concept_candidates])
+            # consistency_indices = consistency.nonzero().view(-1)
+            # concept_candidates.append((cnd[consistency_indices],cnd_i[consistency_indices]))
 
-        itr = [a for a in zip(self.elem_types, concept_candidates, split_ps, split_ns)]
-        itr = [itr[i] for i in most_constrained_order]
+            concept_candidates.append( (consistency, torch.masked_select(elem_names,consistency)) )
+
+
+        repl_consistencies = []
+        tot = ~ZERO
+        for i, (typ, ps_i, ns_i) in enumerate(zip(self.elem_types, split_ps, split_ns)):
+            cnd = candidates_by_type[typ]
+            rc = repl_consistencies.append([])
+
+            ps_i, ns_i = ps_i.unsqueeze(0), ns_i.unsqueeze(0)
+            ok = ~ZERO
+            for j, (consistency, elem_names) in enumerate(concept_candidates):
+                print("elem_names:",[self.enumerizer.back_maps[0][x] for x in elem_names.tolist()])
+                # print(cnd)
+                # print()
+                repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1)).unsqueeze(-2)
+                # print(repl)
+                # cnd_v = cnd.unsqueeze(-2)
+                print(repl.size())
+                print(ps_i)
+                print(ns_i)
+                print(ns_i.size())
+                # print(cnd_v.size())
+
+                v = where_part_vals[j]
+
+                print("V:", v)
+
+                # .all(dim=-1).any(dim=-1)
+                # print(ps_i)
+                ps_consistency = ( (ps_i == v)).unsqueeze(0)
+                ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
+
+                consistent = (ps_consistency & ns_consistency)
+                print("consistent")
+                print(consistent)
+                repl_consistency = ( ( (~repl & ~consistent) |  (repl & ((ps_i == ZERO).unsqueeze(0) | consistent)) )).all(dim=-1).any(dim=-1)
+
+                print(repl_consistency.size())
+                print(repl_consistency)
+                repl_consistency = repl_consistency.view(*([1]*j + [-1] + (self.num_elems-(j+1))*[1] + [repl_consistency.size(-1)]))
+                ok = ok & repl_consistency
+
+            tot = tot & ok.any(dim=-1)
+                
+                # print(repl_consistency.size())
+
+        matches = tot.nonzero()
+            
+
+
+
+
+
+            # tot = 
+
+                # print(consistency, elem_names)
+            # print(ps_i)
+            # print(ns_i)
+            # print("OK")
+            # print(ok.size())
+            # print(ok)
+        print("tot")
+        print(tot.size())
+        print(tot.nonzero())
+
+        translated = []
+        for i,(typ,consistency) in enumerate(zip(self.elem_types,consistencies)):
+            translated.append(torch.index_select(consistency.nonzero(),0,matches[:,i]))
+        # print(torch.cat(translated,dim=1))
+        
+        for x in torch.cat(translated,dim=1).tolist():
+            print([all_elem_names[y] for y in x])
+
+            # print(torch.where(ps_i == where_part_vals))
+
+
+            # print(ps_i)
+            # print(ns_i)
+            # print(consistency_indices)
+        # candidates_by_type =  
+
+        # matches = tot.nonzero()
+        # for typ,consistency in consistency_by_type.items():
+        #     # sub_selection = consistency.nonzero()
+        #     # print(sub_selection.size())
+        #     # print(inds_by_type[typ])
+        #     # print(candidates_by_type[typ].size())
+        #     candidates_by_type[typ] = torch.masked_select(candidates_by_type[typ],consistency.view(-1,1))
+
+
+        #     # inds_by_type[typ] = torch.gather(inds_by_type[typ],0,sub_selection)
+
+        #     print(typ,consistency)
+
+        # print(consistency_by_type)
+
+
+        # print()
+
+        # most_constrained_order = np.argsort([len(cands) for cands in concept_candidates])
+
+        # itr = [a for a in zip(self.elem_types, concept_candidates, split_ps, split_ns)]
+        # itr = [itr[i] for i in most_constrained_order]
 
         # for cand_inds, ps_i,ns_i in itr:
 
-        print(most_constrained_order)
+        # print(most_constrained_order)
 
             # print(ns_consistency)
             # print([len(b) for b in elems_scrubbed])
@@ -911,9 +1051,9 @@ class VersionSpace(BaseILP):
             #     print(ps_i)
             #     print(ns_i)
 
-        print("split")
-        print(split_ps)
-        print(split_ns)
+        # print("split")
+        # print(split_ps)
+        # print(split_ns)
 
         # print(elems_scrubbed)
         # print(elems)
@@ -1017,13 +1157,20 @@ def rename_values(x, mapping, rename_keys=False):
 
 from concept_formation.preprocessor import Preprocessor
 class Enumerizer(Preprocessor):
-    def __init__(self, start_num=0, force_add=[]):
+    def __init__(self, start_num=0, force_add=[],attrs_independant=False):
         self.start_num = start_num
         self.attr_maps = {}
         self.force_add = force_add
+        self.attrs_independant = attrs_independant
         # self.attr_counts = {}
         self.back_maps = {}
         self.keys = []
+
+    def transform_values(self,values):
+        assert not self.attrs_independant, \
+            "attrs_independant, must be false. Mapping ambiguous."
+        mapping = self.attr_maps[0]
+        return [mapping[x] for x in values]
 
     '''Maps nominals to unsigned integers'''
     #TODO: MAKE IT ASSERT A FIXED REPRESENTATION SOMEHOW
@@ -1046,7 +1193,7 @@ class Enumerizer(Preprocessor):
                 if(force_map != None and value in force_map):
                     enumerized_instance.append(force_map[value])
                 else:
-                    key = (instance["type"],k)
+                    key = (instance["type"],k) if self.attrs_independant else 0
                     if(key not in self.attr_maps):
                         # if(fail_on_grow):
                         #     raise ValueError("Dynamic")
@@ -1222,6 +1369,7 @@ if __name__ == "__main__":
     print(vs.check_match(["C1","A3","C3"],state), 0)
     print(vs.check_match(["C1","A2","B2"],state), 0)
     print(vs.check_match(["C1","B2","B1"],state), 0)
+    print(vs.check_match(['C1','A1','B3'],state), 0)
 
     print(rename_values(state,{"C1": "sel", "A1" : "arg0", "B1": "arg1"},False))
     print(vs.get_matches(state))
