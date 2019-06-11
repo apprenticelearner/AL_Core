@@ -1307,8 +1307,12 @@ if __name__ == "__main__":
 
     vs = VersionSpace(use_neg=True)
     vs.ifit(["C1","A1","B1"],state,1)
+    for match in vs.get_matches(state):
+        print(match)
     vs.ifit(["C1","B1","A1"],state,0)
     vs.ifit(["C2","A2","B2"],state,1)
+    for match in vs.get_matches(state):
+        print(match)
     vs.ifit(["C1","B2","A2"],state,0)
     # vs.ifit(["C3","A3","B3"],state,1)
     vs.ifit(["C3","A3","A2"],state,0)
