@@ -20,4 +20,4 @@ six==1.11.0
 sklearn==0.0
 tabulate==0.8.2
 verlib==0.1
-torch
+torch>=1.0.0
