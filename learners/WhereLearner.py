@@ -867,197 +867,152 @@ class VersionSpace(BaseILP):
         if(self.elem_slices == None):
             return
 
-        all_elems = [val for val in x.values()]
-        all_elem_names = [key for key in x.keys()]
+        # Create a tensor which contains the enum values associated with the when parts
+        #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
         where_part_vals = self.enumerizer.transform_values(
                           ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)])
-
         where_part_vals = torch.tensor(where_part_vals,dtype=torch.uint8)
-        where_min = torch.tensor(min(where_part_vals))
-        where_max = torch.tensor(max(where_part_vals))
 
-        # all_elem_vals = 
-
-        print(all_elems)
-        elems_scrubbed = self.enumerizer.transform(all_elems, {ele: 0 for ele in x})
-        elems = self.enumerizer.transform(all_elems)
-        elem_names = self.enumerizer.transform_values(all_elem_names)
+        # Make a tensor that has all of the enum values for the names of the elements/objects
+        #  in the state in order that they appear
+        elem_names_list = [key for key in x.keys()]
+        elem_names = self.enumerizer.transform_values(elem_names_list)
         elem_names = torch.tensor(elem_names,dtype=torch.uint8)
 
-        print("elem_names",elem_names)
+        # Make a list that has all of the enumerized elements/objects
+        elems_list = [val for val in x.values()]
+        elems = self.enumerizer.transform(elems_list)
 
+        # Make a list that has all of the enumerized elements/objects, but zeros in
+        #  all of the slot for attributes which have elements names as values 
+        elems_scrubbed = self.enumerizer.transform(elems_list, {ele: 0 for ele in x})
+        
+        # Split up the concepts by the where parts that each slice selects on
         ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
         ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
-
         s = self.elem_slices
         split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
         split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
 
-        consistencies = []
-        concept_candidates = []
+        # Initialize a bunch of containers that we will fill
         inds_by_type = {}
         candidates_by_type = {}
+        scrubbed_by_type = {}
+        consistencies = []
+        concept_cand_indicies = []
+        concept_candidates = []
+        concept_cand_replacements = []
+        
 
         ZERO = self.pos_concepts.ZERO
-
-        where_part_consistencies = []
-        # ONE = torch.tensor(1,dtype=torch.uint8)
+        
+        # Loop over the concepts for each where part and cull down the list of
+        #   possible matches for them. This phase only filters out elements we can
+        #   rule out without committing to any part of the where assignment. 
         for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
+
+            # If the type for this concept is new then populate the list of candidates in various formats
             if(typ not in inds_by_type):
-                candidate_indices = [i for i, e in enumerate(all_elem_names) if x[e]["type"] == typ]
+                candidate_indices = [i for i, e in enumerate(elem_names_list) if x[e]["type"] == typ]
                 inds_by_type[typ] = candidate_indices
-
                 cnd = torch.tensor([elems[i] for i in candidate_indices], dtype=torch.uint8)
-                # cnd = cnd.view(len(candidate_indices), 1, ps_i.size(-1))
                 candidates_by_type[typ] = cnd
+
+                cnd_s = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
+                cnd_s = cnd_s.view(len(candidate_indices), 1, ps_i.size(-1))
+                scrubbed_by_type[typ] = cnd_s
             else:
-
                 candidate_indices = inds_by_type[typ]
+                cnd_s = scrubbed_by_type[typ]
 
-            cnd_s = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
-            # cnd = torch.tensor([elems[i] for i in candidate_indices], dtype=torch.uint8)
-            cnd_s = cnd_s.view(len(candidate_indices), 1, ps_i.size(-1))
-            # cnd = cnd.view(len(candidate_indices), 1, ps_i.size(-1))
-            # cnd_i = torch.tensor(candidate_indices, dtype=torch.long) 
-
+            # Check the consistency of each scrubbed candidate with the positive and negative
+            #   concepts. This is a normal concept comparison except that any attribute slot where  
+            #   the scrubbed candidate has a zero is always considered consistent. 
             ps_i, ns_i = ps_i.unsqueeze(0), ns_i.unsqueeze(0)
-
-            
             ps_consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
             ns_consistency = ((ns_i == ZERO) | (ns_i != cnd_s) | (ps_i == ns_i) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
             consistency = ps_consistency & ns_consistency
 
+            #Store our culled down set of candidates in various formats
             consistencies.append(consistency)
-
-            # consistency_indices = consistency.nonzero().view(-1)
-            # concept_candidates.append((cnd[consistency_indices],cnd_i[consistency_indices]))
-
+            concept_cand_indicies.append(consistency.nonzero())
             concept_candidates.append( (consistency, torch.masked_select(elem_names,consistency)) )
 
+        # For each subset of the state of shape (N_t,d_t) consisting of all N_t, elements of type t
+        #   with shared shape d_t, create a mask tensor of shape (n_w,N_t,d_t) such that each mask
+        #   along its first dimension selects a different candidate assignment to 'where' part w.
+        replacements_by_type = {}
+        for typ, cnd in candidates_by_type.items():
+            repls = []
+            for consistency, elem_names in concept_candidates:
+                repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1))
+                repls.append(repl)
+            replacements_by_type[typ] = repls
 
-        repl_consistencies = []
-        tot = ~ZERO
+
+        # Here we loop over the concepts for every where part and try every possible replacement 
+        #   of element name enums with the enums for "?sel", "?arg0", "?arg1", etc to see if 
+        #   the replacement is consistent with that concept.
+        tot = None
         for i, (typ, ps_i, ns_i) in enumerate(zip(self.elem_types, split_ps, split_ns)):
-            cnd = candidates_by_type[typ]
-            rc = repl_consistencies.append([])
+            # cnd = candidates_by_type[typ]
+            repls = replacements_by_type[typ]
 
             ps_i, ns_i = ps_i.unsqueeze(0), ns_i.unsqueeze(0)
-            ok = ~ZERO
-            for j, (consistency, elem_names) in enumerate(concept_candidates):
-                print("elem_names:",[self.enumerizer.back_maps[0][x] for x in elem_names.tolist()])
-                # print(cnd)
-                # print()
-                repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1)).unsqueeze(-2)
-                # print(repl)
-                # cnd_v = cnd.unsqueeze(-2)
-                print(repl.size())
-                print(ps_i)
-                print(ns_i)
-                print(ns_i.size())
-                # print(cnd_v.size())
+            ok_i = None
 
+            # For each where part j check all assignments among the candidate elements
+            #   for consistency with concept(i).   
+            for j, repl in enumerate(repls):
+                repl = repl.unsqueeze(-2)
                 v = where_part_vals[j]
 
-                print("V:", v)
-
-                # .all(dim=-1).any(dim=-1)
-                # print(ps_i)
+                # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
+                #   at element (r,e) if element e is consistent with concept set i given that 
+                #   where part j was assigned to element r.  
                 ps_consistency = ( (ps_i == v)).unsqueeze(0)
                 ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
-
                 consistent = (ps_consistency & ns_consistency)
-                print("consistent")
-                print(consistent)
-                repl_consistency = ( ( (~repl & ~consistent) |  (repl & ((ps_i == ZERO).unsqueeze(0) | consistent)) )).all(dim=-1).any(dim=-1)
 
-                print(repl_consistency.size())
-                print(repl_consistency)
+                # Element e is consistent with replacement r if the replacement changes the
+                #   element so that all attributes for which the positive concept requires value v
+                #   are replaced with value v, and no attributes are replaced with value v if it would
+                #   make e match the negative concept.
+                repl_consistency = ( ( (~ps_consistency) |  (repl & consistent) )).all(dim=-1).any(dim=-1)
+
+                # Broadcast repl_consistency and bitwise AND it with the repl_consistencies so far
+                #   to ultimately create a tensor ok_i of shape (n_w1,n_w2,n_w3, ..., N_t) that contains a mask of 
+                #   elements for each combination of where assignments which are which are mutually consistent 
+                #   with concept set i. 
                 repl_consistency = repl_consistency.view(*([1]*j + [-1] + (self.num_elems-(j+1))*[1] + [repl_consistency.size(-1)]))
-                ok = ok & repl_consistency
+                ok_i = (ok_i & repl_consistency) if ok_i is not None else repl_consistency
 
-            tot = tot & ok.any(dim=-1)
-                
-                # print(repl_consistency.size())
+            # Create a diagonal matrix of shape (n_i,N_t) that has value 1 where the candidates
+            #   for where part i align with the candidates from te original state. 
+            concept_diag = concept_cand_indicies[i].view(-1,1) == torch.arange(ok_i.size(-1)).view(1,-1)
 
+            # Broadcast this diagonal and bitwise AND it with ok_i so that all 'where' part assignments
+            #   consistent with concept_i must also have 'where' part i.
+            concept_diag = concept_diag.view(*([1]*i + [concept_diag.size(0)] + (self.num_elems-(i+1))*[1] + [concept_diag.size(-1)]  ))
+            diag_consistency = (ok_i & concept_diag).any(dim=-1)
+
+            # Bitwise AND all of these together to get a tensor of shape (n_w1,n_w2,n_w3, ...,) that has
+            #   value 1 only for consistent 'where' assignments.
+            tot = (tot & diag_consistency) if tot is not None else diag_consistency
+
+        # Get the indicies of the consistent 'where' assignments 
         matches = tot.nonzero()
-            
 
-
-
-
-
-            # tot = 
-
-                # print(consistency, elem_names)
-            # print(ps_i)
-            # print(ns_i)
-            # print("OK")
-            # print(ok.size())
-            # print(ok)
-        print("tot")
-        print(tot.size())
-        print(tot.nonzero())
-
+        # Translate these indicies so that they select from the original state
         translated = []
-        for i,(typ,consistency) in enumerate(zip(self.elem_types,consistencies)):
-            translated.append(torch.index_select(consistency.nonzero(),0,matches[:,i]))
-        # print(torch.cat(translated,dim=1))
+        for i,(typ,indicies) in enumerate(zip(self.elem_types,concept_cand_indicies)):
+            translated.append(torch.index_select(indicies,0,matches[:,i]))
+        translated = torch.cat(translated,dim=1)
         
-        for x in torch.cat(translated,dim=1).tolist():
-            print([all_elem_names[y] for y in x])
-
-            # print(torch.where(ps_i == where_part_vals))
-
-
-            # print(ps_i)
-            # print(ns_i)
-            # print(consistency_indices)
-        # candidates_by_type =  
-
-        # matches = tot.nonzero()
-        # for typ,consistency in consistency_by_type.items():
-        #     # sub_selection = consistency.nonzero()
-        #     # print(sub_selection.size())
-        #     # print(inds_by_type[typ])
-        #     # print(candidates_by_type[typ].size())
-        #     candidates_by_type[typ] = torch.masked_select(candidates_by_type[typ],consistency.view(-1,1))
-
-
-        #     # inds_by_type[typ] = torch.gather(inds_by_type[typ],0,sub_selection)
-
-        #     print(typ,consistency)
-
-        # print(consistency_by_type)
-
-
-        # print()
-
-        # most_constrained_order = np.argsort([len(cands) for cands in concept_candidates])
-
-        # itr = [a for a in zip(self.elem_types, concept_candidates, split_ps, split_ns)]
-        # itr = [itr[i] for i in most_constrained_order]
-
-        # for cand_inds, ps_i,ns_i in itr:
-
-        # print(most_constrained_order)
-
-            # print(ns_consistency)
-            # print([len(b) for b in elems_scrubbed])
-            # print(ps_i.size(-1))
-            # for j in candidate_indices:
-            #     es = elems_scrubbed[j]
-            #     print("es")
-            #     print(es)
-            #     print(ps_i)
-            #     print(ns_i)
-
-        # print("split")
-        # print(split_ps)
-        # print(split_ns)
-
-        # print(elems_scrubbed)
-        # print(elems)
-
+        #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
+        for x in translated.tolist():
+            out = [elem_names_list[y] for y in x]
+            yield out
 
 class VersionSpaceILP(object):
     def __init__(self):
@@ -1372,7 +1327,9 @@ if __name__ == "__main__":
     print(vs.check_match(['C1','A1','B3'],state), 0)
 
     print(rename_values(state,{"C1": "sel", "A1" : "arg0", "B1": "arg1"},False))
-    print(vs.get_matches(state))
+    for match in vs.get_matches(state):
+        print(match)
+    # print()
     # print(vs.pos_concepts.spec_concepts.view(3,-1))
     # print(vs.pos_concepts.gen_concepts.view(3,-1))
     # print(vs.neg_concepts.spec_concepts.view(3,-1))
