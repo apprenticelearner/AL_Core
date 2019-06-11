@@ -29,6 +29,7 @@ def compute_exp_depth(exp):
         return 1 + max([compute_exp_depth(sub) for sub in exp])
     return 0
 
+
 def get_vars(arg):
     """
     Doc String
@@ -46,6 +47,7 @@ def get_vars(arg):
     else:
         return []
 
+
 def ground(arg):
     """
     Doc String
@@ -56,6 +58,7 @@ def ground(arg):
         return arg.replace('?', 'QM')
     else:
         return arg
+
 
 def unground(arg):
     """
@@ -334,7 +337,7 @@ class WhereWhenHowNoFoa(BaseAgent):
                                           enumerate(input_args)}
                     # response['inputs'] = list(rg_exp[3:])
                     response['foci_of_attention'] = []
-                    pprint(response)
+                    # pprint(response)
                     return response
 
         return {}

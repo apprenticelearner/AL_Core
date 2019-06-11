@@ -10,6 +10,7 @@ from concept_formation.utils import isNumber
 from py_search.base import Problem
 from py_search.base import Node
 from py_search.uninformed import iterative_deepening_search
+from planners.base_planner import BasePlanner
 # from py_search.uninformed import depth_first_search
 # from py_search.uninformed import breadth_first_search
 # from py_search.informed import iterative_deepening_best_first_search
@@ -379,7 +380,6 @@ def pattern_match(pattern, index, substitution, epsilon=0.0):
         ele = ps[0][2]
         new_ele = subst(substitution, ps[0][2])
         key = index_key(new_ele)
-        # print('INDEX KEY', key)
 
         if key in index:
             elements = [e for e in index[key]]
@@ -480,8 +480,6 @@ class FC_Problem(Problem):
                                                        build_index(rfacts),
                                                        sub,
                                                        epsilon):
-                                    # print("Level: %i, # Operators: %i" %
-                                    # (depth, count))
                                     return depth
 
                     new.update(effects)
@@ -499,16 +497,12 @@ class FC_Problem(Problem):
         operators, index, epsilon = node.extra
 
         for o in operators:
-            # print(o.name)
             for m in o.match(index, epsilon):
-                # print(m)
                 try:
                     adds = frozenset([execute_functions(subst(m, f))
                                       for f in o.add_effects])
-                    # print("adds", adds)
                     dels = frozenset([execute_functions(subst(m, f))
                                       for f in o.delete_effects])
-                    # print("dels", dels)
                 except:
                     continue
 
@@ -534,6 +528,187 @@ class FC_Problem(Problem):
         for m in pattern_match(goals, index, {}, epsilon):
             return True
         return False
+
+from concept_formation.preprocessor import Flattener
+from concept_formation.preprocessor import Tuplizer
+
+def ground(arg):
+    """
+    Doc String
+    """
+    if isinstance(arg, tuple):
+        return tuple(ground(e) for e in arg)
+    elif isinstance(arg, str):
+        return arg.replace('?', 'QM')
+    else:
+        return arg
+
+def unground(arg):
+    """
+    Doc String
+    """
+    if isinstance(arg, tuple):
+        return tuple(unground(e) for e in arg)
+    elif isinstance(arg, str):
+        return arg.replace('QM', '?')
+    else:
+        return arg
+
+def get_vars(arg):
+    """
+    Doc String
+    """
+    if isinstance(arg, tuple):
+        lis = []
+        for elem in arg:
+            for val in get_vars(elem):
+                if val not in lis:
+                    lis.append(val)
+        return lis
+        # return [v for e in arg for v in self.get_vars(e)]
+    elif isinstance(arg, str) and len(arg) > 0 and arg[0] == '?':
+        return [arg]
+    else:
+        return []
+
+def replace_vars(arg, i=0):
+    """
+    Doc String
+    """
+    if isinstance(arg, tuple):
+        ret = []
+        for elem in arg:
+            replaced, i = replace_vars(elem, i)
+            ret.append(replaced)
+        return tuple(ret), i
+    elif isinstance(arg, str) and len(arg) > 0 and arg[0] == '?':
+        return '?arg%s' % (str(i)), i+1
+    else:
+        return arg, i
+
+def apply_operators(ele, operators, knowledge_base,epsilon):
+    operator_output = None
+    for operator in operators:
+        effect = list(operator.effects)[0]
+        pattern = effect[0][1]
+        u_mapping = unify(pattern, ground(ele), {}) #Returns a mapping to name the values in the expression
+        
+        if(u_mapping):
+            condition_sub = [subst(u_mapping,x) for x in operator.conditions]
+            value_map = next(knowledge_base.fc_query(condition_sub, max_depth=0, epsilon=epsilon))
+            
+            try:
+                operator_output = execute_functions(subst(value_map,effect[1]))
+            except:
+                continue
+
+            return operator_output
+
+from concept_formation.structure_mapper import rename_relation
+class FoPlannerModule(BasePlanner):
+    def __init__(self,search_depth,function_set,feature_set,epsilon=0.0):
+        self.search_depth = search_depth
+        self.function_set = function_set
+        self.feature_set = feature_set
+        self.epsilon = epsilon
+
+    def how_search(self,state,sai,
+                    operators=None,
+                    foci_of_attention=None,
+                    search_depth=None,
+                    allow_bottomout=True,
+                    allow_copy=True,
+                    epsilon=0.0):
+        _ = state.get_view("flat_ungrounded")
+
+        if(not state.contains_view("func_knowledge_base")):
+            key_vals_grounded = state.compute_from("key_vals_grounded","flat_ungrounded")
+            knowledge_base = FoPlanner(key_vals_grounded,
+                                        self.function_set)
+            
+            knowledge_base.fc_infer(depth=self.search_depth, epsilon=self.epsilon)
+
+            state.set_view("func_knowledge_base",knowledge_base)
+        else:
+            knowledge_base = state.get_view("func_knowledge_base")            
+        
+
+        for attr,input_val in sai.inputs.items():
+            #Danny: This populates a list of explanations found earlier in How search that work"
+            possible = []
+            for iv_m in knowledge_base.fc_query([((attr, '?input'), input_val)],
+                                                max_depth=0,
+                                                epsilon=self.epsilon):
+
+                input_rule = unground(iv_m['?input'])
+                args = get_vars(input_rule)
+                mapping = {"?arg%d"%i: arg for i,arg in enumerate(args)}
+                input_rule = replace_vars(input_rule)[0]
+
+                #Special case to handle copies
+                if(isinstance(input_rule,str)):
+                    input_rule = (attr, input_rule)
+
+                if(operators != None):
+                    if(not True in [input_rule == o for o in operators]):
+                        continue
+
+                if(len(get_vars(input_rule)) != len(args)):
+                    continue
+
+                yield input_rule, mapping
+
+
+    def apply_featureset(self, state):
+        _ = state.get_view("flat_ungrounded")
+
+        key_vals_grounded = state.compute_from("key_vals_grounded","flat_ungrounded")
+        knowledge_base = FoPlanner(key_vals_grounded,
+                                    self.feature_set)
+                                 
+        knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
+
+        state.set_view("feat_knowledge_base",knowledge_base)
+        state.compute_from("flat_ungrounded","feat_knowledge_base")
+        return state
+
+
+    def eval_expression(self,x,mapping,state):
+        rg_exp = []
+        try:
+            knowledge_base = state.get_view("func_knowledge_base")
+        except:
+            knowledge_base = state.get_view("feat_knowledge_base")
+
+        x = rename_relation(x,mapping)
+        for ele in x:
+            if isinstance(ele, tuple):
+
+                ok = False
+                for var_match in knowledge_base.fc_query([(ground(ele), '?v')],
+                                                         max_depth=0,
+                                                          epsilon=self.epsilon):
+                    if var_match['?v'] != '':
+                        rg_exp.append(var_match['?v'])
+                        ok = True
+                    break
+
+                if(not ok):
+                    operator_output = apply_operators(ele,self.function_set,knowledge_base,self.epsilon)
+                    if(operator_output != None and operator_output != ""):
+                        rg_exp.append(operator_output)
+                        ok = True
+
+                if(not ok):
+                    rg_exp.append(None)
+
+            else:
+                rg_exp.append(ele)
+        return rg_exp
+
+from planners.base_planner import PLANNERS
+PLANNERS["foplanner"] = FoPlannerModule
+
 
 
 class FoPlanner:
@@ -608,16 +783,7 @@ class FoPlanner:
                 if must_match is not None:
                     conditions = set([subst(m, c) for c in o.conditions])
                     if len(must_match.intersection(conditions)) == 0:
-                        # print("USELESS MATCH")
-                        # print(conditions)
-                        # print("VS")
-                        # print(must_match)
                         continue
-                    # else:
-                        # print("GOOD MATCH!")
-                        # print(conditions)
-                        # print("VS")
-                        # print(must_match)
 
                 try:
                     effects = set([execute_functions(subst(m, f))

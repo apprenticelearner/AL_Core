@@ -19,5 +19,7 @@ urlpatterns = [
         views.check_by_name, name="check_by_name"),
     url(r'^report/(?P<agent_name>[a-zA-Z0-9_-]{1,200})/$',
         views.report_by_name, name="report_by_name"),
-    url(r'^tester/$', views.test_view, name='tester')
+    url(r'^tester/$', views.test_view, name='tester'),
+
+    url(r'^get_skills/(?P<agent_id>[0-9]+)/$', views.get_skills, name='get_skills')
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

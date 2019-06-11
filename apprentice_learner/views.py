@@ -150,6 +150,7 @@ def create(http_request):
         ret_data = {'agent_id': str(agent.id)}
 
     except Exception as exp:
+        traceback.print_exc()
         print("Failed to create agent", exp)
         return HttpResponseServerError("Failed to create agent, "
                                        "ensure provided args are "
@@ -206,7 +207,39 @@ def request(http_request, agent_id):
         # pr.dump_stats("al.cprof")
         return HttpResponseServerError(str(exp))
     
+@csrf_exempt
+def get_skills(http_request, agent_id):
+    """
+    """
 
+    # pr.enable()
+    try:
+        if http_request.method != "POST":
+            return HttpResponseNotAllowed(["POST"])
+        data = json.loads(http_request.body.decode('utf-8'))
+
+        if 'states' not in data or data['states'] is None:
+            print("request body missing 'states'")
+            return HttpResponseBadRequest("request body missing 'states'")
+
+        agent = get_agent_by_id(agent_id)
+        agent.inc_request()
+        response = agent.instance.get_skills(data['states'])
+
+        global dont_save
+        if(not dont_save): agent.save()
+
+        # pr.disable()
+        # pr.dump_stats("al.cprof")
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        traceback.print_exc()
+
+        # pr.disable()
+        # pr.dump_stats("al.cprof")
+        return HttpResponseServerError(str(exp))
 
 @csrf_exempt
 def request_by_name(http_request, agent_name):
@@ -232,6 +265,7 @@ def train(http_request, agent_id):
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(http_request.body.decode('utf-8'))
 
+        # print(data)
 
         errs = []
 
@@ -241,7 +275,7 @@ def train(http_request, agent_id):
             data['skill_label'] = 'NO_LABEL'
         if ('foci_of_attention' not in data or data['foci_of_attention'] is
                 None):
-            data['foci_of_attention'] = []
+            data['foci_of_attention'] = None
         if 'selection' not in data or data['selection'] is None:
             errs.append("request body missing 'selection'")
         if 'action' not in data or data['action'] is None:
