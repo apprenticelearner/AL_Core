@@ -14,6 +14,7 @@ from planners.fo_planner import Operator
 from planners.fo_planner import build_index
 from planners.fo_planner import subst
 import numpy as np
+import itertools
 
 global my_gensym_counter
 my_gensym_counter = 0
@@ -146,6 +147,9 @@ class WhereLearner(object):
 
     def fit(self, rhs, T, X, y):
         return self.learners[rhs].fit(T, X, y)
+
+    def get_strategy(self):
+        return WHERE_STRATEGY[self.learner_name.lower().replace(" ","").replace("_","")]
 
 
 class MostSpecific(BaseILP):
@@ -690,19 +694,14 @@ class SpecificToGeneral(BaseILP):
 
 
 def get_where_sublearner(name, **learner_kwargs):
-    return WHERE_LEARNER_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+    return WHERE_SUBLEARNERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
 
 def get_where_learner(name, learner_kwargs={}):
     return WhereLearner(name, learner_kwargs)
 
 
-WHERE_LEARNER_AGENTS = {
-    'mostspecific': MostSpecific,
-    'stateresponselearner': StateResponseLearner,
-    'relationallearner': RelationalLearner,
-    'specifictogeneral': SpecificToGeneral
-}
+
 
 
 # if __name__ == "__main__":
@@ -785,29 +784,35 @@ def mask_select(x, m):
 
 
 class VersionSpace(BaseILP):
-    def __init__(self, use_neg=True, propose_gens=True):
-        self.pos_concepts = None
-        self.neg_concepts = None
+    def __init__(self, args=None, constraints=None, use_neg=True, propose_gens=True):
+        self.pos_concepts = VersionSpaceILP()
+        self.neg_concepts = VersionSpaceILP() if use_neg else None
         self.propose_gens = propose_gens
+        self.constraints = constraints
         self.use_neg = use_neg
         self.elem_slices = None
         self.elem_types = None
+        self.initialized = False
+        self.pos_ok = False
+        self.neg_ok = False
 
     def initialize(self, n):
         assert n >= 1, "not enough elements"
-
         self.num_elems = n
-        self.pos_concepts = VersionSpaceILP()
-        if(self.use_neg):
-            self.neg_concepts = VersionSpaceILP()
         self.enumerizer = Enumerizer(start_num=1, force_add=[None] + ['?sel'] + ['?arg%d' % i for i in range(n-1)])
+        self.initialized = True
 
     def ifit(self, t, x, y):
+        print("I AM VERSIONSPACE")
         x = x.get_view("object")
+        # print([x[t_name] for t_name in t])
+
+        #Do this just so everything is in the map
+        
         # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
         assert False not in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
 
-        if(self.pos_concepts == None):
+        if(not self.initialized):
             self.initialize(len(t))
             self.elem_types = [x[t_name]["type"] for t_name in t]
         assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
@@ -817,33 +822,58 @@ class VersionSpace(BaseILP):
 
         instances = [_rename_values(x[t_name]) for t_name in t]
         vs_elems = self.enumerizer.transform(instances)
+        #Do this just so everything is in the map
+        self.enumerizer.transform({i:x for i,x in enumerate(x.keys())})
+        self.enumerizer.transform(list(x.values()))
 
-        print("VS")
-        print(self.enumerizer.transform(list(x.values())))
+        # print("VS")
+        # print(self.enumerizer.transform(list(x.values())))
 
         if(self.elem_slices == None):
             self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
-
-        self.pos_concepts.ifit(vs_elems, y)
+        print(t)
+        print(self.enumerizer.attr_maps[0])
+        print(x.keys())
+        print("vs_elems:", vs_elems, t)
+        print("BEFORE: ",self.pos_concepts.spec_concepts)
+        flat_vs_elems = list(itertools.chain(*vs_elems))
+        self.pos_concepts.ifit(flat_vs_elems, y)
+        self.pos_ok = self.pos_ok or y > 0
         if(self.use_neg):
-            # print("NEG!!")
-            self.neg_concepts.ifit(vs_elems, 0 if y > 0 else 1)
+            self.neg_concepts.ifit(flat_vs_elems, 0 if y > 0 else 1)
+            self.neg_ok = self.neg_ok or y < 0
+
+        print("AFTER: ",self.pos_concepts.spec_concepts)
 
         # for i in range(self.num_elems):
 
         # self.positive_concepts.ifit()
 
     # def match_elem(self,t_name):
+    def check_constraints(self,t,x):
+        if(self.constraints is None):
+            return True
+        for i,part in enumerate(t):
+            c = 0 if i == 0 else 1
+            if(not self.constraints[c](x[part])):
+                return False
+        return True
 
     def check_match(self, t, x):
+        if(not self.pos_ok):
+            return False
+
         x = x.get_view("object")
+
+        if(not self.check_constraints(t,x)):
+            return False
 
         def _rename_values(x):
             return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
 
         instances = [_rename_values(x[t_name]) for t_name in t]
         vs_elem = self.enumerizer.transform(instances)
-        print(torch.tensor(vs_elem).view(3, -1))
+        # print(torch.tensor(vs_elem).view(3, -1))
         if(self.use_neg):
             x = torch.tensor(vs_elem, dtype=torch.uint8).view(1, -1)
             ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
@@ -851,21 +881,36 @@ class VersionSpace(BaseILP):
             ZERO = self.pos_concepts.ZERO
             spec_consistency = (((ps == ZERO)) | (ps == x)).all(dim=-1)
             gen_consistency = (((pg == ZERO)) | (pg == x)).all(dim=-1)
-            neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
-            neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(dim=-1)
+
+            out = spec_consistency.any() & gen_consistency.all()
+            # print(self.enumerizer.attr_maps[0])
+            # print(self.enumerizer.back_maps[0])
+            print(x)
+            # print(self.enumerizer.back_maps[0][x.view(-1).tolist()[0]], self.enumerizer.back_maps[0][5])
+            print(ps)
+            print((((ps == ZERO)) | (ps == x)))
+
+            if(self.neg_ok):
+                neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
+                neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(dim=-1)
+                out = out & neg_gen_consistency.any() & neg_spec_consistency.any()
             
-            return (spec_consistency.any() & gen_consistency.all() & neg_gen_consistency.any() & neg_spec_consistency.any()).item()
+            return out.item()
         else:
             return self.pos_concepts.check_match(vs_elem) > 0
 
     def get_matches(self, x):
-        x = x.get_view("object")
+        if(not self.pos_ok):
+            return
+
+        state = x.get_view("object")
         # assert False not in [for x in range(self.num_elems), \
         # "It is not the case that the enum for argX == X+2"
-        print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
+        # print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
 
         if(self.elem_slices == None):
             return
+        # print(self.pos_concepts.spec_concepts)
 
         # Create a tensor which contains the enum values associated with the when parts
         #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
@@ -875,29 +920,37 @@ class VersionSpace(BaseILP):
 
         # Make a tensor that has all of the enum values for the names of the elements/objects
         #  in the state in order that they appear
-        elem_names_list = [key for key in x.keys()]
+        elem_names_list = [key for key in state.keys()]
         elem_names = self.enumerizer.transform_values(elem_names_list)
         elem_names = torch.tensor(elem_names,dtype=torch.uint8)
 
         # Make a list that has all of the enumerized elements/objects
-        elems_list = [val for val in x.values()]
+        elems_list = [val for val in state.values()]
         elems = self.enumerizer.transform(elems_list)
+        # pprint(elems_list)
 
         # Make a list that has all of the enumerized elements/objects, but zeros in
-        #  all of the slot for attributes which have elements names as values 
-        elems_scrubbed = self.enumerizer.transform(elems_list, {ele: 0 for ele in x})
+        #  all of the slot for attributes which have elements names as values. 
+        #  Only make this replacement if the element is of a type that we match to
+        zero_map = {ele_name: 0 for ele_name,ele in state.items() 
+                    if 'type' in ele and ele['type'] in self.elem_types}
+        elems_scrubbed = self.enumerizer.transform(elems_list, zero_map)
         
         # Split up the concepts by the where parts that each slice selects on
         ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
         ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
         s = self.elem_slices
         split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-        split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        if(self.neg_ok):
+            split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        else:
+            split_ns = [None] * len(split_ps)
 
         # Initialize a bunch of containers that we will fill
         inds_by_type = {}
         candidates_by_type = {}
         scrubbed_by_type = {}
+        elem_names_by_type = {}
         consistencies = []
         concept_cand_indicies = []
         concept_candidates = []
@@ -913,14 +966,18 @@ class VersionSpace(BaseILP):
 
             # If the type for this concept is new then populate the list of candidates in various formats
             if(typ not in inds_by_type):
-                candidate_indices = [i for i, e in enumerate(elem_names_list) if x[e]["type"] == typ]
-                inds_by_type[typ] = candidate_indices
+                candidate_indices = [i for i, e in enumerate(elem_names_list) if state[e]["type"] == typ]
+                
                 cnd = torch.tensor([elems[i] for i in candidate_indices], dtype=torch.uint8)
                 candidates_by_type[typ] = cnd
 
                 cnd_s = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
                 cnd_s = cnd_s.view(len(candidate_indices), 1, ps_i.size(-1))
                 scrubbed_by_type[typ] = cnd_s
+
+                inds_by_type[typ] = torch.tensor(candidate_indices,dtype=torch.long)
+                elem_names_by_type[typ] = torch.index_select(elem_names,0,inds_by_type[typ])
+                
             else:
                 candidate_indices = inds_by_type[typ]
                 cnd_s = scrubbed_by_type[typ]
@@ -928,26 +985,48 @@ class VersionSpace(BaseILP):
             # Check the consistency of each scrubbed candidate with the positive and negative
             #   concepts. This is a normal concept comparison except that any attribute slot where  
             #   the scrubbed candidate has a zero is always considered consistent. 
-            ps_i, ns_i = ps_i.unsqueeze(0), ns_i.unsqueeze(0)
-            ps_consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
-            ns_consistency = ((ns_i == ZERO) | (ns_i != cnd_s) | (ps_i == ns_i) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
-            consistency = ps_consistency & ns_consistency
+            ps_i = ps_i.unsqueeze(0)
+            if(self.neg_ok):
+                ns_i = ns_i.unsqueeze(0)
+
+
+            consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
+            print(consistency)
+            if(self.neg_ok):
+                ns_consistency = ((ns_i == ZERO) | (ns_i != cnd_s) | (ps_i == ns_i) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
+                consistency = consistency & ns_consistency
 
             #Store our culled down set of candidates in various formats
             consistencies.append(consistency)
+            # print(ps_i)
+            # print(consistency)
+            # print(consistency)
+            # print(self.enumerizer.back_maps[0])
+            # print(ps_i)
+            # print(((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)))
+            # print(consistency.nonzero().tolist())
+
+            # print([elem_names_list[j] for j in inds_by_type[typ].view(-1).tolist()])
+            # print([self.enumerizer.back_maps[0][j] for j in elem_names_by_type[typ].view(-1).tolist()])
+            # print()
+            # print([elem_names_list[j] for j in torch.masked_select(inds_by_type[typ],consistency).tolist()])
             concept_cand_indicies.append(consistency.nonzero())
-            concept_candidates.append( (consistency, torch.masked_select(elem_names,consistency)) )
+            concept_candidates.append( (consistency, torch.masked_select(elem_names_by_type[typ],consistency)) )
 
         # For each subset of the state of shape (N_t,d_t) consisting of all N_t, elements of type t
         #   with shared shape d_t, create a mask tensor of shape (n_w,N_t,d_t) such that each mask
         #   along its first dimension selects a different candidate assignment to 'where' part w.
+        # print()
         replacements_by_type = {}
         for typ, cnd in candidates_by_type.items():
+            # print(cnd)
             repls = []
             for consistency, elem_names in concept_candidates:
                 repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1))
                 repls.append(repl)
             replacements_by_type[typ] = repls
+
+        # concept_repl_cons = []
 
 
         # Here we loop over the concepts for every where part and try every possible replacement 
@@ -958,8 +1037,13 @@ class VersionSpace(BaseILP):
             # cnd = candidates_by_type[typ]
             repls = replacements_by_type[typ]
 
-            ps_i, ns_i = ps_i.unsqueeze(0), ns_i.unsqueeze(0)
+            ps_i = ps_i.unsqueeze(0)
+            if(self.neg_ok):
+                ns_i = ns_i.unsqueeze(0)
+
             ok_i = None
+
+            # concept_repl_cons.append([])
 
             # For each where part j check all assignments among the candidate elements
             #   for consistency with concept(i).   
@@ -970,9 +1054,10 @@ class VersionSpace(BaseILP):
                 # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
                 #   at element (r,e) if element e is consistent with concept set i given that 
                 #   where part j was assigned to element r.  
-                ps_consistency = ( (ps_i == v)).unsqueeze(0)
-                ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
-                consistent = (ps_consistency & ns_consistency)
+                consistent = ps_consistency = ( (ps_i == v)).unsqueeze(0)
+                if(self.neg_ok):
+                    ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
+                    consistent = (ps_consistency & ns_consistency)
 
                 # Element e is consistent with replacement r if the replacement changes the
                 #   element so that all attributes for which the positive concept requires value v
@@ -980,39 +1065,52 @@ class VersionSpace(BaseILP):
                 #   make e match the negative concept.
                 repl_consistency = ( ( (~ps_consistency) |  (repl & consistent) )).all(dim=-1).any(dim=-1)
 
+                # If 'where' part j corresponds with concept i then we need to add the constraint that 
+                #   our choice of the element for part j is the only possible consistent element with
+                #   concept i. We can bitwise AND a diagonal matrix of shape (n_i,N_t) that has value 1 where the candidates
+                #   for where part i align with the candidates from the original state to apply this constraint.
+                if(i == j):
+                    concept_diag = concept_cand_indicies[i].view(-1,1) == torch.arange(repl_consistency.size(-1)).view(1,-1)
+                    repl_consistency = repl_consistency & concept_diag
+                    
                 # Broadcast repl_consistency and bitwise AND it with the repl_consistencies so far
                 #   to ultimately create a tensor ok_i of shape (n_w1,n_w2,n_w3, ..., N_t) that contains a mask of 
                 #   elements for each combination of where assignments which are which are mutually consistent 
                 #   with concept set i. 
                 repl_consistency = repl_consistency.view(*([1]*j + [-1] + (self.num_elems-(j+1))*[1] + [repl_consistency.size(-1)]))
                 ok_i = (ok_i & repl_consistency) if ok_i is not None else repl_consistency
+                
 
-            # Create a diagonal matrix of shape (n_i,N_t) that has value 1 where the candidates
-            #   for where part i align with the candidates from te original state. 
-            concept_diag = concept_cand_indicies[i].view(-1,1) == torch.arange(ok_i.size(-1)).view(1,-1)
+            ok_i = ok_i.any(dim=-1)
 
-            # Broadcast this diagonal and bitwise AND it with ok_i so that all 'where' part assignments
-            #   consistent with concept_i must also have 'where' part i.
-            concept_diag = concept_diag.view(*([1]*i + [concept_diag.size(0)] + (self.num_elems-(i+1))*[1] + [concept_diag.size(-1)]  ))
-            diag_consistency = (ok_i & concept_diag).any(dim=-1)
-
-            # Bitwise AND all of these together to get a tensor of shape (n_w1,n_w2,n_w3, ...,) that has
-            #   value 1 only for consistent 'where' assignments.
-            tot = (tot & diag_consistency) if tot is not None else diag_consistency
+            # Bitwise AND all possible 'where' assignments for each concept to get a tensor of shape 
+            #   (n_w1,n_w2,n_w3, ...,) that has value 1 only for 'where' assignments consistent with all concepts.
+            tot = (tot & ok_i) if tot is not None else ok_i
 
         # Get the indicies of the consistent 'where' assignments 
         matches = tot.nonzero()
+        # print(matches)
 
         # Translate these indicies so that they select from the original state
         translated = []
         for i,(typ,indicies) in enumerate(zip(self.elem_types,concept_cand_indicies)):
-            translated.append(torch.index_select(indicies,0,matches[:,i]))
+            rel_to_type = torch.index_select(indicies,0,matches[:,i])
+            # print(rel_to_type)
+            # print(inds_by_type[typ])
+            # print(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)))
+            translated.append(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)).view(-1,1))
         translated = torch.cat(translated,dim=1)
+        # print(translated)
         
         #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
-        for x in translated.tolist():
-            out = [elem_names_list[y] for y in x]
-            yield out
+        for out_inds in translated.tolist():
+            out = [elem_names_list[y] for y in out_inds]
+            # print(out_inds)
+            
+            # print(out,self.check_constraints(out,state))
+            # print([state[x].get('value',None) for x in out])
+            if(self.check_constraints(out,state)):
+                yield out
 
 class VersionSpaceILP(object):
     def __init__(self):
@@ -1022,10 +1120,11 @@ class VersionSpaceILP(object):
         self.unused_concepts = []
 
     def ifit(self, x, y):
-
+        # print(x)
+        # print(x)
         x = torch.tensor(x, dtype=torch.uint8).view(1, -1)
-        print("x", y)
-        print(x)
+        # print("x", y)
+        # print(x)
         clen = self.clen = x.shape[-1]
         if(y > 0):
             if(isinstance(self.spec_concepts, type(None))):
@@ -1080,12 +1179,12 @@ class VersionSpaceILP(object):
                 # TODO: Never happens? What does it look like if we allow for multiple specific concepts?
                 # self.spec_concepts = mask_select(self.spec_concepts, spec_inconsistency.any(dim=1))
 
-        print("GENERAL")
-        print(self.gen_concepts)
-        print("SPECIFIC")
-        print(self.spec_concepts, self.spec_concepts.shape)
+        # print("GENERAL")
+        # print(self.gen_concepts)
+        # print("SPECIFIC")
+        # print(self.spec_concepts, self.spec_concepts.shape)
 
-        print("---------------------------------")
+        # print("---------------------------------")
 
     def check_match(self, x):
         '''Returns true if x is consistent with all general concepts and any specific concept'''
@@ -1102,9 +1201,9 @@ def rename_values(x, mapping, rename_keys=False):
         else:
             return {name: rename_values(val, mapping) for name, val in x.items()}
     elif(isinstance(x, list)):
-        return [rename_values(val, mapping) for val in x.items()]
+        return [rename_values(val, mapping) for val in x]
     elif(isinstance(x, tuple)):
-        return tuple([rename_values(val, mapping) for val in x.items()])
+        return tuple([rename_values(val, mapping) for val in x])
     elif(x in mapping):
         return mapping[x]
     else:
@@ -1117,6 +1216,7 @@ class Enumerizer(Preprocessor):
         self.attr_maps = {}
         self.force_add = force_add
         self.attrs_independant = attrs_independant
+        self.type_lengths = {}
         # self.attr_counts = {}
         self.back_maps = {}
         self.keys = []
@@ -1136,14 +1236,22 @@ class Enumerizer(Preprocessor):
         if(isinstance(instances, dict)):
             instances = [instances]
 
+        def instance_iter(instance):
+            for key,value in instance.items():
+                if(isinstance(value,(list,tuple))):
+                    for i,v in enumerate(value):
+                        yield (key,i), v
+                else:
+                    yield key,value
         
         # print(instances)
         enumerized_instances = []
         for i, instance in enumerate(instances):
             enumerized_instance = []
-            for k, value in instance.items():
-                if(k == "type"):
-                    continue
+            for k, value in instance_iter(instance):
+                print(instance,k)
+                # if(k in ("type",)):
+                #     continue
                 # print(value)
                 if(force_map != None and value in force_map):
                     enumerized_instance.append(force_map[value])
@@ -1162,6 +1270,16 @@ class Enumerizer(Preprocessor):
                         self.back_maps[key].append(value)
                         # self.attr_counts[key] += 1
                     enumerized_instance.append(attr_map[value])
+            # print()
+            if("type" in instance):
+                inst_type = instance['type']
+                if(inst_type in self.type_lengths):
+                    assert self.type_lengths[inst_type] == len(enumerized_instance), \
+                    "Got type %s with number of attributes %s (should be %s)" % \
+                    (inst_type,len(enumerized_instance),self.type_lengths[inst_type])
+                else:
+                    self.type_lengths[inst_type] = len(enumerized_instance)
+
             enumerized_instances.append(enumerized_instance)
         return enumerized_instances
 
@@ -1179,6 +1297,22 @@ class Enumerizer(Preprocessor):
         return d
 
 # def version_space():
+
+WHERE_SUBLEARNERS = {
+    'versionspace': VersionSpace,
+    'mostspecific': MostSpecific,
+    'stateresponselearner': StateResponseLearner,
+    'relationallearner': RelationalLearner,
+    'specifictogeneral': SpecificToGeneral
+}
+
+WHERE_STRATEGY = {
+    'versionspace': "object",
+    'mostspecific': "first_order",
+    'stateresponselearner': "first_order",
+    'relationallearner': "first_order",
+    'specifictogeneral': "first_order"   
+}
 
 
 if __name__ == "__main__":
@@ -1212,75 +1346,83 @@ if __name__ == "__main__":
     # vthang.ifit([1,1,1,0,0,0,0],0)
 
     state = {
+        "line" : {
+            "type" : "bloop",
+            # 'value': "-",
+            "above": ["B1","A1"],
+            "below": ["C1",None],
+            "left" : None,
+            "right": None,
+        },
         "A1": {
             "type" : "text",
             "value": 1,
-            "above": None,
-            "below": "B1",
+            "above": [None,None],
+            "below": ["B1","C1"],
             "left" : "A2",
             "right": None,
         },
         "A2": {
             "type" : "text",
             "value": 2,
-            "above": None,
-            "below": "B2",
+            "above": [None,None],
+            "below": ["B2","C2"],
             "left" : "A3",
             "right": "A1",
         },
         "A3": {
             "type" : "text",
             "value": 3,
-            "above": None,
-            "below": "B3",
+            "above": [None,None],
+            "below": ["B3","C3"],
             "left" : None,
             "right": "A2",
         },
         "B1": {
             "type" : "text",
             "value": 4,
-            "above": "A1",
-            "below": "C1",
+            "above": ["A1", None],
+            "below": ["line","C1"],
             "left" : "B2",
             "right": None,
         },
         "B2": {
             "type" : "text",
             "value": 5,
-            "above": "A2",
-            "below": "C2",
+            "above": ["A2", None],
+            "below": ["line","C2"],
             "left" : "B3",
             "right": "B1",
         },
         "B3": {
             "type" : "text",
             "value": 6,
-            "above": "A3",
-            "below": "C3",
+            "above": ["A3", None],
+            "below": ["line","C3"],
             "left" : None,
             "right": "B2",
         },
         "C1": {
             "type" : "text",
             "value": 7,
-            "above": "B1",
-            "below": None,
+            "above": ["line","B1"],
+            "below": [None,None],
             "left" : "C2",
             "right": None,
         },
         "C2": {
             "type" : "text",
             "value": 8,
-            "above": "B2",
-            "below": None,
+            "above": ["line","B2"],
+            "below": [None,None],
             "left" : "C1",
             "right": "C3",
         },
         "C3": {
             "type" : "text",
             "value": 9,
-            "above": "B3",
-            "below": None,
+            "above": ["line","B3"],
+            "below": [None,None],
             "left" : None,
             "right": "C2",
         }
@@ -1307,9 +1449,10 @@ if __name__ == "__main__":
 
     vs = VersionSpace(use_neg=True)
     vs.ifit(["C1","A1","B1"],state,1)
+    
+    vs.ifit(["C1","B1","A1"],state,0)
     for match in vs.get_matches(state):
         print(match)
-    vs.ifit(["C1","B1","A1"],state,0)
     vs.ifit(["C2","A2","B2"],state,1)
     for match in vs.get_matches(state):
         print(match)
@@ -1329,6 +1472,7 @@ if __name__ == "__main__":
     print(vs.check_match(["C1","A2","B2"],state), 0)
     print(vs.check_match(["C1","B2","B1"],state), 0)
     print(vs.check_match(['C1','A1','B3'],state), 0)
+    print(vs.check_match(['B1','A2','B2'],state), 0)
 
     print(rename_values(state,{"C1": "sel", "A1" : "arg0", "B1": "arg1"},False))
     for match in vs.get_matches(state):

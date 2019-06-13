@@ -161,6 +161,7 @@ class Equals(BaseOperator):
 		return torch.where(eq,eq.float(),NaN)
 
 
+
 class OperatorGraph(BaseOperator):
 	def _gen_expression(self,x,arg_type=None):
 		if(isinstance(x,(list,tuple))):
@@ -168,7 +169,7 @@ class OperatorGraph(BaseOperator):
 			rest = [self._gen_expression(x[j],front.in_arg_types[j-1]) for j in range(1,len(x))]
 			return (front,*rest)
 		elif(isinstance(x,int)):
-			arg = "?foa" + str(len(self.in_args))
+			arg = "?arg" + str(len(self.in_args))
 			self.in_args.append(arg)
 			self.in_arg_types.append(arg_type)
 			return arg
@@ -511,8 +512,8 @@ def how_search(state,
 		return
 
 	#TODO: Find source of weird memory overflow when -1 is a goal
-	if(goal == -1):
-		goal = 1
+	# if(goal == -1):
+	# 	goal = 1
 	print("GOAL:", goal)
 	
 	if(operators == None): operators = self.function_set
@@ -561,8 +562,8 @@ def how_search(state,
 
 
 # operator_class_set = [AddOne,Append25,Multiply,Div10]
-operator_class_set = [Add,Subtract,Multiply,Divide]
-# operator_class_set = [Add,Add3,Mod10,Div10]
+# operator_class_set = [Add,Subtract,Multiply,Divide]
+operator_class_set = [Add,Add3,Mod10,Div10]
 function_set = [c() for c in operator_class_set ]
 
 class VectorizedPlanner(BasePlanner):
@@ -621,7 +622,8 @@ class VectorizedPlanner(BasePlanner):
 		goal = sai.inputs["value"]
 		state = state.get_view("flat_ungrounded")
 
-		if(operators == None and sai.selection == "done"):
+		print(sai, allow_bottomout,allow_copy)
+		if(allow_bottomout and sai.action == "ButtonPressed"):
 			yield -1,{}
 			return
 

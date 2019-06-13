@@ -104,9 +104,9 @@ EMPTY_RESPONSE = {}
 class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
-                 when_learner='decisiontree', where_learner='MostSpecific',
+                 when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
-                 planner='fo_planner', search_depth=1, numerical_epsilon=0.0):
+                 planner='vectorized', search_depth=1, numerical_epsilon=0.0):
         print(planner)
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
@@ -133,6 +133,7 @@ class ModularAgent(BaseAgent):
             rhs_list = self.rhs_list
 
         for rhs in rhs_list:
+            print(rhs.input_rule)
             for match in self.where_learner.get_matches(rhs, state):
                 if(len(match) != len(set(match))):
                     continue
@@ -172,6 +173,7 @@ class ModularAgent(BaseAgent):
 
         explanation, skill_info = next(iter(explanations), (None, None))
         if(explanation is not None):
+            print(explanation.rhs.input_rule)
             response = explanation.to_response(state, self)
             if(add_skill_info):
                 response["skill_info"] = skill_info
@@ -216,7 +218,7 @@ class ModularAgent(BaseAgent):
                                               search_depth=1,
                                               allow_bottomout=False,
                                               allow_copy=False)
-
+            # assert 
             for input_rule, mapping in itr:
                 m = {"?sel": "?ele-" + sai.selection}
                 m.update(mapping)
@@ -251,7 +253,11 @@ class ModularAgent(BaseAgent):
         self.rhs_list.append(rhs)
         self.rhs_by_label[skill_label] = rhs
 
-        constraints = generate_html_tutor_constraints(rhs)
+        if(self.where_learner.get_strategy() == "first_order"):
+            constraints = gen_html_constraints_fo(rhs)
+        else:
+            constraints = gen_html_constraints_functional(rhs)
+
         self.where_learner.add_rhs(rhs, constraints)
         self.when_learner.add_rhs(rhs)
         self.which_learner.add_rhs(rhs)
@@ -482,6 +488,7 @@ class Explanation(object):
         self.rhs = rhs
         self.mapping = mapping
         self.selection_literal = mapping[rhs.selection_var]
+        print(rhs.input_rule,rhs.input_vars, mapping)
         self.input_literals = [mapping[s] for s in rhs.input_vars]
 
     def compute(self, state, agent):
@@ -515,7 +522,11 @@ class Explanation(object):
         return r + ":(" + args + ")->" + sel
 
 
-def generate_html_tutor_constraints(rhs):
+def is_not_empty_string(sting):
+    return sting != ''
+
+
+def gen_html_constraints_fo(rhs):
     """
     Given an skill, this finds a set of constraints for the SAI, so it don't
     fire in nonsensical situations.
@@ -535,6 +546,21 @@ def generate_html_tutor_constraints(rhs):
 
     return frozenset(constraints)
 
+def gen_html_constraints_functional(rhs):
+    def selection_constraints(x):
+        if(rhs.action == "ButtonPressed"):
+            if(x["id"] != 'done'):
+                return False
+        else:
+            if("contentEditable" not in x or x["contentEditable"] != True):
+                return False
+        return True
 
-def is_not_empty_string(sting):
-    return sting != ''
+    def arg_constraints(x):
+        if("value" not in x or x["value"] == ""):
+            return False
+        return True
+
+    return selection_constraints, arg_constraints
+
+
