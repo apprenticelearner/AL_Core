@@ -799,7 +799,9 @@ class VersionSpace(BaseILP):
     def initialize(self, n):
         assert n >= 1, "not enough elements"
         self.num_elems = n
-        self.enumerizer = Enumerizer(start_num=1, force_add=[None] + ['?sel'] + ['?arg%d' % i for i in range(n-1)])
+        self.enumerizer = Enumerizer(start_num=1,
+                                     force_add=[None] + ['?sel'] + ['?arg%d' % i for i in range(n-1)],
+                                     remove_attrs=['value'])
         self.initialized = True
 
     def ifit(self, t, x, y):
@@ -991,7 +993,7 @@ class VersionSpace(BaseILP):
 
 
             consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
-            print(consistency)
+            # print(consistency)
             if(self.neg_ok):
                 ns_consistency = ((ns_i == ZERO) | (ns_i != cnd_s) | (ps_i == ns_i) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
                 consistency = consistency & ns_consistency
@@ -1211,12 +1213,13 @@ def rename_values(x, mapping, rename_keys=False):
 
 from concept_formation.preprocessor import Preprocessor
 class Enumerizer(Preprocessor):
-    def __init__(self, start_num=0, force_add=[],attrs_independant=False):
+    def __init__(self, start_num=0, force_add=[],attrs_independant=False,remove_attrs=[]):
         self.start_num = start_num
         self.attr_maps = {}
         self.force_add = force_add
         self.attrs_independant = attrs_independant
         self.type_lengths = {}
+        self.remove_attrs = remove_attrs
         # self.attr_counts = {}
         self.back_maps = {}
         self.keys = []
@@ -1249,9 +1252,9 @@ class Enumerizer(Preprocessor):
         for i, instance in enumerate(instances):
             enumerized_instance = []
             for k, value in instance_iter(instance):
-                print(instance,k)
-                # if(k in ("type",)):
-                #     continue
+                # print(instance,k)
+                if(k in self.remove_attrs):
+                    continue
                 # print(value)
                 if(force_map != None and value in force_map):
                     enumerized_instance.append(force_map[value])

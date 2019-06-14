@@ -17,6 +17,7 @@ from concept_formation.cobweb3 import Cobweb3Tree
 from concept_formation.trestle import TrestleTree
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.preprocessor import Flattener
+from concept_formation.preprocessor import Preprocessor
 
 # from ilp.foil_classifier import FoilClassifier
 
@@ -169,6 +170,29 @@ class WhenLearner(object):
 
         return sublearner.skill_info(state)
 
+class ListValueFlattener(Preprocessor):
+    def transform(self, instance):
+        if isinstance(instance,(list,tuple)):
+            return [self._transform(x) for x in instance]
+        else:
+            return self._transform(instance)
+        
+
+    def _transform(self,instance):
+        out = {}
+        for key,value in instance.items():
+            if(isinstance(value,(list,tuple))):
+                for i, v in enumerate(value):
+                    out[(key,str(i))] = v if v is not None else ""
+            else:
+                out[key] = value if value is not None else ""
+        return out 
+
+
+    def undo_transform(self, instance):
+        raise NotImplementedError()
+
+
 
 class CustomPipeline(Pipeline):
 
@@ -180,6 +204,9 @@ class CustomPipeline(Pipeline):
 
         ft = Flattener()
         tup = Tuplizer()
+        lvf = ListValueFlattener()
+
+        x = lvf.transform(x)
 
         # pprint(x)
         self.X.append(tup.undo_transform(ft.transform(x)))
@@ -197,6 +224,9 @@ class CustomPipeline(Pipeline):
         print("FITX", X)
         ft = Flattener()
         tup = Tuplizer()
+        lvf = ListValueFlattener()
+
+        X = lvf.transform(X)
 
         self.X = [tup.undo_transform(ft.transform(x)) for x in X]
         self.y = [int(x) if not isinstance(x, tuple) else x for x in y]
@@ -206,6 +236,10 @@ class CustomPipeline(Pipeline):
     def predict(self, X):
         ft = Flattener()
         tup = Tuplizer()
+        lvf = ListValueFlattener()
+
+        X = lvf.transform(X)
+
         X = [tup.undo_transform(ft.transform(x)) for x in X]
         # print("BEEP", X)
         # print("PRED:",X)
@@ -219,6 +253,9 @@ class CustomPipeline(Pipeline):
 
         ft = Flattener()
         tup = Tuplizer()
+        lvf = ListValueFlattener()
+
+        X = lvf.transform(X)
         X = [tup.undo_transform(ft.transform(x)) for x in X]
 
         # X = self.named_steps["dict vect"].transform(x)
