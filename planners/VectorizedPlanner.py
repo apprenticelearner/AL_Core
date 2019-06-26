@@ -621,7 +621,7 @@ class VectorizedPlanner(BasePlanner):
 		goal = sai.inputs["value"]
 		state = state.get_view("flat_ungrounded")
 
-		if(operators == None and sai.selection == "done"):
+		if(operators == None and sai.action == "ButtonPressed"):
 			yield -1,{}
 			return
 
