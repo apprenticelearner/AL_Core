@@ -106,7 +106,8 @@ class ModularAgent(BaseAgent):
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
-                 planner='vectorized', search_depth=1, numerical_epsilon=0.0):
+                 planner='vectorized', search_depth=1, numerical_epsilon=0.0,
+                 ret_train_expl=True):
         print(planner)
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
@@ -123,6 +124,7 @@ class ModularAgent(BaseAgent):
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
         self.rhs_counter = 0
+        self.ret_train_expl = ret_train_expl
 
     # -----------------------------REQUEST------------------------------------
 
@@ -151,18 +153,19 @@ class ModularAgent(BaseAgent):
                 explanation = Explanation(rhs, mapping)
 
                 if(add_skill_info):
-                    when_info = self.when_learner.skill_info(rhs, pred_state)
-                    where_info = [x.replace("?ele-", "") for x in match]
-                    skill_info = {"when": tuple(when_info),
-                                  "where": tuple(where_info),
-                                  "how": str(rhs.input_rule),
-                                  "which": 0.0}
+                    skill_info = explanation.get_skill_info(self,pred_state)
+                    # when_info = self.when_learner.skill_info(rhs, pred_state)
+                    # where_info = [x.replace("?ele-", "") for x in match]
+                    # skill_info = {"when": tuple(when_info),
+                    #               "where": tuple(where_info),
+                    #               "how": str(rhs.input_rule),
+                    #               "which": 0.0}
                 else:
                     skill_info = None
 
                 yield explanation, skill_info
 
-    def request(self, state, add_skill_info=False):  # -> Returns sai
+    def request(self, state, add_skill_info=False,n=1):  # -> Returns sai
         state = StateMultiView("object", state)
         state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
@@ -171,17 +174,26 @@ class ModularAgent(BaseAgent):
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
 
-        explanation, skill_info = next(iter(explanations), (None, None))
-        if(explanation is not None):
-            print(explanation.rhs.input_rule)
-            response = explanation.to_response(state, self)
-            if(add_skill_info):
-                response["skill_info"] = skill_info
+        responses = []
+        itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
+        for explanation,skill_info in itr:
+            if(explanation is not None):
+                print(explanation.rhs.input_rule)
+                response = explanation.to_response(state, self)
+                if(add_skill_info):
+                    response.update(skill_info)
+                    response["mapping"] = explanation.mapping
+                responses.append(response)
 
+
+        if(len(responses) == 0):
+            return EMPTY_RESPONSE
         else:
-            response = EMPTY_RESPONSE
-
-        return response
+            response = responses[0].copy()
+            if(n != 1):
+                response['responses'] = responses
+            return response
+            
 
     # ------------------------------TRAIN----------------------------------------
 
@@ -310,7 +322,15 @@ class ModularAgent(BaseAgent):
                         self.rhs_by_how[skill_label] = rhs_by_how
                         self.add_rhs(exp.rhs)
 
+        # explanations = list(explanations)
         self.fit(explanations, state_featurized, reward)
+        if(self.ret_train_expl):
+            out = []
+            for exp in explanations:
+                resp = exp.to_response(state,self)
+                resp.update(exp.get_skill_info(self))
+                out.append(resp)
+            return out
 
     # ------------------------------CHECK--------------------------------------
 
@@ -507,6 +527,19 @@ class Explanation(object):
         response['action'] = self.rhs.action
         response['inputs'] = self.compute(state, agent)
         return response
+
+    def get_skill_info(self,agent,when_state=None):
+        print("GET SKILL INFO!!!")
+        if(when_state is None):
+            when_info = None
+        else:    
+            when_info = tuple(agent.when_learner.skill_info(self.rhs, when_state))
+        where_info = [x.replace("?ele-", "") for x in self.mapping.values()]
+        skill_info = {"when": when_info,
+                      "where": tuple(where_info),
+                      "how": str(self.rhs.input_rule),
+                      "which": 0.0}
+        return skill_info
 
     def to_xml(self, agent=None):  # -> needs some way of representing itself including its when/where/how parts
         pass

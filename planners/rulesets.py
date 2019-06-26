@@ -401,6 +401,28 @@ mult_rule = Operator(('Multiply', '?x', '?y'),
                                   ('value', '?y'))),
                        (int_float_multiply, '?xv', '?yv'))])
 
+def int_float_square(x):
+    z = float(x) * float(x)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
+square_rule = Operator(('Square', '?x'),
+                     [(('value', '?x'), '?xv')],
+                     [(('value', ('Square', ('value', '?x') )),
+                       (int_float_square, '?xv'))])
+
+const_pi_rule = Operator(('Pi', '?x'),
+                     [],
+                     [(('value', ('Pi')),
+                       ('pi', '?xv'))])
+
+const_half_rule = Operator(('Half', '?x'),
+                     [],
+                     [(('value', ('Half')),
+                       ('1/2', '?xv'))])
+
+
 div_rule = Operator(('Divide', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv')],

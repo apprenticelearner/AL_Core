@@ -190,7 +190,7 @@ def request(http_request, agent_id):
 
         agent = get_agent_by_id(agent_id)
         agent.inc_request()
-        response = agent.instance.request(data['state'])
+        response = agent.instance.request(data['state'],**data.get('kwargs',{}))
 
         global dont_save
         if(not dont_save): agent.save()
@@ -297,7 +297,7 @@ def train(http_request, agent_id):
         agent = get_agent_by_id(agent_id)
         agent.inc_train()
 
-        agent.instance.train(data['state'], data['selection'], data['action'],
+        response = agent.instance.train(data['state'], data['selection'], data['action'],
                              data['inputs'], data['reward'],
                              data['skill_label'], data['foci_of_attention'])
         global dont_save
@@ -305,8 +305,10 @@ def train(http_request, agent_id):
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
-
-        return HttpResponse("OK")
+        if(response != None):
+            return HttpResponse(json.dumps(response))
+        else:
+            return HttpResponse("OK")
 
     except Exception as exp:
         traceback.print_exc()
