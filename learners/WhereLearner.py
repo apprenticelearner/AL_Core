@@ -151,6 +151,9 @@ class WhereLearner(object):
     def get_strategy(self):
         return WHERE_STRATEGY[self.learner_name.lower().replace(" ","").replace("_","")]
 
+    def skill_info(self,rhs):
+        return self.learners[rhs].skill_info()
+
 
 class MostSpecific(BaseILP):
     """
@@ -799,8 +802,8 @@ class VersionSpace(BaseILP):
     def initialize(self, n):
         assert n >= 1, "not enough elements"
         self.num_elems = n
-        self.enumerizer = Enumerizer(start_num=1,
-                                     force_add=[None] + ['?sel'] + ['?arg%d' % i for i in range(n-1)],
+        self.enumerizer = Enumerizer(start_num=0,
+                                     force_add=["<#ANY>",None,'?sel'] + ['?arg%d' % i for i in range(n-1)],
                                      remove_attrs=['value'])
         self.initialized = True
 
@@ -1114,6 +1117,27 @@ class VersionSpace(BaseILP):
             if(self.check_constraints(out,state)):
                 yield out
 
+    def skill_info(self):
+        out = {}
+        ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+        ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+        s = self.elem_slices
+        split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        if(self.neg_ok):
+            split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+
+        for i, t in enumerate(self.elem_types):
+            key = "?sel" if i==0 else "?arg%d" % i
+            out[key] = {}
+            out[key]["pos"] = self.enumerizer.undo_transform(split_ps[i].tolist()[0],t)
+            if(self.neg_ok):
+                out[key]["neg"] = self.enumerizer.undo_transform(split_ns[i].tolist()[0],t)
+
+        return out
+            
+
+
+
 class VersionSpaceILP(object):
     def __init__(self):
         self.spec_concepts = None
@@ -1222,6 +1246,7 @@ class Enumerizer(Preprocessor):
         self.remove_attrs = remove_attrs
         # self.attr_counts = {}
         self.back_maps = {}
+        self.back_keys = {}
         self.keys = []
 
     def transform_values(self,values):
@@ -1250,11 +1275,20 @@ class Enumerizer(Preprocessor):
         # print(instances)
         enumerized_instances = []
         for i, instance in enumerate(instances):
+
+            if("type" in instance):
+                back_keys = self.back_keys[instance['type']] = [] 
+            else:
+                back_keys = None
+
             enumerized_instance = []
-            for k, value in instance_iter(instance):
+            for j,(k, value) in enumerate(instance_iter(instance)):
                 # print(instance,k)
                 if(k in self.remove_attrs):
                     continue
+
+                if(back_keys is not None and j >= len(back_keys)):
+                    back_keys.append(k)
                 # print(value)
                 if(force_map != None and value in force_map):
                     enumerized_instance.append(force_map[value])
@@ -1286,16 +1320,39 @@ class Enumerizer(Preprocessor):
             enumerized_instances.append(enumerized_instance)
         return enumerized_instances
 
-    def undo_transform(self, instance):
+    def undo_transform(self, instance,typ):
         """
         Undoes a transformation to an instance.
         """
-        assert len(instance) == len(self.keys)
+        
 
         d = {}
 
-        for enum, key in zip(instance, self.keys):
-            d[key] = self.back_maps[key][enum]
+        if(self.attrs_independant):
+            assert len(instance) == len(self.keys)
+            for enum, key in zip(instance, self.keys):
+                d[key] = self.back_maps[key][enum]
+        else:
+            for key in self.back_maps[0]:
+                print(key)
+            print("---------------------")
+            back_map = self.back_maps[0]
+            back_keys = self.back_keys[typ]
+            print(self.back_keys)
+            print(back_keys)
+            # list_keys = {}
+            for i,key in enumerate(back_keys):
+                # print(back_keys[instance[i]])
+                if(isinstance(key,tuple)):
+                    lst = d.get(key[0],[None]*(key[1]+1))
+                    if(len(lst) <= key[1]):
+                        lst += [None]*(key[1]+1-len(lst))
+                    print(lst,key[1])
+                    lst[key[1]] = back_map[instance[i]]
+                    d[key[0]] = lst
+                else:
+                    d[key] = back_map[instance[i]]
+
 
         return d
 
@@ -1480,6 +1537,12 @@ if __name__ == "__main__":
     print(rename_values(state,{"C1": "sel", "A1" : "arg0", "B1": "arg1"},False))
     for match in vs.get_matches(state):
         print(match)
+
+    pprint._
+    pprint(vs.skill_info())
+    # print(vs.enumerizer.undo_transform(vs.pos_concepts.spec_concepts.tolist()[0]))
+    # print(vs.enumerizer.undo_transform(vs.pos_concepts.spec_concepts.tolist()[1]))
+    # print(vs.enumerizer.undo_transform(vs.pos_concepts.spec_concepts.tolist()[2]))
     # print()
     # print(vs.pos_concepts.spec_concepts.view(3,-1))
     # print(vs.pos_concepts.gen_concepts.view(3,-1))

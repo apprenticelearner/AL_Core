@@ -534,11 +534,12 @@ class Explanation(object):
             when_info = None
         else:    
             when_info = tuple(agent.when_learner.skill_info(self.rhs, when_state))
-        where_info = [x.replace("?ele-", "") for x in self.mapping.values()]
+        # where_match = [x.replace("?ele-", "") for x in self.mapping.values()]
         skill_info = {"when": when_info,
-                      "where": tuple(where_info),
+                      "where": agent.where_learner.skill_info(self.rhs),
                       "how": str(self.rhs.input_rule),
-                      "which": 0.0}
+                      "which": 0.0,
+                      "mapping" : self.mapping}
         return skill_info
 
     def to_xml(self, agent=None):  # -> needs some way of representing itself including its when/where/how parts
