@@ -619,6 +619,11 @@ class FoPlannerModule(BasePlanner):
                     allow_bottomout=True,
                     allow_copy=True,
                     epsilon=0.0):
+
+        if(operators == None and sai.action == "ButtonPressed"):
+            yield -1,{}
+            return
+
         _ = state.get_view("flat_ungrounded")
 
         if(not state.contains_view("func_knowledge_base")):
@@ -636,7 +641,8 @@ class FoPlannerModule(BasePlanner):
         for attr,input_val in sai.inputs.items():
             #Danny: This populates a list of explanations found earlier in How search that work"
             possible = []
-            # what should depth be?
+
+            at_least_one = False
             for iv_m in knowledge_base.fc_query([((attr, '?input'), input_val)],
                                                 max_depth=0,
                                                 epsilon=self.epsilon):
@@ -657,7 +663,14 @@ class FoPlannerModule(BasePlanner):
                 if(len(get_vars(input_rule)) != len(args)):
                     continue
 
+                at_least_one = True
+
                 yield input_rule, mapping
+
+            if(not at_least_one and allow_bottomout):
+                yield input_val, {}
+
+
 
 
     def apply_featureset(self, state):
