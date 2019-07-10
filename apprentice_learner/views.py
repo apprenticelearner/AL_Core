@@ -25,6 +25,7 @@ from agents.Memo import Memo
 from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from agents.ModularAgent import ModularAgent
 from agents.RLAgent import RLAgent
+from agents.QlearnerAgent import QlearnerAgent
 from planners.rulesets import custom_feature_set
 from planners.rulesets import custom_function_set
 
@@ -41,7 +42,8 @@ AGENTS = {'Stub': Stub,
           'Memo': Memo,
           'RLAgent': RLAgent,
           'WhereWhenHowNoFoa': WhereWhenHowNoFoa,
-          'ModularAgent' : ModularAgent}
+          'ModularAgent' : ModularAgent,
+          'QlearnerAgent' : QlearnerAgent}
 
 def get_agent_by_id(id):
     global active_agent, active_agent_id, dont_save

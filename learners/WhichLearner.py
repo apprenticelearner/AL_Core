@@ -33,9 +33,6 @@ class WhichLearner(object):
     def cull_how(self,expl_iter):
         return self.how_cull_rule(expl_iter)
 
-
-####---------------HEURISTIC------------########
-
 class BaseHeuristicAgent(object):
     def __init__(self):
         pass
@@ -43,6 +40,7 @@ class BaseHeuristicAgent(object):
         pass
     def heuristic(self,state):
         pass
+
 
 class TotalCorrect(BaseHeuristicAgent):
     def __init__(self):

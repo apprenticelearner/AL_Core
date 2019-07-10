@@ -108,6 +108,7 @@ class ModularAgent(BaseAgent):
                  heuristic_learner='proportion_correct', how_cull_rule='all',
                  planner='fo_planner', search_depth=1, numerical_epsilon=0.0):
         print(planner)
+
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
         self.which_learner = get_which_learner(heuristic_learner,
@@ -124,6 +125,8 @@ class ModularAgent(BaseAgent):
         self.epsilon = numerical_epsilon
         self.rhs_counter = 0
 
+
+
     # -----------------------------REQUEST------------------------------------
 
     def applicable_explanations(self, state, rhs_list=None,
@@ -131,6 +134,8 @@ class ModularAgent(BaseAgent):
                                 ):  # -> returns Iterator<Explanation>
         if(rhs_list is None):
             rhs_list = self.rhs_list
+
+
 
         for rhs in rhs_list:
             for match in self.where_learner.get_matches(rhs, state):
@@ -403,7 +408,7 @@ class StateMultiView(object):
     def compute(self, view):
         for key in self.transform_dict[view]:
             # for key in transforms:
-            print(key)
+            #print(key)
             if(key in self.views):
                 out = self.transform_dict[view][key](self.views[key])
                 self.set_view(view, out)

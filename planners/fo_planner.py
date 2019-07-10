@@ -636,6 +636,7 @@ class FoPlannerModule(BasePlanner):
         for attr,input_val in sai.inputs.items():
             #Danny: This populates a list of explanations found earlier in How search that work"
             possible = []
+            # what should depth be?
             for iv_m in knowledge_base.fc_query([((attr, '?input'), input_val)],
                                                 max_depth=0,
                                                 epsilon=self.epsilon):
@@ -728,6 +729,7 @@ class FoPlanner:
             self.add_fact(fact)
 
         for o in operators:
+            #print(str(o))
             self.add_operator(o)
 
     def gensym(self):
@@ -886,6 +888,8 @@ class FoPlanner:
             # could optimize here to only iterate over operators that bind with
             # facts in prev.
             for o in self.operators:
+                print(o)
+                print(self.facts)
                 for m in o.match(self.index, epsilon):
                     count += 1
                     try:

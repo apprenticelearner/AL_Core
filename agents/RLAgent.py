@@ -154,7 +154,8 @@ class RLAgent(BaseAgent):
         self.search_depth = 1
         self.epsilon = 0
 
-    def request(self, state):
+    # modified from original request
+    def request_all(self, state):
         tup = Tuplizer()
         flt = Flattener()
         state = flt.transform(tup.transform(state))
@@ -189,6 +190,8 @@ class RLAgent(BaseAgent):
                     a) for a in actions]
 
         actions.sort(reverse=True)
+        return actions
+        '''
         print(actions)
 
         self.last_state = ostate
@@ -196,16 +199,19 @@ class RLAgent(BaseAgent):
         self.reward = 0
 
         return actions[0][2]
+        '''
 
-    def train(self, state, label, foas, selection, action, inputs, correct):
+
+    def train(self, state, selection, action, inputs, reward, skill_label, foci_of_attention):
         if ((self.last_state is None or self.last_action is None or
              self.reward is None)):
             return
 
-        print("CORRECTNESS", correct)
+        print("CORRECTNESS", reward)
 
         # add reward based on feedback.
-        if correct:
+        # necessary??
+        if reward:
             self.reward += 1
         else:
             self.reward -= 1
@@ -216,6 +222,7 @@ class RLAgent(BaseAgent):
         next_actions = []
 
         print("LAST ACTION", self.last_action, self.reward)
+        
         self.Q.update(self.last_state, self.last_action, self.reward, None,
                       next_actions)
         print(selection, action, inputs)
