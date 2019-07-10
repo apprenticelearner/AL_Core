@@ -32,7 +32,7 @@ def custom_function_set():
     should probably turn it off if we ever have a production server.
     """
     # return [add_rule, sub_rule, mult_rule, div_rule,ones,tens]
-    return [add_rule, sub_rule, mult_rule, div_rule]
+    return [add_rule, sub_rule, mult_rule, div_rule, circ_rule, trap_rule, tria_rule]
     # return [add_then_tens, add_then_ones,add_then_tens3,add_then_ones3]
 
 
@@ -510,6 +510,70 @@ rotate = Operator(('Rotate', '?b1'),
                   [(('y', ('bound', ('Rotate', '?b1'))), '?yv'),
                    (('x', ('bound', ('Rotate', '?b1'))), '?xv')])
 
+def int_float_square(x):
+    z = float(x) * float(x)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
+def int_float_half(x):
+    z = float(x) * .5
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
+def circ_area(r):
+    area = float(r) * float(r)
+    return str(round(area)) + '*pi'
+
+def trap_area(a, b, h):
+    area = 0.5 * (float(a) + float(b)) * float(h)
+    return str(round(area))
+
+def tria_area(b, h):
+    area = 0.5 * float(b) * float(h)
+    return str(round(area))
+
+
+square_rule = Operator(('Square', '?x'),
+                     [(('value', '?x'), '?xv')],
+                     [(('value', ('Square', ('value', '?x') )),
+                       (int_float_square, '?xv'))])
+half_rule = Operator(('Half', '?x'),
+                     [(('value', '?x'), '?xv')],
+                     [(('value', ('Half', ('value', '?x') )),
+                       (int_float_half, '?xv'))])
+
+const_pi_rule = Operator(('Const Pi', '?x'),
+                     [],
+                     [(('value', ('Const Pi')),
+                       ('*pi', '?xv'))])
+
+pi_rule = Operator(('Pi', '?x'),
+                     [(('value', '?x'), '?xv')],
+                     [(('value', ('Pi', ('value', '?x') )),
+                       (lambda x:x+"*pi", '?xv'))])
+
+
+circ_rule = Operator(('Area Circle', '?x'),
+                      [(('value', '?x'), '?xv')],
+                      [(('value', ('Area Circle', ('value', '?x') )),
+                        (circ_area, '?xv'))])
+
+trap_rule = Operator(('Area Trapezoid', '?x1', '?x2', '?x3'),
+                 [(('value', '?x1'), '?xv1'),
+                  (('value', '?x2'), '?xv2'),
+                  (('value', '?x3'), '?xv3')],
+                 [(('value', ('Area Trapezoid', ('value', '?x1'),
+                 ('value', '?x2'), ('value', '?x3'))),
+                  (trap_area, '?xv1', '?xv2', '?xv3'))])
+
+tria_rule = Operator(('Area Triangle', '?x1', '?x2'),
+                 [(('value', '?x1'), '?xv1'),
+                  (('value', '?x2'), '?xv2')],
+                 [(('value', ('Area Triangle', ('value', '?x1'), ('value', '?x2'))),
+                  (tria_area, '?xv1', '?xv2'))])
+
 
 rb_rules = [add_x, add_y, sub_x, sub_y, half, rotate]
 arith_rules = [add_rule, sub_rule, mult_rule, div_rule, sig_fig_rule,
@@ -576,7 +640,7 @@ if __name__ == "__main__":
     #          (('value', 'y'), '7')]
     kb = FoPlanner(facts, rb_rules)
     from pprint import pprint
-    
+
 
     print('X')
     i = 0
@@ -598,18 +662,17 @@ if __name__ == "__main__":
       i += 1
 
 
-    
+
     # print(len(xs))
     # pprint(xs[:10])
-    
+
     # ys = [sol for sol in kb.fc_query([(('y', '?a'),2)], 2)]
     # print('Y')
     # print(len(ys))
-    # pprint(ys[:10])    
+    # pprint(ys[:10])
 
     # print('Y')
     # for sol in kb.fc_query([(('y', '?a'),2)], 2):
     #     pprint(sol)
     # kb.fc_infer()
     # pprint(kb.facts)
-

@@ -1,5 +1,5 @@
 from pprint import pprint
-# from random import random
+from random import random
 from random import choice
 
 from concept_formation.preprocessor import Flattener
@@ -16,6 +16,9 @@ from planners.VectorizedPlanner import VectorizedPlanner
 # from learners.HowLearner import get_planner
 # from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 import itertools
+import math
+import numpy as np
+
 
 
 def compute_exp_depth(exp):
@@ -106,7 +109,7 @@ class ModularAgent(BaseAgent):
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='MostSpecific',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
-                 planner='fo_planner', search_depth=1, numerical_epsilon=0.0):
+                 planner='fo_planner', search_depth=1, numerical_epsilon=0.0, use_memory=False):
         print(planner)
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
@@ -123,6 +126,10 @@ class ModularAgent(BaseAgent):
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
         self.rhs_counter = 0
+        self.explanations_list = np.empty(shape = [0, 1])
+        self.activations = {}
+        self.use_memory = use_memory
+
 
     # -----------------------------REQUEST------------------------------------
 
@@ -170,14 +177,31 @@ class ModularAgent(BaseAgent):
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
 
-        explanation, skill_info = next(iter(explanations), (None, None))
-        if(explanation is not None):
-            response = explanation.to_response(state, self)
-            if(add_skill_info):
-                response["skill_info"] = skill_info
+        explanations = iter(explanations)
 
-        else:
-            response = EMPTY_RESPONSE
+        explanation, skill_info = next(explanations, (None, None))
+
+        # this is ugly fix this
+        while True:
+            if(explanation is not None):
+                if self.use_memory:
+                    retrieved = self.compute_retrieval(self.activations[str(explanation)], -0.7, 1)
+                    if retrieved:
+                        response = explanation.to_response(state, self)
+                        if(add_skill_info):
+                            response["skill_info"] = skill_info
+                        break
+                    else:
+                        explanation, skill_info = next(explanations, (None, None))
+                else:
+                    response = explanation.to_response(state, self)
+                    if(add_skill_info):
+                        response["skill_info"] = skill_info
+                    break
+
+            else:
+                response = EMPTY_RESPONSE
+                break
 
         return response
 
@@ -280,9 +304,12 @@ class ModularAgent(BaseAgent):
                                                      self.rhs_list,
                                                      foci_of_attention)
 
+
+
         explanations, nonmatching_explanations = self.where_matches(
                                                  explanations,
                                                  state_featurized)
+
 
         if(len(explanations) == 0):
 
@@ -304,8 +331,28 @@ class ModularAgent(BaseAgent):
                         self.rhs_by_how[skill_label] = rhs_by_how
                         self.add_rhs(exp.rhs)
 
-        self.fit(explanations, state_featurized, reward)
+        if self.use_memory:
+            for exp in explanations:
+                str_exp = str(exp)
+                self.explanations_list = np.append(self.explanations_list, str_exp)
+                if str_exp not in self.activations:
+                    self.activations[str_exp] = None
+                # COMPUTE ACTIVATION HERE #
+            for str_exp in self.activations:
+                exp_i = np.where(self.explanations_list == str_exp)[0]
+                exp_freq = exp_i.size
+                exp_times = self.explanations_list.size - exp_i
 
+                self.activations[str_exp] = self.compute_activation(exp_times, 0.5)
+
+
+
+        # self.explanations_list = np.append(self.explanations_list, [exp for exp in explanations])
+        self.fit(explanations, state_featurized, reward)
+        print("----------------------")
+        # print(self.explanations_list)
+        # self.explanations_unique, self.explanations_freq =
+        print(self.activations)
     # ------------------------------CHECK--------------------------------------
 
     def check(self, state, sai):
@@ -326,6 +373,16 @@ class ModularAgent(BaseAgent):
         uniq_lst = list(dict.fromkeys(out).keys())
         unique = [{k: v for k, v in x} for x in uniq_lst]  # set(out)]
         return unique
+
+    # ------------------------UTILITY FUNCTIONS--------------------------------
+    def compute_activation(self, times, decay):
+        return math.log(np.sum(times**(-decay)))
+
+    def compute_retrieval(self, activation, tau, s):
+        print("probability of retrieval:", (1/(1+math.exp((tau - activation) / s))))
+        return random() < (1/(1+math.exp((tau - activation) / s)))
+
+
 
 
 # ---------------------------CLASS DEFINITIONS---------------------------------
