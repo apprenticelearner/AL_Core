@@ -808,7 +808,7 @@ class VersionSpace(BaseILP):
         self.initialized = True
 
     def ifit(self, t, x, y):
-        print("I AM VERSIONSPACE")
+        # print("I AM VERSIONSPACE")
         x = x.get_view("object")
         # print([x[t_name] for t_name in t])
 
@@ -836,11 +836,11 @@ class VersionSpace(BaseILP):
 
         if(self.elem_slices == None):
             self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
-        print(t)
-        print(self.enumerizer.attr_maps[0])
-        print(x.keys())
-        print("vs_elems:", vs_elems, t)
-        print("BEFORE: ",self.pos_concepts.spec_concepts)
+        # print(t)
+        # print(self.enumerizer.attr_maps[0])
+        # print(x.keys())
+        # print("vs_elems:", vs_elems, t)
+        # print("BEFORE: ",self.pos_concepts.spec_concepts)
         flat_vs_elems = list(itertools.chain(*vs_elems))
         self.pos_concepts.ifit(flat_vs_elems, y)
         self.pos_ok = self.pos_ok or y > 0
@@ -848,7 +848,7 @@ class VersionSpace(BaseILP):
             self.neg_concepts.ifit(flat_vs_elems, 0 if y > 0 else 1)
             self.neg_ok = self.neg_ok or y < 0
 
-        print("AFTER: ",self.pos_concepts.spec_concepts)
+        # print("AFTER: ",self.pos_concepts.spec_concepts)
 
         # for i in range(self.num_elems):
 
@@ -890,10 +890,10 @@ class VersionSpace(BaseILP):
             out = spec_consistency.any() & gen_consistency.all()
             # print(self.enumerizer.attr_maps[0])
             # print(self.enumerizer.back_maps[0])
-            print(x)
+            # print(x)
             # print(self.enumerizer.back_maps[0][x.view(-1).tolist()[0]], self.enumerizer.back_maps[0][5])
-            print(ps)
-            print((((ps == ZERO)) | (ps == x)))
+            # print(ps)
+            # print((((ps == ZERO)) | (ps == x)))
 
             if(self.neg_ok):
                 neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
@@ -1333,13 +1333,13 @@ class Enumerizer(Preprocessor):
             for enum, key in zip(instance, self.keys):
                 d[key] = self.back_maps[key][enum]
         else:
-            for key in self.back_maps[0]:
-                print(key)
-            print("---------------------")
+            # for key in self.back_maps[0]:
+            #     print(key)
+            # print("---------------------")
             back_map = self.back_maps[0]
             back_keys = self.back_keys[typ]
-            print(self.back_keys)
-            print(back_keys)
+            # print(self.back_keys)
+            # print(back_keys)
             # list_keys = {}
             for i,key in enumerate(back_keys):
                 # print(back_keys[instance[i]])
@@ -1347,7 +1347,7 @@ class Enumerizer(Preprocessor):
                     lst = d.get(key[0],[None]*(key[1]+1))
                     if(len(lst) <= key[1]):
                         lst += [None]*(key[1]+1-len(lst))
-                    print(lst,key[1])
+                    # print(lst,key[1])
                     lst[key[1]] = back_map[instance[i]]
                     d[key[0]] = lst
                 else:

@@ -135,7 +135,7 @@ class ModularAgent(BaseAgent):
             rhs_list = self.rhs_list
 
         for rhs in rhs_list:
-            print(rhs.input_rule)
+            # print(rhs.input_rule)
             for match in self.where_learner.get_matches(rhs, state):
                 if(len(match) != len(set(match))):
                     continue
@@ -178,7 +178,7 @@ class ModularAgent(BaseAgent):
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
             if(explanation is not None):
-                print(explanation.rhs.input_rule)
+                # print(explanation.rhs.input_rule)
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
                     response.update(skill_info)
@@ -311,10 +311,12 @@ class ModularAgent(BaseAgent):
                 explanations = self.explanations_from_how_search(
                                state_featurized, sai, foci_of_attention)
 
+
                 explanations = self.which_learner.cull_how(explanations)
 
                 rhs_by_how = self.rhs_by_how.get(skill_label, {})
                 for exp in explanations:
+                    # print(str(exp))
                     if(exp.rhs.as_tuple in rhs_by_how):
                         exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                     else:
@@ -429,12 +431,12 @@ class StateMultiView(object):
     def compute(self, view):
         for key in self.transform_dict[view]:
             # for key in transforms:
-            print(key)
+            # print(key)
             if(key in self.views):
                 out = self.transform_dict[view][key](self.views[key])
                 self.set_view(view, out)
                 return out
-        pprint(self.transform_dict)
+        # pprint(self.transform_dict)
         raise Exception("No transform possible from %s to %r" %
                         (list(self.views.keys()), view))
 
@@ -508,7 +510,7 @@ class Explanation(object):
         self.rhs = rhs
         self.mapping = mapping
         self.selection_literal = mapping[rhs.selection_var]
-        print(rhs.input_rule,rhs.input_vars, mapping)
+        # print(rhs.input_rule,rhs.input_vars, mapping)
         self.input_literals = [mapping[s] for s in rhs.input_vars]
 
     def compute(self, state, agent):
