@@ -279,7 +279,7 @@ def train(http_request, agent_id):
             explicit = True
         else:
             if 'skill_label' not in data or data['skill_label'] is None:
-            data['skill_label'] = 'NO_LABEL'
+                data['skill_label'] = 'NO_LABEL'
             if ('foci_of_attention' not in data or data['foci_of_attention'] is
                     None):
                 data['foci_of_attention'] = None
