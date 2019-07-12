@@ -1127,7 +1127,7 @@ class VersionSpace(BaseILP):
             split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
 
         for i, t in enumerate(self.elem_types):
-            key = "?sel" if i==0 else "?arg%d" % i
+            key = "?sel" if i==0 else "?arg%d" % (i-1)
             out[key] = {}
             out[key]["pos"] = self.enumerizer.undo_transform(split_ps[i].tolist()[0],t)
             if(self.neg_ok):
@@ -1538,7 +1538,7 @@ if __name__ == "__main__":
     for match in vs.get_matches(state):
         print(match)
 
-    pprint._
+    # pprint._
     pprint(vs.skill_info())
     # print(vs.enumerizer.undo_transform(vs.pos_concepts.spec_concepts.tolist()[0]))
     # print(vs.enumerizer.undo_transform(vs.pos_concepts.spec_concepts.tolist()[1]))

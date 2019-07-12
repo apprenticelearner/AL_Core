@@ -275,25 +275,37 @@ class ModularAgent(BaseAgent):
         self.which_learner.add_rhs(rhs)
 
     def fit(self, explanations, state, reward):  # -> return None
-        for exp in explanations:
+        if(not isinstance(reward,list)): reward = [reward]*len(explanations)
+        for exp,_reward in zip(explanations,reward):
             if(self.when_learner.state_format == 'variablized_state'):
                 fit_state = variablize_by_where(
                             state.get_view("flat_ungrounded"),
                             exp.mapping.values())
 
-                self.when_learner.ifit(exp.rhs, fit_state, reward)
+                self.when_learner.ifit(exp.rhs, fit_state, _reward)
             else:
-                self.when_learner.ifit(exp.rhs, state, reward)
-            self.which_learner.ifit(exp.rhs, state, reward)
+                self.when_learner.ifit(exp.rhs, state, _reward)
+            self.which_learner.ifit(exp.rhs, state, _reward)
             self.where_learner.ifit(exp.rhs,
                                     list(exp.mapping.values()),
-                                    state, reward)
+                                    state, _reward)
+
+    def train_explicit(self,state,explanations, rewards):
+        state = StateMultiView("object", state)
+        state_featurized = self.planner.apply_featureset(state)
+        explanations = []
+        for expl in explanations:
+            explanations.append(Explanation(self.rhs_list[expl["rhs_id"]],expl["mapping"]))
+        
+        self.fit(explanations, state_featurized, rewards)
+        
 
     def train(self, state, selection, action, inputs, reward,
               skill_label, foci_of_attention):  # -> return None
         state = StateMultiView("object", state)
         sai = SAIS(selection, action, inputs)
         state_featurized = self.planner.apply_featureset(state)
+
         explanations = self.explanations_from_skills(state_featurized, sai,
                                                      self.rhs_list,
                                                      foci_of_attention)
@@ -324,7 +336,8 @@ class ModularAgent(BaseAgent):
                         self.rhs_by_how[skill_label] = rhs_by_how
                         self.add_rhs(exp.rhs)
 
-        # explanations = list(explanations)
+        explanations = list(explanations)
+        print("\n".join([str(x) for x in explanations]))
         self.fit(explanations, state_featurized, reward)
         if(self.ret_train_expl):
             out = []

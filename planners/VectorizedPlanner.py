@@ -514,7 +514,7 @@ def how_search(state,
 	#TODO: Find source of weird memory overflow when -1 is a goal
 	# if(goal == -1):
 	# 	goal = 1
-	print("GOAL:", goal)
+	# print("GOAL:", goal)
 	
 	if(operators == None): operators = self.function_set
 
@@ -622,8 +622,8 @@ class VectorizedPlanner(BasePlanner):
 		goal = sai.inputs["value"]
 		state = state.get_view("flat_ungrounded")
 
-		print(sai, allow_bottomout,allow_copy)
-		if(allow_bottomout and sai.action == "ButtonPressed"):
+
+		if(operators == None and sai.action == "ButtonPressed"):
 			yield -1,{}
 			return
 
@@ -631,7 +631,7 @@ class VectorizedPlanner(BasePlanner):
 		if(search_depth == None): search_depth = self.search_depth
 		if(operators == None): operators = self.function_set
 
-		# print("foci_of_attention:",foci_of_attention)
+		print("foci_of_attention:",foci_of_attention)
 		# print(state)
 		if(foci_of_attention != None):
 			state = {k:v for k,v in state.items() if k[1].replace("?ele-","") in foci_of_attention}
@@ -642,10 +642,11 @@ class VectorizedPlanner(BasePlanner):
 							allow_bottomout=allow_bottomout,
 							allow_copy=allow_copy)
 		for expr,mapping in how_itr:
+			print(expr,mapping)
 			if(foci_of_attention != None and len(foci_of_attention) != len(mapping)):
 				print("continue",expr,mapping)
 				continue
-			print(expr)
+			# print(expr)
 			# print(expr,type(expr))
 			# print(mapping,type(mapping))
 			# print("From HOW:", search_depth)

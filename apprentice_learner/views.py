@@ -271,22 +271,29 @@ def train(http_request, agent_id):
 
         if 'state' not in data or data['state'] is None:
             errs.append("request body missing 'state'")
-        if 'skill_label' not in data or data['skill_label'] is None:
+        
+        explicit = False
+        if "explanations" in data:
+            if 'rewards' not in data:
+                errs.append("request body missing 'rewards'")
+            explicit = True
+        else:
+            if 'skill_label' not in data or data['skill_label'] is None:
             data['skill_label'] = 'NO_LABEL'
-        if ('foci_of_attention' not in data or data['foci_of_attention'] is
-                None):
-            data['foci_of_attention'] = None
-        if 'selection' not in data or data['selection'] is None:
-            errs.append("request body missing 'selection'")
-        if 'action' not in data or data['action'] is None:
-            errs.append("request body missing 'action'")
-        if 'inputs' not in data or data['inputs'] is None:
-            errs.append("request body missing 'inputs'")
-        if 'reward' not in data or data['reward'] is None:
-            if('correct' in data):
-                data['reward'] = 2*int(data['correct'] == True)-1
-            else:
-                errs.append("request body missing 'reward'")
+            if ('foci_of_attention' not in data or data['foci_of_attention'] is
+                    None):
+                data['foci_of_attention'] = None
+            if 'selection' not in data or data['selection'] is None:
+                errs.append("request body missing 'selection'")
+            if 'action' not in data or data['action'] is None:
+                errs.append("request body missing 'action'")
+            if 'inputs' not in data or data['inputs'] is None:
+                errs.append("request body missing 'inputs'")
+            if 'reward' not in data or data['reward'] is None:
+                if('correct' in data):
+                    data['reward'] = 2*int(data['correct'] == True)-1
+                else:
+                    errs.append("request body missing 'reward'")
 
         # Linter was complaining about too many returns so I consolidated all
         # of the errors above
@@ -297,7 +304,10 @@ def train(http_request, agent_id):
         agent = get_agent_by_id(agent_id)
         agent.inc_train()
 
-        response = agent.instance.train(data['state'], data['selection'], data['action'],
+        if(explicit):
+            response = agent.instance.train_explicit(data['state'],data['explanations'],data['rewards'])
+        else:
+            response = agent.instance.train(data['state'], data['selection'], data['action'],
                              data['inputs'], data['reward'],
                              data['skill_label'], data['foci_of_attention'])
         global dont_save
