@@ -80,7 +80,7 @@ class WhenLearner(object):
 
     def ifit(self, rhs, state, reward):
         # print("FIT_STATe", state)
-        # print([str(x.input_rule) for x in self.learners.keys()])
+        print([str(x.input_rule) for x in self.learners.keys()])
         # print("REQARD", reward)
         # print("LEARNERS",self.learners)
         # print("LEARNER",id(self.learners[rhs]))
@@ -143,16 +143,32 @@ class WhenLearner(object):
                 else:
                     self.learners[rhs.label].ifit(state, reward)
             elif(self.type == "one_learner_per_rhs"):
+                # print("------------------")
+                # print([str(x) for x in self.learners.keys()])
+                # print("FIT:", str(rhs), reward)
+                # print("------------------")
+
                 self.learners[rhs].ifit(state, reward)
 
     def predict(self, rhs, state):
         # print("STATE:",state, type(state))
+        print("------------")
+        print(str(rhs))
         if(self.type == "one_learner_per_label"):
             prediction = self.learners[rhs.label].predict([state])[0]
         elif(self.type == "one_learner_per_rhs"):
             # print(self.learners[rhs].predict([state])[0]        )
             prediction = self.learners[rhs].predict([state])[0]
+            print("X")
 
+            print("-")# print(self.learners[rhs].X)
+            print("y")
+            print(self.learners[rhs].y)
+        print("--->",prediction)
+        print("------------")
+
+        # print("BLLEEPERS")
+        # print([str(x) for x in self.learners.keys()])
         if(self.cross_rhs_inference == "rhs_in_y"):
             rhs_pred, rew_pred = prediction
             if(rhs_pred != rhs._id_num):
@@ -228,8 +244,8 @@ class CustomPipeline(Pipeline):
 
         X = lvf.transform(X)
 
-        self.X = [tup.undo_transform(ft.transform(x)) for x in X]
-        self.y = [int(x) if not isinstance(x, tuple) else x for x in y]
+        self.X = [tup.undo_transform(ft.transform(x)) for x in X] + getattr(self, "X",[])
+        self.y = [int(x) if not isinstance(x, tuple) else x for x in y] + getattr(self, "y",[])
 
         super(CustomPipeline, self).fit(self.X, self.y)
 
@@ -309,22 +325,69 @@ def DictVectWrapper(clf):
     #     raise NotImplementedError("Still need to write applicable_skills")
 
 
+count = 0
+def export_tree(dt):
+    global count
+    import pydotplus
+    from sklearn.datasets import load_iris
+    from sklearn import tree
+    import collections
+
+
+    # Visualize data
+    dot_data = tree.export_graphviz(dt,
+                                    feature_names=None,
+                                    out_file=None,
+                                    filled=True,
+                                    rounded=True)
+    graph = pydotplus.graph_from_dot_data(dot_data)
+
+    colors = ('turquoise', 'orange')
+    edges = collections.defaultdict(list)
+
+    for edge in graph.get_edge_list():
+        edges[edge.get_source()].append(int(edge.get_destination()))
+
+    for edge in edges:
+        edges[edge].sort()    
+        for i in range(2):
+            dest = graph.get_node(str(edges[edge][i]))[0]
+            dest.set_fillcolor(colors[i])
+
+    print("EXPORT",'trees/tree%s.png'%count)
+    graph.write_png('trees/tree%s.png'%count)
+    count += 1
+    
+
 from sklearn.tree import _tree
 class DecisionTree(DecisionTreeClassifier):
 
-    # def fit(self,X,y):
-    #     print("MOOP",X)
-    #     super(DecisionTree,self).fit(X,y)
+    def fit(self,X,y):
+        # print("MOOP",X)
+        super(DecisionTree,self).fit(X,y)
+        # print(hex(id(self)))
+        print("X")
+        print(X)
+        print("y",y)
+        export_tree(self)
+        print("------------")
+        
 
     def predict(self, X):
-        # print("MOOP", X)
+        print("PREDICT")
+        # print(hex(id(self)))
+        print("X")
+        print(X)
+        export_tree(self)
+        
+        
         return super(DecisionTree, self).predict(X)
 
     def skill_info(self, examples, feature_names=None):
-        print("SLOOP", examples)
+        # print("SLOOP", examples)
         tree = self
         tree_ = tree.tree_
-        print("feature_names", feature_names)
+        # print("feature_names", feature_names)
         feature_name = [
             feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
             for i in tree_.feature

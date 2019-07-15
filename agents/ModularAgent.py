@@ -46,6 +46,8 @@ def variablize_by_where(state, match):
     mapping = {'arg' + str(i-1) if i > 0 else 'sel':
                ele for i, ele in enumerate(match)}
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
+    #TODO: Do this better...
+    r_state = {key:val for key,val in r_state.items() if "contentEditable" in key}
     return r_state
 
 
@@ -108,7 +110,7 @@ class ModularAgent(BaseAgent):
                  heuristic_learner='proportion_correct', how_cull_rule='all',
                  planner='vectorized', search_depth=1, numerical_epsilon=0.0,
                  ret_train_expl=True):
-        print(planner)
+        # print(planner)
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
         self.which_learner = get_which_learner(heuristic_learner,
@@ -146,7 +148,14 @@ class ModularAgent(BaseAgent):
                 else:
                     pred_state = state
 
-                if(self.when_learner.predict(rhs, pred_state) <= 0):
+                # print("--------------")
+                # print(str(rhs),"--->",self.when_learner.predict(rhs, pred_state))
+                # pprint([int(x) for x in pred_state.values()])
+                # print("--------------")
+                
+                p = self.when_learner.predict(rhs, pred_state)
+                
+                if(p <= 0):
                     continue
 
                 mapping = {v: m for v, m in zip(rhs.all_vars, match)}
@@ -276,11 +285,19 @@ class ModularAgent(BaseAgent):
 
     def fit(self, explanations, state, reward):  # -> return None
         if(not isinstance(reward,list)): reward = [reward]*len(explanations)
+        # print("^^^^^^^^^^^^^^")
+        # print(explanations,reward)
+        # print("^^^^^^^^^^^^^^")
         for exp,_reward in zip(explanations,reward):
             if(self.when_learner.state_format == 'variablized_state'):
                 fit_state = variablize_by_where(
                             state.get_view("flat_ungrounded"),
                             exp.mapping.values())
+
+                # print("--------------")
+                # print(exp.rhs,"<----",reward)
+                # pprint([int(x) for x in fit_state.values()])
+                # print("--------------")
 
                 self.when_learner.ifit(exp.rhs, fit_state, _reward)
             else:
@@ -291,13 +308,14 @@ class ModularAgent(BaseAgent):
                                     state, _reward)
 
     def train_explicit(self,state,explanations, rewards):
+        print("TRAIN EXPLICIT")
         state = StateMultiView("object", state)
         state_featurized = self.planner.apply_featureset(state)
-        explanations = []
+        expl_objs = []
         for expl in explanations:
-            explanations.append(Explanation(self.rhs_list[expl["rhs_id"]],expl["mapping"]))
+            expl_objs.append(Explanation(self.rhs_list[expl["rhs_id"]],expl["mapping"]))
         
-        self.fit(explanations, state_featurized, rewards)
+        self.fit(expl_objs, state_featurized, rewards)
         
 
     def train(self, state, selection, action, inputs, reward,
@@ -337,7 +355,7 @@ class ModularAgent(BaseAgent):
                         self.add_rhs(exp.rhs)
 
         explanations = list(explanations)
-        print("\n".join([str(x) for x in explanations]))
+        # print("\n".join([str(x) for x in explanations]))
         self.fit(explanations, state_featurized, reward)
         if(self.ret_train_expl):
             out = []
@@ -514,6 +532,8 @@ class RHS(object):
         b = self._id_num is not None
         c = other._id_num is not None
         return a and b and c
+    def __str__(self):
+        return str(self.input_rule)
 
 
 class Explanation(object):
@@ -541,6 +561,7 @@ class Explanation(object):
         response['selection'] = self.selection_literal.replace("?ele-", "")
         response['action'] = self.rhs.action
         response['inputs'] = self.compute(state, agent)
+        response['rhs_id'] = self.rhs._id_num
         return response
 
     def get_skill_info(self,agent,when_state=None):

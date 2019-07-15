@@ -787,7 +787,7 @@ def mask_select(x, m):
 
 
 class VersionSpace(BaseILP):
-    def __init__(self, args=None, constraints=None, use_neg=True, propose_gens=True):
+    def __init__(self, args=None, constraints=None, use_neg=False, propose_gens=True):
         self.pos_concepts = VersionSpaceILP()
         self.neg_concepts = VersionSpaceILP() if use_neg else None
         self.propose_gens = propose_gens
@@ -943,10 +943,11 @@ class VersionSpace(BaseILP):
         
         # Split up the concepts by the where parts that each slice selects on
         ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-        ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+        
         s = self.elem_slices
         split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
         if(self.neg_ok):
+            ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
             split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
         else:
             split_ns = [None] * len(split_ps)
@@ -1119,11 +1120,13 @@ class VersionSpace(BaseILP):
 
     def skill_info(self):
         out = {}
-        ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-        ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+        
         s = self.elem_slices
+
+        ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
         split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
         if(self.neg_ok):
+            ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
             split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
 
         for i, t in enumerate(self.elem_types):
