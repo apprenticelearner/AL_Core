@@ -54,8 +54,9 @@ You may be prompted to specify the location of the AL repo the first time you ru
 
 After running this command, you should see the following user interface open in your web browser:
 
-![batch_train_example](docs/images/batch_train_example.png)
-
+<p align="center">
+<img height="400" src="docs/images/batch_train_example.png">
+</p>
  
 
 The agent will attempt to take action in the interface, receive feedback based on the tutoring model represented by the BRD file that is loaded (specified at the bottom) and work through the problems. 
