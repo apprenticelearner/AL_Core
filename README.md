@@ -1,43 +1,159 @@
-This is a platform for creating apprentice learner agents.
-
-
 # Installation
-The main github repo is here: https://github.com/cmaclell/apprentice_learner_api
 
-Clone the repo and then run:
+The main Github repository is here: https://github.com/apprenticelearner/apprentice_learner_api
+The repository for interfacing AL with CTAT-HTML is here: 
+https://github.com/apprenticelearner/AL_HTML
 
-pip install -r requirements.txt
+Clone both repositories to your machine either by using the Github desktop application or by running the following commands in a terminal / command line:
 
-That should install all of the required python modules.
+```bash
+git clone https://github.com/apprenticelearner/apprentice_learner_api
+git clone https://github.com/apprenticelearner/AL_HTML
+```
 
-Then you should be able to run:
+Open the apprentice_learner_api directory in a terminal / command line and run:
 
-python manage.py runserver
+``` bash
+python3 -m pip install -r requirements.txt 
+```
 
-If you see a message that looks something like:
+If you receive a permission error from that command try running:
 
-System check identified 1 issue (0 silenced).
-September 19, 2018 - 13:33:31
-Django version 1.10, using settings 'agent_api.settings'
-Starting development server at http://127.0.0.1:8000/
-Quit the server with CTRL-BREAK.
+```bash
+python3 -m pip install -r requirements.txt --user
+```
 
-Then at least it to compiled. Kill that and run:
+**If you are on Windows**, you may need to install pytorch separately. 
+Download the relevant .whl file (mostly likely torch‑1.0.1‑cp37‑cp37m‑win_amd64.whl) from here: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytorch. Navigate a terminal to where you downloaded the file and instal with:
 
-python manage.py createsuperuser
+```bash
+python3 -m pip install torch‑1.0.1‑cp37‑cp37m‑win_amd64.whl
+```
 
-Follow the prompts to create a user account for yourself. Then run the server again. In a browser you should be able to go to http://127.0.0.1:8000/admin and log in. You should see the backend admin page for the service where you maybe? See some existing agents.
+If you are running python from within an environment like pyzo you may have to run this install command in a native terminal rather than the one built into pyzo for it to work.
 
-I almost certainly skipped some steps in there so chime in if you run into any problems.
+Once you have installed all of the required modules, navigate your terminal to the apprentice_learner_api directory and run the following:
 
-# Papers and Documentation
-1. Chris’s Thesis [link] specifically Chapter 3 is probably the best current source on the framework in writing
-2. The Apprentice Learner Architecture EDM paper [link] is the best published reference, but the model diagram in this one is outdated
-3. The TRESTLE Algorithm [link]
-4. TRESTLE docs [link] contains The documentation for the actual TRESTLE software library, these are generally more accurate than the published papers but nothing has substantially changed (e.g., we technically calculate category utility differently now but in a way that produces the exact same behavior with less computation). This is also useful to check out because we use the preprocessors from this library throughout the apprentice to do things like flatten states for processing.
-5. The Django Docs [link]
-6. Py Search Docs [link] is the search library that is used throughout the apprentice/trestle
+```bash
+python3 manage.py migrate
+```
 
-# Usage
+# Basic Tests
+These are a number of basic tests that are mainly useful for checking that everything has been installed correctly.
+## Tic Tac Toe Example
+This example is a simple command line app where you can train a single agent to take legal Tic Tac Toe moves against itself. One of the main benefits of this example is the ability to try out different types of agents and confirm they all work without errors.
 
-# Extension
+Navigate to the apprentice_learner_api directory and run:
+
+```bash
+python3 tic-tac-toe-example.py
+```
+
+Follow the on screen prompts to train the agent to take moves.
+
+To try out different types of agents you can provide a different value for the -agent argument:
+
+```bash
+python3 tic-tac-toe-example.py -agent Modular
+```
+
+
+# Batch Training Example
+Batch training is used to provide AL agents with a predefined set of training problems that they will learn from. When training agents using this approach, you do not need to manually provide it with examples. Agents are trained using previously created practice problems. Specifically, we support the use of example tracing behavior graphs for training agents (BRD files output by CTAT for use with CTAT interfaces). This approach has been applied to model human behavior in previously authored tutoring systems from prior studies. It has also been applied to compare different tutoring systems (e.g., that present fractions training in different ways) to see which best support human learning. Finally, batch training has been employed to test different theories of how people learn—through comparison of model behavior and human behavior.
+
+To see an example of how batch training works, navigate to the AL_HTML repo and run:
+
+```bash
+python3 train.py training.json
+```
+
+You may be prompted to specify the location of the AL repo the first time you run train.py (if you screw this up you can change it in net.conf which will exist in the AL_HTML directory after running train.py at least once)
+
+After running this command, you should see the following user interface open in your web browser:
+
+ 
+
+The agent will attempt to take action in the interface, receive feedback based on the tutoring model represented by the BRD file that is loaded (specified at the bottom) and work through the problems. Note, the agent may take some time to load before taking any actions. Just wait and keep an eye on the console to make sure there are no errors. 
+
+One error that we encountered when preparing this manual was due to an ad blocker preventing the tutoring interface from properly loading in the browser. If the interface shown above does not seem to load in your browser and you have an ad blocker, then try disabling it.
+
+To get a better sense of how the batch training operates, open up the file `training.json` in your text editor. You will see something like this:
+```json
+{
+	"training_set1" : [{
+		"agent_name":"myAgent1",
+		"agent_type":"ModularAgent",
+		"output_dir":"out/myAgent1",
+		"args": {
+			"search_depth" : 2,
+			"when_learner": "decisiontree"
+		},
+		"problem_set" : [
+			{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/1.brd"},
+
+	 		{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/2.brd"},
+
+	 		{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/3.brd"},
+
+		 	{"HTML": "model/HTML/MultiColumnArithmatic.html",
+		 	"question_file" : "../CognitiveModel/4.brd"},
+
+		 	{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/5.brd"},
+	 		
+	 		{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/6.brd"},
+	 		
+	 		{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/7.brd"},
+	 		
+	 		{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/8.brd"},
+	 		
+	 		{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/9.brd"},
+	 		
+	 		{"HTML": "model/HTML/MultiColumnArithmatic.html",
+	 		"question_file" : "../CognitiveModel/10.brd"}
+
+
+		]
+	}]
+}
+```
+In general the JSON script passed to the train.py script as an argument specifies what agent to use for the training (ModularAgent in this example), how the agent should be configured (in this example it uses a decision tree algorithm for when learning and a search depth of 2 for its explanation search). Finally, the agent is trained using 10 practice problems. Each practice problem in the training.json file specifies the interface to use and the BRD file. The latter specifies the initial problem state for the interface and an example tracing model of all the correct solution paths, which are used to provide an agent with correctness feedback and worked examples. 
+Interactive Training Example
+Another approach to training an agent is to manually provide it with problems to solve and then to interactively tutor it in solving these problems. This approach to training has been employed as a means of authoring models for intelligent tutoring systems. Specifically, an educational technology designer can train an agents similar to how they would train another person—by providing problems, examples, and feedback. In response, the agent learns rules that can then be used within an intelligent tutoring system to provide one-on-one feedback to students for arbitrary practice problems. 
+
+To see this interactive training approach in action, run the following command:
+
+```bash
+python3 train.py free_author.json --interactive --foci
+```
+
+You should be presented with the same interface you saw in the batch training example. However, now it should prompt you for a problem to solve, to demonstrate solution steps, and to provide correctness feedback on the agents actions.
+
+If you inspect free_author.json, you will see that it has a similar format to the training.json file used for batch training. It contains specifications for the agent to use, the configuration of this agent, and the interface to load. **Note, if you modify this file and rerun the script, Chrome will sometimes cache the file and so your changes will not be loaded.** To overcome this, rename the file to something else (e.g., free_author2.json) and pass this to the train.py script instead. 
+
+There are also additional options for that can be used when training agents. For example, if you attach the “--nools” flag and providing a directory, then the knowledge learned by an AL agent will be exported into nools rules. Additionally, if you apply the “--foci” flag, then you can provide additional guidance to AL agents by specifying a subset of the fields that are relevant for ALs learning, directing its focus of attention and potentially speeding up learning. 
+
+
+# Papers and Other Documentation
+1. Chris’s Thesis [link](http://christopia.net/thesis) specifically Chapter 3
+    * Probably the best current source on the framework in writing
+2. The Apprentice Learner Architecture EDM paper [link](http://erikharpstead.net/papers/C9%20-%20MacLellan%20et%20al.%20-%202016%20-%20Apptentice%20Learner%20Architecture%20EDM%20Conference.pdf)
+    * The best published reference, but the model diagram in this one is outdated
+3. The TRESTLE Algorithm [link](http://erikharpstead.net/papers/J1%20-%20MacLellan%20et%20al.%20-%202016%20-%20TESTLE%20-%20ACS%20Journal.pdf)
+    * Describes TRESTLE
+4. TRESTLE docs [link](https://concept-formation.readthedocs.io/en/latest/)
+    * The documentation for the actual TRESTLE software library, these are generally more accurate than the published papers but nothing has substantially changed (e.g., we technically calculate category utility differently now but in a way that produces the exact same behavior with less computation)
+    * This is also useful to check out because we use the preprocessors from this library throughout the apprentice to do things like flatten states for processing.
+5. The Django Docs [link](https://docs.djangoproject.com/en/1.10/)
+Useful for working with the Django parts of the implementation
+    * This link will take you to the version of Django that is listed as a requirement for the library
+6. Py Search Docs [link](https://py-search.readthedocs.io/en/latest/)
+    * The search library that Chris wrote that is used throughout the apprentice/trestle
+
