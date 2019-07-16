@@ -612,6 +612,21 @@ class FoPlannerModule(BasePlanner):
         self.feature_set = feature_set
         self.epsilon = epsilon
 
+    @classmethod
+    def resolve_operators(cls,operators):
+        out = []
+        for op in operators:
+            if(isinstance(op, Operator)):
+                out.append(op)
+            elif(isinstance(op, str)):
+                try:
+                    out.append(Operator.registered_operators[op.lower()])
+                except KeyError as e:
+                    raise KeyError("No Operator registered under name %s. Check that you have registered your operator with Operator.register()" % op) 
+            else:
+                raise ValueError("Cannot resolve operator of type %s" % type(op))
+        return out
+
     def how_search(self,state,sai,
                     operators=None,
                     foci_of_attention=None,
@@ -945,7 +960,16 @@ class FoPlanner:
             yield solution
 
 
+
 class Operator:
+    registered_operators = {}
+
+    @classmethod
+    def register(cls, name,op):
+        # ops = [op] if not isinstance(op,list) else op
+        # for op in ops:
+        #     name = op.name[0] if isinstance(op.name,tuple) else op.name
+        cls.registered_operators[name.lower()] = op
 
     def __init__(self, name, conditions, effects):
         self.name = name
@@ -983,6 +1007,9 @@ class Operator:
                 self.delete_effects.add(e[1])
             else:
                 self.add_effects.add(e)
+
+        # print(len(self.registered_operators.keys()))
+        # print(self.registered_operators.keys())
 
     def __str__(self):
         pprint(self.conditions)

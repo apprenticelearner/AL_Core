@@ -16,6 +16,8 @@ function_set = []
 feature_set = []
 
 class BaseOperator(object):
+
+	registered_operators = {}
 	def __init__(self):
 		self.num_flt_inputs = 0;
 		self.num_str_inputs = 0;
@@ -23,6 +25,14 @@ class BaseOperator(object):
 		self.in_arg_types= ["value","value"]
 		self.commutative = False;
 		self.template = "BaseOperator"
+
+	@classmethod
+	def register(cls):
+		cls.registered_operators[cls.__name__.lower()] = cls
+
+	def __init_subclass__(cls, **kwargs):
+		super().__init_subclass__(**kwargs)
+		cls.register()
 	
 
 	def forward(self, args):
@@ -496,6 +506,9 @@ def to_rule_expression(tup, backmap):
 	else:
 		return x
 
+
+
+
 def how_search(state,
 				goal, search_depth = 1,
 				operators= None,
@@ -561,19 +574,36 @@ def how_search(state,
 
 
 # operator_class_set = [AddOne,Append25,Multiply,Div10]
-operator_class_set = [Add,Subtract,Multiply,Divide]
+# operator_class_set = [Add,Subtract,Multiply,Divide]
 # operator_class_set = [Add,Add3,Mod10,Div10]
-function_set = [c() for c in operator_class_set ]
+# function_set = [c() for c in operator_class_set ]
 
 class VectorizedPlanner(BasePlanner):
-	def __init__(self,search_depth,**kwargs):
+	def __init__(self,search_depth,function_set,feature_set,**kwargs):
 
 		
-		self.function_set = function_set
-		self.feature_set = []
+		self.function_set = [c() for c in function_set]
+		self.feature_set = [c() for c in feature_set]
 		self.epsilon = 0.0
 
 		self.search_depth = search_depth
+
+	#TODO Reconcile possible naming conflict
+	@classmethod
+	def resolve_operators(cls,operators):
+		print(BaseOperator.registered_operators)
+		out = []
+		for op in operators:
+			if(isinstance(op, BaseOperator)):
+				out.append(op)
+			elif(isinstance(op, str)):
+				try:
+					out.append(BaseOperator.registered_operators[op])
+				except KeyError as e:
+					raise KeyError("No Operator registered under name %s" % op) 
+			else:
+				raise ValueError("Cannot resolve operator of type %s" % type(op))
+		return out
 
 
 	def apply_featureset(self, state, operators=None):
