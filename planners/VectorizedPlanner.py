@@ -598,7 +598,7 @@ class VectorizedPlanner(BasePlanner):
 				out.append(op)
 			elif(isinstance(op, str)):
 				try:
-					out.append(BaseOperator.registered_operators[op])
+					out.append(BaseOperator.registered_operators[op.lower()])
 				except KeyError as e:
 					raise KeyError("No Operator registered under name %s" % op) 
 			else:
