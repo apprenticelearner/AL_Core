@@ -27,6 +27,7 @@ from agents.ModularAgent import ModularAgent
 from agents.RLAgent import RLAgent
 from planners.rulesets import custom_feature_set
 from planners.rulesets import custom_function_set
+import custom_operators
 
 # import cProfile
 # pr = cProfile.Profile()
