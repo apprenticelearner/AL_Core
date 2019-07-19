@@ -4,7 +4,7 @@ import argparse
 
 from planners.fo_planner import Operator
 from agents.RLAgent import RLAgent
-from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
+from agents.ModularAgent import ModularAgent
 from agents.Memo import Memo
 
 
@@ -73,9 +73,16 @@ class TicTacToe(object):
         state = {}
         for row, row_data in enumerate(table):
             for col, value in enumerate(row_data):
-                element = {'value': value, 'row': row, 'col': col}
-                state['?Cell-%i-%i' % (row, col)] = element
-        state['?general-state'] = {'player': self.current_player()}
+                if row > 0 and col > 0 and value == "":
+                    element = {'value': value, 'row': row, 'col': col,
+                               'contentEditable': True}
+                else:
+                    element = {'value': value, 'row': row, 'col': col}
+
+                state['?ele-Cell-%i-%i' % (row, col)] = element
+                state[('id', '?ele-Cell-%i-%i' % (row, col))
+                      ] = 'Cell-%i-%i' % (row, col)
+        state['?player'] = {'value': self.current_player()}
 
         return state
 
@@ -212,9 +219,10 @@ def train_agent(agent_class):
                     correctness = True
 
                 else:
-                    row = agent_action['inputs']['row']
-                    col = agent_action['inputs']['col']
-                    player = agent_action['inputs']['player']
+                    sel = '?ele-' + agent_action['selection']
+                    row = original_state[sel]['row']
+                    col = original_state[sel]['col']
+                    player = agent_action['inputs']['value']
 
                     correctness = input('Would putting an %s in row %i and col'
                                         ' %i be correct? (enter for yes or'
@@ -227,17 +235,17 @@ def train_agent(agent_class):
                     else:
                         correctness = -1
 
-                agent.train(original_state, 'table', 'move',
-                            {'row': row, 'col': col, 'player': player},
-                            correctness, 'move', [])
+                agent.train(original_state, 'Cell-%i-%i' % (row, col), 'mark',
+                            {'value': player},
+                            # {'row': row, 'col': col, 'player': player},
+                            correctness, 'mark', [])
 
             except ValueError:
                 print("############################")
                 print("# Invalid move, try again. #")
                 print("############################")
-                agent.train(original_state, 'table', 'move',
-                            {'row': row, 'col': col, 'player': player}, -1,
-                            'move', [])
+                agent.train(original_state, 'Cell-%i-%i' % (row, col), 'mark',
+                            {'value': player}, -1, 'mark', [])
 
         if game.winner() == "DRAW":
             print("DRAW")
@@ -250,10 +258,10 @@ def train_agent(agent_class):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='An interactive training demo for '
-                                                 'apprentice agents.')
-    parser.add_argument('-agent',choices=['WhereWhenHowNoFoa','RLAgent','Memo'],
-                            default='WhereWhenHowNoFoa',help='The agent type to use')
+    parser = argparse.ArgumentParser(description='An interactive training demo'
+                                     'for apprentice agents.')
+    parser.add_argument('-agent', choices=['Modular', 'RLAgent', 'Memo'],
+                        default='Modular', help='The agent type to use')
 
     args = parser.parse_args()
 
@@ -262,4 +270,4 @@ if __name__ == "__main__":
     elif args.agent == 'RLAgent':
         train_agent(RLAgent)
     else:
-        train_agent(WhereWhenHowNoFoa)
+        train_agent(ModularAgent)
