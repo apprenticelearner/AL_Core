@@ -7,15 +7,6 @@ from agents.RLAgent import RLAgent
 from agents.ModularAgent import ModularAgent
 from agents.Memo import Memo
 
-
-# ttt_available = Operator(('available', '?s'),
-#                          [(('value', '?s'), '?sv'),
-#                           (('row', '?s'), '?sr'),
-#                           (('col', '?s'), '?sc'),
-#                           (lambda x: x > 0, '?sr'),
-#                           (lambda x: x > 0, '?sc')],
-#                          [(('available', '?s'), (lambda x: x == "", '?sv'))])
-
 ttt_horizontal_adj = Operator(('horizontal_adj', '?s1', '?s2'),
                               [(('row', '?s1'), '?s1r'),
                                (('row', '?s2'), '?s1r'),
@@ -85,8 +76,6 @@ class TicTacToe(object):
                                'id': 'Cell-%i-%i' % (row, col)}
 
                 state['?ele-Cell-%i-%i' % (row, col)] = element
-                # state[('id', '?ele-Cell-%i-%i' % (row, col))
-                #       ] = 'Cell-%i-%i' % (row, col)
         state['?player'] = {'value': self.current_player(), 'id':
                             'CurrentPlayer'}
 
