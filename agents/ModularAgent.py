@@ -42,21 +42,65 @@ def compute_exp_depth(exp):
 #     else:
 #         return arg, i
 
-def variablize_by_where(state, match):
+def variablize_by_where_swap(state, match):
     mapping = {'arg' + str(i-1) if i > 0 else 'sel':
                ele for i, ele in enumerate(match)}
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     #TODO: Do this better...
-    r_state = {key:val for key,val in r_state.items() if "contentEditable" in key}
+    r_state = {key:val for key,val in r_state.items() if "contentEditable" in key or "value" in key}
     return r_state
 
 
-def unvariablize_by_where(state, match):
+def unvariablize_by_where_swap(state, match):
     mapping = {ele: 'arg' + str(i-1) if i > 0 else 'sel'
                for i, ele in enumerate(match)}
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     return r_state
 
+
+def _relative_rename_recursive(state,center,center_name="sel",mapping=None):
+    if(mapping is None):
+        mapping = {center:center_name}
+    center_obj = state[center]
+
+    stack = []
+    for d in dirs:
+        ele = center_obj.get(d,None)
+        if(ele is None or ele in mapping or ele not in state):
+            continue
+        mapping[ele] = center_name + "." + dir_map[d]
+        stack.append(ele)
+
+    for ele in stack:
+        _relative_rename_recursive(state,ele,mapping[ele],mapping)
+
+    return mapping
+
+def variablize_state_relative(state,where_match,center_name="sel"):
+    center = where_match[0]
+    mapping = _relative_rename_recursive(state,center,center_name=center_name)
+    floating_elems = {x for x in state.keys() if x not in mapping}
+
+    for f_ele in floating_elems:
+        for d in dirs:
+            ele = state[f_ele].get(d,None)
+            if(ele is not None and ele in mapping):
+                float_name = "float." + dir_map[d] + "==" + mapping[ele]
+                if(float_name not in mapping):
+                    mapping[f_ele] = float_name
+                    break 
+    assert len(state.keys()) == len(mapping.keys()), "Some floating elements \
+           could not be assigned relative to the rest of the state"
+    
+    new_state = {}
+    for key,vals in state.items():
+        new_vals = {}
+        for k,v in vals.items():
+            new_vals[k] = mapping.get(v,v)
+
+        new_state[mapping[key]] = new_vals
+
+    return new_state
 
 def expr_comparitor(fact, expr, mapping={}):
     if(isinstance(expr, dict)):
@@ -102,13 +146,16 @@ def expression_matches(expression, state):
 
 EMPTY_RESPONSE = {}
 
+STATE_VARIABLIZATIONS = {"where_swap": variablize_by_where_swap,
+                         "relative" : variablize_state_relative}
+
 
 class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
-                 planner='vectorized', search_depth=1, numerical_epsilon=0.0,
+                 planner='fo_planner', state_variablization="relative", search_depth=1, numerical_epsilon=0.0,
                  ret_train_expl=True):
         # print(planner)
         self.where_learner = get_where_learner(where_learner)
@@ -118,6 +165,8 @@ class ModularAgent(BaseAgent):
         self.planner = get_planner(planner, search_depth=search_depth,
                                    function_set=function_set,
                                    feature_set=feature_set)
+
+        self.state_variablizer = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]
         self.rhs_list = []
         self.rhs_by_label = {}
         self.rhs_by_how = {}
@@ -133,6 +182,7 @@ class ModularAgent(BaseAgent):
     def applicable_explanations(self, state, rhs_list=None,
                                 add_skill_info=False
                                 ):  # -> returns Iterator<Explanation>
+        print(state.get_view("object"))
         if(rhs_list is None):
             rhs_list = self.rhs_list
 
@@ -143,7 +193,7 @@ class ModularAgent(BaseAgent):
                     continue
 
                 if(self.when_learner.state_format == "variablized_state"):
-                    pred_state = variablize_by_where(
+                    pred_state = variablize_by_where_swap(
                                      state.get_view("flat_ungrounded"), match)
                 else:
                     pred_state = state
@@ -285,12 +335,13 @@ class ModularAgent(BaseAgent):
 
     def fit(self, explanations, state, reward):  # -> return None
         if(not isinstance(reward,list)): reward = [reward]*len(explanations)
+        print("LEN!!! ",len(explanations),reward)
         # print("^^^^^^^^^^^^^^")
         # print(explanations,reward)
         # print("^^^^^^^^^^^^^^")
         for exp,_reward in zip(explanations,reward):
             if(self.when_learner.state_format == 'variablized_state'):
-                fit_state = variablize_by_where(
+                fit_state = variablize_by_where_swap(
                             state.get_view("flat_ungrounded"),
                             exp.mapping.values())
 
@@ -302,7 +353,10 @@ class ModularAgent(BaseAgent):
                 self.when_learner.ifit(exp.rhs, fit_state, _reward)
             else:
                 self.when_learner.ifit(exp.rhs, state, _reward)
+
+            print(_reward)
             self.which_learner.ifit(exp.rhs, state, _reward)
+            print(list(exp.mapping.values()))
             self.where_learner.ifit(exp.rhs,
                                     list(exp.mapping.values()),
                                     state, _reward)
@@ -319,7 +373,7 @@ class ModularAgent(BaseAgent):
         
 
     def train(self, state, selection, action, inputs, reward,
-              skill_label, foci_of_attention):  # -> return None
+              skill_label, foci_of_attention,add_skill_info=False):  # -> return None
         state = StateMultiView("object", state)
         sai = SAIS(selection, action, inputs)
         state_featurized = self.planner.apply_featureset(state)
@@ -355,13 +409,15 @@ class ModularAgent(BaseAgent):
                         self.add_rhs(exp.rhs)
 
         explanations = list(explanations)
-        # print("\n".join([str(x) for x in explanations]))
+        print("EXPLANS")
+        print("\n".join([str(x) for x in explanations]))
+        print("^^^^^^^^^^^")
         self.fit(explanations, state_featurized, reward)
         if(self.ret_train_expl):
             out = []
             for exp in explanations:
                 resp = exp.to_response(state,self)
-                resp.update(exp.get_skill_info(self))
+                if(add_skill_info): resp.update(exp.get_skill_info(self))
                 out.append(resp)
             return out
 

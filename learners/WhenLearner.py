@@ -159,11 +159,11 @@ class WhenLearner(object):
         elif(self.type == "one_learner_per_rhs"):
             # print(self.learners[rhs].predict([state])[0]        )
             prediction = self.learners[rhs].predict([state])[0]
-            print("X")
+            # print("X")
 
-            print("-")# print(self.learners[rhs].X)
-            print("y")
-            print(self.learners[rhs].y)
+            # print("-")# print(self.learners[rhs].X)
+            # print("y")
+            # print(self.learners[rhs].y)
         print("--->",prediction)
         print("------------")
 

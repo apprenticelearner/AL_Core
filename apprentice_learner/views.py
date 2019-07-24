@@ -305,11 +305,12 @@ def train(http_request, agent_id):
         agent.inc_train()
 
         if(explicit):
-            response = agent.instance.train_explicit(data['state'],data['explanations'],data['rewards'])
+            response = agent.instance.train_explicit(data['state'],data['explanations'],
+                                                     data['rewards'],**data.get('kwargs',{}))
         else:
             response = agent.instance.train(data['state'], data['selection'], data['action'],
                              data['inputs'], data['reward'],
-                             data['skill_label'], data['foci_of_attention'])
+                             data['skill_label'], data['foci_of_attention'], **data.get('kwargs',{}))
         global dont_save
         if(not dont_save): agent.save()
 
