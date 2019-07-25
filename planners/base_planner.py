@@ -13,8 +13,8 @@ class BasePlanner(object):
 
 
 def get_planner_class(name):
-	# print(PLANNERS.keys())
-	return PLANNERS[name.lower().replace(' ', '').replace('_', '')]
+	name = name.lower().replace(' ', '').replace('_', '')
+	return PLANNERS[name]
 
 
 # from planners.VectorizedPlanner import VectorizedPlanner

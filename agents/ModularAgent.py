@@ -12,7 +12,7 @@ from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner
 from learners.WhichLearner import get_which_learner
 from planners.base_planner import get_planner_class
-from planners.VectorizedPlanner import VectorizedPlanner
+# from planners.VectorizedPlanner import VectorizedPlanner
 # from learners.HowLearner import get_planner
 # from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 import itertools
@@ -126,7 +126,7 @@ class ModularAgent(BaseAgent):
         self.rhs_by_how = {}
         
         # print()
-        print(self.feature_set,self.function_set)
+        # print(self.feature_set,self.function_set)
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
         self.rhs_counter = 0

@@ -2,12 +2,14 @@ if __name__ == "__main__":
 	import sys
 	sys.path.insert(0,"../")
 
-import torch
+try:
+	import torch
+	from torch.nn import functional as F
+except:
+	pass
 
 import itertools
 import re 
-from torch.nn import functional as F
-
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 from planners.base_planner import BasePlanner, PLANNERS

@@ -1012,8 +1012,6 @@ class Operator:
         # print(self.registered_operators.keys())
 
     def __str__(self):
-        pprint(self.conditions)
-        pprint(self.effects)
         return "n:%s\nc:%s\ne:%s" % (str(self.name), self.conditions,self.effects)
 
     def __repr__(self):
