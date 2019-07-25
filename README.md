@@ -1,19 +1,19 @@
+| DISCLAIMER: This document is a work in progress. If you have any questions please reach out to us. |
+| --- |
+
 # Installation
+There are two main GitHub repositories for working with AL. We will general refer to these as apprentince_learner_api (https://github.com/apprenticelearner/apprentice_learner_api), which is the core library, and AL_HTML (https://github.com/apprenticelearner/AL_HTML), which contains code for interfacing AL with CTAT-HTML tutors.
 
-The main Github repository is here: https://github.com/apprenticelearner/apprentice_learner_api
-The repository for interfacing AL with CTAT-HTML is here: 
-https://github.com/apprenticelearner/AL_HTML
-
-Clone both repositories to your machine either by using the Github desktop application or by running the following commands in a terminal / command line:
+To get started, clone both repositories to your machine either by using the Github desktop application or by running the following commands in a terminal / command line:
 
 ```bash
 git clone https://github.com/apprenticelearner/apprentice_learner_api
 git clone https://github.com/apprenticelearner/AL_HTML
 ```
 
-Open the apprentice_learner_api directory in a terminal / command line and run:
+Navigate to the apprentice_learner_api directory in a terminal / command line and run:
 
-``` bash
+```bash
 python3 -m pip install -r requirements.txt 
 ```
 
@@ -24,19 +24,19 @@ python3 -m pip install -r requirements.txt --user
 ```
 
 **If you are on Windows**, you may need to install pytorch separately. 
-Download the relevant .whl file (mostly likely torch‑1.0.1‑cp37‑cp37m‑win_amd64.whl) from here: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytorch. Navigate a terminal to where you downloaded the file and instal with:
+We recommend downloading the relevant .whl file (mostly likely torch‑1.0.1‑cp37‑cp37m‑win_amd64.whl) from here: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytorch. Navigate a terminal to where you downloaded the file and instal with:
 
 ```bash
 python3 -m pip install torch‑1.0.1‑cp37‑cp37m‑win_amd64.whl
 ```
 
-If you are running python from within an environment like pyzo you may have to run this install command in a native terminal rather than the one built into pyzo for it to work.
+If you are running python from within an environment like pyzo you may have to run these install command in a native terminal rather than the one built into pyzo for it to work.
 
 Once you have installed all of the required modules, navigate your terminal to the apprentice_learner_api directory and run the following:
 
 ```bash
 python3 manage.py migrate
-```
+````
 
 # Basic Tests
 These are a number of basic tests that are mainly useful for checking that everything has been installed correctly.
@@ -44,7 +44,7 @@ These are a number of basic tests that are mainly useful for checking that every
 ## Batch Training Example
 Batch training is used to provide AL agents with a predefined set of training problems that they will learn from. When training agents using this approach, you do not need to manually provide it with examples. Agents are trained using previously created practice problems. Specifically, we support the use of example tracing behavior graphs for training agents (BRD files output by CTAT for use with CTAT interfaces). This approach has been applied to model human behavior in previously authored tutoring systems from prior studies. It has also been applied to compare different tutoring systems (e.g., that present fractions training in different ways) to see which best support human learning. Finally, batch training has been employed to test different theories of how people learn—through comparison of model behavior and human behavior.
 
-To see an example of how batch training works, go to the AL_HTML repo and navigate to  ```/examples/FracPreBake/FractionArithmetic```. Then run:
+To see an example of how batch training works, naviage to the AL_HTML repo and then navigate to  ```/examples/FracPreBake/FractionArithmetic```. Then run:
 
 ```bash
 python3 ../../../train.py control_training.json
