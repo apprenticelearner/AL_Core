@@ -99,6 +99,8 @@ To get a better sense of how the batch training operates, open up the file `cont
 ```
 In general the JSON script passed to the train.py script as an argument specifies what agent to use for the training (ModularAgent in this example), how the agent should be configured (in this example it uses the TRESTLE algorithm for when learning, MostSpecific for its where learning algorithm, equals as a feature, and add, subtract, multiply, and divide as functions that it can apply). Finally, the agent is trained using several practice problems. Each practice problem in the JSON file has an HTML file to use for the interface and a BRD file to specify the behavior of the tutor. The BRD file specifies the initial problem state for the interface and an example tracing model of all the correct solution paths, which are used to provide an agent with correctness feedback and worked examples. 
 
+*The full JSON script specifications can be found [here](https://github.com/apprenticelearner/AL_HTML/wiki/Training.json-Specifications)
+
 ## Interactive Training Example
 Another approach to training an agent is to manually provide it with problems to solve and then to interactively tutor it in solving these problems. This approach to training has been employed as a means of authoring models for intelligent tutoring systems. Specifically, an educational technology designer can train an agents similar to how they would train another person—by providing problems, examples, and feedback. In response, the agent learns rules that can then be used within an intelligent tutoring system to provide one-on-one feedback to students for arbitrary practice problems. 
 
