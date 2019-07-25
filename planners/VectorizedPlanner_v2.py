@@ -748,9 +748,9 @@ def custom_unique(x):
 	sel_inds = sel.nonzero()
 	x_sorted = x_sorted[0:-1]
 	unique = torch.masked_select(x_sorted,sel)
-	# print("XSORTED")
+	print("XSORTED")
 	# print(x_sorted)
-	# print(sel)
+	# print(F.pad(sel))
 	# print(sel_inds)
 	# print(unique)
 	return unique, sel_inds, sort_inds
@@ -858,15 +858,24 @@ def how_search_v2(state,
 			for d in range(search_depth+1):
 				# d_knowledge_base = []
 				forward_one_v2(knowledge_base, operators,d)
-				indicies = (knowledge_base[d]["value"][""] == goal).nonzero()
+				indicies = (knowledge_base[d]["value"]["uniques"] == goal).nonzero()
+				if(indicies.size()[0] > 0):
+					print("FOUND IT")
+					print("INDICIES")
+					print(indicies)
+					splits = torch.index_select(knowledge_base[d]["value"]["splits"],0,indicies)
+					print("splits")
+					print(splits)
+
+
+
 
 
 				# print(numerical_values.shape)
 				# print(type(numerical_values))
 
 			
-			print("INDICIES", )
-			print(indicies)
+			
 
 			# print(numerical_values[indicies[-20:]])
 			# print(indicies)
