@@ -759,10 +759,11 @@ def custom_unique(x):
 def forward_one_v2(knowledge_base,operators,depth):
 
 	if(depth == 0):
-		u_numerical_values, sel_inds, sort_inds = custom_unique(knowledge_base[0]['value'])
+		u_numerical_values, sel_inds, sort_inds = custom_unique(knowledge_base[0]['value']['uniques'])
 	else:
 		print("D", depth)
-		numerical_values = knowledge_base[depth-1]['value']
+		numerical_values = knowledge_base[depth-1]['value']['uniques']
+		print(numerical_values)
 		most_args = max([x.num_flt_inputs for x in operators])
 
 		# reshape_set = [reshape_args([numerical_values]*i) for i in range(most_args+1)] 
@@ -773,20 +774,27 @@ def forward_one_v2(knowledge_base,operators,depth):
 		forward_inds = []
 
 		for j,o in enumerate(operators):
-			args = reshape_args([knowledge_base[depth-1][t] for t in o.in_arg_types])
+			args = reshape_args([knowledge_base[depth-1][t]["uniques"] for t in o.in_arg_types])
 			x_d = o.forward(*o.search_mask(*args))
 
-			print(x_d)
+			# print(x_d)
 			
 
 			mask = mask_gen_v2(o,numerical_values)
 			x_d_masked = torch.masked_select(x_d,mask)
 			mask_inds = mask.nonzero()
+			to_pad = most_args-o.num_flt_inputs
+			if(to_pad > 0):
+				mask_inds = F.pad(mask_inds,(to_pad,0),"constant",-1)
+				# print(torch.tensor(-1).view(1,to_pad).size())
+				# mask_inds = torch.cat([mask_inds,torch.tensor(-1).view(1,to_pad)],dim=1)
 
 			# d_knowledge_base[j+1] = {"x_d_masked":x_d_masked,"mask_inds":mask_inds}
 			forwards.append(x_d_masked)
 			forward_inds.append(mask_inds)
+			print(mask_inds.size())
 
+		source_args = torch.cat(forward_inds)
 		numerical_values = torch.cat(forwards)
 
 
@@ -794,7 +802,13 @@ def forward_one_v2(knowledge_base,operators,depth):
 	
 		u_numerical_values, sel_inds, sort_inds = custom_unique(numerical_values)
 		print(u_numerical_values)
-		knowledge_base[depth] = {'value':  u_numerical_values}
+
+		
+		knowledge_base[depth] = {'value':  {"uniques":u_numerical_values,
+											"args":source_args,
+											"splits":sel_inds,
+											"sort_inds":sort_inds}
+								}
 	# print(u_numerical_values)
 
 	# d_len.append(u_numerical_values.shape[0])
@@ -837,20 +851,22 @@ def how_search_v2(state,
 		if(d_len[0] != 0):
 			knowledge_base = {}
 
-			knowledge_base[0] = {"value":numerical_values}
+			knowledge_base[0] = {"value":{"uniques":numerical_values,"args":None,"splits":None,"sort_inds":None}}
 			# if(not )
 			# print(search_depth)
 			forwards_by_depth = []
 			for d in range(search_depth+1):
 				# d_knowledge_base = []
 				forward_one_v2(knowledge_base, operators,d)
-
+				indicies = (knowledge_base[d]["value"][""] == goal).nonzero()
 
 
 				# print(numerical_values.shape)
 				# print(type(numerical_values))
 
-			indicies = (numerical_values == goal).nonzero()
+			
+			print("INDICIES", )
+			print(indicies)
 
 			# print(numerical_values[indicies[-20:]])
 			# print(indicies)
@@ -894,7 +910,7 @@ if __name__ == "__main__":
 
 	a = [1,2,3,4,5,6,7,8,9]
 	s = values_to_state(a)
-	for x,mapping in how_search_v2(s,13,search_depth=2,operators=[Add()]):
+	for x,mapping in how_search_v2(s,13,search_depth=2,operators=[Add(),Add3()]):
 		print(x,[a[v] for v in mapping.values()])		
 
 	# g2 = OperatorGraph(g)
