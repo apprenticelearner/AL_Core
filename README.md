@@ -52,7 +52,9 @@ python3 ../../../train.py control_training.json
 
 You may be prompted to specify the location of the AL repo the first time you run train.py (if you screw this up you can change it in net.conf which will exist in the AL_HTML directory after running train.py at least once)
 
-After running this command, you should see the following user interface open in your web browser:
+*If at this point an error pops up complaining about “picklefield” navigate to the ```apprentice_learner_api/src/django-picklefield``` folder and run ```python setup.py install```
+
+After running train.py on control_training.json, you should see the following user interface open in your web browser:
 
 <p align="center">
 <img height="400" src="docs/images/batch_train_example.png">
