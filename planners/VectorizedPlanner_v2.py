@@ -3,6 +3,7 @@ if __name__ == "__main__":
 	sys.path.insert(0,"../")
 
 import torch
+from pprint import pprint  
 
 import itertools
 import re 
@@ -41,6 +42,7 @@ class BaseOperator(object):
 
 
 NaN = torch.tensor(float("NaN"))
+ONE = torch.tensor(1)
 
 class Add(BaseOperator):
 	def __init__(self):
@@ -745,13 +747,14 @@ def custom_unique(x):
 	w = torch.tensor([1,-1]).view(1,1,-1).float()
 	# print(x_sorted.size())
 	sel = (torch.ne(torch.conv1d(x_sorted.view(1,1,-1),w, None,1,0,1,1), 0)).view(-1)
-	sel_inds = sel.nonzero()
+	sel_inds = F.pad(sel,(1,1),"constant",1).nonzero().view(-1)
+
 	x_sorted = x_sorted[0:-1]
 	unique = torch.masked_select(x_sorted,sel)
 	print("XSORTED")
 	# print(x_sorted)
 	# print(F.pad(sel))
-	# print(sel_inds)
+	print(sel_inds)
 	# print(unique)
 	return unique, sel_inds, sort_inds
 
@@ -763,7 +766,7 @@ def forward_one_v2(knowledge_base,operators,depth):
 	else:
 		print("D", depth)
 		numerical_values = knowledge_base[depth-1]['value']['uniques']
-		print(numerical_values)
+		# print(numerical_values)
 		most_args = max([x.num_flt_inputs for x in operators])
 
 		# reshape_set = [reshape_args([numerical_values]*i) for i in range(most_args+1)] 
@@ -772,6 +775,7 @@ def forward_one_v2(knowledge_base,operators,depth):
 		d_knowledge_base = {}
 		forwards = []
 		forward_inds = []
+		op_nums = []
 
 		for j,o in enumerate(operators):
 			args = reshape_args([knowledge_base[depth-1][t]["uniques"] for t in o.in_arg_types])
@@ -790,29 +794,141 @@ def forward_one_v2(knowledge_base,operators,depth):
 				# mask_inds = torch.cat([mask_inds,torch.tensor(-1).view(1,to_pad)],dim=1)
 
 			# d_knowledge_base[j+1] = {"x_d_masked":x_d_masked,"mask_inds":mask_inds}
+			op_nums.append(torch.ones(mask_inds.size()[0]) * torch.tensor(j))
 			forwards.append(x_d_masked)
 			forward_inds.append(mask_inds)
-			print(mask_inds.size())
+			# print(mask_inds.size())
 
 		source_args = torch.cat(forward_inds)
 		numerical_values = torch.cat(forwards)
+		op_nums = torch.cat(op_nums)
 
 
 		# raise ValueError()
 	
 		u_numerical_values, sel_inds, sort_inds = custom_unique(numerical_values)
-		print(u_numerical_values)
+		# print(u_numerical_values)
 
 		
 		knowledge_base[depth] = {'value':  {"uniques":u_numerical_values,
 											"args":source_args,
 											"splits":sel_inds,
-											"sort_inds":sort_inds}
+											"sort_inds":sort_inds,
+											"op_nums":op_nums}
 								}
 	# print(u_numerical_values)
 
 	# d_len.append(u_numerical_values.shape[0])
 	return u_numerical_values, sel_inds, sort_inds
+
+# @torch.jit.script
+# def slice_select(x,slices):
+# 	out = []
+# 	for s in slices:
+# 		out.append(x[s[0]:s[1]])
+# 	return 
+
+def gen_relative_op_graphs(indicies,depth,knowledge_base,operators,mappings=None):
+	if(mappings is None):
+		mappings = [{} for i in range(depth+1)] 
+	
+	print("indicies")	
+	print(indicies)	
+	indicies = indicies.view(-1)
+
+	splits = knowledge_base[depth]["value"]["splits"]
+
+	split_windows = splits.unfold(0, 2,1)
+
+	# print(split_windows)
+	# print(split_windows.size(),indicies.size())
+	# print()
+	splits = torch.index_select(split_windows,0,indicies.view(-1))
+	print("splits")
+	print(splits)
+
+	# splits = torch.tensor([[0,5],[17,20]],dtype=torch.long)
+
+	# print(torch.arange())
+	# print("splits")
+	# print(splits)
+	sort_inds = knowledge_base[depth]["value"]["sort_inds"]
+	# print(sort_inds)
+	sort_inds= torch.cat([sort_inds[split[0]:split[1]] for split in splits])
+	args = torch.index_select(knowledge_base[depth]["value"]["args"],0,sort_inds)
+	op_nums = torch.index_select(knowledge_base[depth]["value"]["op_nums"],0,sort_inds)
+
+	# print(args)
+	# print(args.size())
+	# print(op_nums.size())
+	splits_list = [0] + torch.cumsum(splits[:,1] -splits[:,0],0).tolist()
+	# print(splits_list)
+	print(args.size())
+	indicies_list = indicies.tolist()
+	args_list = args.tolist()
+	op_nums_list = op_nums.tolist()
+
+	d_mapping = mappings[depth]
+	for i,ind in enumerate(indicies_list):
+		a,b = int(splits_list[i]),int(splits_list[i+1])
+		# print(a,b)
+		# print(op_nums_list[a:b])
+		# print(args_list[a:b])
+		d_mapping[ind] = [ [operators[int(j)] if j >=0 else None] + ar  for j,ar in zip(op_nums_list[a:b],args_list[a:b])]#{"args":args_list[a:b], "op_nums":op_nums_list[a:b]}
+		# op_graps
+		# d_mapping[ind] = 
+
+	# print(args)
+	# print(op_nums)
+
+	if(depth > 0):
+		new_indicies = torch.unique(torch.cat([args.view(-1),torch.tensor([-1])]))[1:]
+		gen_relative_op_graphs(new_indicies,depth-1,knowledge_base,operators,mappings)
+		return mappings
+	else:
+		return mappings
+		print("END")
+
+import itertools
+
+# def _ground_graph(node, mappings):
+
+def ground_op_graphs(depth,node,mappings):
+	l = len(mappings)
+	
+	expls = mappings[depth][node]
+	for expl in expls:
+		# print("EXPL")
+		# print((1-depth)*"\t"+str(expl))
+		if(expl[0] is not None):
+			sub_expls = [[expl[0]]]
+			for i in range(1,len(expl)):
+				if(expl[i] != -1):
+					sub_expls.append(list(ground_op_graphs(depth-1,expl[i],mappings)))
+			# if(depth == 2):print("-----")					
+			# sub_expls = [ground_op_graphs(depth-1,expl[i],mappings) for i in range(1,len(expl)) if expl[i] != -1]
+			# print("sub_expls")
+			# print("vvvvvvvvv")
+			# pprint(sub_expls)
+			# print("^^^^^^^^")
+			for y in itertools.product(*sub_expls):
+				# print(y)
+				yield y
+		else:
+			# print(expl[1])
+			yield expl[1]
+
+	# for k,v in mappings[depth].items():
+
+
+		
+
+			# print(op_num,arg_set)
+
+
+	# print(new_indicies)
+	
+
 
 def how_search_v2(state,
 				goal, search_depth = 1,
@@ -851,7 +967,13 @@ def how_search_v2(state,
 		if(d_len[0] != 0):
 			knowledge_base = {}
 
-			knowledge_base[0] = {"value":{"uniques":numerical_values,"args":None,"splits":None,"sort_inds":None}}
+			u_numerical_values, sel_inds, sort_inds = custom_unique(numerical_values)
+			knowledge_base[0] = {"value":{"uniques":u_numerical_values,
+										  "args":torch.arange(len(backmap)).view(-1,1),
+										  "splits":sel_inds,
+										  "sort_inds":sort_inds,
+										  "op_nums":torch.ones(len(backmap))*torch.tensor(-1)}
+								}
 			# if(not )
 			# print(search_depth)
 			forwards_by_depth = []
@@ -860,12 +982,24 @@ def how_search_v2(state,
 				forward_one_v2(knowledge_base, operators,d)
 				indicies = (knowledge_base[d]["value"]["uniques"] == goal).nonzero()
 				if(indicies.size()[0] > 0):
-					print("FOUND IT")
-					print("INDICIES")
-					print(indicies)
-					splits = torch.index_select(knowledge_base[d]["value"]["splits"],0,indicies)
-					print("splits")
-					print(splits)
+					# print("FOUND IT")
+					# print("INDICIES")
+					# print(indicies)
+					mappings = gen_relative_op_graphs(indicies,d,knowledge_base,operators)
+					
+					# pprint(mappings)
+					all_out = []
+					for ind in indicies.view(-1).tolist():
+						# print(ind)
+						for tup in ground_op_graphs(d,ind,mappings):
+							# print(x)
+							# print(x)
+							og = OperatorGraph(tup)
+							inps = rule_inputs(tup)
+							if(len(inps) == len(set(inps))):
+								vals = [backmap[x][1] for x in inps]
+								yield og, {k:v for k,v in zip(og.in_args,vals)}
+					# pprint(all_out)
 
 
 
@@ -882,15 +1016,15 @@ def how_search_v2(state,
 			# print("d_len",d_len)
 			# print("NUM RESULTS", indicies.shape)
 			
-			for tup in indicies_to_operator_graph(indicies,torch.tensor(d_len),operators,operator_nf_inps):
-				if(not allow_copy and isinstance(tup, int)):
-					continue
-				inps = rule_inputs(tup)
-				if(len(set(inps)) == len(inps) and inps == sorted(inps)):
-					exp_exists = True
-					og = OperatorGraph(tup)
-					vals = [backmap[x][1] for x in inps]
-					yield og, {k:v for k,v in zip(og.in_args,vals)}
+			# for tup in indicies_to_operator_graph(indicies,torch.tensor(d_len),operators,operator_nf_inps):
+			# 	if(not allow_copy and isinstance(tup, int)):
+			# 		continue
+			# 	inps = rule_inputs(tup)
+			# 	if(len(set(inps)) == len(inps) and inps == sorted(inps)):
+			# 		exp_exists = True
+			# 		og = OperatorGraph(tup)
+			# 		vals = [backmap[x][1] for x in inps]
+			# 		yield og, {k:v for k,v in zip(og.in_args,vals)}
 		if(allow_bottomout and not exp_exists):
 			yield goal,{}
 
@@ -917,9 +1051,9 @@ if __name__ == "__main__":
 
 
 
-	a = [1,2,3,4,5,6,7,8,9]
+	a = [0,1,2,3,4,5,6,7,8,9]
 	s = values_to_state(a)
-	for x,mapping in how_search_v2(s,13,search_depth=2,operators=[Add(),Add3()]):
+	for x,mapping in how_search_v2(s,16,search_depth=2,operators=[Add(),Subtract(),Multiply(),Divide()]):
 		print(x,[a[v] for v in mapping.values()])		
 
 	# g2 = OperatorGraph(g)
