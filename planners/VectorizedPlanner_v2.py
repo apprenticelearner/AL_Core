@@ -751,10 +751,10 @@ def custom_unique(x):
 
 	x_sorted = x_sorted[0:-1]
 	unique = torch.masked_select(x_sorted,sel)
-	print("XSORTED")
+	# print("XSORTED")
 	# print(x_sorted)
 	# print(F.pad(sel))
-	print(sel_inds)
+	# print(sel_inds)
 	# print(unique)
 	return unique, sel_inds, sort_inds
 
@@ -832,8 +832,8 @@ def gen_relative_op_graphs(indicies,depth,knowledge_base,operators,mappings=None
 	if(mappings is None):
 		mappings = [{} for i in range(depth+1)] 
 	
-	print("indicies")	
-	print(indicies)	
+	# print("indicies")	
+	# print(indicies)	
 	indicies = indicies.view(-1)
 
 	splits = knowledge_base[depth]["value"]["splits"]
@@ -844,8 +844,8 @@ def gen_relative_op_graphs(indicies,depth,knowledge_base,operators,mappings=None
 	# print(split_windows.size(),indicies.size())
 	# print()
 	splits = torch.index_select(split_windows,0,indicies.view(-1))
-	print("splits")
-	print(splits)
+	# print("splits")
+	# print(splits)
 
 	# splits = torch.tensor([[0,5],[17,20]],dtype=torch.long)
 
@@ -863,7 +863,7 @@ def gen_relative_op_graphs(indicies,depth,knowledge_base,operators,mappings=None
 	# print(op_nums.size())
 	splits_list = [0] + torch.cumsum(splits[:,1] -splits[:,0],0).tolist()
 	# print(splits_list)
-	print(args.size())
+	# print(args.size())
 	indicies_list = indicies.tolist()
 	args_list = args.tolist()
 	op_nums_list = op_nums.tolist()
@@ -875,19 +875,14 @@ def gen_relative_op_graphs(indicies,depth,knowledge_base,operators,mappings=None
 		# print(op_nums_list[a:b])
 		# print(args_list[a:b])
 		d_mapping[ind] = [ [operators[int(j)] if j >=0 else None] + ar  for j,ar in zip(op_nums_list[a:b],args_list[a:b])]#{"args":args_list[a:b], "op_nums":op_nums_list[a:b]}
-		# op_graps
-		# d_mapping[ind] = 
-
-	# print(args)
-	# print(op_nums)
+		
 
 	if(depth > 0):
 		new_indicies = torch.unique(torch.cat([args.view(-1),torch.tensor([-1])]))[1:]
 		gen_relative_op_graphs(new_indicies,depth-1,knowledge_base,operators,mappings)
-		return mappings
-	else:
-		return mappings
-		print("END")
+	
+	return mappings
+		# print("END")
 
 import itertools
 
@@ -1053,7 +1048,7 @@ if __name__ == "__main__":
 
 	a = [0,1,2,3,4,5,6,7,8,9]
 	s = values_to_state(a)
-	for x,mapping in how_search_v2(s,16,search_depth=2,operators=[Add(),Subtract(),Multiply(),Divide()]):
+	for x,mapping in how_search_v2(s,9,search_depth=1,operators=[Add(),Multiply()]):
 		print(x,[a[v] for v in mapping.values()])		
 
 	# g2 = OperatorGraph(g)
