@@ -23,8 +23,8 @@ pool = None
 def get_pool():
     global pool
     if pool is None:
-        pool = Pool(cpu_count())
-        # pool = Pool(1)
+        # pool = Pool(cpu_count())
+        pool = Pool(1)
     return pool
 
 
@@ -867,14 +867,17 @@ class FoPlanner:
             # could optimize here to only iterate over operators that bind with
             # facts in prev.
 
-            pool = get_pool()
-            all_effects = pool.map(self.get_effects,
-                                   [(o, epsilon) for o in
-                                       self.operators])
+            # pool = get_pool()
+            # print("pre-pool map")
+            # print(cpu_count())
+            # print(pool)
+            # all_effects = pool.map(self.get_effects,
+            #                        [(o, epsilon) for o in
+            #                            self.operators])
 
-            # all_effects = [self.get_effects((o, epsilon)) for o in
-            #                self.operators]
-
+            all_effects = [self.get_effects((o, epsilon)) for o in
+                           self.operators]
+            # print("post-map")
             for match_effects in all_effects:
                 for effects in match_effects:
                     new.update(effects)
