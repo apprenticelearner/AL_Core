@@ -11,8 +11,8 @@ from agents.BaseAgent import BaseAgent
 from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner
 from learners.WhichLearner import get_which_learner
-from planners.base_planner import get_planner
-from planners.VectorizedPlanner import VectorizedPlanner
+from planners.base_planner import get_planner_class
+# from planners.VectorizedPlanner import VectorizedPlanner
 # from learners.HowLearner import get_planner
 # from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 import itertools
@@ -107,19 +107,26 @@ class ModularAgent(BaseAgent):
                  when_learner='decisiontree', where_learner='MostSpecific',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
                  planner='fo_planner', search_depth=1, numerical_epsilon=0.0):
-        print(planner)
+        # print(planner)
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
         self.which_learner = get_which_learner(heuristic_learner,
                                                how_cull_rule)
-        self.planner = get_planner(planner, search_depth=search_depth,
-                                   function_set=function_set,
-                                   feature_set=feature_set)
+
+        
+        planner_class = get_planner_class(planner)
+        self.feature_set = planner_class.resolve_operators(feature_set)
+        self.function_set = planner_class.resolve_operators(function_set)
+        self.planner = planner_class(search_depth=search_depth,
+                                   function_set=self.function_set,
+                                   feature_set=self.feature_set)
+        # print("BLOOP",self.planner.__class__.registered_operators)
         self.rhs_list = []
         self.rhs_by_label = {}
         self.rhs_by_how = {}
-        self.feature_set = feature_set
-        self.function_set = function_set
+        
+        # print()
+        # print(self.feature_set,self.function_set)
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
         self.rhs_counter = 0

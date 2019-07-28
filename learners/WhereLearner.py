@@ -778,8 +778,11 @@ WHERE_LEARNER_AGENTS = {
 
     # for m in ms.get_matches(state):
     #    print('OP MATCH', m)
-
-import torch
+try:
+    import torch
+except:
+    pass
+    
 def mask_select(x, m):
     return x[m.nonzero().view(-1)]
 

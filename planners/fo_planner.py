@@ -23,8 +23,8 @@ pool = None
 def get_pool():
     global pool
     if pool is None:
-        pool = Pool(cpu_count())
-        # pool = Pool(1)
+        # pool = Pool(cpu_count())
+        pool = Pool(1)
     return pool
 
 
@@ -612,6 +612,21 @@ class FoPlannerModule(BasePlanner):
         self.feature_set = feature_set
         self.epsilon = epsilon
 
+    @classmethod
+    def resolve_operators(cls,operators):
+        out = []
+        for op in operators:
+            if(isinstance(op, Operator)):
+                out.append(op)
+            elif(isinstance(op, str)):
+                try:
+                    out.append(Operator.registered_operators[op.lower()])
+                except KeyError as e:
+                    raise KeyError("No Operator registered under name %s. Check that you have registered your operator with Operator.register()" % op) 
+            else:
+                raise ValueError("Cannot resolve operator of type %s" % type(op))
+        return out
+
     def how_search(self,state,sai,
                     operators=None,
                     foci_of_attention=None,
@@ -852,14 +867,17 @@ class FoPlanner:
             # could optimize here to only iterate over operators that bind with
             # facts in prev.
 
-            pool = get_pool()
-            all_effects = pool.map(self.get_effects,
-                                   [(o, epsilon) for o in
-                                       self.operators])
+            # pool = get_pool()
+            # print("pre-pool map")
+            # print(cpu_count())
+            # print(pool)
+            # all_effects = pool.map(self.get_effects,
+            #                        [(o, epsilon) for o in
+            #                            self.operators])
 
-            # all_effects = [self.get_effects((o, epsilon)) for o in
-            #                self.operators]
-
+            all_effects = [self.get_effects((o, epsilon)) for o in
+                           self.operators]
+            # print("post-map")
             for match_effects in all_effects:
                 for effects in match_effects:
                     new.update(effects)
@@ -945,7 +963,16 @@ class FoPlanner:
             yield solution
 
 
+
 class Operator:
+    registered_operators = {}
+
+    @classmethod
+    def register(cls, name,op):
+        # ops = [op] if not isinstance(op,list) else op
+        # for op in ops:
+        #     name = op.name[0] if isinstance(op.name,tuple) else op.name
+        cls.registered_operators[name.lower()] = op
 
     def __init__(self, name, conditions, effects):
         self.name = name
@@ -984,9 +1011,10 @@ class Operator:
             else:
                 self.add_effects.add(e)
 
+        # print(len(self.registered_operators.keys()))
+        # print(self.registered_operators.keys())
+
     def __str__(self):
-        pprint(self.conditions)
-        pprint(self.effects)
         return "n:%s\nc:%s\ne:%s" % (str(self.name), self.conditions,self.effects)
 
     def __repr__(self):
