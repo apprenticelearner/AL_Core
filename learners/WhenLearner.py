@@ -80,7 +80,7 @@ class WhenLearner(object):
 
     def ifit(self, rhs, state, reward):
         # print("FIT_STATe", state)
-        print([str(x.input_rule) for x in self.learners.keys()])
+        # print([str(x.input_rule) for x in self.learners.keys()])
         # print("REQARD", reward)
         # print("LEARNERS",self.learners)
         # print("LEARNER",id(self.learners[rhs]))
@@ -152,8 +152,8 @@ class WhenLearner(object):
 
     def predict(self, rhs, state):
         # print("STATE:",state, type(state))
-        print("------------")
-        print(str(rhs))
+        # print("------------")
+        # print(str(rhs))
         if(self.type == "one_learner_per_label"):
             prediction = self.learners[rhs.label].predict([state])[0]
         elif(self.type == "one_learner_per_rhs"):
@@ -164,8 +164,8 @@ class WhenLearner(object):
             # print("-")# print(self.learners[rhs].X)
             # print("y")
             # print(self.learners[rhs].y)
-        print("--->",prediction)
-        print("------------")
+        # print("--->",prediction)
+        # print("------------")
 
         # print("BLLEEPERS")
         # print([str(x) for x in self.learners.keys()])
@@ -366,19 +366,19 @@ class DecisionTree(DecisionTreeClassifier):
         # print("MOOP",X)
         super(DecisionTree,self).fit(X,y)
         # print(hex(id(self)))
-        print("X")
-        print(X)
-        print("y",y)
-        export_tree(self)
-        print("------------")
+        # print("X")
+        # print(X)
+        # print("y",y)
+        # export_tree(self)
+        # print("------------")
         
 
     def predict(self, X):
-        print("PREDICT")
+        # print("PREDICT")
         # print(hex(id(self)))
-        print("X")
-        print(X)
-        export_tree(self)
+        # print("X")
+        # print(X)
+        # export_tree(self)
         
         
         return super(DecisionTree, self).predict(X)

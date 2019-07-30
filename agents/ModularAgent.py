@@ -146,7 +146,7 @@ def expression_matches(expression, state):
 
 EMPTY_RESPONSE = {}
 
-STATE_VARIABLIZATIONS = {"where_swap": variablize_by_where_swap,
+STATE_VARIABLIZATIONS = {"whereswap": variablize_by_where_swap,
                          "relative" : variablize_state_relative}
 
 
@@ -155,7 +155,7 @@ class ModularAgent(BaseAgent):
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
-                 planner='fo_planner', state_variablization="relative", search_depth=1, numerical_epsilon=0.0,
+                 planner='fo_planner', state_variablization="where_swap", search_depth=1, numerical_epsilon=0.0,
                  ret_train_expl=True):
         # print(planner)
         self.where_learner = get_where_learner(where_learner)
@@ -182,7 +182,7 @@ class ModularAgent(BaseAgent):
     def applicable_explanations(self, state, rhs_list=None,
                                 add_skill_info=False
                                 ):  # -> returns Iterator<Explanation>
-        print(state.get_view("object"))
+        # print(state.get_view("object"))
         if(rhs_list is None):
             rhs_list = self.rhs_list
 
@@ -193,7 +193,7 @@ class ModularAgent(BaseAgent):
                     continue
 
                 if(self.when_learner.state_format == "variablized_state"):
-                    pred_state = variablize_by_where_swap(
+                    pred_state = self.state_variablizer(
                                      state.get_view("flat_ungrounded"), match)
                 else:
                     pred_state = state
@@ -240,6 +240,7 @@ class ModularAgent(BaseAgent):
                 # print(explanation.rhs.input_rule)
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
+                    print("skill_info",skill_info)
                     response.update(skill_info)
                     response["mapping"] = explanation.mapping
                 responses.append(response)
@@ -335,13 +336,13 @@ class ModularAgent(BaseAgent):
 
     def fit(self, explanations, state, reward):  # -> return None
         if(not isinstance(reward,list)): reward = [reward]*len(explanations)
-        print("LEN!!! ",len(explanations),reward)
+        # print("LEN!!! ",len(explanations),reward)
         # print("^^^^^^^^^^^^^^")
         # print(explanations,reward)
         # print("^^^^^^^^^^^^^^")
         for exp,_reward in zip(explanations,reward):
             if(self.when_learner.state_format == 'variablized_state'):
-                fit_state = variablize_by_where_swap(
+                fit_state = self.state_variablizer(
                             state.get_view("flat_ungrounded"),
                             exp.mapping.values())
 
@@ -361,7 +362,7 @@ class ModularAgent(BaseAgent):
                                     list(exp.mapping.values()),
                                     state, _reward)
 
-    def train_explicit(self,state,explanations, rewards):
+    def train_explicit(self,state,explanations, rewards,add_skill_info=False):
         print("TRAIN EXPLICIT")
         state = StateMultiView("object", state)
         state_featurized = self.planner.apply_featureset(state)
@@ -431,9 +432,15 @@ class ModularAgent(BaseAgent):
 
     def get_skills(self, states=None):
         out = []
+        print("GET_SKILLS")
+        print(states)
         for state in states:
             req = self.request(state,
-                               add_skill_info=True).get('skill_info', None)
+                               add_skill_info=True)
+            req["where"] = tuple(len(list(req["where"].keys())) * ["?"])
+            del req["inputs"]
+            del req["mapping"]
+            print(req)
 
             if(req is not None):
                 out.append(frozenset([(k, v) for k, v in req.items()]))
