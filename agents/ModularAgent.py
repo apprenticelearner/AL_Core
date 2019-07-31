@@ -1,5 +1,6 @@
-from pprint import pprint
+import logging
 # from random import random
+import pprint
 from random import choice
 
 from concept_formation.preprocessor import Flattener
@@ -107,7 +108,8 @@ class ModularAgent(BaseAgent):
                  when_learner='decisiontree', where_learner='MostSpecific',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
                  planner='fo_planner', search_depth=1, numerical_epsilon=0.0):
-        # print(planner)
+        
+        
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
         self.which_learner = get_which_learner(heuristic_learner,
@@ -120,13 +122,13 @@ class ModularAgent(BaseAgent):
         self.planner = planner_class(search_depth=search_depth,
                                    function_set=self.function_set,
                                    feature_set=self.feature_set)
-        # print("BLOOP",self.planner.__class__.registered_operators)
+       
         self.rhs_list = []
         self.rhs_by_label = {}
         self.rhs_by_how = {}
         
-        # print()
-        # print(self.feature_set,self.function_set)
+       
+       
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
         self.rhs_counter = 0
@@ -139,6 +141,8 @@ class ModularAgent(BaseAgent):
         if(rhs_list is None):
             rhs_list = self.rhs_list
 
+        
+        
         for rhs in rhs_list:
             for match in self.where_learner.get_matches(rhs, state):
                 if(len(match) != len(set(match))):
@@ -165,19 +169,22 @@ class ModularAgent(BaseAgent):
                                   "which": 0.0}
                 else:
                     skill_info = None
-
+                
                 yield explanation, skill_info
+                
 
     def request(self, state, add_skill_info=False):  # -> Returns sai
+        
         state = StateMultiView("object", state)
         state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
-
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
-
+        
+        
         explanation, skill_info = next(iter(explanations), (None, None))
+
         if(explanation is not None):
             response = explanation.to_response(state, self)
             if(add_skill_info):
@@ -280,7 +287,10 @@ class ModularAgent(BaseAgent):
 
     def train(self, state, selection, action, inputs, reward,
               skill_label, foci_of_attention):  # -> return None
+        
         state = StateMultiView("object", state)
+        
+       
         sai = SAIS(selection, action, inputs)
         state_featurized = self.planner.apply_featureset(state)
         explanations = self.explanations_from_skills(state_featurized, sai,
@@ -310,7 +320,8 @@ class ModularAgent(BaseAgent):
                         rhs_by_how[exp.rhs.as_tuple] = exp.rhs
                         self.rhs_by_how[skill_label] = rhs_by_how
                         self.add_rhs(exp.rhs)
-
+        
+        
         self.fit(explanations, state_featurized, reward)
 
     # ------------------------------CHECK--------------------------------------
@@ -394,6 +405,9 @@ class StateMultiView(object):
         self.register_transform("feat_knowledge_base", "flat_ungrounded",
                                 kb_to_flat_ungrounded)
 
+    def __repr__(self):
+        return '\n\n StateMultiView.views: ' + pprint.pformat(self.views) + '\n \n StateMultiView.transform_dict: ' + pprint.pformat(self.transform_dict)
+    
     def set_view(self, view, state):
         self.views[view] = state
 
@@ -410,12 +424,13 @@ class StateMultiView(object):
     def compute(self, view):
         for key in self.transform_dict[view]:
             # for key in transforms:
-            print(key)
+            #logging.debug(key)
             if(key in self.views):
                 out = self.transform_dict[view][key](self.views[key])
                 self.set_view(view, out)
                 return out
-        pprint(self.transform_dict)
+        #logging.debug(self.transform_dict)
+        
         raise Exception("No transform possible from %s to %r" %
                         (list(self.views.keys()), view))
 
@@ -481,6 +496,8 @@ class RHS(object):
         c = other._id_num is not None
         return a and b and c
 
+    def __repr__(self):
+        return "RHS" + str(self.selection_expr) + str(self.action)
 
 class Explanation(object):
     def __init__(self, rhs, mapping):
@@ -490,6 +507,10 @@ class Explanation(object):
         self.mapping = mapping
         self.selection_literal = mapping[rhs.selection_var]
         self.input_literals = [mapping[s] for s in rhs.input_vars]
+        
+    def __repr__(self):
+        return "Explanation=> RHS: " + str(self.rhs) + " / mapping: " + str(self.mapping) 
+        + " / selection_literal: " + str(self.selection_literal) + " / input_literals: " + str(self.input_literals)
 
     def compute(self, state, agent):
         v = agent.planner.eval_expression([self.rhs.input_rule],
@@ -545,3 +566,61 @@ def generate_html_tutor_constraints(rhs):
 
 def is_not_empty_string(sting):
     return sting != ''
+
+if __name__=="__main__":
+    from planners.fo_planner import Operator
+    
+    ttt_horizontal_adj = Operator(('horizontal_adj', '?s1', '?s2'),
+                              [(('row', '?s1'), '?s1r'),
+                               (('row', '?s2'), '?s1r'),
+                               (('col', '?s1'), '?s1c'),
+                               (('col', '?s2'), '?s2c'),
+                               (lambda x, y: abs(x-y) == 1, '?s1c', '?s2c')],
+                              [(('horizontal_adj', '?s1', '?s2'), True)])
+
+    ttt_vertical_adj = Operator(('vertical_adj', '?s1', '?s2'),
+                                [(('row', '?s1'), '?s1r'),
+                                 (('row', '?s2'), '?s2r'),
+                                 (('col', '?s1'), '?s1c'),
+                                 (('col', '?s2'), '?s1c'),
+                                 (lambda x, y: abs(x-y) == 1, '?s1r', '?s2r')],
+                                [(('vertical_adj', '?s1', '?s2'), True)])
+    
+    ttt_diag_adj = Operator(('diag_adj', '?s1', '?s2'),
+                            [(('row', '?s1'), '?s1r'),
+                             (('row', '?s2'), '?s2r'),
+                             (('col', '?s1'), '?s1c'),
+                             (('col', '?s2'), '?s2c'),
+                             (lambda x, y: abs(x-y) == 1, '?s1r', '?s2r'),
+                             (lambda x, y: abs(x-y) == 1, '?s1c', '?s2c')],
+                            [(('diag_adj', '?s1', '?s2'), True)])
+    
+    ttt_move = Operator(('Move', '?r', '?c'),
+                        [(('value', '?s'), '?p'),
+                         (('id', '?s'), 'CurrentPlayer'),
+                         (('id', '?cell'), '?selection'),
+                         (('row', '?cell'), '?r'),
+                         (('col', '?cell'), '?c'),
+                         (('contentEditable', '?cell'), True)],
+                        [(('sai', '?selection', 'mark', (('value', '?p'),)),
+                          True)])
+
+    a = True
+    if a:
+        from planners import rulesets #register rulesets 
+        feature_set, function_set = ['equals'], ['add', 'subtract', 'multiply', 'divide'] #refer to them by name
+        learner = ModularAgent(feature_set, function_set) #pass operators
+        
+        #print locals() under train 
+        t1 = {'foci_of_attention': None, 'skill_label': 'NO_LABEL', 'reward': 1, 'inputs': {'value': -1}, 'action': 'ButtonPressed', 'selection': 'done', 'state': {'?ele-JCommTable.R0C0': {'id': 'JCommTable.R0C0', 'value': '1', 'contentEditable': False}, '?ele-JCommTable.R1C0': {'id': 'JCommTable.R1C0', 'value': '2', 'contentEditable': False}, '?ele-JCommTable3.R0C0': {'id': 'JCommTable3.R0C0', 'value': '2', 'contentEditable': False}, '?ele-JCommTable3.R1C0': {'id': 'JCommTable3.R1C0', 'value': '3', 'contentEditable': False}, '?ele-JCommTable4.R0C0': {'id': 'JCommTable4.R0C0', 'value': '', 'contentEditable': True}, '?ele-JCommTable4.R1C0': {'id': 'JCommTable4.R1C0', 'value': '', 'contentEditable': True}, '?ele-JCommTable5.R0C0': {'id': 'JCommTable5.R0C0', 'value': '', 'contentEditable': True}, '?ele-JCommTable5.R1C0': {'id': 'JCommTable5.R1C0', 'value': '', 'contentEditable': True}, '?ele-JCommTable7.R0C0': {'id': 'JCommTable7.R0C0', 'value': '*', 'contentEditable': False}, '?ele-JCommTable2.R0C0': {'id': 'JCommTable2.R0C0', 'value': '*', 'contentEditable': False}, '?ele-JCommTable6.R0C0': {'id': 'JCommTable6.R0C0', 'value': '2', 'contentEditable': False}, '?ele-JCommTable6.R1C0': {'id': 'JCommTable6.R1C0', 'value': '6', 'contentEditable': False}, '?ele-ctatdiv68': {'id': 'ctatdiv68'}, '?ele-ctatdiv74': {'id': 'ctatdiv74'}, '?ele-done': {'id': 'done'}, '?ele-hint': {'id': 'hint'}, '?ele-ctatdiv87': {'id': 'ctatdiv87'}, '?ele-ctatdiv69': {'id': 'ctatdiv69'}, '?ele-JCommTable8.R0C0': {'id': 'JCommTable8.R0C0', 'value': '', 'contentEditable': True}}}
+        x = learner.train(**t1)
+    print ("============")
+    if a:
+        learner = ModularAgent([ttt_horizontal_adj,
+                         ttt_vertical_adj,
+                         # ttt_available
+                         ttt_diag_adj
+                         ], [ttt_move])
+        t1 = {'foci_of_attention': [], 'skill_label': 'mark', 'reward': True, 'inputs': {'value': 'X'}, 'action': 'mark', 'selection': 'Cell-0-0', 'state': {'?ele-Cell-0-0': {'value': '', 'row': 0, 'col': 0, 'id': 'Cell-0-0'}, '?ele-Cell-0-1': {'value': 'Col 1', 'row': 0, 'col': 1, 'id': 'Cell-0-1'}, '?ele-Cell-0-2': {'value': 'Col 2', 'row': 0, 'col': 2, 'id': 'Cell-0-2'}, '?ele-Cell-0-3': {'value': 'Col 3', 'row': 0, 'col': 3, 'id': 'Cell-0-3'}, '?ele-Cell-1-0': {'value': 'Row 1', 'row': 1, 'col': 0, 'id': 'Cell-1-0'}, '?ele-Cell-1-1': {'value': '', 'row': 1, 'col': 1, 'id': 'Cell-1-1', 'contentEditable': True}, '?ele-Cell-1-2': {'value': '', 'row': 1, 'col': 2, 'id': 'Cell-1-2', 'contentEditable': True}, '?ele-Cell-1-3': {'value': '', 'row': 1, 'col': 3, 'id': 'Cell-1-3', 'contentEditable': True}, '?ele-Cell-2-0': {'value': 'Row 2', 'row': 2, 'col': 0, 'id': 'Cell-2-0'}, '?ele-Cell-2-1': {'value': '', 'row': 2, 'col': 1, 'id': 'Cell-2-1', 'contentEditable': True}, '?ele-Cell-2-2': {'value': '', 'row': 2, 'col': 2, 'id': 'Cell-2-2', 'contentEditable': True}, '?ele-Cell-2-3': {'value': '', 'row': 2, 'col': 3, 'id': 'Cell-2-3', 'contentEditable': True}, '?ele-Cell-3-0': {'value': 'Row 3', 'row': 3, 'col': 0, 'id': 'Cell-3-0'}, '?ele-Cell-3-1': {'value': '', 'row': 3, 'col': 1, 'id': 'Cell-3-1', 'contentEditable': True}, '?ele-Cell-3-2': {'value': '', 'row': 3, 'col': 2, 'id': 'Cell-3-2', 'contentEditable': True}, '?ele-Cell-3-3': {'value': '', 'row': 3, 'col': 3, 'id': 'Cell-3-3', 'contentEditable': True}, '?player': {'value': 'X', 'id': 'CurrentPlayer'}}}
+        #print locals() under train 
+        x = learner.train(**t1)
