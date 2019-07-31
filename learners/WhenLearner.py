@@ -1,4 +1,3 @@
-from pprint import pprint
 from copy import deepcopy
 from learners.pyibl import Agent
 import numpy as np
@@ -78,11 +77,6 @@ class WhenLearner(object):
             self.implicit_examples[key]['reward'] = []
 
     def ifit(self, rhs, state, reward):
-        # print("FIT_STATe", state)
-        # print([str(x.input_rule) for x in self.learners.keys()])
-        # print("REQARD", reward)
-        # print("LEARNERS",self.learners)
-        # print("LEARNER",id(self.learners[rhs]))
         if(self.cross_rhs_inference == "implicit_negatives"):
             if(self.type == "one_learner_per_label"):
                 key = rhs.label
@@ -117,20 +111,12 @@ class WhenLearner(object):
                     del self.implicit_examples[key]['state'][index_value]
                     del self.implicit_examples[key]['reward'][index_value]
 
-            # PRINT AREA
-            # for x in self.implicit_examples:
-            #     print("%s : %s" % (x.input_rule,self.implicit_examples[x]['reward']))
-            # for x in self.examples:
-            #     print("%s : %s" % (x.input_rule,self.examples[x]['reward']))
-            # pprint(self.implicit_examples)
-
+           
             self.learners[key] = get_when_sublearner(self.learner_name,
                                                      **self.learner_kwargs)
-            # pprint(states)
-            # pprint(rewards)
+      
             self.learners[key].fit(states+implicit_states,
                                    rewards+implicit_rewards)
-            # print(self.learners[key])
         else:
             if(self.type == "one_learner_per_label"):
                 if(rhs.label not in self.learners):
@@ -145,11 +131,9 @@ class WhenLearner(object):
                 self.learners[rhs].ifit(state, reward)
 
     def predict(self, rhs, state):
-        # print("STATE:",state, type(state))
         if(self.type == "one_learner_per_label"):
             prediction = self.learners[rhs.label].predict([state])[0]
         elif(self.type == "one_learner_per_rhs"):
-            # print(self.learners[rhs].predict([state])[0]        )
             prediction = self.learners[rhs].predict([state])[0]
 
         if(self.cross_rhs_inference == "rhs_in_y"):
@@ -181,20 +165,18 @@ class CustomPipeline(Pipeline):
         ft = Flattener()
         tup = Tuplizer()
 
-        # pprint(x)
         self.X.append(tup.undo_transform(ft.transform(x)))
         self.y.append(int(y) if not isinstance(y, tuple) else y)
 
-        # print("IFIT:",self.X)
-        # print(self.y)
+        
         return super(CustomPipeline, self).fit(self.X, self.y)
 
     def fit(self, X, y):
 
-        # print("X",X)
+    
         # NOTE: Only using boolean values
         X = [{k: v for k, v in d.items() if isinstance(v, bool)} for d in X]
-        print("FITX", X)
+        
         ft = Flattener()
         tup = Tuplizer()
 
@@ -207,9 +189,7 @@ class CustomPipeline(Pipeline):
         ft = Flattener()
         tup = Tuplizer()
         X = [tup.undo_transform(ft.transform(x)) for x in X]
-        # print("BEEP", X)
-        # print("PRED:",X)
-        # print("VAL:", super(CustomPipeline, self).predict(X))
+       
         return super(CustomPipeline, self).predict(X)
 
     def skill_info(self, X):
@@ -226,17 +206,12 @@ class CustomPipeline(Pipeline):
 
         # ft = Flattener()
         # tup = Tuplizer()
-        # print("BAE1",X)
-        # print("PEEP",feature_names)
-        # print("BAE",[tup.transform(x) for x in X])
-        # print(type(self))
+       
         # X = [tup.undo_transform(ft.transform(x)) for x in X]
         Xt = X
         for name, transform in self.steps[:-1]:
             if transform is not None:
-                # print("HEY",transform.get_feature_names())
                 Xt = transform.transform(Xt)
-                # print("BAE_"+name,Xt)
 
         return classifier.skill_info(Xt,feature_names)
 
@@ -276,18 +251,16 @@ from sklearn.tree import _tree
 class DecisionTree(DecisionTreeClassifier):
 
     # def fit(self,X,y):
-    #     print("MOOP",X)
+
     #     super(DecisionTree,self).fit(X,y)
 
     def predict(self, X):
-        print("MOOP", X)
+  
         return super(DecisionTree, self).predict(X)
 
     def skill_info(self, examples, feature_names=None):
-        print("SLOOP", examples)
         tree = self
         tree_ = tree.tree_
-        print("feature_names", feature_names)
         feature_name = [
             feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
             for i in tree_.feature
@@ -353,7 +326,6 @@ class ScikitCobweb(object):
     def fit(self, X, y):
         X = deepcopy(X)
         for i, x in enumerate(X):
-            # print(y)
             x['_y_label'] = float(y) if not isinstance(y,list) else y[i]
         self.tree.fit(X, randomize_first=False)
 
@@ -408,15 +380,11 @@ class ScikitPyIBL(object):
             zero_situation = self.agent.situationDecision("0", tuple(x))
             one_situation = self.agent.situationDecision("1", tuple(x))
             result = self.agent.choose(zero_situation, one_situation)
-            pprint(tuple(x))
-            print("Pred: ", result)
-            print("Actual: ", self.y[i])
+           
             if int(result) == self.y[i]:
                 self.agent.respond(1.0)
-                print("positive reward")
             else:
                 self.agent.respond(-1.0)
-                print("negative reward")
 
     def predict(self, X):
         predictions = []
@@ -590,11 +558,4 @@ WHEN_CLASSIFIERS = {
     'alwaystrue': AlwaysTrue
 }
 
-# clf_class = Wrapper(GaussianNB)
-# clf = clf_class()
 
-# X = [{'color': 'red'}, {'color': 'green'}]
-# y = [0, 1]
-
-# clf.fit(X,y)
-# print(clf.predict(X))
