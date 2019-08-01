@@ -177,14 +177,14 @@ class ModularAgent(BaseAgent):
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
 
-        explanation, skill_info = next(iter(explanations), (None, None))
-        if(explanation is not None):
-            response = explanation.to_response(state, self)
+        response = EMPTY_RESPONSE
+        for explanation, skill_info in explanations:
+            tmp_resp = explanation.to_response(state, self)
+            if tmp_resp['inputs']['value'] is None:
+                continue
+            response = tmp_resp
             if(add_skill_info):
                 response["skill_info"] = skill_info
-
-        else:
-            response = EMPTY_RESPONSE
 
         return response
 
