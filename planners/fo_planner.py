@@ -593,7 +593,7 @@ def apply_operators(ele, operators, knowledge_base,epsilon):
         pattern = effect[0][1]
         u_mapping = unify(pattern, ground(ele), {}) #Returns a mapping to name the values in the expression
         
-        if(u_mapping):
+        if(u_mapping is not None):
             condition_sub = [subst(u_mapping,x) for x in operator.conditions]
             value_map = next(knowledge_base.fc_query(condition_sub, max_depth=0, epsilon=epsilon))
             
@@ -651,7 +651,6 @@ class FoPlannerModule(BasePlanner):
             state.set_view("func_knowledge_base",knowledge_base)
         else:
             knowledge_base = state.get_view("func_knowledge_base")            
-        
 
         for attr,input_val in sai.inputs.items():
             #Danny: This populates a list of explanations found earlier in How search that work"
