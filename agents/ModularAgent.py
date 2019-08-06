@@ -13,6 +13,8 @@ from learners.WhereLearner import get_where_learner
 from learners.WhichLearner import get_which_learner
 from planners.base_planner import get_planner
 from planners.VectorizedPlanner import VectorizedPlanner
+from types import MethodType
+
 # from learners.HowLearner import get_planner
 # from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 import itertools
@@ -42,9 +44,17 @@ def compute_exp_depth(exp):
 #     else:
 #         return arg, i
 
-def variablize_by_where_swap(state, match):
+def variablize_by_where_swap(self,state, match,second_pass=False):
+    if(isinstance(state, StateMultiView)):
+        state = state.get_view("flat_ungrounded")
+    # print(state)
+    # print(type(state))
     mapping = {'arg' + str(i-1) if i > 0 else 'sel':
                ele for i, ele in enumerate(match)}
+    # for i,x in enumerate(state):               
+    #     print("attr%i"%i,x)
+    #     print("val%i"%i,state[x])
+
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     #TODO: Do this better...
     r_state = {key:val for key,val in r_state.items() if "contentEditable" in key or "value" in key}
@@ -57,10 +67,13 @@ def unvariablize_by_where_swap(state, match):
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     return r_state
 
+dir_map = {"to_left": "l", "to_right": "r", "above": "a", "below":"b", "offsetParent":"p"}
+dirs = list(dir_map.keys())
 
 def _relative_rename_recursive(state,center,center_name="sel",mapping=None):
     if(mapping is None):
         mapping = {center:center_name}
+    # print(state)
     center_obj = state[center]
 
     stack = []
@@ -76,10 +89,13 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None):
 
     return mapping
 
-def variablize_state_relative(state,where_match,center_name="sel"):
-    center = where_match[0]
+def variablize_state_relative(self,state,where_match,second_pass=False,center_name="sel"):
+    if(isinstance(state, StateMultiView)):
+        state = state.get_view("object").copy()
+    center = list(where_match)[0]
     mapping = _relative_rename_recursive(state,center,center_name=center_name)
-    floating_elems = {x for x in state.keys() if x not in mapping}
+    floating_elems = [x for x in state.keys() if x not in mapping and isinstance(x,str)]
+    tup_elems = [x for x in state.keys() if x not in mapping and isinstance(x,tuple)]
 
     for f_ele in floating_elems:
         for d in dirs:
@@ -89,8 +105,14 @@ def variablize_state_relative(state,where_match,center_name="sel"):
                 if(float_name not in mapping):
                     mapping[f_ele] = float_name
                     break 
-    assert len(state.keys()) == len(mapping.keys()), "Some floating elements \
-           could not be assigned relative to the rest of the state"
+    floating_elems = [x for x in state.keys() if x not in mapping and isinstance(x,str)]
+    assert len(floating_elems) == 0, "Floating elements %s \
+           could not be assigned relative to the rest of the state" % \
+           floating_elems
+
+
+    for tup_ele in tup_elems:
+        mapping[tup_ele] = tuple([mapping.get(x,x) for x in tup_ele])
     
     new_state = {}
     for key,vals in state.items():
@@ -99,8 +121,46 @@ def variablize_state_relative(state,where_match,center_name="sel"):
             new_vals[k] = mapping.get(v,v)
 
         new_state[mapping[key]] = new_vals
+    new_state = flatten_state(new_state)
+    # StateMultiView.transforms(("object"))
+    # print("NEW_STATE")
+    # print(new_state)
 
     return new_state
+
+def variablize_state_metaskill(self,state,where_match,second_pass=True):
+    if(isinstance(state, StateMultiView) and second_pass):
+        try:
+            state = state.get_view("object_skills_appended")
+            
+        except:
+            # state_obj = state.get_view("object").copy()
+            # print("variablize_state_metaskill", second_pass,where_match)
+            
+            all_expls = self.applicable_explanations(state, add_skill_info=True,second_pass=False)
+            # print("-------START THIS---------")
+            to_append = {}
+            for exp, skill_info in all_expls:
+                resp = exp.to_response(state,self)
+                # pprint(skill_info)
+                key = ("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values())
+                to_append[key] = resp["inputs"]
+                # for attr,val in resp["inputs"].items():
+                #     key = (attr,("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values()))
+                #     # print(key, ":", val)
+                #     flat_ungrounded[key] = val 
+            # print("--------END THIS---------")
+            state_obj = {**state.get_view("object"),**to_append}
+            # print(state_obj)
+            state.set_view("object_skills_appended",state_obj)
+            state = state_obj
+                # pprint()
+            
+    r_state = variablize_state_relative(self,state,where_match,second_pass)
+    # pprint(r_state)
+    return r_state
+
+
 
 def expr_comparitor(fact, expr, mapping={}):
     if(isinstance(expr, dict)):
@@ -147,7 +207,8 @@ def expression_matches(expression, state):
 EMPTY_RESPONSE = {}
 
 STATE_VARIABLIZATIONS = {"whereswap": variablize_by_where_swap,
-                         "relative" : variablize_state_relative}
+                         "relative" : variablize_state_relative,
+                         "metaskill" : variablize_state_metaskill}
 
 
 class ModularAgent(BaseAgent):
@@ -155,7 +216,7 @@ class ModularAgent(BaseAgent):
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
-                 planner='fo_planner', state_variablization="where_swap", search_depth=1, numerical_epsilon=0.0,
+                 planner='fo_planner', state_variablization="metaskill", search_depth=1, numerical_epsilon=0.0,
                  ret_train_expl=True):
         # print(planner)
         self.where_learner = get_where_learner(where_learner)
@@ -166,7 +227,8 @@ class ModularAgent(BaseAgent):
                                    function_set=function_set,
                                    feature_set=feature_set)
 
-        self.state_variablizer = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]
+        sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]
+        self.state_variablizer = MethodType(sv, self)
         self.rhs_list = []
         self.rhs_by_label = {}
         self.rhs_by_how = {}
@@ -180,7 +242,8 @@ class ModularAgent(BaseAgent):
     # -----------------------------REQUEST------------------------------------
 
     def applicable_explanations(self, state, rhs_list=None,
-                                add_skill_info=False
+                                add_skill_info=False,
+                                second_pass = True
                                 ):  # -> returns Iterator<Explanation>
         # print(state.get_view("object"))
         if(rhs_list is None):
@@ -193,8 +256,7 @@ class ModularAgent(BaseAgent):
                     continue
 
                 if(self.when_learner.state_format == "variablized_state"):
-                    pred_state = self.state_variablizer(
-                                     state.get_view("flat_ungrounded"), match)
+                    pred_state = self.state_variablizer(state, match,second_pass)
                 else:
                     pred_state = state
 
@@ -225,7 +287,8 @@ class ModularAgent(BaseAgent):
                 yield explanation, skill_info
 
     def request(self, state, add_skill_info=False,n=1):  # -> Returns sai
-        state = StateMultiView("object", state)
+        if(not isinstance(state,StateMultiView)):
+            state = StateMultiView("object", state) 
         state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
@@ -343,7 +406,7 @@ class ModularAgent(BaseAgent):
         for exp,_reward in zip(explanations,reward):
             if(self.when_learner.state_format == 'variablized_state'):
                 fit_state = self.state_variablizer(
-                            state.get_view("flat_ungrounded"),
+                            state,
                             exp.mapping.values())
 
                 # print("--------------")

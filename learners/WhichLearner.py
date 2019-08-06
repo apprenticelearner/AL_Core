@@ -60,7 +60,8 @@ class TotalCorrect(BaseHeuristicAgent):
 class ProportionCorrect(TotalCorrect):
     def heuristic(self,state):
         p,n = self.num_correct, self.num_incorrect
-        return (p / (p + n),  p + n)
+        s = p + n
+        return (p / s if s > 0 else 0,  s)
 
 ####---------------HOW CULL RULE------------########
 

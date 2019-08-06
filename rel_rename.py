@@ -28,7 +28,7 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None):
 def variablize_state_relative(state,where_match,center_name="sel"):
 	center = where_match[0]
 	mapping = _relative_rename_recursive(state,center,center_name=center_name)
-	floating_elems = {x for x in state.keys() if x not in mapping}
+	floating_elems = [x for x in state.keys() if x not in mapping]
 
 	for f_ele in floating_elems:
 		for d in dirs:
@@ -38,8 +38,11 @@ def variablize_state_relative(state,where_match,center_name="sel"):
 				if(float_name not in mapping):
 					mapping[f_ele] = float_name
 					break 
-	assert len(state.keys()) == len(mapping.keys()), "Some floating elements \
-		   could not be assigned relative to the rest of the state"
+
+	floating_elems = [x for x in state.keys() if x not in mapping]
+	assert len(floating_elems) == 0, "Floating elements %s \
+		   could not be assigned relative to the rest of the state" % \
+		   floating_elems.keys()
 	
 	new_state = {}
 	for key,vals in state.items():
