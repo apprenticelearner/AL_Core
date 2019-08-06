@@ -3,8 +3,8 @@ from pprint import pprint
 from random import random
 from random import shuffle
 from itertools import product
-from multiprocessing import cpu_count
-from multiprocess import Pool
+# from multiprocessing import cpu_count
+# from multiprocess import Pool
 
 from concept_formation.utils import isNumber
 from py_search.base import Problem
@@ -17,15 +17,16 @@ from planners.base_planner import BasePlanner
 # from py_search.informed import best_first_search
 # from py_search.utils import compare_searches
 
-pool = None
+# pool = None
 
 
-def get_pool():
-    global pool
-    if pool is None:
-        # pool = Pool(cpu_count())
-        pool = Pool(1)
-    return pool
+# def get_pool():
+#     global pool
+#     if pool is None:
+#         pool = Pool(cpu_count())
+#         # pool = Pool(1)
+#     return pool
+
 
 
 def index_key(fact):
@@ -870,13 +871,10 @@ class FoPlanner:
             # print("pre-pool map")
             # print(cpu_count())
             # print(pool)
-            # all_effects = pool.map(self.get_effects,
-            #                        [(o, epsilon) for o in
-            #                            self.operators])
 
             all_effects = [self.get_effects((o, epsilon)) for o in
                            self.operators]
-            # print("post-map")
+
             for match_effects in all_effects:
                 for effects in match_effects:
                     new.update(effects)

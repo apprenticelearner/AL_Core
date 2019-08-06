@@ -189,7 +189,7 @@ class RLAgent(BaseAgent):
                     a) for a in actions]
 
         actions.sort(reverse=True)
-        print(actions)
+        # print(actions)
 
         self.last_state = ostate
         self.last_action = self.get_action_key(actions[0][2])
