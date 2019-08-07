@@ -181,7 +181,6 @@ class ModularAgent(BaseAgent):
 
         explanation, skill_info = next(explanations, (None, None))
 
-        # this is ugly fix this
         while True:
             if(explanation is not None):
                 if self.use_memory:
@@ -353,6 +352,11 @@ class ModularAgent(BaseAgent):
         # print(self.explanations_list)
         # self.explanations_unique, self.explanations_freq =
         print(self.activations)
+
+        # with open("test_activation.txt", "a") as f:
+        #     for key, val in self.activations.items():
+        #         print("%s\t%s\t%s" % (str(len(self.explanations_list)), key, val), file=f)
+
     # ------------------------------CHECK--------------------------------------
 
     def check(self, state, sai):
