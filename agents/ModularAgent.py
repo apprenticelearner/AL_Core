@@ -195,8 +195,13 @@ class ModularAgent(BaseAgent):
             response = tmp_resp
             if self.use_memory:
                 retrieved = self.compute_retrieval(self.activations[str(explanation)], -0.7, 1)
-                if not retrieved:
-                    continue
+                print("retrieved:", retrieved)
+                if retrieved:
+                    break
+                else:
+                    response = EMPTY_RESPONSE
+                # else:
+                #     break
             if(add_skill_info):
                 response["skill_info"] = skill_info
 
