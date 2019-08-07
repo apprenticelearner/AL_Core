@@ -8,11 +8,15 @@ class BasePlanner(object):
 		raise NotImplementedError()
 	def eval_expression(self,x,mapping,state):
 		raise NotImplementedError()
+	def resolve_operators(operators):
+		raise NotImplementedError()
 
 
-def get_planner(name, **learner_kwargs):
-	print(PLANNERS.keys())
-	return PLANNERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+def get_planner_class(name):
+	if(name == "vectorized"):
+		from planners.VectorizedPlanner import VectorizedPlanner
+	name = name.lower().replace(' ', '').replace('_', '')
+	return PLANNERS[name]
 
 
 # from planners.VectorizedPlanner import VectorizedPlanner
