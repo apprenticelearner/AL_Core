@@ -15,6 +15,7 @@ from planners.fo_planner import build_index
 from planners.fo_planner import subst
 import numpy as np
 import itertools
+from timeit import repeat
 
 global my_gensym_counter
 my_gensym_counter = 0
@@ -787,9 +788,10 @@ def mask_select(x, m):
 
 
 class VersionSpace(BaseILP):
-    def __init__(self, args=None, constraints=None, use_neg=False, propose_gens=True):
-        self.pos_concepts = VersionSpaceILP()
-        self.neg_concepts = VersionSpaceILP() if use_neg else None
+    def __init__(self, args=None, constraints=None, use_neg=False, use_gen=False,
+                       propose_gens=True, use_neighbor_concepts=True):
+        self.pos_concepts = VersionSpaceILP(use_gen=use_gen)
+        self.neg_concepts = VersionSpaceILP(use_gen=use_gen) if use_neg else None
         self.propose_gens = propose_gens
         self.constraints = constraints
         self.use_neg = use_neg
@@ -798,6 +800,9 @@ class VersionSpace(BaseILP):
         self.initialized = False
         self.pos_ok = False
         self.neg_ok = False
+        self.use_neighbor_concepts = use_neighbor_concepts
+        self.expected_neighbors = None 
+        self.use_gen = use_gen
 
     def initialize(self, n):
         assert n >= 1, "not enough elements"
@@ -807,8 +812,77 @@ class VersionSpace(BaseILP):
                                      remove_attrs=['value'])
         self.initialized = True
 
+    def remove_concepts(self,indicies):
+        print("remove_concepts!!!!!!!!", indicies)
+        # print(indicies)
+        
+        # print("CONCEPT BEFORE", self.pos_concepts.spec_concepts.size())                    
+        s = self.elem_slices
+        for i in reversed(indicies):
+            # print(i)
+            ps = self.pos_concepts.spec_concepts
+            print(s[i],s[i+1])
+            self.pos_concepts.spec_concepts = torch.cat([ps[:,:s[i]],ps[:,s[i+1]:]],dim=1)
+            # print("CONCEPT", self.pos_concepts.spec_concepts.size())
+            if(self.neg_ok):
+                ns = self.neg_concepts.spec_concepts
+                self.neg_concepts.spec_concepts = torch.cat([ns[:,:s[i]],ns[:,s[i+1]:]],dim=1)
+
+        sl = np.array(self.elem_slices)
+        # print(indicies)
+        # print(sl)
+        for i in indicies:
+            sl[i+1:] -= sl[i+1]-sl[i]
+        self.elem_slices = sl[[i for i in range(len(sl)) if i not in indicies]].tolist()
+        # print(self.elem_slices)
+        print(self.pos_concepts.spec_concepts.view(-1,5))
+            
+    def _resolve_neighbor_relations(self,t,x,relations):
+        rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
+        inv_rename_dict = {v:k for k,v in rename_dict.items()}
+        relation_map = {}
+
+        for v_i in relations:
+            name = x[inv_rename_dict[v_i[0]]][v_i[1]]
+            if(isinstance(name,list)): name = name[v_i[2]]
+            relation_map[v_i] = name
+        return relation_map
+
+    def get_neighborized_vs_elems(self,t,x):
+        rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
+        print(self.expected_neighbors.keys())
+        relation_map = self._resolve_neighbor_relations(t,x,itertools.chain(*self.expected_neighbors.values()))
+        neigh_rename_dict = {}
+        for k,v in self.expected_neighbors.items():
+            for v_i in v:
+                name = relation_map[v_i]
+                if(name == "" or name == None):
+                    continue
+                print(name,neigh_rename_dict.get(name,None),k)
+                assert name not in neigh_rename_dict or neigh_rename_dict[name] == k, "%s != %s" % (neigh_rename_dict.get(name,None),k)
+                
+                neigh_rename_dict[name] = k
+        # pprint(relation_map)
+        # pprint(instances)
+        # pprint(neigh_rename_dict)
+        # print([t_name for t_name in [*t,*neigh_rename_dict.keys()]])
+        ##TODO: IMPURE
+        self.elem_types = [x[t_name]["type"] for t_name in [*t,*neigh_rename_dict.keys()]]
+        # print("VS_TYPES", self.elem_types)
+        instances = [rename_values(x[t_name],{**rename_dict,**neigh_rename_dict}) 
+                     for t_name in [*t,*neigh_rename_dict.keys()]]
+        vs_elems = self.enumerizer.transform(instances)
+        # print("VS_ELM", len(vs_elems))
+        return instances,vs_elems
+
+    def get_vs_elems(self,t,x):
+        rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
+        instances = [rename_values(x[t_name],rename_dict) for t_name in t]
+        vs_elems = self.enumerizer.transform(instances)
+        return instances,vs_elems
+
     def ifit(self, t, x, y):
-        # print("I AM VERSIONSPACE")
+        print("I AM VERSIONSPACE",y)
         x = x.get_view("object")
         # print([x[t_name] for t_name in t])
 
@@ -822,11 +896,125 @@ class VersionSpace(BaseILP):
             self.elem_types = [x[t_name]["type"] for t_name in t]
         assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
 
-        def _rename_values(x):
-            return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
+        instances,vs_elems = self.get_vs_elems(t,x)
 
-        instances = [_rename_values(x[t_name]) for t_name in t]
-        vs_elems = self.enumerizer.transform(instances)
+        neigh_relations = {}
+        if(self.use_neighbor_concepts):
+            varz = ["?sel" if i == 0 else "?arg%d" % (i-1) for i in range(len(t))]
+            for inst,var in zip(instances,varz):
+                for k,v in inst.items():
+                    if(isinstance(v,list)):
+                        for i,v_i in enumerate(v):
+                            if(v_i not in varz
+                                and v_i in x):
+                                neigh_relations[v_i] = neigh_relations.get(v_i,[])+[(var,k,i)]
+                    elif(v in x):
+                        if(v not in varz):
+                            neigh_relations[v] = neigh_relations.get(v,[])+[(var,k)]
+                    # print("%s.%s"%(var,k),v)
+        # print(neigh_relations)
+        # neigh_rename_dict = {k:("?neigh%d"%i) for i,k in enumerate(neigh_relations)}
+        # neigh_instances = [rename_values(x[n_name],t_neigh_relations) for n_name in neigh_relations.keys()]
+        # neigh_elems = self.enumerizer.transform(neigh_instances)
+
+        
+            if(self.expected_neighbors is None):
+                self.expected_neighbors = {("?neigh%d"%i): vals for i,vals in enumerate(neigh_relations.values())}
+                # neigh_rename_dict = {k:("?neigh%d"%i) for i,k in enumerate(neigh_relations)}
+                # pprint(neigh_rename_dict)
+                # print("Init expected_neighbors:",)
+                pprint(self.expected_neighbors)
+            elif(y > 0):
+                to_remove = []
+                neighbor_assignments = []
+                relations = []
+
+                # print("VVVVVVVVVVVVVV")
+
+                for i,(key,neigh_i) in enumerate(self.expected_neighbors.items()):
+                    # print(key)
+                    intersections = [[x for x in n_j if x in neigh_i] for n_j in neigh_relations.values()]
+                    best_match = max(intersections, key=lambda x: len(x))
+                    num_relations_removed = len(neigh_i)- len(best_match) 
+                    # print("num_relations_removed",num_relations_removed)
+                    
+                    # print(intersections)
+                    
+
+                    # if(len(best_match) == 0):
+                    #     to_remove.append(i+len(t))
+                    # else:
+                    neighbor_assignments.append((-num_relations_removed,best_match,key,i+len(t)))
+                    relations.append(best_match)
+                # print("^^^^^^^^^^^^^^")
+
+                relation_map = self._resolve_neighbor_relations(t,x,itertools.chain(*relations))
+                neighbor_assignments = sorted(neighbor_assignments)
+                # print(neighbor_assignments)
+                literal_to_assignment = {}
+                for _, relations, key,i in neighbor_assignments:
+                    if(len(relations) != 0):
+                        elms = [relation_map[x] for x in relations]
+                        assert len(set(elms)) == 1, "BAAAAAD!"
+                        elm = elms[0]
+                        if(elm not in literal_to_assignment):
+                            literal_to_assignment[elm] = (key,relations)
+                            continue
+                    to_remove.append(i)
+                # inv_new_expected_neighbors = {relation_map[x[0]]:}
+                # print(inv_new_expected_neighbors)
+
+
+                
+                
+                
+                # pprint(neighbor_assignment)
+                new_expected_neighbors = {key:relations for (key,relations) in sorted(literal_to_assignment.values())}
+                # pprint("expected_neighbors")
+                # pprint(new_expected_neighbors)
+                # to_remove = [i+len(t) for i,k in enumerate(self.expected_neighbors.keys()) if k not in new_expected_neighbors]
+                # print(to_remove)
+                # raise(ValueError)
+                if(len(to_remove) > 0): self.remove_concepts(sorted(to_remove))
+                
+                self.expected_neighbors = new_expected_neighbors
+                
+
+            instances,vs_elems = self.get_neighborized_vs_elems(t,x)
+
+            # self.elem_types = [x[t_name]["type"] for t_name in t]
+
+            # inv_rename_dict = {v:k for k,v in rename_dict.items()}
+            # neigh_rename_dict = {}
+            # for k,v in self.expected_neighbors.items():
+            #     for v_i in v:
+            #         name = x[inv_rename_dict[v_i[0]]][v_i[1]]
+            #         if(isinstance(name,list)): name = name[v_i[2]]
+            #         neigh_rename_dict[name] = k 
+                
+            # # pprint(rename_dict)
+            pprint(instances)
+            # # pprint(neigh_rename_dict)
+
+            # instances = [rename_values(x[t_name],{**rename_dict,**neigh_rename_dict}) 
+            #              for t_name in [*t,*neigh_rename_dict.keys()]]
+            # vs_elems = self.enumerizer.transform(instances)
+        # neigh_elems = []
+        # pprint(instances)
+                # print(" ",intersections)
+                # intersections = neigh_relations.values()
+                # print("expected_neighbors:",)
+                # pprint(neigh_relations)
+            # removable_neighbors = [x for x in self.expected_neighbors if x not in neigh_relations.values()]
+            # pprint("remaining_neighbors",neigh_relations.values())
+            # pprint("removable_neighbors",removable_neighbors)
+
+        # pprint(instances)
+        # pprint(neigh_instances)
+        # pprint(neigh_relations)
+        
+        
+
         #Do this just so everything is in the map
         self.enumerizer.transform({i:x for i,x in enumerate(x.keys())})
         self.enumerizer.transform(list(x.values()))
@@ -836,11 +1024,16 @@ class VersionSpace(BaseILP):
 
         if(self.elem_slices == None):
             self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
+            # self.elem_slices += 
         # print(t)
         # print(self.enumerizer.attr_maps[0])
         # print(x.keys())
-        # print("vs_elems:", vs_elems, t)
-        # print("BEFORE: ",self.pos_concepts.spec_concepts)
+        # print("vs_elems:")
+        # pprint(vs_elems)
+        # if(self.pos_concepts.spec_concepts is not None):
+            # pprint(self.skill_info())
+            # print("BEFORE: ",self.pos_concepts.spec_concepts.view(-1,5))
+
         flat_vs_elems = list(itertools.chain(*vs_elems))
         self.pos_concepts.ifit(flat_vs_elems, y)
         self.pos_ok = self.pos_ok or y > 0
@@ -848,7 +1041,9 @@ class VersionSpace(BaseILP):
             self.neg_concepts.ifit(flat_vs_elems, 0 if y > 0 else 1)
             self.neg_ok = self.neg_ok or y < 0
 
-        # print("AFTER: ",self.pos_concepts.spec_concepts)
+        # print("AFTER: ")
+        # print(self.pos_concepts.spec_concepts.view(-1,5))
+        # print(self.elem_types)
 
         # for i in range(self.num_elems):
 
@@ -873,21 +1068,30 @@ class VersionSpace(BaseILP):
         if(not self.check_constraints(t,x)):
             return False
 
-        def _rename_values(x):
-            return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
+        # def _rename_values(x):
+        #     return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
 
-        instances = [_rename_values(x[t_name]) for t_name in t]
-        vs_elem = self.enumerizer.transform(instances)
+        # instances = [_rename_values(x[t_name],) for t_name in t]
+        if(self.use_neighbor_concepts):
+            instances,vs_elems  = self.get_neighborized_vs_elems(t,x)
+            if(vs_elems is None or len(instances) != len(self.elem_slices)-1):
+                return False
+        else:  #self.enumerizer.transform(instances)
+            instances,vs_elems  = self.get_vs_elems(t,x)
+        print(vs_elems,self.use_neighbor_concepts,self.expected_neighbors)
         # print(torch.tensor(vs_elem).view(3, -1))
         if(self.use_neg):
-            x = torch.tensor(vs_elem, dtype=torch.uint8).view(1, -1)
+            x = torch.tensor(vs_elems, dtype=torch.uint8).view(1, -1)
             ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
             ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
             ZERO = self.pos_concepts.ZERO
             spec_consistency = (((ps == ZERO)) | (ps == x)).all(dim=-1)
-            gen_consistency = (((pg == ZERO)) | (pg == x)).all(dim=-1)
 
-            out = spec_consistency.any() & gen_consistency.all()
+            out = spec_consistency.any()
+            if(self.use_gen):
+                gen_consistency = (((pg == ZERO)) | (pg == x)).all(dim=-1)
+                out = out & gen_consistency.all()
+
             # print(self.enumerizer.attr_maps[0])
             # print(self.enumerizer.back_maps[0])
             # print(x)
@@ -896,13 +1100,16 @@ class VersionSpace(BaseILP):
             # print((((ps == ZERO)) | (ps == x)))
 
             if(self.neg_ok):
-                neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
                 neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(dim=-1)
-                out = out & neg_gen_consistency.any() & neg_spec_consistency.any()
+                out = out & neg_spec_consistency.any()
+                if(self.use_gen):
+                    neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
+                    out = out & neg_gen_consistency.any()
+
             
             return out.item()
         else:
-            return self.pos_concepts.check_match(vs_elem) > 0
+            return self.pos_concepts.check_match(vs_elems) > 0
 
     def get_matches(self, x):
         if(not self.pos_ok):
@@ -919,8 +1126,9 @@ class VersionSpace(BaseILP):
 
         # Create a tensor which contains the enum values associated with the when parts
         #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
-        where_part_vals = self.enumerizer.transform_values(
-                          ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)])
+        where_part_vars = ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)]
+        if(self.use_neighbor_concepts): where_part_vars += list(self.expected_neighbors.keys())
+        where_part_vals = self.enumerizer.transform_values(where_part_vars)
         where_part_vals = torch.tensor(where_part_vals,dtype=torch.uint8)
 
         # Make a tensor that has all of the enum values for the names of the elements/objects
@@ -946,6 +1154,7 @@ class VersionSpace(BaseILP):
         
         s = self.elem_slices
         split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        pprint(split_ps)
         if(self.neg_ok):
             ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
             split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
@@ -1005,7 +1214,7 @@ class VersionSpace(BaseILP):
             #Store our culled down set of candidates in various formats
             consistencies.append(consistency)
             # print(ps_i)
-            # print(consistency)
+            print(consistency)
             # print(consistency)
             # print(self.enumerizer.back_maps[0])
             # print(ps_i)
@@ -1041,6 +1250,7 @@ class VersionSpace(BaseILP):
         tot = None
         for i, (typ, ps_i, ns_i) in enumerate(zip(self.elem_types, split_ps, split_ns)):
             # cnd = candidates_by_type[typ]
+            # print(typ,replacements_by_type[typ].size())
             repls = replacements_by_type[typ]
 
             ps_i = ps_i.unsqueeze(0)
@@ -1055,6 +1265,7 @@ class VersionSpace(BaseILP):
             #   for consistency with concept(i).   
             for j, repl in enumerate(repls):
                 repl = repl.unsqueeze(-2)
+                # print(typ,j,repl.size())
                 v = where_part_vals[j]
 
                 # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
@@ -1081,9 +1292,10 @@ class VersionSpace(BaseILP):
                     
                 # Broadcast repl_consistency and bitwise AND it with the repl_consistencies so far
                 #   to ultimately create a tensor ok_i of shape (n_w1,n_w2,n_w3, ..., N_t) that contains a mask of 
-                #   elements for each combination of where assignments which are which are mutually consistent 
+                #   elements for each combination of where assignments which are mutually consistent 
                 #   with concept set i. 
-                repl_consistency = repl_consistency.view(*([1]*j + [-1] + (self.num_elems-(j+1))*[1] + [repl_consistency.size(-1)]))
+                repl_consistency = repl_consistency.view(*([1]*j + [-1] + (len(self.elem_types)-(j+1))*[1] + [repl_consistency.size(-1)]))
+
                 ok_i = (ok_i & repl_consistency) if ok_i is not None else repl_consistency
                 
 
@@ -1109,9 +1321,10 @@ class VersionSpace(BaseILP):
         # print(translated)
         
         #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
+
         for out_inds in translated.tolist():
-            out = [elem_names_list[y] for y in out_inds]
-            # print(out_inds)
+            out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
+            print(out)
             
             # print(out,self.check_constraints(out,state))
             # print([state[x].get('value',None) for x in out])
@@ -1130,7 +1343,8 @@ class VersionSpace(BaseILP):
             split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
 
         for i, t in enumerate(self.elem_types):
-            key = "?sel" if i==0 else "?arg%d" % (i-1)
+            print(i,i-self.num_elems,len(self.elem_types),list(self.expected_neighbors))
+            key = "?sel" if i==0 else ("?arg%d" % (i-1) if i < self.num_elems else list(self.expected_neighbors)[i-self.num_elems]) 
             out[key] = {}
             out[key]["pos"] = self.enumerizer.undo_transform(split_ps[i].tolist()[0],t)
             if(self.neg_ok):
@@ -1142,11 +1356,12 @@ class VersionSpace(BaseILP):
 
 
 class VersionSpaceILP(object):
-    def __init__(self):
+    def __init__(self,use_gen=False):
         self.spec_concepts = None
         self.gen_concepts = None
         self.ZERO = None
         self.unused_concepts = []
+        self.use_gen = use_gen
 
     def ifit(self, x, y):
         # print(x)
@@ -1167,15 +1382,16 @@ class VersionSpaceILP(object):
                 # Generalize the specific concepts to incorperate the positive example
                 self.spec_concepts = torch.where(x != self.spec_concepts, self.ZERO, self.spec_concepts)
 
-                # Prune the general concepts that are inconsistent with the positive example
-                gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
-                self.gen_concepts = mask_select(self.gen_concepts, gen_consistency.all(dim=1))
+                if(self.use_gen):
+                    # Prune the general concepts that are inconsistent with the positive example
+                    gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
+                    self.gen_concepts = mask_select(self.gen_concepts, gen_consistency.all(dim=1))
 
         else:
             if(isinstance(self.spec_concepts, type(None))):
                 self.unused_concepts.append((x, y))
                 return
-            else:
+            elif(self.use_gen):
                 # ### Start: Make the General Concepts more specific ####
                 spec_inconsistency = ~((self.spec_concepts == self.ZERO) | (self.spec_concepts == x))
                 gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
@@ -1219,8 +1435,11 @@ class VersionSpaceILP(object):
         '''Returns true if x is consistent with all general concepts and any specific concept'''
         x = torch.tensor(x, dtype=torch.uint8).view(1, -1)
         spec_consistency = ((self.spec_concepts == self.ZERO) | (self.spec_concepts == x)).all(dim=-1)
-        gen_consistency = ((self.gen_concepts == self.ZERO) | (self.gen_concepts == x)).all(dim=-1)
-        return (spec_consistency.any() & gen_consistency.all()).item()
+        out = spec_consistency.any()
+        if(self.use_gen):
+            gen_consistency = ((self.gen_concepts == self.ZERO) | (self.gen_concepts == x)).all(dim=-1)
+            out = out & gen_consistency.all()
+        return out.item()
 
 
 def rename_values(x, mapping, rename_keys=False): 
@@ -1408,6 +1627,11 @@ if __name__ == "__main__":
     # vthang.ifit([1,1,1,0,0,0,1],1)
     # vthang.ifit([1,1,1,0,0,0,0],0)
 
+    # A4 A3 A2 A1
+    #    B3 B2 B1
+    #    --------
+    # C4 C3 C2 C1
+
     state = {
         "line" : {
             "type" : "bloop",
@@ -1438,8 +1662,16 @@ if __name__ == "__main__":
             "value": 3,
             "above": [None,None],
             "below": ["B3","C3"],
-            "left" : None,
+            "left" : "A4",
             "right": "A2",
+        },
+        "A4": {
+            "type" : "text",
+            "value": 3,
+            "above": [None,None],
+            "below": ["line","C4"],
+            "left" : None,
+            "right": "A3",
         },
         "B1": {
             "type" : "text",
@@ -1478,16 +1710,24 @@ if __name__ == "__main__":
             "value": 8,
             "above": ["line","B2"],
             "below": [None,None],
-            "left" : "C1",
-            "right": "C3",
+            "left" : "C3",
+            "right": "C1",
         },
         "C3": {
             "type" : "text",
             "value": 9,
             "above": ["line","B3"],
             "below": [None,None],
-            "left" : None,
+            "left" : "C4",
             "right": "C2",
+        },
+        "C4": {
+            "type" : "text",
+            "value": 9,
+            "above": ["line","A4"],
+            "below": [None,None],
+            "left" : None,
+            "right": "C3",
         }
     }
     from agents.ModularAgent import StateMultiView
@@ -1509,7 +1749,6 @@ if __name__ == "__main__":
     #     elif("B" in key):
     #         # Av.ifit(ele_tensor,0)
     #         Bv.ifit(ele_tensor, 1)
-
     vs = VersionSpace(use_neg=True)
     vs.ifit(["C1","A1","B1"],state,1)
     
@@ -1543,6 +1782,73 @@ if __name__ == "__main__":
 
     # pprint._
     pprint(vs.skill_info())
+
+
+    def timefunc(s, func, *args, **kwargs):
+        """
+        Benchmark *func* and print out its runtime.
+        """
+        print(s.ljust(20), end=" ")
+        
+        # time it
+        print('{:>5.0f} ms'.format(min(repeat(lambda: func(*args, **kwargs),
+                                              number=5, repeat=2)) * 1000))
+        # return res
+
+    def gen_test_get_matches(vs):
+        def test_get_matches():
+            l = [match for match in vs.get_matches(state)]
+        return test_get_matches        
+
+
+    if(False):
+        timefunc("match-3", gen_test_get_matches(vs))
+        for match in vs.get_matches(state):
+            print(match)
+
+        vs2 = VersionSpace(use_neg=True)
+        vs2.ifit(["C1","A1","B1","A2","C2"],state,1)
+        vs2.ifit(["C1","B1","A1","A2","C2"],state,0)
+        vs2.ifit(["C2","A2","B2","A3","C3"],state,1)
+        vs2.ifit(["C1","B2","A2","A3","C3"],state,0)
+        vs2.ifit(["C3","A3","A2","A3","C3"],state,0)
+        for match in vs2.get_matches(state):
+            print(match)
+        timefunc("match-5", gen_test_get_matches(vs2))
+
+        
+        vs3 = VersionSpace(use_neg=True)
+        vs3.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3",],state,1)
+        for match in vs3.get_matches(state):
+            print(match)
+        timefunc("match-9", gen_test_get_matches(vs3))
+
+
+
+
+        vs4 = VersionSpace(use_neg=True)
+        vs4.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3","A4","C4"],state,1)
+        for match in vs4.get_matches(state):
+            print(match)
+        timefunc("match-11", gen_test_get_matches(vs4))
+
+    # state_no_line = StateMultiView("object",{k:v for k,v in state.get_view("object").items() if k != "line"})
+    state_l1 = StateMultiView("object",{name: {k:((v[0] if v[0] != "line" else v[1]) if isinstance(v,list) else v) for k,v in itm.items()}  for name,itm in state.get_view("object").items() if name != "line"})
+    # state_l1 = state_l1.get_view("object")
+    
+    vs_tricky = VersionSpace(use_neg=False,use_neighbor_concepts=True)
+    vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
+    # vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
+    # vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
+    pprint(vs_tricky.skill_info())
+    # vs_tricky.ifit(["C3","A2","B2"],state_l1,1)
+    vs_tricky.ifit(["C4","A3","B3"],state_l1,1)
+    pprint(vs_tricky.skill_info())
+    for match in vs_tricky.get_matches(state_l1):
+        print("match",match)
+    # pprint(vs_tricky.skill_info())
+    # pprint(state_l1.get_view("object"))
+
     # print(vs.enumerizer.undo_transform(vs.pos_concepts.spec_concepts.tolist()[0]))
     # print(vs.enumerizer.undo_transform(vs.pos_concepts.spec_concepts.tolist()[1]))
     # print(vs.enumerizer.undo_transform(vs.pos_concepts.spec_concepts.tolist()[2]))
