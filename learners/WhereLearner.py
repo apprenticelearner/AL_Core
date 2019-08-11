@@ -16,6 +16,9 @@ from planners.fo_planner import subst
 import numpy as np
 import itertools
 from timeit import repeat
+import numba
+from numba import types, njit,guvectorize,uint32,vectorize,prange
+from numba.typed import List
 
 global my_gensym_counter
 my_gensym_counter = 0
@@ -782,6 +785,391 @@ def get_where_learner(name, learner_kwargs={}):
     # for m in ms.get_matches(state):
     #    print('OP MATCH', m)
 
+
+@njit(nogil=True, parallel=False,fastmath=True,cache=True)
+def compute_adjacencies(split_ps, concept_slices,
+                    where_part_vals):
+    d = len(concept_slices)-1
+    adjacencies = np.zeros((d,d),dtype=np.uint8)
+
+    for i in prange(d):
+        concept = split_ps[concept_slices[i]:concept_slices[i+1]]
+        # print("concept", concept,concept_slices[i],concept_slices[i+1])
+        for j in range(d):
+            for k in range(len(concept)):
+                if(concept[k] == where_part_vals[j]):
+                    adjacencies[i,j] = 1    
+                    break
+                
+    return adjacencies
+
+@njit(nogil=True, parallel=False,fastmath=True,cache=True)
+def gen_cand_slices(inds_j,
+                    elems,elems_slices,
+                    sel):
+    candidate_slices = np.empty((len(inds_j),len(sel)),dtype=np.uint8)
+    # print("BOOP",len(inds_j))
+    for k in prange(len(inds_j)):
+        ind = inds_j[k]
+        # print(elems[elems_slices[ind]:elems_slices[ind+1]])
+        candidate_slices[k] = elems[elems_slices[ind]:elems_slices[ind+1]][sel]
+        # cands = 
+    return candidate_slices
+
+
+@njit(nogil=True, parallel=False,fastmath=True,cache=True)
+def fill_partial_matches_at(partial_matches,i,pair_matches,pair_index_reg,
+                            single_matches):
+    # print("i",i)
+    d = partial_matches.shape[1]
+    NEG = np.array(-1,dtype=partial_matches.dtype)
+    i_elms = dict()
+
+    has_constraints = False
+    for j in range(d):
+        if(pair_index_reg[i][j][0] != -1):
+            s,l = pair_index_reg[i][j][0],pair_index_reg[i][j][1]
+            for k in range(l):
+                pm = pair_matches[s+k]
+                dat = np.empty(3,dtype=np.uint32)
+                dat[0] = s
+                dat[1] = l
+                dat[2] = k
+
+                if(not pm[2] in i_elms):
+                    lst = List()
+                    lst.append(dat)
+                    i_elms[pm[2]] = lst
+                else:
+                    i_elms[pm[2]].append(dat)
+                has_constraints = True
+            # if(l > 1):
+            #     # old = len(partial_matches)
+            #     # new_partial_matches = np.empty((old*l,d))
+                
+
+            #         # i_elms.add(pm[2])
+            #         # print(pm,"k")
+            #         # partial_matches[:,pm[0]] = pm[2]
+            #         # partial_matches[:,pm[1]] = pm[3]
+            #         # new_partial_matches[k*old:(k+1)*old] = partial_matches
+            #     # partial_matches = new_partial_matches
+            # elif(l != 0):
+            #     pm = pair_matches[s]
+            #     dat = np.empty(3,dtype=np.uint32)
+            #     dat[0] = s
+            #     dat[1] = l
+            #     dat[2] = 0
+
+            #     if(not pm[2] in i_elms):
+            #         lst = List()
+            #         lst.append(dat)
+            #         i_elms[pm[2]] = lst
+            #     else:
+            #         i_elms[pm[2]].append(dat)
+                # print(pm,"one",i)
+                # partial_matches[:,pm[0]] = pm[2]
+                # partial_matches[:,pm[1]] = pm[3]
+
+    par_ms_list = List() 
+    if(has_constraints):
+       
+
+    # old = len(partial_matches)
+    # new_partial_matches = np.empty((old*len(i_elms),d))
+    # i_elms = list(i_elms)
+    # print("elems_i",i_elms)
+        
+        for elem in i_elms:
+            da = i_elms[elem]
+            # print("dat",da)
+
+            
+            # print("elem:",elem)
+            # print()
+            # par_ms = partial_matches.copy()
+            # print(partial_matches)
+            already_matches = np.empty(len(partial_matches),dtype=np.uint8)
+            for j in range(len(partial_matches)):
+                already_matches[j] = (partial_matches[j,:i] == elem).any() | (partial_matches[j,i+1:] == elem).any()
+            # print(already_matches)
+            par_ms_sel = (((partial_matches[:,i] == 0) | (partial_matches[:,i] == elem)) & ~already_matches).nonzero()[0]
+            # print(par_ms_sel)
+            par_ms = partial_matches[par_ms_sel,:].copy()
+            
+
+            par_ms[:,i] = elem
+
+            # print("par_ms")
+            # print(par_ms)
+            
+            # print("elem: ",elem)
+            # print(par_ms)
+            
+            # for r in da:
+            da_s = dict()
+            for r in da:
+                if(not r[0] in da_s):
+                    lst2 = List()
+                    lst2.append(r)
+                    da_s[r[0]] = lst2
+                else:
+                    da_s[r[0]].append(r)
+            # print("da_s")                   
+            # print(da_s)                   
+
+            for s in da_s:
+                da = da_s[s]
+                for r in da:
+                    k = r[2]
+                    l = len(da)
+                    # print(pair_matches[s+k])
+                    # print("")
+                    # print(s,l,k)
+                    if(l > 1):
+                        raise ValueError()
+                        old = len(par_ms)
+                        new_partial_matches = np.empty((old*l,d),dtype=partial_matches.dtype)
+                        for k in range(l):
+                            pm = pair_matches[s+k]
+                            # print(par_ms[:,pm[1]])
+                            # print("here1k",pm[1], pm[3])
+                            # print(elm,"k")
+                            # partial_matches[:,pm[0]] = pm[2]
+                            par_ms[:,pm[1]] = np.where(par_ms[:,pm[1]] == 0, pm[3],par_ms[:,pm[1]])
+                            new_partial_matches[k*old:(k+1)*old] = par_ms
+                        par_ms = new_partial_matches
+                    elif(l != 0):
+                        pm = pair_matches[s+k]
+                        # print(par_ms[:,pm[1]])
+                        # print("here1",pm[1], pm[3])
+                        # print(pm,"one",i)
+                        # partial_matches[:,pm[0]] = pm[2]
+                        par_ms[:,pm[1]] = np.where((par_ms[:,pm[1]] == 0) | (par_ms[:,pm[1]] == pm[3]),
+                                                    pm[3],-1)
+                    # par_ms
+                    # print("r",r)
+            # print("^",par_ms)
+            
+            
+            consistencies = np.empty(len(par_ms),dtype=np.uint8) 
+            for j in range(len(par_ms)):
+                # print(par_ms[j] == NEG)
+                # print((~par_ms[j] == NEG).any())
+                consistencies[j] = ~(par_ms[j] == NEG).any()
+            par_ms = par_ms[consistencies.nonzero()[0]]
+            # print(consistencies.nonzero())
+            # print("par_ms")
+            # print(par_ms)
+            # print("--------------")
+            par_ms_list.append(par_ms)
+    else:
+        # print(partial_matches)
+        elem_names_i = single_matches[i]
+        # print(elem_names_i)
+        # print(partial_matches)
+        for elem in elem_names_i:
+            # print(elem)
+            already_matches = np.empty(len(partial_matches),dtype=np.uint8)
+            for j in range(len(partial_matches)):
+                # print("j",j,i)
+                # print(partial_matches[j,:i] == elem)
+                # print((partial_matches[j,:i] == elem).any())
+                # print((partial_matches[j,i+1:]),elem)
+                already_matches[j] = (partial_matches[j,:i] == elem).any() | (partial_matches[j,i+1:] == elem).any()
+            # print("already_matches")
+            # print(already_matches)
+            par_ms_sel = (((partial_matches[:,i] == 0) | (partial_matches[:,i] == elem)) & ~already_matches).nonzero()[0]
+            # print(par_ms_sel)
+            par_ms = partial_matches[par_ms_sel,:].copy()
+        
+
+            par_ms[:,i] = elem
+            par_ms_list.append(par_ms)   
+
+        # print("not has_constraints")
+
+
+
+            # pm = pair_matches[s+k]
+
+            # print(pm)
+        
+        # elem = i_elms[k]
+        # partial_matches[:,i] = elem
+        # new_partial_matches[k*old:(k+1)*old] = partial_matches
+    # partial_matches = new_partial_matches
+    # np.array()
+    n = 0
+    for par_ms in par_ms_list:
+        n += len(par_ms)
+    partial_matches = np.empty((n,d),dtype=partial_matches.dtype)
+    k = 0
+    for par_ms in par_ms_list:
+        # print(par_ms)
+        partial_matches[k:k+len(par_ms),:] = par_ms
+        k += len(par_ms)
+
+    # partial_matches = np.concatenate(tuple(*par_ms_list))
+    # print("OUT!")
+    # print(partial_matches)
+    return partial_matches
+
+# def fill_partial_matches_around(partial_matches,i,pair_matches,pair_index_reg):
+#     #just the index we start from
+#     # for i in range(d):
+#     print(i)
+#     print(partial_matches )
+#     # partial_matches = List()
+#     d = partial_matches.shape[1]
+
+#     for j in range(d):
+#         if(pair_index_reg[i][j][0] != -1):
+#             s,l = pair_index_reg[i][j][0],pair_index_reg[i][j][1]
+#             if(l > 1):
+#                 old = len(partial_matches)
+#                 new_partial_matches = np.empty((old*l,d))
+#                 for k in range(l):
+#                     pm = pair_matches[s+k]
+#                     print(pm,"k")
+#                     # partial_matches[:,pm[0]] = pm[2]
+#                     partial_matches[:,pm[1]] = pm[3]
+#                     new_partial_matches[k*old:(k+1)*old] = partial_matches
+#                 partial_matches = new_partial_matches
+#             elif(l != 0):
+#                 pm = pair_matches[s]
+#                 print(pm,"one",i)
+#                 # partial_matches[:,pm[0]] = pm[2]
+#                 partial_matches[:,pm[1]] = pm[3]
+
+#     print(partial_matches.shape)
+#     print(partial_matches )
+
+#     return partial_matches
+#                 # break
+    
+
+@njit(nogil=True, parallel=False,fastmath=True,cache=True)
+def match_iterative(split_ps, concept_slices,
+                    elems,elems_slices,
+                    concept_cands,cand_slices,
+                    elem_names,
+                    where_part_vals):
+    d = len(concept_slices)-1
+    adjacencies = compute_adjacencies(split_ps, concept_slices,where_part_vals)
+    print(adjacencies)
+    # adjacencies_nz = adjacencies.nonzero()
+    pair_matches = List()
+    single_matches = List()
+    # print("SHEEEE::",len(pair_matches))
+    pair_index_reg = -np.ones((d,d,2),dtype=np.int16)
+    # for a in range(len(adjacencies_nz[0])):
+    for i in range(d):
+        inds_i = concept_cands[cand_slices[i]:cand_slices[i+1]]
+        ps_i = split_ps[concept_slices[i]:concept_slices[i+1]]
+        elem_names_i = elem_names[inds_i]
+        single_matches.append(elem_names_i)
+        # print(elem_names_i)
+        for j in range(d):
+            # i,j = adjacencies_nz[0][a],adjacencies_nz[1][a]
+
+            if(adjacencies[i][j] == 1):
+
+                
+                inds_j = concept_cands[cand_slices[j]:cand_slices[j+1]]
+                
+
+                
+                elem_names_j = elem_names[inds_j]
+
+                sel = (ps_i == where_part_vals[j]).nonzero()[0]
+                # print("inds_i")
+                # print(inds_i.shape)
+                # print(elems)
+                candidate_slices = gen_cand_slices(inds_i,elems,elems_slices,sel)
+
+                # print("candidate_slices")
+                # print(candidate_slices.shape)
+                
+                # print("elem_names_j")
+                # print(elem_names_j)
+                # print(elems_i)
+
+                ps_i = split_ps[concept_slices[i]:concept_slices[i+1]]
+
+                # consistencies = np.zeros((len(candidate_slices),len(elems_slices)-1),dtype=np.uint8)
+                # ok_k = np.zeros(len(elem_names_i),dtype=np.uint8)
+                # ok_r = np.zeros(len(elem_names_j),dtype=np.uint8)
+                # assigned = False
+                # print("SHEEEE::",i,j,len(pair_matches))
+                pair_index_reg[i,j,0] = len(pair_matches)
+                # pair_index_reg[j,i,0] = len(pair_matches)
+
+                for k in range(len(inds_i)):
+                    v = candidate_slices[k]
+                    # print(v)
+                    for r in range(len(elem_names_j)):
+                        # print((candidate_slices[r], v))
+                        # print((candidate_slices[r] == v))
+                        con = (elem_names_j[r] == v).all()
+                        # consistencies[k][inds_j[r]] = con
+                        if(con):
+                            # ok_k[r] = 1
+                            # ok_r[k] = 1
+                            pair_match = np.empty(4,dtype=np.uint16)
+                            # # pair_match2 = np.empty(4,dtype=np.uint16)
+
+                            pair_match[0] = i
+                            pair_match[1] = j
+                            pair_match[2] = elem_names_i[k]
+                            pair_match[3] = elem_names_j[r]
+
+                            # print(pair_match)
+                            pair_matches.append(pair_match)
+
+                            
+
+                            # pair_match2[0] = elem_names_j[k]
+                            # pair_match2[1] = elem_names_i[r]
+
+                            # partial_match[i] = elem_names_i[r]
+                            # partial_match[j] = elem_names_j[k]
+                            # print(inds_i[r],inds_j[k])
+                            # print(partial_match)
+                            # if(not assigned):
+                # print(i,j)
+                # print(consistencies)
+
+                
+                # pair_matches.append(consistencies)
+                            # pair_matches.append(pair_match2)
+
+                pair_index_reg[i,j,1] = len(pair_matches)-pair_index_reg[i,j,0]
+                # pair_index_reg[j,i,1] = len(pair_matches)-pair_index_reg[j,i,0]
+
+            # for pm in consistencies.nonzero():
+        
+    # print(pair_index_reg[:,:,0])
+    # print(pair_index_reg[:,:,1])
+    # for p in pair_matches: 
+    #     print(p)
+
+    partial_matches = np.zeros((1,d),dtype=np.uint16)
+    for i in range(d):
+        # partial_matches = np.zeros((1,d),dtype=np.uint16)
+        partial_matches = fill_partial_matches_at(partial_matches,i,pair_matches,pair_index_reg,single_matches)
+        # print(partial_matches)
+        # fill_partial_matches_around(partial_matches,i,pair_matches,pair_index_reg)
+    # print("OUT",partial_matches)
+    return partial_matches
+
+def flatten_n_slice(lst):
+    flat = [x if isinstance(x,list) else np.array(x).reshape(-1) for x in lst]
+    lens = [0] + [len(x)  for x in flat]
+    slices = np.cumsum(lens)
+    out = np.array([x for x in itertools.chain(*flat)])
+    return out,slices
+
 import torch
 def mask_select(x, m):
     return x[m.nonzero().view(-1)]
@@ -789,7 +1177,9 @@ def mask_select(x, m):
 
 class VersionSpace(BaseILP):
     def __init__(self, args=None, constraints=None, use_neg=False, use_gen=False,
-                       propose_gens=True, use_neighbor_concepts=True):
+                       propose_gens=True, use_neighbor_concepts=False,
+                       non_literal_attrs=["to_right","to_left","above","below","value","contentEditable"],
+                       null_types=[None,""]):
         self.pos_concepts = VersionSpaceILP(use_gen=use_gen)
         self.neg_concepts = VersionSpaceILP(use_gen=use_gen) if use_neg else None
         self.propose_gens = propose_gens
@@ -803,6 +1193,8 @@ class VersionSpace(BaseILP):
         self.use_neighbor_concepts = use_neighbor_concepts
         self.expected_neighbors = None 
         self.use_gen = use_gen
+        self.non_literal_attrs= non_literal_attrs
+        self.null_types = null_types
 
     def initialize(self, n):
         assert n >= 1, "not enough elements"
@@ -813,7 +1205,7 @@ class VersionSpace(BaseILP):
         self.initialized = True
 
     def remove_concepts(self,indicies):
-        print("remove_concepts!!!!!!!!", indicies)
+        # print("remove_concepts!!!!!!!!", indicies)
         # print(indicies)
         
         # print("CONCEPT BEFORE", self.pos_concepts.spec_concepts.size())                    
@@ -821,7 +1213,7 @@ class VersionSpace(BaseILP):
         for i in reversed(indicies):
             # print(i)
             ps = self.pos_concepts.spec_concepts
-            print(s[i],s[i+1])
+            # print(s[i],s[i+1])
             self.pos_concepts.spec_concepts = torch.cat([ps[:,:s[i]],ps[:,s[i+1]:]],dim=1)
             # print("CONCEPT", self.pos_concepts.spec_concepts.size())
             if(self.neg_ok):
@@ -834,8 +1226,9 @@ class VersionSpace(BaseILP):
         for i in indicies:
             sl[i+1:] -= sl[i+1]-sl[i]
         self.elem_slices = sl[[i for i in range(len(sl)) if i not in indicies]].tolist()
+        # print("BEEP",[x for i,x in enumerate(self.elem_types) if i not in indicies])
         # print(self.elem_slices)
-        print(self.pos_concepts.spec_concepts.view(-1,5))
+        # print(self.pos_concepts.spec_concepts.view(-1,5))
             
     def _resolve_neighbor_relations(self,t,x,relations):
         rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
@@ -848,206 +1241,297 @@ class VersionSpace(BaseILP):
             relation_map[v_i] = name
         return relation_map
 
-    def get_neighborized_vs_elems(self,t,x):
+    def get_neighborized_vs_elems(self,t,x,gen_literals=False):
         rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
-        print(self.expected_neighbors.keys())
+        # print(self.expected_neighbors.keys())
         relation_map = self._resolve_neighbor_relations(t,x,itertools.chain(*self.expected_neighbors.values()))
         neigh_rename_dict = {}
-        for k,v in self.expected_neighbors.items():
+        for i,(k,v) in enumerate(self.expected_neighbors.items()):
             for v_i in v:
                 name = relation_map[v_i]
-                if(name == "" or name == None):
-                    continue
-                print(name,neigh_rename_dict.get(name,None),k)
-                assert name not in neigh_rename_dict or neigh_rename_dict[name] == k, "%s != %s" % (neigh_rename_dict.get(name,None),k)
-                
-                neigh_rename_dict[name] = k
+                if(name != "" and name is not None and x[name]['type'] == self.elem_types[i+self.num_elems]):
+                    assert name not in neigh_rename_dict or neigh_rename_dict[name] == k, "%s != %s" % (neigh_rename_dict.get(name,None),k)
+                    neigh_rename_dict[name] = k
+                else:
+                    return None, None
+
+
         # pprint(relation_map)
         # pprint(instances)
         # pprint(neigh_rename_dict)
         # print([t_name for t_name in [*t,*neigh_rename_dict.keys()]])
         ##TODO: IMPURE
-        self.elem_types = [x[t_name]["type"] for t_name in [*t,*neigh_rename_dict.keys()]]
+        
         # print("VS_TYPES", self.elem_types)
-        instances = [rename_values(x[t_name],{**rename_dict,**neigh_rename_dict}) 
+        rename_dict = {**rename_dict,**neigh_rename_dict}
+        instances = [rename_values(x[t_name],rename_dict) 
                      for t_name in [*t,*neigh_rename_dict.keys()]]
+
+        # pprint(rename_dict)
+        # pprint(instances)
+        if(gen_literals):
+            non_literals = set([*self.null_types,*rename_dict.values()])
+            def genrl(k,v):
+                if(isinstance(v,list)):
+                    return [genrl(k,v_i) for v_i in v]
+                elif(v not in non_literals and k in self.non_literal_attrs):
+                    # print(v,rename_dict.get(v,None))
+                    return "<#ANY>"
+                else:
+                    return v
+
+            instances = [{k:genrl(k,v) for k,v in inst.items()} 
+                          for inst in instances]
+            # pprint(instances)
+
         vs_elems = self.enumerizer.transform(instances)
         # print("VS_ELM", len(vs_elems))
         return instances,vs_elems
 
-    def get_vs_elems(self,t,x):
+    def get_vs_elems(self,t,x,gen_literals=False):
         rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
         instances = [rename_values(x[t_name],rename_dict) for t_name in t]
-        vs_elems = self.enumerizer.transform(instances)
-        return instances,vs_elems
+        if(gen_literals):
+            non_literals = set([*self.null_types,*rename_dict.values()])
+            def genrl(k,v):
+                if(isinstance(v,list)):
+                    return [genrl(k,v_i) for v_i in v]
+                elif(v not in non_literals and k in self.non_literal_attrs):
+                    # print(v,rename_dict.get(v,None))
+                    return "<#ANY>"
+                else:
+                    return v
 
-    def ifit(self, t, x, y):
-        print("I AM VERSIONSPACE",y)
-        x = x.get_view("object")
-        # print([x[t_name] for t_name in t])
+            instances = [{k:genrl(k,v) for k,v in inst.items()} 
+                          for inst in instances]
+        # print(self.initialized)
+        # print(len(t), self.num_elems)
+        # print(self.elem_types)
+        # print([z['type'] for z in instances])
+        # print([instance['type'] == elm_t for instance,elm_t in zip(instances,self.elem_types)])
+        # print((not self.initialized or len(t) == self.num_elems))
+        # print((self.elem_types is None or all([instance['type'] == elm_t for instance,elm_t in zip(instances,self.elem_types)] )))
+        if((not self.initialized or len(t) == self.num_elems) and (self.elem_types is None
+            or all([instance['type'] == elm_t for instance,elm_t in zip(instances,self.elem_types)] ))):
+            vs_elems = self.enumerizer.transform(instances)
+            return instances,vs_elems
+        else:
+            # print("NONE!")
+            return None,None
 
-        #Do this just so everything is in the map
-        
-        # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
-        assert False not in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
-
-        if(not self.initialized):
-            self.initialize(len(t))
-            self.elem_types = [x[t_name]["type"] for t_name in t]
-        assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
-
+    def fit_expected_neighbors(self,t,x,y):
         instances,vs_elems = self.get_vs_elems(t,x)
 
         neigh_relations = {}
-        if(self.use_neighbor_concepts):
-            varz = ["?sel" if i == 0 else "?arg%d" % (i-1) for i in range(len(t))]
-            for inst,var in zip(instances,varz):
-                for k,v in inst.items():
-                    if(isinstance(v,list)):
-                        for i,v_i in enumerate(v):
-                            if(v_i not in varz
-                                and v_i in x):
-                                neigh_relations[v_i] = neigh_relations.get(v_i,[])+[(var,k,i)]
-                    elif(v in x):
-                        if(v not in varz):
-                            neigh_relations[v] = neigh_relations.get(v,[])+[(var,k)]
-                    # print("%s.%s"%(var,k),v)
+        varz = ["?sel" if i == 0 else "?arg%d" % (i-1) for i in range(len(t))]
+        for inst,var in zip(instances,varz):
+            for k,v in inst.items():
+                if(isinstance(v,list)):
+                    for i,v_i in enumerate(v):
+                        if(v_i not in varz
+                            and v_i in x):
+                            neigh_relations[v_i] = neigh_relations.get(v_i,[])+[(var,k,i)]
+                elif(v in x):
+                    if(v not in varz):
+                        neigh_relations[v] = neigh_relations.get(v,[])+[(var,k)]
+                # print("%s.%s"%(var,k),v)
+        # print("neigh_relations")
         # print(neigh_relations)
-        # neigh_rename_dict = {k:("?neigh%d"%i) for i,k in enumerate(neigh_relations)}
-        # neigh_instances = [rename_values(x[n_name],t_neigh_relations) for n_name in neigh_relations.keys()]
-        # neigh_elems = self.enumerizer.transform(neigh_instances)
+    # neigh_rename_dict = {k:("?neigh%d"%i) for i,k in enumerate(neigh_relations)}
+    # neigh_instances = [rename_values(x[n_name],t_neigh_relations) for n_name in neigh_relations.keys()]
+    # neigh_elems = self.enumerizer.transform(neigh_instances)
+
+    
+        if(self.expected_neighbors is None):
+            self.elem_types = [x[t_name]["type"] for t_name in [*t,*neigh_relations.keys()]]
+            self.expected_neighbors = {("?neigh%d"%i): vals for i,vals in enumerate(neigh_relations.values())}
+            # neigh_rename_dict = {k:("?neigh%d"%i) for i,k in enumerate(neigh_relations)}
+            # pprint(neigh_rename_dict)
+            # print("Init expected_neighbors:")
+            # pprint(self.expected_neighbors)
+
+            # if(self.elem_types is not None):
+            #     print(len(self.elem_types),len(list(self.expected_neighbors.keys()))+len(t))
+            # assert self.elem_types is None or len(self.elem_types)==len(list(self.expected_neighbors.keys()))+len(t), "BUG0!!"
+        elif(y > 0):
+            to_remove = []
+            neighbor_assignments = []
+            relations = []
+
+            # print("VVVVVVVVVVVVVV", len(self.elem_types),len(list(self.expected_neighbors.keys())))
+
+            for i,(key,neigh_i) in enumerate(self.expected_neighbors.items()):
+                # print(key)
+                intersections = [[x for x in n_j if x in neigh_i] for n_j in neigh_relations.values()]
+                best_match = max(intersections, key=lambda x: len(x))
+                num_relations_removed = len(neigh_i)- len(best_match) 
+                # print("num_relations_removed",num_relations_removed)
+                
+                # print(intersections)
+                
+
+                # if(len(best_match) == 0):
+                #     to_remove.append(i+len(t))
+                # else:
+                neighbor_assignments.append((-num_relations_removed,best_match,key,i+len(t)))
+                # print(neighbor_assignments[-1])
+                # print(neighbor_assignments[-1])
+                relations.append(best_match)
+            # print("^^^^^^^^^^^^^^")
+
+            relation_map = self._resolve_neighbor_relations(t,x,itertools.chain(*relations))
+            neighbor_assignments = sorted(neighbor_assignments)
+            # print(neighbor_assignments)
+            assigned = set()
+            assignments = []
+            for _, relations, key,i in neighbor_assignments:
+                if(len(relations) != 0):
+                    elms = [relation_map[x] for x in relations]
+                    assert len(set(elms)) == 1, "BAAAAAD!"
+                    elm = elms[0]
+                    # print(i,self.elem_types)
+                    # print(x[elm]["type"] , self.elem_types[i])
+                    if(x[elm]["type"] == self.elem_types[i] and elm not in assigned):
+                        assigned.add(elm) 
+                        assignments.append((i,elm,key,relations))
+                        continue
+                to_remove.append(i)
+
+            assignments = sorted(assignments)
+            # inv_new_expected_neighbors = {relation_map[x[0]]:}
+            # print(inv_new_expected_neighbors)
+
+
+            
+            
+            
+            # pprint(neighbor_assignment)
+            new_expected_neighbors = {key:relations for (_,_,key,relations) in sorted(assignments)}
+            # pprint("expected_neighbors")
+            # pprint(new_expected_neighbors)
+            # to_remove = [i+len(t) for i,k in enumerate(self.expected_neighbors.keys()) if k not in new_expected_neighbors]
+            # print(to_remove)
+            # raise(ValueError)
+            if(len(to_remove) > 0): self.remove_concepts(sorted(to_remove))
+
+            neigh_literals = [elm for _,elm,_,_ in assignments ]
+            self.elem_types = [x[t_name]["type"] for t_name in [*t,*neigh_literals]]
+            self.expected_neighbors = new_expected_neighbors
+            # print("BOOP",self.elem_types)
+
+            # if(self.elem_types is not None):
+            #     print(len(self.elem_types),len(list(self.expected_neighbors.keys())))
+            # assert self.elem_types is None or len(self.elem_types)==len(list(self.expected_neighbors.keys()))+len(t), "BUG1!!"
+            
 
         
-            if(self.expected_neighbors is None):
-                self.expected_neighbors = {("?neigh%d"%i): vals for i,vals in enumerate(neigh_relations.values())}
-                # neigh_rename_dict = {k:("?neigh%d"%i) for i,k in enumerate(neigh_relations)}
-                # pprint(neigh_rename_dict)
-                # print("Init expected_neighbors:",)
-                pprint(self.expected_neighbors)
-            elif(y > 0):
-                to_remove = []
-                neighbor_assignments = []
-                relations = []
+        # return instances, vs_elems
 
-                # print("VVVVVVVVVVVVVV")
 
-                for i,(key,neigh_i) in enumerate(self.expected_neighbors.items()):
-                    # print(key)
-                    intersections = [[x for x in n_j if x in neigh_i] for n_j in neigh_relations.values()]
-                    best_match = max(intersections, key=lambda x: len(x))
-                    num_relations_removed = len(neigh_i)- len(best_match) 
-                    # print("num_relations_removed",num_relations_removed)
+    def ifit(self, t, x, y):
+        with torch.no_grad():
+            if(len(t) != len(set(t))):
+                return
+            # if(self.elem_types is not None):
+            #     print(len(self.elem_types),len(list(self.expected_neighbors.keys())))
+
+            
+            # print("I AM VERSIONSPACE",y)
+            x = x.get_view("object")
+            # print([x[t_name] for t_name in t])
+
+            #Do this just so everything is in the map
+            
+            # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
+            assert False not in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
+
+            if(not self.initialized):
+                self.initialize(len(t))
+                self.elem_types = [x[t_name]["type"] for t_name in t]
+            assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
+
+            if(self.use_neighbor_concepts):
+                assert self.elem_types is None or self.expected_neighbors is None or len(self.elem_types)==len(list(self.expected_neighbors.keys()))+len(t), "BUG!!"
+                self.fit_expected_neighbors(t,x,y)
+                instances, vs_elems = self.get_neighborized_vs_elems(t,x,gen_literals=True)
+            else:
+                instances, vs_elems = self.get_vs_elems(t,x,gen_literals=True)
+
+            if(vs_elems is None):
+                return
+
+            # print(self.use_neighbor_concepts)
+            # print(vs_elems)
+                # self.elem_types = [x[t_name]["type"] for t_name in t]
+
+                # inv_rename_dict = {v:k for k,v in rename_dict.items()}
+                # neigh_rename_dict = {}
+                # for k,v in self.expected_neighbors.items():
+                #     for v_i in v:
+                #         name = x[inv_rename_dict[v_i[0]]][v_i[1]]
+                #         if(isinstance(name,list)): name = name[v_i[2]]
+                #         neigh_rename_dict[name] = k 
                     
-                    # print(intersections)
-                    
+                # # pprint(rename_dict)
+                # pprint(instances)
+                # # pprint(neigh_rename_dict)
 
-                    # if(len(best_match) == 0):
-                    #     to_remove.append(i+len(t))
-                    # else:
-                    neighbor_assignments.append((-num_relations_removed,best_match,key,i+len(t)))
-                    relations.append(best_match)
-                # print("^^^^^^^^^^^^^^")
+                # instances = [rename_values(x[t_name],{**rename_dict,**neigh_rename_dict}) 
+                #              for t_name in [*t,*neigh_rename_dict.keys()]]
+                # vs_elems = self.enumerizer.transform(instances)
+            # neigh_elems = []
+            # pprint(instances)
+                    # print(" ",intersections)
+                    # intersections = neigh_relations.values()
+                    # print("expected_neighbors:",)
+                    # pprint(neigh_relations)
+                # removable_neighbors = [x for x in self.expected_neighbors if x not in neigh_relations.values()]
+                # pprint("remaining_neighbors",neigh_relations.values())
+                # pprint("removable_neighbors",removable_neighbors)
 
-                relation_map = self._resolve_neighbor_relations(t,x,itertools.chain(*relations))
-                neighbor_assignments = sorted(neighbor_assignments)
-                # print(neighbor_assignments)
-                literal_to_assignment = {}
-                for _, relations, key,i in neighbor_assignments:
-                    if(len(relations) != 0):
-                        elms = [relation_map[x] for x in relations]
-                        assert len(set(elms)) == 1, "BAAAAAD!"
-                        elm = elms[0]
-                        if(elm not in literal_to_assignment):
-                            literal_to_assignment[elm] = (key,relations)
-                            continue
-                    to_remove.append(i)
-                # inv_new_expected_neighbors = {relation_map[x[0]]:}
-                # print(inv_new_expected_neighbors)
+            # pprint(instances)
+            # pprint(neigh_instances)
+            # pprint(neigh_relations)
+            
+            
 
+            #Do this just so everything is in the map
+            self.enumerizer.transform({i:x for i,x in enumerate(x.keys())})
+            self.enumerizer.transform(list(x.values()))
 
-                
-                
-                
-                # pprint(neighbor_assignment)
-                new_expected_neighbors = {key:relations for (key,relations) in sorted(literal_to_assignment.values())}
-                # pprint("expected_neighbors")
-                # pprint(new_expected_neighbors)
-                # to_remove = [i+len(t) for i,k in enumerate(self.expected_neighbors.keys()) if k not in new_expected_neighbors]
-                # print(to_remove)
-                # raise(ValueError)
-                if(len(to_remove) > 0): self.remove_concepts(sorted(to_remove))
-                
-                self.expected_neighbors = new_expected_neighbors
-                
+            # print("VS")
+            # print(self.enumerizer.transform(list(x.values())))
 
-            instances,vs_elems = self.get_neighborized_vs_elems(t,x)
+            if(self.elem_slices == None):
+                self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
+                # self.elem_slices += 
+            # print(t)
+            # print(self.enumerizer.attr_maps[0])
+            # print(x.keys())
+            # print("vs_elems:")
+            # pprint(vs_elems)
+            # if(self.pos_concepts.spec_concepts is not None):
+                # pprint(self.skill_info())
+                # print("BEFORE: ",self.pos_concepts.spec_concepts.view(-1,5))
 
-            # self.elem_types = [x[t_name]["type"] for t_name in t]
+            flat_vs_elems = list(itertools.chain(*vs_elems))
+            self.pos_concepts.ifit(flat_vs_elems, y)
+            self.pos_ok = self.pos_ok or y > 0
+            if(self.use_neg):
+                self.neg_concepts.ifit(flat_vs_elems, 0 if y > 0 else 1)
+                self.neg_ok = self.neg_ok or y < 0
 
-            # inv_rename_dict = {v:k for k,v in rename_dict.items()}
-            # neigh_rename_dict = {}
-            # for k,v in self.expected_neighbors.items():
-            #     for v_i in v:
-            #         name = x[inv_rename_dict[v_i[0]]][v_i[1]]
-            #         if(isinstance(name,list)): name = name[v_i[2]]
-            #         neigh_rename_dict[name] = k 
-                
-            # # pprint(rename_dict)
-            pprint(instances)
-            # # pprint(neigh_rename_dict)
+            # if(self.elem_types is not None):
+            #     print(len(self.elem_types),len(list(self.expected_neighbors.keys())))
+            # assert self.elem_types is None or len(self.elem_types)==len(list(self.expected_neighbors.keys()))+len(t), "BUG!!"
 
-            # instances = [rename_values(x[t_name],{**rename_dict,**neigh_rename_dict}) 
-            #              for t_name in [*t,*neigh_rename_dict.keys()]]
-            # vs_elems = self.enumerizer.transform(instances)
-        # neigh_elems = []
-        # pprint(instances)
-                # print(" ",intersections)
-                # intersections = neigh_relations.values()
-                # print("expected_neighbors:",)
-                # pprint(neigh_relations)
-            # removable_neighbors = [x for x in self.expected_neighbors if x not in neigh_relations.values()]
-            # pprint("remaining_neighbors",neigh_relations.values())
-            # pprint("removable_neighbors",removable_neighbors)
+            # print("AFTER: ")
+            # print(self.pos_concepts.spec_concepts.view(-1,5))
+            # print(self.elem_types)
 
-        # pprint(instances)
-        # pprint(neigh_instances)
-        # pprint(neigh_relations)
-        
-        
+            # for i in range(self.num_elems):
 
-        #Do this just so everything is in the map
-        self.enumerizer.transform({i:x for i,x in enumerate(x.keys())})
-        self.enumerizer.transform(list(x.values()))
-
-        # print("VS")
-        # print(self.enumerizer.transform(list(x.values())))
-
-        if(self.elem_slices == None):
-            self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
-            # self.elem_slices += 
-        # print(t)
-        # print(self.enumerizer.attr_maps[0])
-        # print(x.keys())
-        # print("vs_elems:")
-        # pprint(vs_elems)
-        # if(self.pos_concepts.spec_concepts is not None):
-            # pprint(self.skill_info())
-            # print("BEFORE: ",self.pos_concepts.spec_concepts.view(-1,5))
-
-        flat_vs_elems = list(itertools.chain(*vs_elems))
-        self.pos_concepts.ifit(flat_vs_elems, y)
-        self.pos_ok = self.pos_ok or y > 0
-        if(self.use_neg):
-            self.neg_concepts.ifit(flat_vs_elems, 0 if y > 0 else 1)
-            self.neg_ok = self.neg_ok or y < 0
-
-        # print("AFTER: ")
-        # print(self.pos_concepts.spec_concepts.view(-1,5))
-        # print(self.elem_types)
-
-        # for i in range(self.num_elems):
-
-        # self.positive_concepts.ifit()
+            # self.positive_concepts.ifit()
 
     # def match_elem(self,t_name):
     def check_constraints(self,t,x):
@@ -1060,174 +1544,188 @@ class VersionSpace(BaseILP):
         return True
 
     def check_match(self, t, x):
-        if(not self.pos_ok):
-            return False
-
-        x = x.get_view("object")
-
-        if(not self.check_constraints(t,x)):
-            return False
-
-        # def _rename_values(x):
-        #     return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
-
-        # instances = [_rename_values(x[t_name],) for t_name in t]
-        if(self.use_neighbor_concepts):
-            instances,vs_elems  = self.get_neighborized_vs_elems(t,x)
-            if(vs_elems is None or len(instances) != len(self.elem_slices)-1):
+        with torch.no_grad():
+            if(not self.pos_ok):
                 return False
-        else:  #self.enumerizer.transform(instances)
-            instances,vs_elems  = self.get_vs_elems(t,x)
-        print(vs_elems,self.use_neighbor_concepts,self.expected_neighbors)
-        # print(torch.tensor(vs_elem).view(3, -1))
-        if(self.use_neg):
-            x = torch.tensor(vs_elems, dtype=torch.uint8).view(1, -1)
-            ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-            ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
-            ZERO = self.pos_concepts.ZERO
-            spec_consistency = (((ps == ZERO)) | (ps == x)).all(dim=-1)
 
-            out = spec_consistency.any()
-            if(self.use_gen):
-                gen_consistency = (((pg == ZERO)) | (pg == x)).all(dim=-1)
-                out = out & gen_consistency.all()
+            x = x.get_view("object")
 
-            # print(self.enumerizer.attr_maps[0])
-            # print(self.enumerizer.back_maps[0])
-            # print(x)
-            # print(self.enumerizer.back_maps[0][x.view(-1).tolist()[0]], self.enumerizer.back_maps[0][5])
-            # print(ps)
-            # print((((ps == ZERO)) | (ps == x)))
+            if(not self.check_constraints(t,x)):
+                return False
 
-            if(self.neg_ok):
-                neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(dim=-1)
-                out = out & neg_spec_consistency.any()
+            # def _rename_values(x):
+            #     return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
+
+            # instances = [_rename_values(x[t_name],) for t_name in t]
+            if(self.use_neighbor_concepts):
+                instances,vs_elems  = self.get_neighborized_vs_elems(t,x)
+                if(vs_elems is None or len(instances) != len(self.elem_slices)-1):
+                    return False
+            else:  #self.enumerizer.transform(instances)
+                instances,vs_elems  = self.get_vs_elems(t,x)
+            # print(vs_elems,self.use_neighbor_concepts,self.expected_neighbors)
+            # print(torch.tensor(vs_elem).view(3, -1))
+            if(self.use_neg):
+                x = torch.tensor(vs_elems, dtype=torch.uint8).view(1, -1)
+                ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+                ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+                ZERO = self.pos_concepts.ZERO
+                spec_consistency = (((ps == ZERO)) | (ps == x)).all(dim=-1)
+
+                out = spec_consistency.any()
                 if(self.use_gen):
-                    neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
-                    out = out & neg_gen_consistency.any()
+                    gen_consistency = (((pg == ZERO)) | (pg == x)).all(dim=-1)
+                    out = out & gen_consistency.all()
+
+                # print(self.enumerizer.attr_maps[0])
+                # print(self.enumerizer.back_maps[0])
+                # print(x)
+                # print(self.enumerizer.back_maps[0][x.view(-1).tolist()[0]], self.enumerizer.back_maps[0][5])
+                # print(ps)
+                # print((((ps == ZERO)) | (ps == x)))
+
+                if(self.neg_ok):
+                    neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(dim=-1)
+                    out = out & neg_spec_consistency.any()
+                    if(self.use_gen):
+                        neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
+                        out = out & neg_gen_consistency.any()
+
+                
+                return out.item()
+            else:
+                return self.pos_concepts.check_match(vs_elems) > 0
+
+
+    def _match_iterative(self,split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems):
+        print("----------------")
+        print("split_ps")
+        pprint(split_ps)
+        # print(split_ns)
+        pprint("candidates_by_type:")
+        print(candidates_by_type)
+        pprint("concept_candidates:")
+        pprint(concept_candidates)
+        pprint([x.view(-1) for x in concept_cand_indicies])
+        print()
+        print(where_part_vals)
+        print()
+        pprint(elem_names)
+        pprint(consistencies)
+        pprint("elems")
+        pprint(elems)
+
+        print("concept_cand_indicies")
+        # pprint(concept_cand_indicies.size())
+        pprint([x.view(-1) for x  in concept_cand_indicies])
+
+        #adjacency matrix
+
+        adjacencies = torch.empty((len(split_ps),len(split_ps)))
+        for i,concept in enumerate(split_ps):
+            adjacencies[i,:] = (concept == where_part_vals.unsqueeze(-1)).any(dim=1)
+            # adj_deg = adj.sum()
+            # adjacencies.append((adj_deg,adj))
+            # print(adj)
+            # print(adj_deg)
+        # import numba
+        print(adjacencies)
+
+        for i,j in adjacencies.nonzero():
+            ps_i,ns_i = split_ps[i],split_ns[i]
+            ps_j,ns_j = split_ps[j],split_ns[j]
+            # _,elem_names_i = concept_candidates[i]
+            _,elem_names_j = concept_candidates[j]
+            # print(len(elem_names_i),len(elem_names_j))
+            sel = (ps_i.view(-1) == where_part_vals[j]).nonzero() 
+            cands = [x for i,x in enumerate(elems) if i in [x.item() for x in concept_cand_indicies[j]]]
+            print(cands)
+            # candidates_slice = cands[:,sel.view(-1)]
+            candidates_slice = candidates_by_type[self.elem_types[i]][:,sel.view(-1)]
+            # for u in elem_names_i:
+            print(sel,len(elem_names_j))
+            blehh = torch.empty(len(elem_names_j),len(candidates_slice),dtype=torch.uint8)
+            for k,v in enumerate(elem_names_j):
+                blehh[k] = (candidates_slice == v).all(dim=-1)
+
+            print("blehh")
+            print(blehh)
+
+
+
+            # all_consistencies[i] = blehh.any(dim=0)
+
+            # # partial_matches = torch.zeros(int(blehh.sum().item()),blehh.size()[1])
+            # partial_matches = []
+            # # print(partial_matches.size(),blehh.size())
+
+            # for k,pm in enumerate(blehh.nonzero()):
+            #     partial_match = torch.zeros(len(split_ps),dtype=torch.long)
+            #     partial_match[i] = pm[0]
+            #     partial_match[j] = pm[1]
+            #     partial_matches.append(partial_match)
+            #     # print("pm", pm)
+            #     # partial_matches[k,i] = pm[0]
+            #     # partial_matches[k,j] = pm[1]
+
+            # pprint(partial_matches)
+
+            # pprint(all_consistencies)
+            # pprint(elem_names)
+            # pprint(all_consistencies.size())
+            # pprint(elem_names.size())
+            
+
+            # print("repl",i,j,repl.size())
+            # print(repl)
+            # repl = repl.unsqueeze(-2)
+            # print(typ,j,repl.size())
+            # v_i = where_part_vals[j]
+            # print(v)
 
             
-            return out.item()
-        else:
-            return self.pos_concepts.check_match(vs_elems) > 0
+            # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
+            #   at element (r,e) if element e is consistent with concept set i given that 
+            #   where part j was assigned to element r.  
+            # consistent = ps_consistency = ( (ps_i == v)).unsqueeze(0)
+            # if(self.neg_ok):
+            #     ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
+            #     consistent = (ps_consistency & ns_consistency)
+            # print(consistent)
 
-    def get_matches(self, x):
-        if(not self.pos_ok):
-            return
+            # # Element e is consistent with replacement r if the replacement changes the
+            # #   element so that all attributes for which the positive concept requires value v
+            # #   are replaced with value v, and no attributes are replaced with value v if it would
+            # #   make e match the negative concept.
+            # repl_consistency = ( ( (~ps_consistency) |  (repl & consistent) )).all(dim=-1).any(dim=-1)
 
-        state = x.get_view("object")
-        # assert False not in [for x in range(self.num_elems), \
-        # "It is not the case that the enum for argX == X+2"
-        # print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
-
-        if(self.elem_slices == None):
-            return
-        # print(self.pos_concepts.spec_concepts)
-
-        # Create a tensor which contains the enum values associated with the when parts
-        #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
-        where_part_vars = ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)]
-        if(self.use_neighbor_concepts): where_part_vars += list(self.expected_neighbors.keys())
-        where_part_vals = self.enumerizer.transform_values(where_part_vars)
-        where_part_vals = torch.tensor(where_part_vals,dtype=torch.uint8)
-
-        # Make a tensor that has all of the enum values for the names of the elements/objects
-        #  in the state in order that they appear
-        elem_names_list = [key for key in state.keys()]
-        elem_names = self.enumerizer.transform_values(elem_names_list)
-        elem_names = torch.tensor(elem_names,dtype=torch.uint8)
-
-        # Make a list that has all of the enumerized elements/objects
-        elems_list = [val for val in state.values()]
-        elems = self.enumerizer.transform(elems_list)
-        # pprint(elems_list)
-
-        # Make a list that has all of the enumerized elements/objects, but zeros in
-        #  all of the slot for attributes which have elements names as values. 
-        #  Only make this replacement if the element is of a type that we match to
-        zero_map = {ele_name: 0 for ele_name,ele in state.items() 
-                    if 'type' in ele and ele['type'] in self.elem_types}
-        elems_scrubbed = self.enumerizer.transform(elems_list, zero_map)
-        
-        # Split up the concepts by the where parts that each slice selects on
-        ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-        
-        s = self.elem_slices
-        split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-        pprint(split_ps)
-        if(self.neg_ok):
-            ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
-            split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-        else:
-            split_ns = [None] * len(split_ps)
-
-        # Initialize a bunch of containers that we will fill
-        inds_by_type = {}
-        candidates_by_type = {}
-        scrubbed_by_type = {}
-        elem_names_by_type = {}
-        consistencies = []
-        concept_cand_indicies = []
-        concept_candidates = []
-        concept_cand_replacements = []
-        
-
-        ZERO = self.pos_concepts.ZERO
-        
-        # Loop over the concepts for each where part and cull down the list of
-        #   possible matches for them. This phase only filters out elements we can
-        #   rule out without committing to any part of the where assignment. 
-        for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
-
-            # If the type for this concept is new then populate the list of candidates in various formats
-            if(typ not in inds_by_type):
-                candidate_indices = [i for i, e in enumerate(elem_names_list) if state[e]["type"] == typ]
-                
-                cnd = torch.tensor([elems[i] for i in candidate_indices], dtype=torch.uint8)
-                candidates_by_type[typ] = cnd
-
-                cnd_s = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
-                cnd_s = cnd_s.view(len(candidate_indices), 1, ps_i.size(-1))
-                scrubbed_by_type[typ] = cnd_s
-
-                inds_by_type[typ] = torch.tensor(candidate_indices,dtype=torch.long)
-                elem_names_by_type[typ] = torch.index_select(elem_names,0,inds_by_type[typ])
-                
-            else:
-                candidate_indices = inds_by_type[typ]
-                cnd_s = scrubbed_by_type[typ]
-
-            # Check the consistency of each scrubbed candidate with the positive and negative
-            #   concepts. This is a normal concept comparison except that any attribute slot where  
-            #   the scrubbed candidate has a zero is always considered consistent. 
-            ps_i = ps_i.unsqueeze(0)
-            if(self.neg_ok):
-                ns_i = ns_i.unsqueeze(0)
+            # # If 'where' part j corresponds with concept i then we need to add the constraint that 
+            # #   our choice of the element for part j is the only possible consistent element with
+            # #   concept i. We can bitwise AND a diagonal matrix of shape (n_i,N_t) that has value 1 where the candidates
+            # #   for where part i align with the candidates from the original state to apply this constraint.
+            # if(i == j):
+            #     concept_diag = concept_cand_indicies[i].view(-1,1) == torch.arange(repl_consistency.size(-1)).view(1,-1)
+            #     repl_consistency = repl_consistency & concept_diag
+            # print(i,j)
+        # adjacencies = sorted(adjacencies,key=lambda x:x[0],reverse=True)
+        # pprint(adjacencies)
 
 
-            consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
-            # print(consistency)
-            if(self.neg_ok):
-                ns_consistency = ((ns_i == ZERO) | (ns_i != cnd_s) | (ps_i == ns_i) | (cnd_s == ZERO)).all(dim=-1).any(dim=-1)
-                consistency = consistency & ns_consistency
+        # replacements_by_type = {}
+        # for typ, cnd in candidates_by_type.items():
+        #     # print(cnd)
+        #     repls = []
+        #     for consistency, elem_names in concept_candidates:
+        #         repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1))
+        #         repls.append(repl)
+        #     replacements_by_type[typ] = repls
 
-            #Store our culled down set of candidates in various formats
-            consistencies.append(consistency)
-            # print(ps_i)
-            print(consistency)
-            # print(consistency)
-            # print(self.enumerizer.back_maps[0])
-            # print(ps_i)
-            # print(((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)))
-            # print(consistency.nonzero().tolist())
+        # print(replacements_by_type[typ])
 
-            # print([elem_names_list[j] for j in inds_by_type[typ].view(-1).tolist()])
-            # print([self.enumerizer.back_maps[0][j] for j in elem_names_by_type[typ].view(-1).tolist()])
-            # print()
-            # print([elem_names_list[j] for j in torch.masked_select(inds_by_type[typ],consistency).tolist()])
-            concept_cand_indicies.append(consistency.nonzero())
-            concept_candidates.append( (consistency, torch.masked_select(elem_names_by_type[typ],consistency)) )
 
+            # split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
+        return torch.zeros((0,len(self.elem_types)),dtype=torch.long)
+    def _match_naive(self,split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals):
         # For each subset of the state of shape (N_t,d_t) consisting of all N_t, elements of type t
         #   with shared shape d_t, create a mask tensor of shape (n_w,N_t,d_t) such that each mask
         #   along its first dimension selects a different candidate assignment to 'where' part w.
@@ -1264,10 +1762,13 @@ class VersionSpace(BaseILP):
             # For each where part j check all assignments among the candidate elements
             #   for consistency with concept(i).   
             for j, repl in enumerate(repls):
+                # print("repl",i,j,repl.size())
+                # print(repl)
                 repl = repl.unsqueeze(-2)
                 # print(typ,j,repl.size())
                 v = where_part_vals[j]
 
+                
                 # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
                 #   at element (r,e) if element e is consistent with concept set i given that 
                 #   where part j was assigned to element r.  
@@ -1294,9 +1795,13 @@ class VersionSpace(BaseILP):
                 #   to ultimately create a tensor ok_i of shape (n_w1,n_w2,n_w3, ..., N_t) that contains a mask of 
                 #   elements for each combination of where assignments which are mutually consistent 
                 #   with concept set i. 
+                # print(i,j)
+                # print(repl_consistency)
                 repl_consistency = repl_consistency.view(*([1]*j + [-1] + (len(self.elem_types)-(j+1))*[1] + [repl_consistency.size(-1)]))
 
                 ok_i = (ok_i & repl_consistency) if ok_i is not None else repl_consistency
+                # print(i)
+                # print(ok_i)
                 
 
             ok_i = ok_i.any(dim=-1)
@@ -1307,29 +1812,194 @@ class VersionSpace(BaseILP):
 
         # Get the indicies of the consistent 'where' assignments 
         matches = tot.nonzero()
+        return matches
         # print(matches)
 
-        # Translate these indicies so that they select from the original state
-        translated = []
-        for i,(typ,indicies) in enumerate(zip(self.elem_types,concept_cand_indicies)):
-            rel_to_type = torch.index_select(indicies,0,matches[:,i])
-            # print(rel_to_type)
-            # print(inds_by_type[typ])
-            # print(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)))
-            translated.append(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)).view(-1,1))
-        translated = torch.cat(translated,dim=1)
-        # print(translated)
-        
-        #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
 
-        for out_inds in translated.tolist():
-            out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
-            print(out)
+    def get_matches(self, x):
+        with torch.no_grad():
+            if(not self.pos_ok):
+                return
+
+            state = x.get_view("object")
+            # assert False not in [for x in range(self.num_elems), \
+            # "It is not the case that the enum for argX == X+2"
+            # print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
+
+            if(self.elem_slices == None):
+                return
+            # print(self.pos_concepts.spec_concepts)
+
+            # Create a tensor which contains the enum values associated with the when parts
+            #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
+            where_part_vars = ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)]
+            if(self.use_neighbor_concepts): where_part_vars += list(self.expected_neighbors.keys())
+            where_part_vals = self.enumerizer.transform_values(where_part_vars)
+            where_part_vals = torch.tensor(where_part_vals,dtype=torch.uint8)
+
+            # Make a tensor that has all of the enum values for the names of the elements/objects
+            #  in the state in order that they appear
+            elem_names_list = [key for key in state.keys()]
+            elem_names = self.enumerizer.transform_values(elem_names_list)
+            elem_names = torch.tensor(elem_names,dtype=torch.uint8)
+
+            # Make a list that has all of the enumerized elements/objects
+            elems_list = [val for val in state.values()]
+            elems = self.enumerizer.transform(elems_list)
+            # pprint(elems_list)
+
+            # Make a list that has all of the enumerized elements/objects, but zeros in
+            #  all of the slot for attributes which have elements names as values. 
+            #  Only make this replacement if the element is of a type that we match to
+            zero_map = {ele_name: 0 for ele_name,ele in state.items() 
+                        if 'type' in ele and ele['type'] in self.elem_types}
+            elems_scrubbed = self.enumerizer.transform(elems_list, zero_map)
+            # print(elems_scrubbed)
             
-            # print(out,self.check_constraints(out,state))
-            # print([state[x].get('value',None) for x in out])
-            if(self.check_constraints(out,state)):
-                yield out
+            # Split up the concepts by the where parts that each slice selects on
+            ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+            
+            s = self.elem_slices
+            split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+            # pprint(split_ps)
+            if(self.neg_ok):
+                ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+                split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+            else:
+                split_ns = [None] * len(split_ps)
+
+            # Initialize a bunch of containers that we will fill
+            inds_by_type = {}
+            candidates_by_type = {}
+            scrubbed_by_type = {}
+            elem_names_by_type = {}
+            consistencies = []
+            concept_cand_indicies = []
+            concept_candidates = []
+            # concept_cand_replacements = []
+            
+
+            ZERO = self.pos_concepts.ZERO
+            # all_consistencies = []
+            # all_concepts
+            
+            # Loop over the concepts for each where part and cull down the list of
+            #   possible matches for them. This phase only filters out elements we can
+            #   rule out without committing to any part of the where assignment. 
+            for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
+
+                # If the type for this concept is new then populate the list of candidates in various formats
+                if(typ not in inds_by_type):
+                    candidate_indices = [i for i, e in enumerate(elem_names_list) if state[e]["type"] == typ]
+                    
+                    cnd = torch.tensor([elems[i] for i in candidate_indices], dtype=torch.uint8)
+                    candidates_by_type[typ] = cnd
+
+                    cnd_s = torch.tensor([elems_scrubbed[i] for i in candidate_indices], dtype=torch.uint8)
+                    cnd_s = cnd_s.view(len(candidate_indices), 1, ps_i.size(-1))
+                    scrubbed_by_type[typ] = cnd_s
+
+                    inds_by_type[typ] = torch.tensor(candidate_indices,dtype=torch.long)
+                    elem_names_by_type[typ] = torch.index_select(elem_names,0,inds_by_type[typ])
+                    
+                else:
+                    candidate_indices = inds_by_type[typ]
+                    cnd_s = scrubbed_by_type[typ]
+
+                # Check the consistency of each scrubbed candidate with the positive and negative
+                #   concepts. This is a normal concept comparison except that any attribute slot where  
+                #   the scrubbed candidate has a zero is always considered consistent. 
+                ps_i = ps_i.unsqueeze(0)
+                if(self.neg_ok):
+                    ns_i = ns_i.unsqueeze(0)
+
+                pss = torch.tensor([[0 if (x in elem_names or x in where_part_vals) else x for x in ps_i.view(-1) ]],dtype=torch.uint8)
+                # print(pss)
+
+                consistency = ((pss == ZERO) | (pss == cnd_s)).all(dim=-1).any(dim=-1)
+                # print(consistency)
+                if(self.neg_ok):
+                    nss = torch.tensor([[0 if (x in elem_names or x in where_part_vals) else x for x in ns_i.view(-1) ]],dtype=torch.uint8)
+                    ns_consistency = ((nss == ZERO) | (nss != cnd_s) | (ps_i == nss)).all(dim=-1).any(dim=-1)
+                    consistency = consistency & ns_consistency
+
+                #Store our culled down set of candidates in various formats
+                consistencies.append(consistency)
+                # scooby_doo = np.zeros(len(elem_names))
+                # torch.gather(scooby_doo, 1, torch.tensor([[0,0],[1,0]]))
+                # print(inds_by_type[typ])
+                # print(consistency)
+                # scooby_doo[inds_by_type[typ]] = consistency.numpy()
+                # print("scooby_doo")
+                # print(scooby_doo)
+                # all_consistencies.append(scooby_doo)
+                # print(ps_i)
+                # print(consistency)
+                # print(consistency)
+                # print(self.enumerizer.back_maps[0])
+                # print(ps_i)
+                # print(((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)))
+                # print(consistency.nonzero().tolist())
+
+                # print([elem_names_list[j] for j in inds_by_type[typ].view(-1).tolist()])
+                # print([self.enumerizer.back_maps[0][j] for j in elem_names_by_type[typ].view(-1).tolist()])
+                # print()
+                # print([elem_names_list[j] for j in torch.masked_select(inds_by_type[typ],consistency).tolist()])
+                concept_cand_indicies.append(consistency.nonzero())
+                concept_candidates.append( (consistency, torch.masked_select(elem_names_by_type[typ],consistency)) )
+
+            # all_consistencies = torch.tensor(all_consistencies)
+
+
+            split_ps_flat, concept_slices = flatten_n_slice(split_ps)
+            elems_flat, elems_slices = flatten_n_slice(elems)
+            concept_cands_flat, cand_slices = flatten_n_slice(concept_cand_indicies)
+
+
+
+            # print(type(split_ps_flat), type(concept_slices))
+            # print(type(elems_flat), type(elems_slices))
+            # print(type(concept_cands_flat), type(cand_slices))
+            # timefunc("match_iterative",match_iterative,
+            #                     split_ps, concept_slices,
+            #                     elems,elems_slices,
+            #                     concept_cands,cand_slices,
+            #                     elem_names,
+            #                     where_part_vals)
+            # timefunc("numpy_mi",numpy_mi,og_split_ps,elems,elem_names,concept_cand_indicies,where_part_vals)
+            # translated = np.array([[]])
+            print("Before")
+            translated = match_iterative(split_ps_flat, concept_slices,
+                                elems_flat,elems_slices,
+                                concept_cands_flat,cand_slices,
+                                elem_names.numpy(),
+                                where_part_vals.numpy())
+
+            # matches = self._match_iterative(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems)
+            # matches = self._match_naive(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
+
+            # Translate these indicies so that they select from the original state
+            # translated = []
+            # for i,(typ,indicies) in enumerate(zip(self.elem_types,concept_cand_indicies)):
+            #     rel_to_type = torch.index_select(indicies,0,matches[:,i])
+            #     # print(rel_to_type)
+            #     # print(inds_by_type[typ])
+            #     # print(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)))
+            #     translated.append(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)).view(-1,1))
+            # translated = torch.cat(translated,dim=1)
+            # print(translated)
+            
+            #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
+            # print(elem_names_list)
+            for out_names in translated.tolist():
+                out = [self.enumerizer.back_maps[0][y] for i,y in enumerate(out_names) if i < self.num_elems]
+                # out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
+                # print(out)
+                
+                # print(out,self.check_constraints(out,state))
+                # print([state[x].get('value',None) for x in out])
+                if(self.check_constraints(out,state)):
+                    yield out
 
     def skill_info(self):
         out = {}
@@ -1343,7 +2013,7 @@ class VersionSpace(BaseILP):
             split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
 
         for i, t in enumerate(self.elem_types):
-            print(i,i-self.num_elems,len(self.elem_types),list(self.expected_neighbors))
+            # print(i,i-self.num_elems,len(self.elem_types),list(self.expected_neighbors))
             key = "?sel" if i==0 else ("?arg%d" % (i-1) if i < self.num_elems else list(self.expected_neighbors)[i-self.num_elems]) 
             out[key] = {}
             out[key]["pos"] = self.enumerizer.undo_transform(split_ps[i].tolist()[0],t)
@@ -1366,6 +2036,7 @@ class VersionSpaceILP(object):
     def ifit(self, x, y):
         # print(x)
         # print(x)
+        # print(torch.tensor(x, dtype=torch.uint8))
         x = torch.tensor(x, dtype=torch.uint8).view(1, -1)
         # print("x", y)
         # print(x)
@@ -1433,7 +2104,13 @@ class VersionSpaceILP(object):
 
     def check_match(self, x):
         '''Returns true if x is consistent with all general concepts and any specific concept'''
-        x = torch.tensor(x, dtype=torch.uint8).view(1, -1)
+        # print(x)
+        # print([len(z) for z in x])
+        # print(len())
+        # print(self.spec_concepts.size())
+        # print(torch.tensor(x, dtype=torch.uint8))
+        flat_x = list(itertools.chain(*x)) if isinstance(x[0],list) else x
+        x = torch.tensor(flat_x, dtype=torch.uint8).view(1, -1)
         spec_consistency = ((self.spec_concepts == self.ZERO) | (self.spec_concepts == x)).all(dim=-1)
         out = spec_consistency.any()
         if(self.use_gen):
@@ -1573,6 +2250,8 @@ class Enumerizer(Preprocessor):
                     lst[key[1]] = back_map[instance[i]]
                     d[key[0]] = lst
                 else:
+                    # print(i,instance,back_keys,typ,len(instance))
+                    # print(instance[i])
                     d[key] = back_map[instance[i]]
 
 
@@ -1729,6 +2408,7 @@ if __name__ == "__main__":
             "left" : None,
             "right": "C3",
         }
+        
     }
     from agents.ModularAgent import StateMultiView
     state = StateMultiView("object",state)
@@ -1801,6 +2481,37 @@ if __name__ == "__main__":
         return test_get_matches        
 
 
+    
+    
+
+    # state_no_line = StateMultiView("object",{k:v for k,v in state.get_view("object").items() if k != "line"})
+    state_l1 = StateMultiView("object",{name: {k:((v[0] if v[0] != "line" else v[1]) if isinstance(v,list) else v) for k,v in itm.items()}  for name,itm in state.get_view("object").items() if name != "line"})
+    # state_l1 = state_l1.get_view("object")
+    
+    vs_tricky = VersionSpace(use_neg=False,use_neighbor_concepts=True)
+    vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
+    # vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
+    # vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
+    pprint(vs_tricky.skill_info())
+    # vs_tricky.ifit(["C3","A2","B2"],state_l1,1)
+    vs_tricky.ifit(["C4","A3","B3"],state_l1,1)
+    pprint(vs_tricky.skill_info())
+    for match in vs_tricky.get_matches(state_l1):
+        print("match",match)
+
+
+    vs_tricky = VersionSpace(use_neg=False,use_neighbor_concepts=False)
+    vs_tricky.ifit(["C2","A1"],state_l1,1)
+    # vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
+    # vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
+    # pprint(vs_tricky.skill_info())
+    # vs_tricky.ifit(["C3","A2","B2"],state_l1,1)
+    vs_tricky.ifit(["C4","A3"],state_l1,1)
+    pprint(vs_tricky.skill_info())
+    for match in vs_tricky.get_matches(state_l1):
+        print("match",match)
+
+
     if(False):
         timefunc("match-3", gen_test_get_matches(vs))
         for match in vs.get_matches(state):
@@ -1832,20 +2543,10 @@ if __name__ == "__main__":
             print(match)
         timefunc("match-11", gen_test_get_matches(vs4))
 
-    # state_no_line = StateMultiView("object",{k:v for k,v in state.get_view("object").items() if k != "line"})
-    state_l1 = StateMultiView("object",{name: {k:((v[0] if v[0] != "line" else v[1]) if isinstance(v,list) else v) for k,v in itm.items()}  for name,itm in state.get_view("object").items() if name != "line"})
-    # state_l1 = state_l1.get_view("object")
-    
-    vs_tricky = VersionSpace(use_neg=False,use_neighbor_concepts=True)
-    vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
-    # vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
-    # vs_tricky.ifit(["C2","A1","B1"],state_l1,1)
-    pprint(vs_tricky.skill_info())
-    # vs_tricky.ifit(["C3","A2","B2"],state_l1,1)
-    vs_tricky.ifit(["C4","A3","B3"],state_l1,1)
-    pprint(vs_tricky.skill_info())
-    for match in vs_tricky.get_matches(state_l1):
-        print("match",match)
+    # vs4 = VersionSpace(use_neg=True)
+    # vs4.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3","A4","C4"],state,1)
+    # for match in vs4.get_matches(state):
+    #     print(match)
     # pprint(vs_tricky.skill_info())
     # pprint(state_l1.get_view("object"))
 
