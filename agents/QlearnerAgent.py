@@ -5,7 +5,9 @@ from random import choice
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.structure_mapper import rename_flat
-
+from concept_formation.utils import isNumber
+from concept_formation.trestle import TrestleTree
+from concept_formation.visualize import visualize
 
 from agents.BaseAgent import BaseAgent
 from learners.WhenLearner import get_when_learner
@@ -75,8 +77,9 @@ class LinearFunc:
 
 class Tabular:
 
-    def __init__(self, q_init=0, learning_rate=0.1):
+    def __init__(self, q_init=0, learning_rate=0.8):
         self.Q = {}
+        self.A = {}
         self.q_init = q_init
         self.alpha = learning_rate
 
@@ -89,6 +92,7 @@ class Tabular:
         x = str(action)
         if x not in self.Q:
             self.Q[x] = self.q_init
+            self.A[x] = action
 
         self.Q[x] = ((1 - self.alpha) * self.Q[x] + self.alpha * y)
 
@@ -97,6 +101,54 @@ class Tabular:
         if x not in self.Q:
             self.Q[x] = self.q_init
         return Stub(self.Q[x])
+
+class TrestleLearner:
+    def __init__(self):
+        self.T = TrestleTree()
+        self.action_list = {}
+        self.alpha = 1
+        self.g = 1
+
+    def eval_state(self, state):
+        '''
+        vals = [self.evaluate(state, action) for action in self.action_list]
+        if vals == []:
+            return 0
+        else:
+            return max(vals)
+        '''
+        res = self.T.infer_missing(state, choice_fn='sampled', allow_none=False)
+        try:
+            return float(res['_q'])
+        except Exception as e:
+            return 0
+        
+
+    def evaluate(self, state, action):
+        state['action'] = str(action)
+        # state['_q'] = None
+        # predict val of this field
+        res = self.T.infer_missing(state, choice_fn='sampled', allow_none=False)
+        #pprint('Eval:')
+        #pprint(res)
+        try:
+            return float(res['_q'])
+        except Exception as e:
+            return 0
+
+    def update(self, state, action, reward, next_state):
+        exp_rew = self.evaluate(state, action) * (1 - self.alpha) + \
+            self.alpha * (self.g * reward + self.eval_state(next_state))
+        pprint(reward)
+        pprint(exp_rew)
+        pprint('')
+
+        state['action'] = str(action)
+        if str(action) not in self.action_list:
+            self.action_list[str(action)] = action
+        state['_q'] = str(reward)
+        self.T.ifit(state)
+        #pprint(state)
 
 
 class QLearner:
@@ -109,6 +161,7 @@ class QLearner:
         self.Q = {}
         self.q_init = q_init
         self.g = discount
+        self.T = TrestleTree()
 
     def __len__(self):
         return sum([self.Q[a].root.num_concepts() for a in self.Q])
@@ -125,21 +178,48 @@ class QLearner:
         return self.Q[state].categorize(action).predict("_q")
 
     def update(self, state, action, reward, next_state):
+        state = state_to_key(state)
+        next_state = state_to_key(next_state)
+
+        # for TrestleTree
+        #state = self.T.ifit(flatten_state(state)).concept_id
+        #next_state = self.T.ifit(flatten_state(next_state)).concept_id
 
         q_max = 0
         if next_state in self.Q:
-            q_max = max([self.evaluate(next_state, str(a))
-                         for a in self.Q[next_state].Q])
-        y = reward + self.g * q_max
+            q_max = max([v for v in self.Q[next_state].Q.values()])
+        y = reward + self.g * max(q_max, 0)
         #print("Updating with", y)
 
         if state not in self.Q:
             self.Q[state] = self.func()
 
-       #state = self.get_features(state)
+        #state = self.get_features(state)
         #state['_q'] = y
         self.Q[state].ifit(action, y)
 
+
+
+def state_to_key(state):
+    return trim(tuple(sorted(state.get_view("key_vals_grounded"))))
+
+
+# temporary
+def isvalue(state):
+    try:
+        float(state)
+        return True
+    except ValueError:
+        return False
+
+def trim(state):
+    if isinstance(state, tuple):
+        return tuple(trim(ele) for ele in state)
+
+    elif not isinstance(state, bool) and isvalue(state):
+        return '#NUM'
+    else:
+        return state
 
 def compute_exp_depth(exp):
     """
@@ -237,6 +317,7 @@ class QlearnerAgent(BaseAgent):
 
 
         self.q_learner = QLearner()
+        self.t_learner = TrestleLearner()
 
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
@@ -253,8 +334,12 @@ class QlearnerAgent(BaseAgent):
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
         self.rhs_counter = 0
+        self.prev_state = None
+        self.prev_explanations = None
+        self.prev_reward = None
+        self.past_states = []
 
-        self.last_state = None
+         # list of past state, explanation pairs
 
     # -----------------------------REQUEST------------------------------------
 
@@ -263,14 +348,30 @@ class QlearnerAgent(BaseAgent):
                                 ):  # -> returns Iterator<Explanation>
         if(rhs_list is None):
             rhs_list = self.rhs_list
-        actions = self.q_learner.Q.get(state, [])
-        if actions != []:
-             actions = [(action, self.q_learner.Q[state].categorize(action).predict("")) for action in actions]
+
+
+        # categorize the state using trestle
+        #s = self.q_learner.T.categorize(flatten_state(state)).concept_id
+
+        s = state_to_key(state)
+
+        if s in self.q_learner.Q:
+            actions = [(self.q_learner.Q[s].A[action], val) for action, val in self.q_learner.Q[s].Q.items()]
+        else:
+            actions = []
         # sort by q value
         actions = sorted(actions, key=lambda x:x[1], reverse=True)
         for action in actions:
-            action = action[0]
-            yield action, None
+            if action[1] > 0:
+                yield action[0], None
+        '''
+
+        vals = [(action, self.t_learner.evaluate(state, action)) for action in self.t_learner.action_list.values()]
+        vals = sorted(vals, key=lambda x:x[1], reverse=True)
+        for item in vals:
+            if item[1] > 0:
+                yield item[0], None
+        '''
 
         '''
         for rhs in rhs_list:
@@ -303,24 +404,35 @@ class QlearnerAgent(BaseAgent):
                 yield explanation, skill_info
         '''
     def request(self, state, add_skill_info=False):  # -> Returns sai
-        state = StateMultiView("object", state)
-        state = self.planner.apply_featureset(state)
-        pprint(state.views)
+        #state = StateMultiView("object", state)
+        state_featurized = self.planner.apply_featureset(StateMultiView("object", state))
+        state_featurized.compute_from('key_vals_grounded','flat_ungrounded')
         # rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
-
+        
+        '''
         explanations = self.applicable_explanations(
-                            state, rhs_list=self.rhs_list,
+                            state_featurized, rhs_list=self.rhs_list,
                             add_skill_info=add_skill_info)
+        
+        '''
+        explanations = self.applicable_explanations(
+                            state_featurized, rhs_list=self.rhs_list,
+                            add_skill_info=add_skill_info)
+        
+
 
         explanation, skill_info = next(iter(explanations), (None, None))
+        #pprint(str(explanation))
+
         if(explanation is not None):
-            response = explanation.to_response(state, self)
+            response = explanation.to_response(state_featurized, self)
             if(add_skill_info):
                 response["skill_info"] = skill_info
 
         else:
             response = EMPTY_RESPONSE
 
+        #pprint(response)
         return response
 
     # ------------------------------TRAIN----------------------------------------
@@ -348,7 +460,7 @@ class QlearnerAgent(BaseAgent):
         for rhs in rhs_list:
             if(isinstance(rhs.input_rule, (int, float, str))):
                 # TODO: Hard attr assumption fix this.
-                if(sai.inputs["value"] == rhs.input_rule):
+                if(rhs.input_rule in sai.inputs.values()):
                     itr = [(rhs.input_rule, {})]
                 else:
                     itr = []
@@ -383,10 +495,10 @@ class QlearnerAgent(BaseAgent):
             rhs = RHS(selection_expr=selection_rule, action=sai.action,
                       input_rule=input_rule, selection_var="?sel",
                       input_vars=inp_vars, input_attrs=list(sai.inputs.keys()))
-            #if sel_match != None:
-            literals = [sel_match['?sel']] + varz
-            #else:
-            #    literals = ["?ele-" + sai.selection] + varz
+            if sel_match is not None:
+                literals = [sel_match['?sel']] + varz
+            else:
+                literals = [sai.selection] + varz
             ordered_mapping = {k: v for k, v in zip(rhs.all_vars, literals)}
             yield Explanation(rhs, ordered_mapping)
 
@@ -401,8 +513,17 @@ class QlearnerAgent(BaseAgent):
         self.when_learner.add_rhs(rhs)
         self.which_learner.add_rhs(rhs)
 
+
     def fit(self, explanations, state, reward, next_state):  # -> return None
         for exp in explanations:
+            #fit_state = variablize_by_where(state.get_view('flat_ungrounded'), exp.mapping.values())
+            #next_fit_state = variablize_by_where(next_state.get_view('flat_ungrounded'), exp.mapping.values())
+            #print('here:')
+            #pprint(fit_state)
+            #print(next_fit_state)
+            #fit_state = self.planner.apply_featureset(StateMultiView('object', fit_state))
+            #next_fit_state = self.planner.apply_featureset(StateMultiView('object', next_fit_state))
+            
             '''
             if(self.when_learner.state_format == 'variablized_state'):
                 fit_state = variablize_by_where(
@@ -417,52 +538,97 @@ class QlearnerAgent(BaseAgent):
                                     list(exp.mapping.values()),
                                     state, reward)
             '''
-            # need next_state and next_actions
             self.q_learner.update(state, exp, reward, next_state)
+            #self.t_learner.update(state, exp, reward, next_state)
+
+
 
     def train(self, state, selection, action, inputs, reward,
-              skill_label, foci_of_attention, next_state):  # -> return None
-        state = StateMultiView("object", state)
-        sai = SAIS(selection, action, inputs)
-        state_featurized = self.planner.apply_featureset(state)
-        next_state = StateMultiView("object", next_state)
+              skill_label, foci_of_attention):  # -> return None
 
-        next_state_featurized = self.planner.apply_featureset(next_state)
+        #if self.prev_state is not None:
+        #    pprint(self.prev_state.views)
+
+        sai = SAIS(selection, action, inputs)
+        #pprint(state.views)
+        state_featurized = self.planner.apply_featureset(StateMultiView("object", state))
+        state_featurized.compute_from('key_vals_grounded','flat_ungrounded')
+
+        #next_state = StateMultiView("object", next_state)
+        #pprint(state_featurized.views)
+
+        #next_state_featurized = self.planner.apply_featureset(next_state)
         explanations = list(self.explanations_from_skills(state_featurized, sai,
                                                      self.rhs_list,
                                                      foci_of_attention))
+        '''
         if (len(explanations) == 0):
             explanations = self.explanations_from_how_search(
                                state_featurized, sai, foci_of_attention)
+        '''
+            #print([str(next(explanations, None)) for i in range(10)])
 
         #explanations, nonmatching_explanations = self.where_matches(
         #                                         explanations,
         #                                         state_featurized)
-        '''
+        
         if(len(explanations) == 0):
 
-            if(len(nonmatching_explanations) > 0):
-                explanations = [choice(nonmatching_explanations)]
+            explanations = self.explanations_from_how_search(
+                            state_featurized, sai, foci_of_attention)
 
-            else:
-                explanations = self.explanations_from_how_search(
-                               state_featurized, sai, foci_of_attention)
+            rhs_by_how = self.rhs_by_how.get(skill_label, {})
+            for exp in explanations:
+                if(exp.rhs.as_tuple in rhs_by_how):
+                    exp.rhs = rhs_by_how[exp.rhs.as_tuple]
+                else:
+                    rhs_by_how[exp.rhs.as_tuple] = exp.rhs
+                    self.rhs_by_how[skill_label] = rhs_by_how
+                    self.add_rhs(exp.rhs)
 
-                explanations = self.which_learner.cull_how(explanations)
-
-                rhs_by_how = self.rhs_by_how.get(skill_label, {})
-                for exp in explanations:
-                    if(exp.rhs.as_tuple in rhs_by_how):
-                        exp.rhs = rhs_by_how[exp.rhs.as_tuple]
-                    else:
-                        rhs_by_how[exp.rhs.as_tuple] = exp.rhs
-                        self.rhs_by_how[skill_label] = rhs_by_how
-                        self.add_rhs(exp.rhs)
-        '''
+        explanations = list(explanations)
+        #pprint([str(exp.rhs.input_rule) for exp in explanations])
         
-        # need to get next_state from somewhere
-        self.fit(explanations, state_featurized, reward, next_state_featurized)
+        # VERSION FOR INCREMENTAL UPDATES
+        
+        # ***** Note for using trestle: state vs state_featurized, should/can we apply features and then use trestle? *****
+        if self.prev_state is not None:
+            #self.fit(self.prev_explanations, self.prev_state, self.prev_reward, state)
+            self.fit(self.prev_explanations, self.prev_state, self.prev_reward, state_featurized)
 
+        #self.prev_state = state
+        self.prev_state = state_featurized
+        self.prev_reward = reward
+        self.prev_explanations = explanations
+
+        # TODO hardcoded
+        if selection == 'done':
+            #self.fit(explanations, state, reward, {'a':'a'})
+            self.prev_state = None
+            self.fit(explanations, state_featurized, reward, StateMultiView('key_vals_grounded', {}))
+            
+            #visualize(self.q_learner.T)
+
+            #for key, val in self.q_learner.Q.items():
+            #    pprint(key)
+            #    pprint(val)
+
+        '''
+
+        # VERSION FOR DELAYED FEEDBACK UPDATE
+        self.past_states.append((state, explanations, reward))
+
+        if selection == 'done':
+            # update policy in this case
+            self.fit(explanations, state, reward, {'a':'a'})
+            curr, _, _ = self.past_states.pop()
+            while self.past_states != []:
+                s, exp, r = self.past_states.pop()
+                self.fit(exp, s, r, curr)
+                curr = s
+        '''
+
+            
     # ------------------------------CHECK--------------------------------------
 
     def check(self, state, sai):
@@ -670,6 +836,9 @@ class Explanation(object):
                         for x in self.input_literals])
         sel = self.selection_literal.replace("?ele-", "")
         return r + ":(" + args + ")->" + sel
+
+    #def __hash__(self):
+    #    return str(self)
 
 
 def generate_html_tutor_constraints(rhs):
