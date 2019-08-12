@@ -58,6 +58,7 @@ def variablize_by_where_swap(self,state, match,second_pass=False):
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     #TODO: Do this better...
     r_state = {key:val for key,val in r_state.items() if "contentEditable" in key or "value" in key}
+
     return r_state
 
 
@@ -70,22 +71,28 @@ def unvariablize_by_where_swap(state, match):
 dir_map = {"to_left": "l", "to_right": "r", "above": "a", "below":"b", "offsetParent":"p"}
 dirs = list(dir_map.keys())
 
-def _relative_rename_recursive(state,center,center_name="sel",mapping=None):
+def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_map=None):
     if(mapping is None):
         mapping = {center:center_name}
+        dist_map = {center:0}
     # print(state)
     center_obj = state[center]
 
     stack = []
     for d in dirs:
         ele = center_obj.get(d,None)
-        if(ele is None or ele in mapping or ele not in state):
+        print("ele")
+        print(ele)
+        if(ele is None or ele is "" or
+          (ele in dist_map and dist_map[ele] <= dist_map[center] + 1) or
+           ele not in state):
             continue
         mapping[ele] = center_name + "." + dir_map[d]
+        dist_map[ele] = dist_map[center] + 1
         stack.append(ele)
-
+    pprint(mapping)
     for ele in stack:
-        _relative_rename_recursive(state,ele,mapping[ele],mapping)
+        _relative_rename_recursive(state,ele,mapping[ele],mapping,dist_map)
 
     return mapping
 
@@ -116,15 +123,19 @@ def variablize_state_relative(self,state,where_match,second_pass=False,center_na
     
     new_state = {}
     for key,vals in state.items():
-        new_vals = {}
-        for k,v in vals.items():
-            new_vals[k] = mapping.get(v,v)
-
-        new_state[mapping[key]] = new_vals
+        
+        if(isinstance(vals,dict)):
+            new_vals = {}
+            for k,v in vals.items():
+                if(k == "contentEditable" or isinstance(key,tuple)):
+                    new_vals[k] = mapping.get(v,v)
+            new_state[mapping[key]] = new_vals
+        else:
+            new_state[key] = mapping.get(vals,vals)
+        
     new_state = flatten_state(new_state)
     # StateMultiView.transforms(("object"))
-    # print("NEW_STATE")
-    # print(new_state)
+    
 
     return new_state
 
@@ -145,6 +156,8 @@ def variablize_state_metaskill(self,state,where_match,second_pass=True):
                 # pprint(skill_info)
                 key = ("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values())
                 to_append[key] = resp["inputs"]
+                to_append[("skill-%s"%resp["rhs_id"],"count")] = to_append.get(("skill-%s"%resp["rhs_id"],"count"),0) + 1
+                to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
                 # for attr,val in resp["inputs"].items():
                 #     key = (attr,("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values()))
                 #     # print(key, ":", val)
@@ -155,9 +168,10 @@ def variablize_state_metaskill(self,state,where_match,second_pass=True):
             state.set_view("object_skills_appended",state_obj)
             state = state_obj
                 # pprint()
-            
+    pprint(state)
     r_state = variablize_state_relative(self,state,where_match,second_pass)
-    # pprint(r_state)
+    pprint("r_state")
+    pprint(r_state)
     return r_state
 
 
