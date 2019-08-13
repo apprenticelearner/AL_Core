@@ -31,8 +31,8 @@ def custom_function_set():
     all agents created by the system so you can use it for custom logic but we
     should probably turn it off if we ever have a production server.
     """
-    # return [add_rule, sub_rule, mult_rule, div_rule,ones,tens]
-    return []
+    return [add_rule, sub_rule, mult_rule, div_rule, lcm_rule]
+    # return []
     # return [add_then_tens, add_then_ones,add_then_tens3,add_then_ones3]
 
 
@@ -93,6 +93,14 @@ def int_float_divide(x, y):
         z = int(z)
     return str(z)
 
+
+def int_float_lcm(x, y):
+    x, y = int(x), int(y)
+    i = max(x,y)
+    while True:
+        if i%x == 0 and i%y == 0:
+            return str(i)
+        i += 1
 
 def sig_figs(x, y):
     x = float(x)
@@ -411,6 +419,13 @@ div_rule = Operator(('Divide', '?x', '?y'),
                     [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
                       (int_float_divide, '?xv', '?yv'))])
 Operator.register("divide", div_rule)
+
+lcm_rule = Operator(('lcm', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv')],
+                    [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
+                      (int_float_lcm, '?xv', '?yv'))])
+Operator.register("lcm", lcm_rule)
 
 equal_rule = Operator(('Equal', '?x', '?y'),
                       [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
