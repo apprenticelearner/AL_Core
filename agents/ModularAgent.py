@@ -148,7 +148,7 @@ def variablize_state_metaskill(self,state,where_match,second_pass=True):
             # state_obj = state.get_view("object").copy()
             # print("variablize_state_metaskill", second_pass,where_match)
             
-            all_expls = self.applicable_explanations(state, add_skill_info=True,second_pass=False)
+            all_expls = self.applicable_explanations(state, add_skill_info=True,second_pass=False,skip_when=True)
             # print("-------START THIS---------")
             to_append = {}
             for exp, skill_info in all_expls:
@@ -257,7 +257,8 @@ class ModularAgent(BaseAgent):
 
     def applicable_explanations(self, state, rhs_list=None,
                                 add_skill_info=False,
-                                second_pass = True
+                                second_pass = True,
+                                skip_when = False,
                                 ):  # -> returns Iterator<Explanation>
         # print(state.get_view("object"))
         if(rhs_list is None):
@@ -279,10 +280,11 @@ class ModularAgent(BaseAgent):
                 # pprint([int(x) for x in pred_state.values()])
                 # print("--------------")
                 
-                p = self.when_learner.predict(rhs, pred_state)
-                
-                if(p <= 0):
-                    continue
+                if(not skip_when):
+                    p = self.when_learner.predict(rhs, pred_state)
+                    
+                    if(p <= 0):
+                        continue
 
                 mapping = {v: m for v, m in zip(rhs.all_vars, match)}
                 explanation = Explanation(rhs, mapping)
