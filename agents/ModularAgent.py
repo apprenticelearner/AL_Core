@@ -185,6 +185,7 @@ class ModularAgent(BaseAgent):
             response = tmp_resp
             if(add_skill_info):
                 response["skill_info"] = skill_info
+            break
 
         return response
 
