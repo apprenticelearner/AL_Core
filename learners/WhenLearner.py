@@ -85,6 +85,7 @@ class WhenLearner(object):
         # print("LEARNERS",self.learners)
         # print("LEARNER",id(self.learners[rhs]))
         if(self.cross_rhs_inference == "implicit_negatives"):
+
             if(self.type == "one_learner_per_label"):
                 key = rhs.label
             elif(self.type == "one_learner_per_rhs"):
@@ -98,15 +99,19 @@ class WhenLearner(object):
             implicit_states = self.implicit_examples[key]['state']
             implicit_rewards = self.implicit_examples[key]['reward']
 
+            print("implicit_rewards")
+            print(implicit_rewards)
             if(reward > 0):
                 for other_key, other_impl_exs in self.implicit_examples.items():
+                    print(other_key, key)
                     if(other_key != key):
-
                         # Add implicit negative examples to any rhs that doesn't already have this state
                         # TODO: Do this for all bindings not just for the given state
                         if(state not in self.examples[other_key]['state']):
                             other_impl_exs['state'].append(state)
                             other_impl_exs['reward'].append(-1)
+                        self.learners[other_key].fit(self.examples[other_key]['state']+other_impl_exs['state'],
+                                                     self.examples[other_key]['reward']+other_impl_exs['reward'])
 
                 # Remove any implicit negative examples in this rhs with the current state
                 try:
@@ -125,8 +130,9 @@ class WhenLearner(object):
             #     print("%s : %s" % (x.input_rule,self.examples[x]['reward']))
             # pprint(self.implicit_examples)
 
-            self.learners[key] = get_when_sublearner(self.learner_name,
-                                                     **self.learner_kwargs)
+            if(rhs.label not in self.learners):
+                self.learners[key] = get_when_sublearner(self.learner_name,
+                                                         **self.learner_kwargs)
             # pprint(states)
             # pprint(rewards)
             self.learners[key].fit(states+implicit_states,
@@ -237,7 +243,7 @@ class CustomPipeline(Pipeline):
         # print("X",X)
         # NOTE: Only using boolean values
         X = [{k: v for k, v in d.items() if isinstance(v, bool)} for d in X]
-        print("FITX", X)
+        # print("FITX", X)
         ft = Flattener()
         tup = Tuplizer()
         lvf = ListValueFlattener()

@@ -81,8 +81,8 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_
     stack = []
     for d in dirs:
         ele = center_obj.get(d,None)
-        print("ele")
-        print(ele)
+        # print("ele")
+        # print(ele)
         if(ele is None or ele is "" or
           (ele in dist_map and dist_map[ele] <= dist_map[center] + 1) or
            ele not in state):
@@ -90,7 +90,7 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_
         mapping[ele] = center_name + "." + dir_map[d]
         dist_map[ele] = dist_map[center] + 1
         stack.append(ele)
-    pprint(mapping)
+    # pprint(mapping)
     for ele in stack:
         _relative_rename_recursive(state,ele,mapping[ele],mapping,dist_map)
 
@@ -168,10 +168,10 @@ def variablize_state_metaskill(self,state,where_match,second_pass=True):
             state.set_view("object_skills_appended",state_obj)
             state = state_obj
                 # pprint()
-    pprint(state)
+    # pprint(state)
     r_state = variablize_state_relative(self,state,where_match,second_pass)
-    pprint("r_state")
-    pprint(r_state)
+    # pprint("r_state")
+    # pprint(r_state)
     return r_state
 
 
@@ -319,7 +319,7 @@ class ModularAgent(BaseAgent):
                 # print(explanation.rhs.input_rule)
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
-                    print("skill_info",skill_info)
+                    # print("skill_info",skill_info)
                     response.update(skill_info)
                     response["mapping"] = explanation.mapping
                 responses.append(response)
@@ -707,7 +707,7 @@ class Explanation(object):
         return response
 
     def get_skill_info(self,agent,when_state=None):
-        print("GET SKILL INFO!!!")
+        # print("GET SKILL INFO!!!")
         if(when_state is None):
             when_info = None
         else:    

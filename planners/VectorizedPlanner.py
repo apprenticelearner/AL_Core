@@ -631,7 +631,7 @@ class VectorizedPlanner(BasePlanner):
 		if(search_depth == None): search_depth = self.search_depth
 		if(operators == None): operators = self.function_set
 
-		print("foci_of_attention:",foci_of_attention)
+		# print("foci_of_attention:",foci_of_attention)
 		# print(state)
 		if(foci_of_attention != None):
 			state = {k:v for k,v in state.items() if k[1].replace("?ele-","") in foci_of_attention}
@@ -642,9 +642,9 @@ class VectorizedPlanner(BasePlanner):
 							allow_bottomout=allow_bottomout,
 							allow_copy=allow_copy)
 		for expr,mapping in how_itr:
-			print(expr,mapping)
+			# print(expr,mapping)
 			if(foci_of_attention != None and len(foci_of_attention) != len(mapping)):
-				print("continue",expr,mapping)
+				# print("continue",expr,mapping)
 				continue
 			# print(expr)
 			# print(expr,type(expr))
