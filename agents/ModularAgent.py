@@ -44,7 +44,7 @@ def compute_exp_depth(exp):
 #     else:
 #         return arg, i
 
-def variablize_by_where_swap(self,state, match,second_pass=False):
+def variablize_by_where_swap(self,state,rhs,  match):
     if(isinstance(state, StateMultiView)):
         state = state.get_view("flat_ungrounded")
     # print(state)
@@ -96,7 +96,7 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_
 
     return mapping
 
-def variablize_state_relative(self,state,where_match,second_pass=False,center_name="sel"):
+def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
     if(isinstance(state, StateMultiView)):
         state = state.get_view("object").copy()
     center = list(where_match)[0]
@@ -139,40 +139,43 @@ def variablize_state_relative(self,state,where_match,second_pass=False,center_na
 
     return new_state
 
-def variablize_state_metaskill(self,state,where_match,second_pass=True):
-    if(isinstance(state, StateMultiView) and second_pass):
-        try:
-            state = state.get_view("object_skills_appended")
-            
-        except:
-            # state_obj = state.get_view("object").copy()
-            # print("variablize_state_metaskill", second_pass,where_match)
-            
-            all_expls = self.applicable_explanations(state, add_skill_info=True,second_pass=False,skip_when=True)
-            # print("-------START THIS---------")
-            to_append = {}
-            for exp, skill_info in all_expls:
-                resp = exp.to_response(state,self)
-                # pprint(skill_info)
-                key = ("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values())
-                to_append[key] = resp["inputs"]
-                to_append[("skill-%s"%resp["rhs_id"],"count")] = to_append.get(("skill-%s"%resp["rhs_id"],"count"),0) + 1
-                to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
-                # for attr,val in resp["inputs"].items():
-                #     key = (attr,("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values()))
-                #     # print(key, ":", val)
-                #     flat_ungrounded[key] = val 
-            # print("--------END THIS---------")
-            state_obj = {**state.get_view("object"),**to_append}
-            # print(state_obj)
-            state.set_view("object_skills_appended",state_obj)
-            state = state_obj
+def variablize_state_metaskill(self,state,rhs, where_match):
+    # if(isinstance(state, StateMultiView) and second_pass):
+    # try:
+    #     state = state.get_view("object_skills_appended")
+        
+    # except:
+        # state_obj = state.get_view("object").copy()
+        # print("variablize_state_metaskill", second_pass,where_match)
+        
+        # all_expls = self.applicable_explanations(state, add_skill_info=True,second_pass=False,skip_when=True)
+        # print("-------START THIS---------")
+    to_append = {}
+    for rhs, match in self.all_where_parts(state):
+        mapping = {v: m for v, m in zip(rhs.all_vars, match)}
+        exp = Explanation(rhs,mapping)
+        resp = exp.to_response(state,self)
+        # pprint(skill_info)
+        key = ("skill-%s"%resp["rhs_id"], *mapping.values())
+        to_append[key] = resp["inputs"]
+        to_append[("skill-%s"%resp["rhs_id"],"count")] = to_append.get(("skill-%s"%resp["rhs_id"],"count"),0) + 1
+        to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
+        # for attr,val in resp["inputs"].items():
+        #     key = (attr,("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values()))
+        #     # print(key, ":", val)
+        #     flat_ungrounded[key] = val 
+    # print("--------END THIS---------")
+    state_obj = {**state.get_view("object"),**to_append}
+    # print(state_obj)
+    # state.set_view("object_skills_appended",state_obj)
+    state = state_obj
+    state = variablize_state_relative(self,state,rhs, where_match)
                 # pprint()
     # pprint(state)
-    r_state = variablize_state_relative(self,state,where_match,second_pass)
+    
     # pprint("r_state")
     # pprint(r_state)
-    return r_state
+    return state
 
 
 
@@ -252,15 +255,11 @@ class ModularAgent(BaseAgent):
         self.epsilon = numerical_epsilon
         self.rhs_counter = 0
         self.ret_train_expl = ret_train_expl
+        self.last_state = None
 
     # -----------------------------REQUEST------------------------------------
 
-    def applicable_explanations(self, state, rhs_list=None,
-                                add_skill_info=False,
-                                second_pass = True,
-                                skip_when = False,
-                                ):  # -> returns Iterator<Explanation>
-        # print(state.get_view("object"))
+    def all_where_parts(self,state, rhs_list=None):
         if(rhs_list is None):
             rhs_list = self.rhs_list
 
@@ -269,42 +268,69 @@ class ModularAgent(BaseAgent):
             for match in self.where_learner.get_matches(rhs, state):
                 if(len(match) != len(set(match))):
                     continue
+                yield rhs,match 
 
-                if(self.when_learner.state_format == "variablized_state"):
-                    pred_state = self.state_variablizer(state, match,second_pass)
-                else:
-                    pred_state = state
 
-                # print("--------------")
-                # print(str(rhs),"--->",self.when_learner.predict(rhs, pred_state))
-                # pprint([int(x) for x in pred_state.values()])
-                # print("--------------")
+
+
+    def applicable_explanations(self, state, rhs_list=None,
+                                add_skill_info=False,
+                                skip_when = False,
+                                ):  # -> returns Iterator<Explanation>
+        # print(state.get_view("object"))
+        # if(rhs_list is None):
+        #     rhs_list = self.rhs_list
+
+        # for rhs in rhs_list:
+        #     # print(rhs.input_rule)
+        #     for match in self.where_learner.get_matches(rhs, state):
+        #         if(len(match) != len(set(match))):
+        #             continue
+        for rhs,match in self.all_where_parts(state,rhs_list):
+            if(self.when_learner.state_format == "variablized_state"):
+                pred_state = state.get_view(("variablize", rhs, tuple(match)))
+                # print("pred_state")
+                # print(rhs,match)
+                # print(pred_state)
+                # print(state.contains_view(("variablize", rhs, tuple(match))))
+                # print(list(state.views.keys()))
+                # print()
+            else:
+                pred_state = state
+
+
+
+            # print("--------------")
+            # print(str(rhs),"--->",self.when_learner.predict(rhs, pred_state))
+            # pprint([int(x) for x in pred_state.values()])
+            # print("--------------")
+            
+            if(not skip_when):
+                p = self.when_learner.predict(rhs, pred_state)
                 
-                if(not skip_when):
-                    p = self.when_learner.predict(rhs, pred_state)
-                    
-                    if(p <= 0):
-                        continue
+                if(p <= 0):
+                    continue
 
-                mapping = {v: m for v, m in zip(rhs.all_vars, match)}
-                explanation = Explanation(rhs, mapping)
+            mapping = {v: m for v, m in zip(rhs.all_vars, match)}
+            explanation = Explanation(rhs, mapping)
 
-                if(add_skill_info):
-                    skill_info = explanation.get_skill_info(self,pred_state)
-                    # when_info = self.when_learner.skill_info(rhs, pred_state)
-                    # where_info = [x.replace("?ele-", "") for x in match]
-                    # skill_info = {"when": tuple(when_info),
-                    #               "where": tuple(where_info),
-                    #               "how": str(rhs.input_rule),
-                    #               "which": 0.0}
-                else:
-                    skill_info = None
+            if(add_skill_info):
+                skill_info = explanation.get_skill_info(self,pred_state)
+                # when_info = self.when_learner.skill_info(rhs, pred_state)
+                # where_info = [x.replace("?ele-", "") for x in match]
+                # skill_info = {"when": tuple(when_info),
+                #               "where": tuple(where_info),
+                #               "how": str(rhs.input_rule),
+                #               "which": 0.0}
+            else:
+                skill_info = None
 
-                yield explanation, skill_info
+            yield explanation, skill_info
 
     def request(self, state, add_skill_info=False,n=1):  # -> Returns sai
         if(not isinstance(state,StateMultiView)):
             state = StateMultiView("object", state) 
+        state.register_transform("*","variablize",self.state_variablizer)
         state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
@@ -420,31 +446,39 @@ class ModularAgent(BaseAgent):
         # print(explanations,reward)
         # print("^^^^^^^^^^^^^^")
         for exp,_reward in zip(explanations,reward):
-            if(self.when_learner.state_format == 'variablized_state'):
-                fit_state = self.state_variablizer(
-                            state,
-                            exp.mapping.values())
+            mapping = list(exp.mapping.values())
+            # if(self.when_learner.state_format == 'variablized_state'):
+                # fit_state = self.state_variablizer(
+                #             state,
+                #             exp.mapping.values())
+                
 
                 # print("--------------")
                 # print(exp.rhs,"<----",reward)
                 # pprint([int(x) for x in fit_state.values()])
                 # print("--------------")
 
-                self.when_learner.ifit(exp.rhs, fit_state, _reward)
-            else:
-                self.when_learner.ifit(exp.rhs, state, _reward)
+            self.when_learner.ifit(exp.rhs, state, mapping, _reward)
+            # else:
+                #TODO: Missing
+                # self.when_learner.ifit(exp.rhs, state, _reward)
 
-            print(_reward)
+            # print(_reward)
             self.which_learner.ifit(exp.rhs, state, _reward)
-            print(list(exp.mapping.values()))
-            self.where_learner.ifit(exp.rhs,
-                                    list(exp.mapping.values()),
-                                    state, _reward)
+            # print(list(exp.mapping.values()))
+            self.where_learner.ifit(exp.rhs, mapping, state, _reward)
 
     def train_explicit(self,state,explanations, rewards,add_skill_info=False):
         print("TRAIN EXPLICIT")
         state = StateMultiView("object", state)
+        state.register_transform("*","variablize",self.state_variablizer)
         state_featurized = self.planner.apply_featureset(state)
+
+        ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
+        _ = [x for x in self.applicable_explanations(state_featurized)]
+        ############################################################
+
+
         expl_objs = []
         for expl in explanations:
             expl_objs.append(Explanation(self.rhs_list[expl["rhs_id"]],expl["mapping"]))
@@ -455,8 +489,14 @@ class ModularAgent(BaseAgent):
     def train(self, state, selection, action, inputs, reward,
               skill_label, foci_of_attention,add_skill_info=False):  # -> return None
         state = StateMultiView("object", state)
+        state.register_transform("*","variablize",self.state_variablizer)
         sai = SAIS(selection, action, inputs)
         state_featurized = self.planner.apply_featureset(state)
+
+
+        ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
+        _ = [x for x in self.applicable_explanations(state_featurized)]
+        ############################################################
 
         explanations = self.explanations_from_skills(state_featurized, sai,
                                                      self.rhs_list,
@@ -579,7 +619,7 @@ def kb_to_flat_ungrounded(knowledge_base):
 
 class StateMultiView(object):
     def __init__(self, view, state):
-        self.views = {}
+        self.views = {"*":self}
         self.set_view(view, state)
         self.transform_dict = {}
         self.register_transform("object", "flat_ungrounded", flatten_state)
@@ -602,11 +642,24 @@ class StateMultiView(object):
         return view in self.views
 
     def compute(self, view):
-        for key in self.transform_dict[view]:
+        if(isinstance(view,tuple)):
+            view_key = view[0]
+            view_args = view[1:]
+        else:
+            view_key = view
+            view_args = []
+
+        for key in self.transform_dict[view_key]:
+            # print(self.views,view_key,view,key)
+            # print(self.transform_dict[view_key])
+            # print(list(self.views.keys()))
+            # print(self.views[view_key])
             # for key in transforms:
+            # print(view_args)
+            # print(self.views[key])
             # print(key)
             if(key in self.views):
-                out = self.transform_dict[view][key](self.views[key])
+                out = self.transform_dict[view_key][key](self.views[key],*view_args)
                 self.set_view(view, out)
                 return out
         # pprint(self.transform_dict)
@@ -676,6 +729,8 @@ class RHS(object):
         return a and b and c
     def __str__(self):
         return str(self.input_rule)
+    def __repr__(self):
+        return self.__str__()
 
 
 class Explanation(object):

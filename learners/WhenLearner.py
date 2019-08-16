@@ -31,7 +31,7 @@ class WhenLearner(object):
 
     def __init__(self, learner, when_type="one_learner_per_rhs",
                  state_format="variablized_state",
-                 cross_rhs_inference="none", learner_kwargs={}):
+                 cross_rhs_inference="implicit_negatives", learner_kwargs={}):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS, \
                "state_format must be one of %s but got %s" % \
                (self.__class__.STATE_FORMAT_OPTIONS, state_format)
@@ -78,14 +78,15 @@ class WhenLearner(object):
             self.implicit_examples[key]['state'] = []
             self.implicit_examples[key]['reward'] = []
 
-    def ifit(self, rhs, state, reward):
+    def ifit(self, rhs, state, mapping, reward):
         # print("FIT_STATe", state)
         # print([str(x.input_rule) for x in self.learners.keys()])
         # print("REQARD", reward)
         # print("LEARNERS",self.learners)
         # print("LEARNER",id(self.learners[rhs]))
         if(self.cross_rhs_inference == "implicit_negatives"):
-
+            this_state = state.get_view(("variablize",rhs,tuple(mapping)))
+            # print(this_state)
             if(self.type == "one_learner_per_label"):
                 key = rhs.label
             elif(self.type == "one_learner_per_rhs"):
@@ -93,12 +94,20 @@ class WhenLearner(object):
 
             states = self.examples[key]['state']
             rewards = self.examples[key]['reward']
-            states.append(state)
+            states.append(this_state)
             rewards.append(reward)
 
             implicit_states = self.implicit_examples[key]['state']
             implicit_rewards = self.implicit_examples[key]['reward']
 
+            all_matches = {}
+            for k in state.views.keys():
+                if(isinstance(k,tuple) and k[0] == "variablize"):
+                    matches = all_matches.get(k[1],[])
+                    matches.append(k[2])
+                    all_matches[k[1]] = matches
+            print("all_matches")
+            print(all_matches)
             print("implicit_rewards")
             print(implicit_rewards)
             if(reward > 0):
@@ -107,9 +116,13 @@ class WhenLearner(object):
                     if(other_key != key):
                         # Add implicit negative examples to any rhs that doesn't already have this state
                         # TODO: Do this for all bindings not just for the given state
-                        if(state not in self.examples[other_key]['state']):
-                            other_impl_exs['state'].append(state)
-                            other_impl_exs['reward'].append(-1)
+                        # other_state = state.get_view(("variablize",other_key,tuple(mapping)))
+                        for m in all_matches.get(other_key,[]):
+                            other_state = state.get_view(("variablize",other_key,m))
+
+                            if(other_state not in self.examples[other_key]['state']):
+                                other_impl_exs['state'].append(other_state)
+                                other_impl_exs['reward'].append(-1)
                         self.learners[other_key].fit(self.examples[other_key]['state']+other_impl_exs['state'],
                                                      self.examples[other_key]['reward']+other_impl_exs['reward'])
 
@@ -139,6 +152,8 @@ class WhenLearner(object):
                                    rewards+implicit_rewards)
             # print(self.learners[key])
         else:
+            state = state.get_view(("variablize",rhs,tuple(mapping)))
+            print(state)
             if(self.type == "one_learner_per_label"):
                 if(rhs.label not in self.learners):
                     self.learners[rhs.label] = get_when_sublearner(
