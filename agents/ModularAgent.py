@@ -12,6 +12,7 @@ from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner
 from learners.WhichLearner import get_which_learner
 from planners.base_planner import get_planner_class
+from planners.rulesets import *
 # from planners.VectorizedPlanner import VectorizedPlanner
 # from learners.HowLearner import get_planner
 # from planners.fo_planner import FoPlanner, execute_functions, unify, subst
@@ -156,7 +157,10 @@ class ModularAgent(BaseAgent):
                 mapping = {v: m for v, m in zip(rhs.all_vars, match)}
                 explanation = Explanation(rhs, mapping)
 
+                print("now, add_skill_info is:")
+                print(add_skill_info)
                 if(add_skill_info):
+                    print("made it here")
                     when_info = self.when_learner.skill_info(rhs, pred_state)
                     where_info = [x.replace("?ele-", "") for x in match]
                     skill_info = {"when": tuple(when_info),
@@ -173,6 +177,8 @@ class ModularAgent(BaseAgent):
         state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
+        print("now calling applicable explanations. add_skill_info:")
+        print(add_skill_info)
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)

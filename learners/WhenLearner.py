@@ -358,8 +358,9 @@ class ScikitCobweb(object):
         self.tree.fit(X, randomize_first=False)
 
     def skill_info(self, X):
-        raise NotImplementedError("Not implemented Erik H. says there \
-                 is a way to serialize this -> TODO")
+        return self.tree
+        #raise NotImplementedError("Not implemented Erik H. says there \
+                 #is a way to serialize this -> TODO")
 
     def predict(self, X):
         return [self.tree.categorize(x).predict('_y_label') for x in X]

@@ -31,7 +31,7 @@ def custom_function_set():
     all agents created by the system so you can use it for custom logic but we
     should probably turn it off if we ever have a production server.
     """
-    return [add_rule, sub_rule, mult_rule, div_rule, lcm_rule]
+    return [add_rule, sub_rule, mult_rule, div_rule, lcm_rule, gcd_rule]
     # return []
     # return [add_then_tens, add_then_ones,add_then_tens3,add_then_ones3]
 
@@ -101,6 +101,12 @@ def int_float_lcm(x, y):
         if i%x == 0 and i%y == 0:
             return str(i)
         i += 1
+
+def int_float_gcd(x, y):
+    x, y = int(x), int(y)
+    for i in range(min(x,y),0,-1):
+        if x%i == 0 and y%i == 0:
+            return str(i)
 
 def sig_figs(x, y):
     x = float(x)
@@ -426,6 +432,13 @@ lcm_rule = Operator(('lcm', '?x', '?y'),
                     [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
                       (int_float_lcm, '?xv', '?yv'))])
 Operator.register("lcm", lcm_rule)
+
+gcd_rule = Operator(('gcd', '?x', '?y'),
+                    [(('value', '?x'), '?xv'),
+                     (('value', '?y'), '?yv')],
+                    [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
+                      (int_float_gcd, '?xv', '?yv'))])
+Operator.register("gcd", gcd_rule)
 
 equal_rule = Operator(('Equal', '?x', '?y'),
                       [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
