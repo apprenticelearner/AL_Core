@@ -1,0 +1,14 @@
+In here there are 3 files, and here's what you need to know to run each one.
+
+"getRules" is useless. it doesn't work properly for unknown reasons, and the functionality that it would have if it worked is built into trainAgent.
+
+in order to run the rest of them, you'll need to spin up the server. namely, go to the superfolder and run:
+rm db.sqlite3
+python3 manage.py migrate
+python3 manage.py runserver
+to clear the agents and start the server up. Then enter a different window and come to this directory, and run:
+python3 createAgent.py
+python3 trainAgent.py
+to create and train the agent. If you get errors, try to ensure that you're using ModularAgent as your agent class, and that you're using the decision tree WhereLearner instead of the default, which hasn't implemented certain functions that our code relies upon and will raise a not implemented error.
+
+as you run trainAgent.py, lines will be appended to the log and ruleslog files. log contains all of the attempts the agent made on different problems it was given and whether or not they were successful, and ruleslog gives the rules that were used for completing each problem.
