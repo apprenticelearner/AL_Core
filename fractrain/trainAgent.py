@@ -34,13 +34,13 @@ def log_rules(state):
 
 bignums = []
 
-for i in range(1):
+for i in range(4*300):
     xn = randrange(1,10)
     yn = randrange(1,10)
     xd = randrange(1,10)
     yd = randrange(1,10)
     bignums.append([str(xn)+"/"+str(xd)+"*"+str(yn)+"/"+str(yd),"Mult",str(xn*yn)+"/"+str(xd*yd)])
-    xn = randrange(1,10)
+    '''xn = randrange(1,10)
     yn = randrange(1,10)
     xd = randrange(1,10)
     bignums.append([str(xn)+"/"+str(xd)+"+"+str(yn)+"/"+str(xd),"Add",str(xn+yn)+"/"+str(xd)])
@@ -54,6 +54,7 @@ for i in range(1):
     xd = randrange(1,10)
     yd = randrange(1,10)
     bignums.append([str(xn)+"/"+str(xd)+":"+str(yn)+"/"+str(yd),"Div",str(xn*yd)+"/"+str(xd*yn)])
+    '''
 
 for eq in bignums:
     prob, op, result = eq
@@ -97,6 +98,8 @@ for eq in bignums:
     reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
     response = requests.post(url+"request/"+str(agentID)+"/", json={"state":state})
     numeratorComputed = reqReq.json()["inputs"]["value"]
+    # negative feedback:
+    #'''
     if numeratorComputed != resultnum:
         print("got num wrong, correcting")
         obj = {
@@ -109,6 +112,7 @@ for eq in bignums:
           "state": state
         }
         trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
+    #'''
     log_rules(state)
     state["num3"] = {"id":"num3","value":resultnum,"contentEditable":False}
     state["denom3"] = {"id":"denom3","value":"","contentEditable":True}
@@ -125,6 +129,8 @@ for eq in bignums:
     reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
     print(reqReq.json())
     denominatorComputed = reqReq.json()["inputs"]["value"]
+    # another negative feedback
+    #'''
     if denominatorComputed != resultdenom:
         print("got denom wrong, correcting")
         obj = {
@@ -137,6 +143,7 @@ for eq in bignums:
           "state": state
         }
         trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
+    #'''
     log_accuracy(prob, resultnum, resultdenom, numeratorComputed, denominatorComputed)
     log_rules(state)
     state["denom3"] = {"id":"num3","value":resultdenom,"contentEditable":False}

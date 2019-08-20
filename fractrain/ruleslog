@@ -1,8 +1,0 @@
-[{'when': [['(value num3)=', '<=', '0.5'], ['(value num3)=27', '<=', '0.5'], ['(value num2)=1', '<=', '0.5'], ['(value num3)=4', '<=', '0.5']], 'where': ['num3'], 'which': 0.0, 'how': "('Divide', ('value', 'denom2'), ('value', 'denom1'))"}]
-[{'where': ['denom3'], 'how': "('Divide', ('value', 'denom1'), ('value', 'num2'))", 'which': 0.0, 'when': [['(eq (value denom1) (value denom2))', '<=', '0.5'], ['(value num3)=7', '<=', '0.5'], ['(value num3)=36', '<=', '0.5']]}]
-[{'when': [['(value op)=Add', '>', '0.5'], ['(value num3)=14', '<=', '0.5'], ['(value num3)=9', '<=', '0.5']], 'where': ['num3'], 'which': 0.0, 'how': "('Add', ('value', 'num1'), ('value', 'num2'))"}]
-[{'where': ['denom3'], 'how': "('Multiply', ('value', 'denom1'), ('value', 'denom2'))", 'which': 0.0, 'when': [['(value op)=Mult', '<=', '0.5'], ['(contentEditable denom3)', '<=', '0.5'], ['(value num2)=3', '<=', '0.5']]}]
-[{'when': [['(value op)=Add', '<=', '0.5'], ['(value num3)=', '<=', '0.5']], 'where': ['num3'], 'which': 0.0, 'how': "('Add', ('value', 'num1'), ('value', 'num2'))"}]
-[{'where': ['denom3'], 'how': "('Divide', ('value', 'denom1'), ('value', 'num2'))", 'when': [['(eq (value denom1) (value denom2))', '>', '0.5'], ['(eq (value num1) (value num2))', '<=', '0.5'], ['(value denom2)=1', '<=', '0.5'], ['(value op)=Add', '<=', '0.5'], ['(value denom2)=8', '<=', '0.5'], ['(eq (value denom1) (value num3))', '<=', '0.5']], 'which': 0.0}]
-[{'how': "('Multiply', ('value', 'num1'), ('value', 'denom2'))", 'where': ['num3'], 'which': 0.0, 'when': [['(value op)=Div', '>', '0.5']]}]
-[{'where': ['denom3'], 'which': 0.0, 'how': "('Multiply', ('value', 'num2'), ('value', 'denom1'))", 'when': [['(value op)=Div', '>', '0.5'], ['(contentEditable num3)', '<=', '0.5']]}]
