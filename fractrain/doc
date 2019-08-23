@@ -11,4 +11,10 @@ python3 createAgent.py
 python3 trainAgent.py
 to create and train the agent. If you get errors, try to ensure that you're using ModularAgent as your agent class, and that you're using the decision tree WhereLearner instead of the default, which hasn't implemented certain functions that our code relies upon and will raise a not implemented error.
 
-as you run trainAgent.py, lines will be appended to the log and ruleslog files. log contains all of the attempts the agent made on different problems it was given and whether or not they were successful, and ruleslog gives the rules that were used for completing each problem.
+as you run trainAgent.py, lines will be appended to the log and ruleslog files. log contains all of the attempts the agent made on different problems it was given and whether or not they were successful, and ruleslog gives the rules that were used for completing each problem. since the problems alternate between the 4 operations, so will the rules used (with 2 rules for each problem, one for the numerator and one for the denominator).
+
+to edit the number of trials for each training that happens, just change the number of iterations through the loop on line 37. to change whether or not all types of arithmetic are used, you can comment out/in the ones you do/don't want on lines 38-56. to change whether or not negative examples are used as well as positive ones, you can comment out lines 102-115 and 133-146.
+
+to run the data analysis code and generate graphs, you should run dataAnalysis.py. right now all it does is make graphs, unfortunately. if all of one category are incorrect or correct, you can edit line 9 (or add a new line of the same form) to skip that particular part of the data.
+
+in the graphs directory, you'll find the graphs I created myself. the reason that graphs for conditions 3 and 4 were left out is because those datasets are mostly "all-correct" with 1 or 2 incorrect results only in the first 2 or 3 trials, and so the graphs of those don't shed any light on anything. you can find the raw data in the condition3 and conciditon4 directories.

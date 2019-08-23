@@ -1,0 +1,88 @@
+logging for numerator
+logging for numerator
+Problem: 1/4*1/7 Answer Given: 1/x. The correct answer was: 1/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Divide', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 1/4*1/7 Answer Given: 1/x. The correct answer was: 1/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Divide', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 5/4*7/4 Answer Given: 0.714286/x. The correct answer was: 35/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Divide', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+got numerator wrong. corrected version:
+Problem: 5/4*7/4 Answer Given: 5/x. The correct answer was: 35/x
+[{'how': "('value', 'num1')", 'which': 0.0, 'where': ['num3'], 'when': []}]
+post-training results:
+Problem: 5/4*7/4 Answer Given: 5/x. The correct answer was: 35/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 3/9*5/6 Answer Given: 15/x. The correct answer was: 15/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 3/9*5/6 Answer Given: 15/x. The correct answer was: 15/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 6/9*4/5 Answer Given: 24/x. The correct answer was: 24/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 6/9*4/5 Answer Given: 24/x. The correct answer was: 24/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 4/9*3/1 Answer Given: 12/x. The correct answer was: 12/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 4/9*3/1 Answer Given: 12/x. The correct answer was: 12/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 8/5*5/4 Answer Given: 40/x. The correct answer was: 40/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 8/5*5/4 Answer Given: 40/x. The correct answer was: 40/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 6/3*4/2 Answer Given: 24/x. The correct answer was: 24/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 6/3*4/2 Answer Given: 24/x. The correct answer was: 24/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 1/8*2/3 Answer Given: 2/x. The correct answer was: 2/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 1/8*2/3 Answer Given: 2/x. The correct answer was: 2/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 2/5*3/6 Answer Given: 6/x. The correct answer was: 6/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 2/5*3/6 Answer Given: 6/x. The correct answer was: 6/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 2/6*3/1 Answer Given: 6/x. The correct answer was: 6/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 2/6*3/1 Answer Given: 6/x. The correct answer was: 6/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+logging for numerator
+Problem: 3/8*6/5 Answer Given: 18/x. The correct answer was: 18/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num1'), ('value', 'num2'))", 'when': []}]
+post-training results:
+Problem: 3/8*6/5 Answer Given: 18/x. The correct answer was: 18/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num2'), ('value', 'num1'))", 'when': []}]
+logging for numerator
+Problem: 3/5*5/5 Answer Given: 15/x. The correct answer was: 15/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num2'), ('value', 'num1'))", 'when': []}]
+post-training results:
+Problem: 3/5*5/5 Answer Given: 15/x. The correct answer was: 15/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num2'), ('value', 'num1'))", 'when': []}]
+logging for numerator
+Problem: 6/8*5/4 Answer Given: 30/x. The correct answer was: 30/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num2'), ('value', 'num1'))", 'when': []}]
+post-training results:
+Problem: 6/8*5/4 Answer Given: 30/x. The correct answer was: 30/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num2'), ('value', 'num1'))", 'when': []}]
+logging for numerator
+Problem: 2/9*3/8 Answer Given: 6/x. The correct answer was: 6/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num2'), ('value', 'num1'))", 'when': []}]
+post-training results:
+Problem: 2/9*3/8 Answer Given: 6/x. The correct answer was: 6/x
+[{'which': 0.0, 'where': ['num3'], 'how': "('Multiply', ('value', 'num2'), ('value', 'num1'))", 'when': []}]

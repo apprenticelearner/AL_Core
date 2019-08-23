@@ -17,7 +17,12 @@ opsdict = {"Mult":"*","Add":"+","Sub":"-","Div":":",}
 
 def log_accuracy(prob,resultnum,resultdenom,numeratorComputed,denominatorComputed):
     fi = open("log","a+")
-    fi.write(("Correct." if eval(resultnum+"/"+resultdenom) == eval(numeratorComputed+"/"+denominatorComputed) else "Incorrect.")+" Problem: "+prob+" Answer Given: "+numeratorComputed+"/"+denominatorComputed+". The correct answer was: "+resultnum+"/"+resultdenom+"\n")
+    fi.write("Problem: "+prob+" Answer Given: "+numeratorComputed+"/"+denominatorComputed+". The correct answer was: "+resultnum+"/"+resultdenom+"\n")
+    fi.close()
+
+def logString(stringToLog):
+    fi = open("log","a+")
+    fi.write(stringToLog)
     fi.close()
 
 def log_rules(state):
@@ -28,7 +33,7 @@ def log_rules(state):
     rule = rule.json()
     print("rule learned:")
     print(rule)
-    fi = open("ruleslog","a+")
+    fi = open("log","a+")
     fi.write(str(rule)+"\n")
     fi.close()
 
@@ -69,6 +74,7 @@ for eq in bignums:
         int(resultdenom)
     except ValueError:
         continue
+    #numerator stuff
     state = {"num1":{"id":"num1","value":num1,"contentEditable":False},
         "num2":{"id":"num2","value":num2,"contentEditable":False},
         "denom1":{"id":"denom1","value":denom1,"contentEditable":False},
@@ -83,25 +89,20 @@ for eq in bignums:
                state,
             ],
     }
-
     url = "http://127.0.0.1:8000/"
-    obj = {
-      "selection": "num3",
-      "action": "UpdateTextField",
-      "inputs": {
-          "value": resultnum
-      },
-      "reward": 1,
-      "state": state
-    }
-    trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
     reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
-    response = requests.post(url+"request/"+str(agentID)+"/", json={"state":state})
+    print(reqReq)
     numeratorComputed = reqReq.json()["inputs"]["value"]
+
+    logString("logging for numerator\n")
+    log_accuracy(prob, resultnum, "x", numeratorComputed, "x")
+    log_rules(state)
+
     # negative feedback:
     #'''
     if numeratorComputed != resultnum:
         print("got num wrong, correcting")
+        logString("got numerator wrong. corrected version:\n")
         obj = {
           "selection": "num3",
           "action": "UpdateTextField",
@@ -112,27 +113,46 @@ for eq in bignums:
           "state": state
         }
         trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
+        reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
+        numeratorComputed = reqReq.json()["inputs"]["value"]
+        log_accuracy(prob, resultnum, "x", numeratorComputed, "x")
+        log_rules(state)
+
     #'''
-    log_rules(state)
-    state["num3"] = {"id":"num3","value":resultnum,"contentEditable":False}
-    state["denom3"] = {"id":"denom3","value":"","contentEditable":True}
+
     obj = {
-      "selection": "denom3",
+      "selection": "num3",
       "action": "UpdateTextField",
       "inputs": {
-          "value": resultdenom
+          "value": resultnum
       },
       "reward": 1,
       "state": state
     }
     trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
+    logString("post-training results:\n")
+    log_accuracy(prob, resultnum, "x", numeratorComputed, "x")
+    log_rules(state)
+
+    #switch to denominator
+
+    state["num3"] = {"id":"num3","value":resultnum,"contentEditable":False}
+    state["denom3"] = {"id":"denom3","value":"","contentEditable":True}
+    #denominator stuff
+
     reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
     print(reqReq.json())
     denominatorComputed = reqReq.json()["inputs"]["value"]
-    # another negative feedback
+
+    logString("logging for denominator\n")
+    log_accuracy(prob, "x", resultDenom, "x", denominatorComputed)
+    log_rules(state)
+
+    # negative feedback:
     #'''
-    if denominatorComputed != resultdenom:
+    if denominatorComputed != resultDenom:
         print("got denom wrong, correcting")
+        logString("got denom wrong. corrected version:\n")
         obj = {
           "selection": "denom3",
           "action": "UpdateTextField",
@@ -143,7 +163,25 @@ for eq in bignums:
           "state": state
         }
         trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
+        reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
+        denominatorComputed = reqReq.json()["inputs"]["value"]
+        log_accuracy(prob, "x", resultDenom, "x", denominatorComputed)
+        log_rules(state)
+
     #'''
-    log_accuracy(prob, resultnum, resultdenom, numeratorComputed, denominatorComputed)
+
+    obj = {
+      "selection": "denom3",
+      "action": "UpdateTextField",
+      "inputs": {
+          "value": resultnum
+      },
+      "reward": 1,
+      "state": state
+    }
+    trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
+
+    logString("post-training results:\n")
+    log_accuracy(prob, "x", resultDenom, "x", denominatorComputed)
     log_rules(state)
-    state["denom3"] = {"id":"num3","value":resultdenom,"contentEditable":False}
+    logString("\n")
