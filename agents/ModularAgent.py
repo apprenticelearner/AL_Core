@@ -165,13 +165,22 @@ def variablize_state_metaskill(self,state,rhs, where_match):
         #     # print(key, ":", val)
         #     flat_ungrounded[key] = val 
     # print("--------END THIS---------")
+    
     state_obj = {**state.get_view("object"),**to_append}
     # print(state_obj)
     # state.set_view("object_skills_appended",state_obj)
     state = state_obj
     state = variablize_state_relative(self,state,rhs, where_match)
+    k_list = list(state.keys())
+    
+    
+    l_core = len(state)-len(to_append)
+    pprint({k:state[k] for k in k_list[:l_core]})
+    pprint({k:state[k] for k in k_list[l_core:]})
+    state = FlatState({k:state[k] for k in k_list[:l_core]},
+                      {k:state[k] for k in k_list[l_core:]})
                 # pprint()
-    # pprint(state)
+    print(state)
     
     # pprint("r_state")
     # pprint(r_state)
@@ -615,6 +624,35 @@ def kb_to_flat_ungrounded(knowledge_base):
              else v
              for a, v in knowledge_base.facts}
     return state
+
+
+class FlatState(dict):
+    def __init__(self, core_features,secondary_features):
+        self.core_len = len(core_features)
+        super(FlatState,self).__init__({**core_features,**secondary_features})
+
+    def __setitem__(self, x,y):
+        raise NotImplementedError("FlatState is not a mutable type. Cannot set key %r to %r" % (x,y))
+    def __eq__(self, x):
+        for i,k in enumerate(self.keys()):
+            if(i >= self.core_len):
+                break
+            if(k not in x or x[k] != self[k]):
+                return False
+        return True
+    def __str__(self):
+        out = ""
+        k_list = list(self.keys())
+        for i,k in enumerate(k_list[:self.core_len]):
+            if(i == 0):
+                out += "--core features--\n"
+            out += "%s : %s\n" % (k,self[k])
+        for i,k in enumerate(k_list[self.core_len:]):
+            if(i == 0):
+                out += "--secondary features--\n"
+            out += "%s : %s\n" % (k,self[k])
+        return out
+
 
 
 class StateMultiView(object):

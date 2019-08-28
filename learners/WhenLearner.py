@@ -128,7 +128,7 @@ class WhenLearner(object):
 
                 # Remove any implicit negative examples in this rhs with the current state
                 try:
-                    index_value = self.implicit_examples[key]['state'].index(state)
+                    index_value = self.implicit_examples[key]['state'].index(this_state)
                 except ValueError:
                     index_value = -1
 
