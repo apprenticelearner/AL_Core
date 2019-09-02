@@ -107,7 +107,7 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
         
 
 def train(agentID):
-    bignums = generate_problems(1, 10, ['Mult','Add',],10)
+    bignums = generate_problems(1, 100, ['Mult'],10)
     
     logHeader = ['Problem','Part','TrainingPart','ComputedAnswer','CorrectAnswer','Correct']
     trainingParts = ['before','afterNegativeFeedback','afterTraining']
@@ -131,24 +131,24 @@ def train(agentID):
             parts = ["num","denom"]
             for fractionPart in parts:
                 curLogRow = {}
-                state = {"?ele-num1":{"id":"num1","value":num1,"contentEditable":False},
-                    "?ele-num2":{"id":"num2","value":num2,"contentEditable":False},
-                    "?ele-denom1":{"id":"denom1","value":denom1,"contentEditable":False},
-                    "?ele-denom2":{"id":"denom2","value":denom2,"contentEditable":False},
-                    "?ele-op":{"id":"op","value":op,"contentEditable":False}
+                state = {"num1":{"id":"num1","value":num1,"contentEditable":False},
+                    "num2":{"id":"num2","value":num2,"contentEditable":False},
+                    "denom1":{"id":"denom1","value":denom1,"contentEditable":False},
+                    "denom2":{"id":"denom2","value":denom2,"contentEditable":False},
+                    "op":{"id":"op","value":op,"contentEditable":False}
                     
                 }
                 if fractionPart == "num":
                     #numerator stuff
-                    state["?ele-num3"] = {"id":"num3","value":"","contentEditable":True}
-                    state["?ele-denom3"] = {"id":"denom3","value":"","contentEditable":False}
+                    state["num3"] = {"id":"num3","value":"","contentEditable":True}
+                    state["denom3"] = {"id":"denom3","value":"","contentEditable":False}
                     correctResponse = resultnum
-                    selection = "?ele-num3"
+                    selection = "num3"
                 else:
-                    state["?ele-num3"] = {"id":"num3","value":resultnum,"contentEditable":False}
-                    state["?ele-denom3"] = {"id":"denom3","value":"","contentEditable":True}
+                    state["num3"] = {"id":"num3","value":resultnum,"contentEditable":False}
+                    state["denom3"] = {"id":"denom3","value":"","contentEditable":True}
                     correctResponse = resultdenom
-                    selection = "?ele-denom3"
+                    selection = "denom3"
                     
         
                 input_for_get = {
@@ -172,10 +172,10 @@ def train(agentID):
                 
         
                 obj = {
-                  "selection": "num3",
+                  "selection": selection,
                   "action": "UpdateTextField",
                   "inputs": {
-                      "value": resultnum
+                      "value": correctResponse
                   },
                   "reward": 1,
                   "state": state
