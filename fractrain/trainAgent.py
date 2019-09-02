@@ -63,19 +63,31 @@ def create_agent():
     print("agent id:", agentID)
     return agentID
     
-def request_and_log(state, correctResponse, problem, part, trainingPart, url, agentID,  csvWriter):
+def request_and_log(state, eq, part, trainingPart, url, agentID,  csvWriter):
     reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
     try:
         computedResponse = reqReq.json()["inputs"]["value"]
     except:
         computedResponse = ""
-    row = {'Problem': problem, 'Part' : part,'TrainingPart' : trainingPart, 'ComputedAnswer':computedResponse,
+    problem, operator, result = eq
+    correctResponse = get_desired_response(eq, part)
+    row = {'Problem': problem, 'Part' : part, 'Operator' : operator, 'TrainingPart' : trainingPart, 'ComputedAnswer':computedResponse,
      'CorrectAnswer':correctResponse,
     'Correct' : correctResponse==computedResponse}
     csvWriter.writerow(row)
     return computedResponse
     # log_accuracy(prob, resultnum, "x", numeratorComputed, "x")
 
+def get_desired_response(eq, part):
+    '''
+    eq is a tuple of (problem, operator, response), and part is 'num' or
+    'denom'. This gets the numerator or the denominator of the response,
+    according to what is specified in part.
+    '''
+    resultnum, resultdenom = eq[2].split("/")
+    return resultnum if part == 'num' else resultdenom
+    
+    
 def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle = True):
     problems = []
     for i in range(num_problems):
@@ -107,9 +119,9 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
         
 
 def train(agentID):
-    bignums = generate_problems(1, 100, ['Mult'],10)
+    bignums = generate_problems(1, 100, ['Mult','Add'],10)
     
-    logHeader = ['Problem','Part','TrainingPart','ComputedAnswer','CorrectAnswer','Correct']
+    logHeader = ['Problem','Operator','Part','TrainingPart','ComputedAnswer','CorrectAnswer','Correct']
     trainingParts = ['before','afterNegativeFeedback','afterTraining']
     with open(logfilename,'w') as csvfile:
         csvwriter = csv.DictWriter(csvfile, fieldnames=logHeader)
@@ -156,7 +168,7 @@ def train(agentID):
                            state,
                         ],
                 }
-                computedResponse = request_and_log(state, correctResponse, prob, fractionPart, trainingParts[0], url, agentID,  csvwriter)
+                computedResponse = request_and_log(state, eq, fractionPart, trainingParts[0], url, agentID,  csvwriter)
                 if includeNegativeFeedback and computedResponse != correctResponse:
                     obj = {
                       "selection": selection,
@@ -168,7 +180,7 @@ def train(agentID):
                       "state": state
                     }
                     trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
-                    computedResponse = request_and_log(state, correctResponse, prob, fractionPart, trainingParts[1], url, agentID,  csvwriter)
+                    computedResponse = request_and_log(state, eq, fractionPart, trainingParts[1], url, agentID,  csvwriter)
                 
         
                 obj = {
@@ -181,7 +193,7 @@ def train(agentID):
                   "state": state
                 }
                 trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
-                computedResponse = request_and_log(state, correctResponse, prob, fractionPart, trainingParts[2], url, agentID,  csvwriter)
+                computedResponse = request_and_log(state, eq, fractionPart, trainingParts[2], url, agentID,  csvwriter)
 
 def main():
     if createNewAgent:
