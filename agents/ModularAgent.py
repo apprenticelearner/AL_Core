@@ -109,7 +109,7 @@ class ModularAgent(BaseAgent):
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='MostSpecific',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
-                 planner='fo_planner', search_depth=1, numerical_epsilon=0.0, use_memory=False):
+                 planner='fo_planner', search_depth=1, numerical_epsilon=0.0, use_memory=True):
         # print(planner)
         self.where_learner = get_where_learner(where_learner)
         self.when_learner = get_when_learner(when_learner)
@@ -188,22 +188,23 @@ class ModularAgent(BaseAgent):
 
         response = EMPTY_RESPONSE
         for explanation, skill_info in explanations:
-            print(explanation, skill_info)
+            # print(explanation, skill_info)
             tmp_resp = explanation.to_response(state, self)
             if tmp_resp['inputs']['value'] is None:
                 continue
             response = tmp_resp
+            retrieved = 1
             if self.use_memory:
                 retrieved = self.compute_retrieval(self.activations[str(explanation)], -0.7, 1)
-                print("retrieved:", retrieved)
-                if retrieved:
-                    break
-                else:
-                    response = EMPTY_RESPONSE
-                # else:
-                #     break
+                # print("retrieved:", retrieved)
+
             if(add_skill_info):
                 response["skill_info"] = skill_info
+
+            if retrieved:
+                break
+            else:
+                response = EMPTY_RESPONSE
 
         return response
 
@@ -351,10 +352,10 @@ class ModularAgent(BaseAgent):
 
         # self.explanations_list = np.append(self.explanations_list, [exp for exp in explanations])
         self.fit(explanations, state_featurized, reward)
-        print("----------------------")
+        # print("----------------------")
         # print(self.explanations_list)
         # self.explanations_unique, self.explanations_freq =
-        print(self.activations)
+        # print(self.activations)
 
         # with open("test_activation.txt", "a") as f:
         #     for key, val in self.activations.items():
@@ -386,7 +387,7 @@ class ModularAgent(BaseAgent):
         return math.log(np.sum(times**(-decay)))
 
     def compute_retrieval(self, activation, tau, s):
-        print("probability of retrieval:", (1/(1+math.exp((tau - activation) / s))))
+        # print("probability of retrieval:", (1/(1+math.exp((tau - activation) / s))))
         return random() < (1/(1+math.exp((tau - activation) / s)))
 
 
