@@ -137,6 +137,7 @@ class ModularAgent(BaseAgent):
         self.activations = {}
         self.use_memory = use_memory
 
+        print("using memory:", use_memory)
 
     # -----------------------------REQUEST------------------------------------
 
