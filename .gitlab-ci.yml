@@ -18,7 +18,7 @@ flake8:
     reports:
       junit: flake8_junit.xml
   tags:
-    - pytorch
+    - apprentice-runner-1
 
 pytest:
   stage: test
@@ -34,7 +34,7 @@ pytest:
     reports:
       junit: output.xml
   tags:
-    - pytorch
+    - apprentice-runner-1
 
 sphinx:
   stage: document
@@ -73,7 +73,7 @@ coverage:
     paths:
       - coverage
   tags:
-    - pytorch
+    - apprentice-runner-1
 
 pages:
   stage: deploy
