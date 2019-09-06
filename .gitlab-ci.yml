@@ -1,0 +1,95 @@
+stages:
+  - lint
+  - test
+  - document
+  - deploy
+
+flake8:
+  stage: lint
+  allow_failure: true
+  script:
+    - pip install flake8 flake8-junit-report
+    - retval=0
+    - flake8 --output-file flake8.txt torchmm/ || retval=$?
+    - flake8_junit flake8.txt flake8_junit.xml
+    - exit "$retval"
+  artifacts:
+    when: always
+    reports:
+      junit: flake8_junit.xml
+  tags:
+    - pytorch
+
+pytest:
+  stage: test
+  allow_failure: false
+  script:
+    - pip install -r requirements.txt
+    - pip install -r test-requirements.txt
+      #- pip install tox
+      #- tox
+    - python -m pytest
+  artifacts:
+    when: always
+    reports:
+      junit: output.xml
+  tags:
+    - pytorch
+
+sphinx:
+  stage: document
+  dependencies:
+    - flake8
+  script:
+    - pip install -r docs/doc-requirements.txt
+    - sudo apt-get update
+    - sudo apt-get install make
+    - cd docs
+    - make html
+    - mv _build/html/ ../sphinx
+  artifacts:
+    paths:
+      - sphinx
+  tags:
+    - pytorch
+  only:
+    - master
+
+coverage:
+  stage: document
+  allow_failure: true
+  dependencies:
+    - pytest
+  script:
+    - pip install -r requirements.txt
+    - pip install -r test-requirements.txt
+    - retval=0
+    - coverage run --source torchmm -m pytest || retval=$?
+    - coverage html -d coverage
+    - coverage report
+      # - exit "$retval"
+  coverage: '/\d+\%\s*$/'
+  artifacts:
+    paths:
+      - coverage
+  tags:
+    - pytorch
+
+pages:
+  stage: deploy
+  dependencies:
+    - sphinx
+    - coverage
+  script:
+    - mv sphinx public/
+    - mv coverage public/coverage
+  environment:
+    name: pages
+    url: https://hq-git.soartech.com/apprentice/apprentice
+  artifacts:
+    paths:
+      - public
+  tags: 
+    - pytorch
+  only:
+    - master
