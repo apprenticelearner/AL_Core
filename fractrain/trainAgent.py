@@ -116,7 +116,8 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
     if shuffle:
         random.shuffle(problems)
     return problems
-        
+
+addQEle = True;
 
 def train(agentID):
     bignums = generate_problems(1, 100, ['Mult','Add'],10)
@@ -143,26 +144,25 @@ def train(agentID):
             parts = ["num","denom"]
             for fractionPart in parts:
                 curLogRow = {}
-                state = {"num1":{"id":"num1","value":num1,"contentEditable":False},
-                    "num2":{"id":"num2","value":num2,"contentEditable":False},
-                    "denom1":{"id":"denom1","value":denom1,"contentEditable":False},
-                    "denom2":{"id":"denom2","value":denom2,"contentEditable":False},
-                    "op":{"id":"op","value":op,"contentEditable":False}
-                    
+                state = {"?ele-num1":{"id":"num1","value":num1,"contentEditable":False},
+                    "?ele-num2":{"id":"num2","value":num2,"contentEditable":False},
+                    "?ele-denom1":{"id":"denom1","value":denom1,"contentEditable":False},
+                    "?ele-denom2":{"id":"denom2","value":denom2,"contentEditable":False},
+                    "?ele-op":{"id":"op","value":op,"contentEditable":False}
+
                 }
                 if fractionPart == "num":
                     #numerator stuff
-                    state["num3"] = {"id":"num3","value":"","contentEditable":True}
-                    state["denom3"] = {"id":"denom3","value":"","contentEditable":False}
+                    state["?ele-num3"] = {"id":"num3","value":"","contentEditable":True}
+                    state["?ele-denom3"] = {"id":"denom3","value":"","contentEditable":False}
                     correctResponse = resultnum
                     selection = "num3"
                 else:
-                    state["num3"] = {"id":"num3","value":resultnum,"contentEditable":False}
-                    state["denom3"] = {"id":"denom3","value":"","contentEditable":True}
+                    state["?ele-num3"] = {"id":"num3","value":resultnum,"contentEditable":False}
+                    state["?ele-denom3"] = {"id":"denom3","value":"","contentEditable":True}
                     correctResponse = resultdenom
                     selection = "denom3"
                     
-        
                 input_for_get = {
                     "states":[
                            state,
