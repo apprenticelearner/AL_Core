@@ -65,15 +65,20 @@ def create_agent():
     
 def request_and_log(state, eq, part, trainingPart, url, agentID,  csvWriter):
     reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
+    rule = ""
+    
     try:
         computedResponse = reqReq.json()["inputs"]["value"]
+        obj = {"states":[state,],}
+        rule = requests.post(url+"get_skills/"+str(agentID)+"/", json=obj)
+        rule = rule.json()
     except:
         computedResponse = ""
     problem, operator, result = eq
     correctResponse = get_desired_response(eq, part)
     row = {'Problem': problem, 'Part' : part, 'Operator' : operator, 'TrainingPart' : trainingPart, 'ComputedAnswer':computedResponse,
      'CorrectAnswer':correctResponse,
-    'Correct' : correctResponse==computedResponse}
+    'Correct' : correctResponse==computedResponse, 'Rule' : rule}
     csvWriter.writerow(row)
     return computedResponse
     # log_accuracy(prob, resultnum, "x", numeratorComputed, "x")
@@ -119,12 +124,11 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
         random.shuffle(problems)
     return problems
 
-addQEle = True;
 
 def train(agentID):
-    bignums = generate_problems(1, 100, ['Mult','Add','Div','Sub'],10)
+    bignums = generate_problems(1, 10, ['Mult','Add','Sub','Div'],10)
     
-    logHeader = ['Problem','Operator','Part','TrainingPart','ComputedAnswer','CorrectAnswer','Correct']
+    logHeader = ['Problem','Operator','Part','TrainingPart','ComputedAnswer','CorrectAnswer','Correct','Rule']
     trainingParts = ['before','afterNegativeFeedback','afterTraining']
     with open(logfilename,'w') as csvfile:
         csvwriter = csv.DictWriter(csvfile, fieldnames=logHeader)
