@@ -102,14 +102,16 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
             else:
                 yd = random.randrange(lower_bound,upper_bound)
             
-            resultNum = eval(str(xn) + operator + str(yn))
-            if operator == '/':
+            if operator == ':':
                 resultNum = xn*yd
-            
-            resultDenom = eval(str(xd) + operator + str(yd))
-            if operator == '/':
+            else:
+                resultNum = eval(str(xn) + operator + str(yn))
+                
+            if operator == '*':
+                resultDenom = eval(str(xd) + operator + str(yd))
+            elif operator == ':':
                 resultDenom = xd * yn
-            elif operator == '+' or operator == '-':
+            else:# operator == '+' or operator == '-':
                 resultDenom = xd
             problems.append([str(xn)+"/"+str(xd)+operator+str(yn)+"/"+str(yd), operatorWord, str(resultNum) +"/"+ str(resultDenom)])
     print(problems)
@@ -120,7 +122,7 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
 addQEle = True;
 
 def train(agentID):
-    bignums = generate_problems(1, 100, ['Mult','Add'],10)
+    bignums = generate_problems(1, 100, ['Mult','Add','Div','Sub'],10)
     
     logHeader = ['Problem','Operator','Part','TrainingPart','ComputedAnswer','CorrectAnswer','Correct']
     trainingParts = ['before','afterNegativeFeedback','afterTraining']
