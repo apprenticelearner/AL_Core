@@ -1,3 +1,15 @@
+builds/
+codeclimate.json
+.tox
+output.xml
+.coverage
+.pytest_cache/
+htmlcov/
+*.pyc
+*.swp
+__pycache__/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
