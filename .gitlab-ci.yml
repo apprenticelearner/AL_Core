@@ -25,7 +25,7 @@ pytest:
   allow_failure: false
   script:
     - pip install -r requirements.txt
-    - pip install -r test_requirements.txt
+    - pip install -r test-requirements.txt
       #- pip install tox
       #- tox
     - python -m pytest
@@ -42,8 +42,8 @@ sphinx:
     - flake8
   script:
     - pip install -r docs/doc-requirements.txt
-    - sudo apt-get update
-    - sudo apt-get install make
+    - apt-get update
+    - apt-get install make
     - cd docs
     - make html
     - mv _build/html/ ../sphinx
