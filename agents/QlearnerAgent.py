@@ -13,7 +13,7 @@ from agents.BaseAgent import BaseAgent
 from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner
 from learners.WhichLearner import get_which_learner
-from planners.base_planner import get_planner
+from planners.base_planner import get_planner_class
 from planners.VectorizedPlanner import VectorizedPlanner
 # from learners.HowLearner import get_planner
 # from planners.fo_planner import FoPlanner, execute_functions, unify, subst
@@ -122,7 +122,7 @@ class TrestleLearner:
             return float(res['_q'])
         except Exception as e:
             return 0
-        
+
 
     def evaluate(self, state, action):
         state['action'] = str(action)
@@ -408,17 +408,17 @@ class QlearnerAgent(BaseAgent):
         state_featurized = self.planner.apply_featureset(StateMultiView("object", state))
         state_featurized.compute_from('key_vals_grounded','flat_ungrounded')
         # rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
-        
+
         '''
         explanations = self.applicable_explanations(
                             state_featurized, rhs_list=self.rhs_list,
                             add_skill_info=add_skill_info)
-        
+
         '''
         explanations = self.applicable_explanations(
                             state_featurized, rhs_list=self.rhs_list,
                             add_skill_info=add_skill_info)
-        
+
 
 
         explanation, skill_info = next(iter(explanations), (None, None))
@@ -523,7 +523,7 @@ class QlearnerAgent(BaseAgent):
             #print(next_fit_state)
             #fit_state = self.planner.apply_featureset(StateMultiView('object', fit_state))
             #next_fit_state = self.planner.apply_featureset(StateMultiView('object', next_fit_state))
-            
+
             '''
             if(self.when_learner.state_format == 'variablized_state'):
                 fit_state = variablize_by_where(
@@ -571,7 +571,7 @@ class QlearnerAgent(BaseAgent):
         #explanations, nonmatching_explanations = self.where_matches(
         #                                         explanations,
         #                                         state_featurized)
-        
+
         if(len(explanations) == 0):
 
             explanations = self.explanations_from_how_search(
@@ -588,9 +588,9 @@ class QlearnerAgent(BaseAgent):
 
         explanations = list(explanations)
         #pprint([str(exp.rhs.input_rule) for exp in explanations])
-        
+
         # VERSION FOR INCREMENTAL UPDATES
-        
+
         # ***** Note for using trestle: state vs state_featurized, should/can we apply features and then use trestle? *****
         if self.prev_state is not None:
             #self.fit(self.prev_explanations, self.prev_state, self.prev_reward, state)
@@ -606,7 +606,7 @@ class QlearnerAgent(BaseAgent):
             #self.fit(explanations, state, reward, {'a':'a'})
             self.prev_state = None
             self.fit(explanations, state_featurized, reward, StateMultiView('key_vals_grounded', {}))
-            
+
             #visualize(self.q_learner.T)
 
             #for key, val in self.q_learner.Q.items():
@@ -628,7 +628,7 @@ class QlearnerAgent(BaseAgent):
                 curr = s
         '''
 
-            
+
     # ------------------------------CHECK--------------------------------------
 
     def check(self, state, sai):

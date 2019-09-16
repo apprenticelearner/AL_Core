@@ -19,7 +19,7 @@ def custom_feature_set():
     all agents created by the system so you can use it for custom logic but we
     should probably turn it off if we ever have a production server.
     """
-    return [equal_rule]
+    return []
 
 
 def custom_function_set():
@@ -32,7 +32,7 @@ def custom_function_set():
     should probably turn it off if we ever have a production server.
     """
     # return [add_rule, sub_rule, mult_rule, div_rule,ones,tens]
-    return [add_rule, sub_rule, mult_rule, div_rule]
+    return []
     # return [add_then_tens, add_then_ones,add_then_tens3,add_then_ones3]
 
 
@@ -53,6 +53,7 @@ def is_str_and_not_number(s):
         return False
     except ValueError:
         return True
+
 
 
 def is_str_number(s):
@@ -295,6 +296,7 @@ add_rule = Operator(('Add', '?x', '?y'),
                      ],
                     [(('value', ('Add', ('value', '?x'), ('value', '?y'))),
                       (int_float_add, '?xv', '?yv'))])
+Operator.register("add", add_rule)
 
 add_then_ones = Operator(('Add_Then_Ones', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
@@ -337,6 +339,7 @@ ones =    Operator(('Ones', '?x'),
                      ],
                     [(('value', ('Ones', ('value', '?x'))),
                       (ones_digit, '?xv'))])
+
 tens =    Operator(('Tens', '?x'),
                     [(('value', '?x'), '?xv'),
                     (lambda x: x != "" and float(x) > 10, '?xv'),
@@ -365,7 +368,7 @@ sub_rule = Operator(('Subtract', '?x', '?y'),
                     [(('value', ('Subtract', ('value', '?x'),
                                  ('value', '?y'))),
                       (int_float_subtract, '?xv', '?yv'))])
-
+Operator.register("subtract", sub_rule)
 
 convert_units_rule = Operator(('ConvertUnits', '?x', '?y', '?z'),
                               [(('value', '?x'), '?val'),
@@ -400,12 +403,14 @@ mult_rule = Operator(('Multiply', '?x', '?y'),
                      [(('value', ('Multiply', ('value', '?x'),
                                   ('value', '?y'))),
                        (int_float_multiply, '?xv', '?yv'))])
+Operator.register("multiply", mult_rule)
 
 div_rule = Operator(('Divide', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv')],
                     [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
                       (int_float_divide, '?xv', '?yv'))])
+Operator.register("divide", div_rule)
 
 equal_rule = Operator(('Equal', '?x', '?y'),
                       [(('value', '?x'), '?xv'), (('value', '?y'), '?yv'),
@@ -419,6 +424,8 @@ equal_rule = Operator(('Equal', '?x', '?y'),
                       # [(('eq', ('value', '?x'), ('value', '?y')), True)])
                       [(('eq', ('value', '?x'), ('value', '?y')),
                         (lambda x, y: x == y, '?xv', '?yv'))])
+Operator.register("equals", equal_rule)
+Operator.register("equal", equal_rule)
 
 is_number_rule = Operator(('IsNumber', '?x'),
                           [(('value', '?x'), '?xv')],
@@ -509,6 +516,26 @@ rotate = Operator(('Rotate', '?b1'),
                     '?b1')],
                   [(('y', ('bound', ('Rotate', '?b1'))), '?yv'),
                    (('x', ('bound', ('Rotate', '?b1'))), '?xv')])
+
+
+
+# ^^^^^^^^^^^^^^^^^ Define All Operators Above This Line ^^^^^^^^^^^^^^^^^^
+for name,op in locals().copy().items():
+  if(isinstance(op, Operator)):
+    Operator.register(name,op)    
+
+
+# Operator.register([add_rule, add_then_ones, add_then_tens,  add_then_ones3,
+#     add_then_tens3, ones,tens, update_rule, done_rule,sub_rule,
+#     convert_units_rule, sig_fig_rule, mult_rule,div_rule, equal_rule,
+#     is_number_rule, half_val, grammar_parser_rule, tokenize_rule,
+#     concatenate_rule, string_subtract_rule, unigram_rule, bigram_rule,
+#     half, add_y, add_rule, add_then_ones, add_then_tens, add_then_ones3,
+#     add_then_tens3, ones, tens, update_rule, done_rule, sub_rule, 
+#     convert_units_rule, sig_fig_rule, mult_rule, div_rule, equal_rule,
+#     is_number_rule, half_val, grammar_parser_rule, tokenize_rule,
+#     concatenate_rule,string_subtract_rule,unigram_rule,bigram_rule, 
+#     half, add_y,sub_y, add_x, sub_x, rotate])
 
 
 rb_rules = [add_x, add_y, sub_x, sub_y, half, rotate]

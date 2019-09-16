@@ -191,6 +191,8 @@ class RLAgent(BaseAgent):
 
         actions.sort(reverse=True)
         return actions
+
+        # This is from 'master'.
         '''
         print(actions)
 
@@ -222,7 +224,7 @@ class RLAgent(BaseAgent):
         next_actions = []
 
         print("LAST ACTION", self.last_action, self.reward)
-        
+
         self.Q.update(self.last_state, self.last_action, self.reward, None,
                       next_actions)
         print(selection, action, inputs)
