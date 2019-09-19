@@ -1,8 +1,11 @@
-import pyknow as pk
 from typing import Iterable
+
+import pyknow as pk
+
 from ..base import WorkingMemory
 from ..representation import Fact, Skill
 
+# register referenced type as abstract base class for type checking
 Fact.register(pk.fact.Fact)
 
 
@@ -11,19 +14,24 @@ class PyknowWorkingMemory(WorkingMemory):
         self.ke = pk.engine.KnowledgeEngine()
 
     def get_facts(self) -> Iterable[Fact]:
-        pass
+        return self.ke.facts
 
     def get_skills(self) -> Iterable[Skill]:
-        pass
+        return self.ke.get_rules()
 
     def add_fact(self, fact: Fact):
-        pass
+        assert isinstance(fact, pk.Fact)
+        self.ke.declare(fact)
 
     def add_skill(self, skill: Skill):
-        pass
+        assert isinstance(skill, pk.Rule)
+        # obj.ke = self
+        self.ke.setattr(skill._wrapped.__name__, skill)
 
     def update_fact(self, fact: Fact):
-        pass
+        self.ke.modify(fact)
 
     def update_skill(self, skill: Skill):
         pass
+
+    #####
