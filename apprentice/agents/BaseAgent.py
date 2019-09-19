@@ -14,6 +14,16 @@ class BaseAgent(object):
         """
         raise NotImplementedError("request function not implemented")
 
+    def request_diff(self, state_pos_diff, state_neg_diff):
+        """
+        Accepts a JSON object representing diffs from the previously requested
+        state. Useful for more efficiently making requests when the state
+        changes only a little bit.
+
+        Returns a dictionary containing selection, action, and inputs.
+        """
+        raise NotImplementedError("request function not implemented")
+
     def train(self, state, selection, action, inputs, reward, skill_label,
               foci_of_attention):
         """
@@ -24,6 +34,17 @@ class BaseAgent(object):
         """
 
         raise NotImplementedError("train function not implemented")
+
+    def train_diff(self, state_pos_diff, state_neg_diff, selection, action,
+                   inputs, reward, skill_label, foci_of_attention):
+        """
+        Accepts a JSON object representing the state, a string representing the
+        skill label, a list of strings representing the foas, a string
+        representing the selection, a string representing the action, list of
+        strings representing the inputs, and a boolean correctness.
+        """
+
+        raise NotImplementedError("train_diff function not implemented")
 
     def check(self, state, selection, action, inputs):
         """
