@@ -1,6 +1,9 @@
-class BaseAgent(object):
+from agents.BaseAgent import BaseAgent
+
+
+class SoarTechAgent(BaseAgent):
     """
-    This is essentially an abstract class for apprentice learner agents.
+    A SoarTech version of an Apprentice Agent.
     """
 
     def __init__(self, feature_set, function_set):
