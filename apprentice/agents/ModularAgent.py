@@ -6,7 +6,6 @@ from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.structure_mapper import rename_flat
 
-
 from agents.BaseAgent import BaseAgent
 from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner

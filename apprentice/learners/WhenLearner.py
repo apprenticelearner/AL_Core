@@ -1,3 +1,4 @@
+from sklearn.tree import _tree
 from pprint import pprint
 from copy import deepcopy
 from learners.pyibl import Agent
@@ -32,18 +33,18 @@ class WhenLearner(object):
                  state_format="variablized_state",
                  cross_rhs_inference="none", learner_kwargs={}):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS, \
-               "state_format must be one of %s but got %s" % \
-               (self.__class__.STATE_FORMAT_OPTIONS, state_format)
+            "state_format must be one of %s but got %s" % \
+            (self.__class__.STATE_FORMAT_OPTIONS, state_format)
         assert when_type in self.__class__.WHEN_TYPE_OPTIONS, \
-               "when_type must be one of %s but got %s" % \
-               (self.__class__.WHEN_TYPE_OPTIONS, when_type)
+            "when_type must be one of %s but got %s" % \
+            (self.__class__.WHEN_TYPE_OPTIONS, when_type)
         assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, \
-               "cross_rhs_inference must be one of %s but got %s" % \
-               (self.__class__.CROSS_RHS_INFERENCE, cross_rhs_inference)
+            "cross_rhs_inference must be one of %s but got %s" % \
+            (self.__class__.CROSS_RHS_INFERENCE, cross_rhs_inference)
 
         if(cross_rhs_inference == "rhs_in_y"):
             assert when_type == "one_learner_per_label", \
-                   "when_type must be 'one_learner_per_label' if using \
+                "when_type must be 'one_learner_per_label' if using \
                     cross_rhs_inference = 'rhs_in_y', but got %r " % when_type
 
         self.learner_name = learner
@@ -109,7 +110,8 @@ class WhenLearner(object):
 
                 # Remove any implicit negative examples in this rhs with the current state
                 try:
-                    index_value = self.implicit_examples[key]['state'].index(state)
+                    index_value = self.implicit_examples[key]['state'].index(
+                        state)
                 except ValueError:
                     index_value = -1
 
@@ -135,8 +137,8 @@ class WhenLearner(object):
             if(self.type == "one_learner_per_label"):
                 if(rhs.label not in self.learners):
                     self.learners[rhs.label] = get_when_sublearner(
-                                                self.learner_name,
-                                                **self.learner_kwargs)
+                        self.learner_name,
+                        **self.learner_kwargs)
                 if(self.cross_rhs_inference == "rhs_in_y"):
                     self.learners[rhs.label].ifit(state, (rhs._id_num, reward))
                 else:
@@ -165,7 +167,8 @@ class WhenLearner(object):
         sublearner = self.learners[key]
 
         if(isinstance(sublearner, Pipeline)):
-            feature_names = sublearner.named_steps["dict vect"].get_feature_names()
+            feature_names = sublearner.named_steps["dict vect"].get_feature_names(
+            )
 
         return sublearner.skill_info(state)
 
@@ -238,7 +241,7 @@ class CustomPipeline(Pipeline):
                 Xt = transform.transform(Xt)
                 # print("BAE_"+name,Xt)
 
-        return classifier.skill_info(Xt,feature_names)
+        return classifier.skill_info(Xt, feature_names)
 
     def __repr__(self):
         return repr(self.named_steps['clf'])
@@ -272,7 +275,6 @@ def DictVectWrapper(clf):
     #     raise NotImplementedError("Still need to write applicable_skills")
 
 
-from sklearn.tree import _tree
 class DecisionTree(DecisionTreeClassifier):
 
     # def fit(self,X,y):
@@ -354,7 +356,7 @@ class ScikitCobweb(object):
         X = deepcopy(X)
         for i, x in enumerate(X):
             # print(y)
-            x['_y_label'] = float(y) if not isinstance(y,list) else y[i]
+            x['_y_label'] = float(y) if not isinstance(y, list) else y[i]
         self.tree.fit(X, randomize_first=False)
 
     def skill_info(self, X):
@@ -557,7 +559,8 @@ parameters_sgd = {'loss': 'perceptron'}
 
 
 def get_when_sublearner(name, **learner_kwargs):
-    return WHEN_CLASSIFIERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+    return WHEN_CLASSIFIERS[
+        name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
 
 def get_when_learner(name, learner_kwargs={}):

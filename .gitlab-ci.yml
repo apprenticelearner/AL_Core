@@ -12,6 +12,7 @@ flake8:
     - retval=0
     - flake8 --output-file flake8.txt apprentice/ || retval=$?
     - flake8_junit flake8.txt flake8_junit.xml
+    - cat flake8.txt
     - exit "$retval"
   artifacts:
     when: always
