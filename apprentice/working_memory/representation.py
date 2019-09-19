@@ -1,7 +1,7 @@
 from abc import ABCMeta
 
 
-# what do these actually need to implement?
+# Placeholder for now. What do these actually need to implement?
 
 class Fact(metaclass=ABCMeta):
     pass
