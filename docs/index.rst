@@ -5,6 +5,8 @@
    :caption: Contents:
 
    agents.rst
+   learners.rst
+   planners.rst
 
 
 Indices and tables
