@@ -4,8 +4,14 @@ class BaseAgent(object):
     """
 
     def __init__(self, feature_set, function_set):
+        # Just track the state as a set of Facts?
         self.last_state = None
-        pass
+
+        # Need a working memory class
+        self.working_memory = None
+
+        for skill in feature_set:
+            self.working_memory.declare_skill(skill)
 
     def request(self, state):
         """
@@ -29,7 +35,24 @@ class BaseAgent(object):
 
         Returns a dictionary containing selection, action, and inputs.
         """
-        raise NotImplementedError("request function not implemented")
+        # relational inference step?
+        # there could be a repeated process of updating, but maybe we wanna
+        # chose the skills that get applied, so do the loop below.
+        self.working_memory.retract(state_neg_diff)
+        self.working_memory.declare(state_pos_diff)
+
+        while True:
+            candiate_skills = [skill for skill in self.working_memory.agenda]
+            if len(candidate_skills) == 0:
+                break
+            best_skill = select_skill(candidate_skills, state)
+            best_skill.activate()
+            # what if the skills produces external action? Need to return it?
+            # Does this happen within the skill?
+            # Maybe activate returns something?
+
+        # return empty action
+        return {}
 
     def train(self, state, selection, action, inputs, reward, skill_label,
               foci_of_attention):
@@ -56,16 +79,19 @@ class BaseAgent(object):
         representing the selection, a string representing the action, list of
         strings representing the inputs, and a boolean correctness.
         """
+        # relational inference step?
+        self.working_memory.retract(state_neg_diff)
+        self.working_memory.declare(state_pos_diff)
 
-        raise NotImplementedError("train_diff function not implemented")
+        skill_sequence = self.explain(selection, action, inputs)
 
-    def check(self, state, selection, action, inputs):
-        """
-        Accepts a JSON object representing the state, a string representing the
-        selection, a string representing the action, list of strings
-        representing the inputs.
+        # might need to distinguish here between a skill and a skill
+        # instantiation; could return skill instantiation that has a pointer to
+        # a skill
+        if len(skill_sequence) == 1:
+            skill = skill_sequence[0]
+        else:
+            skill = self.how_learning(skill_sequence)
 
-        Uses the learned model to determine the correctness of the provided sai
-        in the provided state. Returns a boolean.
-        """
-        raise NotImplementedError("check function not implemented")
+        skill.update_where(self.working_memory, reward)
+        skill.update_when(self.working_memory, reward)
