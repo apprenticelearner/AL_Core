@@ -39,8 +39,14 @@ class BaseAgent(object):
         representing the selection, a string representing the action, list of
         strings representing the inputs, and a boolean correctness.
         """
+        if self.last_state is None:
+            return self.request_diff(state, [])
 
-        raise NotImplementedError("train function not implemented")
+        pos_diff = state - self.last_state
+        neg_diff = self.last_state - state
+
+        return self.train_diff(pos_diff, neg_diff, selection, action, inputs,
+                               reward, skill_lable, foci_of_attention)
 
     def train_diff(self, state_pos_diff, state_neg_diff, selection, action,
                    inputs, reward, skill_label, foci_of_attention):
