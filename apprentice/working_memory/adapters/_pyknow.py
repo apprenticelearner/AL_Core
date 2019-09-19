@@ -1,6 +1,6 @@
 from typing import Iterable
 
-import pyknow as pk
+import experta as pk
 
 from ..base import WorkingMemory
 from ..representation import Fact, Skill
