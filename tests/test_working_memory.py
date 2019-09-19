@@ -1,5 +1,5 @@
 from pyknow import Fact, KnowledgeEngine, MATCH, Field, TEST, Rule, DefFacts
-
+from apprentice.working_memory.adapters._pyknow import PyknowWorkingMemory
 
 class FibonacciDigit(Fact):
     position = Field(int, mandatory=True)
@@ -47,15 +47,23 @@ class FibonacciCalculator(KnowledgeEngine):
         print("Fibonnaci digit in position {position} is {value}".format(
             position=t, value=v))
 
-def test_ke_1(self):
+def test_ke_1():
 
 
     pkke = FibonacciCalculator()
     pkke.reset(target=42)
     pkke.run()
-    #pkke.declare(FibonacciDigit(position=1, value=1))
-    ke.run()
-print(ke.facts[0].as_dict())
 
-rules = ke.get_rules()
-print(rules[0]._wrapped.__name__)
+    apprentice_ke = PyknowWorkingMemory()
+
+    for f in pkke.facts:
+        print(f)
+        apprentice_ke.add_fact(f)
+    for r in pkke.get_rules():
+        print(r)
+        apprentice_ke.add_skill(r)
+
+    apprentice_ke.run()
+
+if __name__=="__main__":
+    test_ke_1()
