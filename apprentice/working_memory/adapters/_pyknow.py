@@ -20,12 +20,9 @@ class PyknowWorkingMemory(WorkingMemory):
         return self.ke.get_rules()
 
     def add_fact(self, fact: Fact):
-        assert isinstance(fact, pk.Fact)
         self.ke.declare(fact)
 
     def add_skill(self, skill: Skill):
-        assert isinstance(skill, pk.Rule)
-        # obj.ke = self
         self.ke.setattr(skill._wrapped.__name__, skill)
 
     def update_fact(self, fact: Fact):
