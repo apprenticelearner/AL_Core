@@ -1,9 +1,10 @@
 from typing import Iterable
 
-import pyknow as pk
+import experta as pk
 
 from ..base import WorkingMemory
-from ..representation import Fact, Skill
+from ..representation import Fact
+from ..representation import Skill
 
 # register referenced type as abstract base class for type checking
 Fact.register(pk.fact.Fact)

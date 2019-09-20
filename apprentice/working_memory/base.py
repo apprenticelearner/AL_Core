@@ -1,7 +1,11 @@
+from typing import Iterable
 from abc import ABCMeta, abstractmethod
 from typing import Collection
 
 from apprentice.working_memory.representation import Fact, Skill
+
+from .representation import Fact
+from .representation import Skill
 
 
 class WorkingMemory(metaclass=ABCMeta):

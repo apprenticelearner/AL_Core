@@ -53,6 +53,7 @@ class SoarTechAgent(BaseAgent):
             # what if the skills produces external action? Need to return it?
             # Does this happen within the skill?
             # Maybe activate returns something?
+            # Maybe we need something special for recognizing SAI facts?
 
         # return empty action
         return {}

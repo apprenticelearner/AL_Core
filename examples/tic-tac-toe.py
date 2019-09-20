@@ -7,85 +7,148 @@ from agents.RLAgent import RLAgent
 from agents.ModularAgent import ModularAgent
 from agents.Memo import Memo
 
-ttt_horizontal_adj = Operator(('horizontal_adj', '?s1', '?s2'),
-                              [(('row', '?s1'), '?s1r'),
-                               (('row', '?s2'), '?s1r'),
-                               (('col', '?s1'), '?s1c'),
-                               (('col', '?s2'), '?s2c'),
-                               (lambda x, y: abs(x-y) == 1, '?s1c', '?s2c')],
-                              [(('horizontal_adj', '?s1', '?s2'), True)])
-
-ttt_vertical_adj = Operator(('vertical_adj', '?s1', '?s2'),
-                            [(('row', '?s1'), '?s1r'),
-                             (('row', '?s2'), '?s2r'),
-                             (('col', '?s1'), '?s1c'),
-                             (('col', '?s2'), '?s1c'),
-                             (lambda x, y: abs(x-y) == 1, '?s1r', '?s2r')],
-                            [(('vertical_adj', '?s1', '?s2'), True)])
-
-ttt_diag_adj = Operator(('diag_adj', '?s1', '?s2'),
-                        [(('row', '?s1'), '?s1r'),
-                         (('row', '?s2'), '?s2r'),
-                         (('col', '?s1'), '?s1c'),
-                         (('col', '?s2'), '?s2c'),
-                         (lambda x, y: abs(x-y) == 1, '?s1r', '?s2r'),
-                         (lambda x, y: abs(x-y) == 1, '?s1c', '?s2c')],
-                        [(('diag_adj', '?s1', '?s2'), True)])
-
-ttt_move = Operator(('Move', '?r', '?c'),
-                    [(('value', '?s'), '?p'),
-                     (('id', '?s'), 'CurrentPlayer'),
-                     (('id', '?cell'), '?selection'),
-                     (('row', '?cell'), '?r'),
-                     (('col', '?cell'), '?c'),
-                     (('contentEditable', '?cell'), True)],
-                    [(('sai', '?selection', 'mark', (('value', '?p'),)),
-                      True)])
+from experta import Fact
+from experta import KnowledgeEngine
+from experta import MATCH
+from experta import AS
+# from experta import Field
+from experta import TEST
+from experta import Rule
+# from experta import DefFacts
+# from apprentice.working_memory.representation import Fact
+# from apprentice.working_memory.representation import Skill
 
 
-class TicTacToe(object):
+class TTT_Engine(KnowledgeEngine):
+
+    @Rule(
+        Fact(type="Square", row=MATCH.row, col=MATCH.square1col),
+        Fact(type="Square", row=MATCH.row, col=MATCH.square2col),
+        TEST(lambda square1col, square2col: square2col == square1col + 1))
+    def horizontally_adj(self, square1, square2):
+        relation = Fact(relation="horizontally_adjacent", left=square1,
+                        right=square2)
+        self.declare(relation)
+
+    @Rule(
+        Fact(type="Square", row=MATCH.square1row, col=MATCH.col),
+        Fact(type="Square", row=MATCH.square2row, col=MATCH.col),
+        TEST(lambda square1row, square2row: square2row == square1row + 1))
+    def vertically_adj(self, square1, square2):
+        relation = Fact(relation="vertically_adjacent",
+                        above=square1, below=square2)
+        self.declare(relation)
+
+    @Rule(
+        Fact(type="Square", row=MATCH.square1row, col=MATCH.square1col),
+        Fact(type="Square", row=MATCH.square2row, col=MATCH.square2col),
+        TEST(lambda square1row, square2row: square2row == square1row + 1),
+        TEST(lambda square1col, square2col: square2col == square2col + 1))
+    def diagionally_adj(self, square1, square2):
+        relation = Fact(relation="diagionally_adjacent",
+                        upper_left=square1, lower_right=square2)
+        self.declare(relation)
+
+    @Rule(
+        Fact(type="TicTacToe", current_player=MATCH.player),
+        AS.square << Fact(type="Square", row=MATCH.row, col=MATCH.col,
+                          value=""))
+    def move(self, square, player):
+        sai = Fact(type="sai", selection=square, action="mark", value=player)
+
+        # TODO need to do something like this to halt behavior and serve up the
+        # output
+        self.output = sai
+        self.halt()
+
+
+"""
+Here is an example of a tic tac tow board state in JSON for the above
+skills/rules
+
+game = {
+    'type': 'TicTacToe',
+    'current_player': 'X',
+    'board': [
+        {'type': 'Square',
+         'row', 1,
+         'col', 1
+         'value': ''}
+        {'type': 'Square',
+         'row', 1,
+         'col', 2
+         'value': ''}
+        {'type': 'Square',
+         'row', 1,
+         'col', 3
+         'value': ''}
+        {'type': 'Square',
+         'row', 2,
+         'col', 1
+         'value': ''}
+        {'type': 'Square',
+         'row', 2,
+         'col', 2
+         'value': ''}
+        {'type': 'Square',
+         'row', 2,
+         'col', 3
+         'value': ''}
+        {'type': 'Square',
+         'row', 3,
+         'col', 1
+         'value': ''}
+        {'type': 'Square',
+         'row', 3,
+         'col', 2
+         'value': ''}
+        {'type': 'Square',
+         'row', 3,
+         'col', 3
+         'value': ''}]
+}
+
+"""
+
+
+class Square(Fact):
+    def __init__(self, row, col, value):
+        self.row = row
+        self.col = col
+        self.value = value
+
+    def dict_rep(self):
+        return {'type': 'Square',
+                'row': self.row,
+                'col': self.col,
+                'value': self.value}
+
+
+class TicTacToe(Fact):
     """
     Just a basic object to represent game state.
     """
 
     def __init__(self):
-        self.state = ['' for i in range(9)]
+        self.reset()
 
     def reset(self):
-        self.state = ['' for i in range(9)]
+        self.current_player = "X"
+        self.board = [Square(i, j, '') for i in range(3) for j in range(3)]
 
-    def current_player(self):
-        if self.state.count('X') <= self.state.count('O'):
-            return 'X'
-        return 'O'
+    def dict_rep(self):
+        return {'type': 'TicTacToe', 'current player': 'X',
+                'board': [s.dict_rep() for s in self.board]}
 
     def machine_rep(self):
-        table = []
-        table.append(['', 'Col 1', 'Col 2', 'Col 3'])
-        for i in range(3):
-            table.append(['Row %i' % (i+1)] + self.state[i*3:i*3+3])
-        state = {}
-        for row, row_data in enumerate(table):
-            for col, value in enumerate(row_data):
-                if row > 0 and col > 0 and value == "":
-                    element = {'value': value, 'row': row, 'col': col,
-                               'id': 'Cell-%i-%i' % (row, col),
-                               'contentEditable': True}
-                else:
-                    element = {'value': value, 'row': row, 'col': col,
-                               'id': 'Cell-%i-%i' % (row, col)}
-
-                state['?ele-Cell-%i-%i' % (row, col)] = element
-        state['?player'] = {'value': self.current_player(), 'id':
-                            'CurrentPlayer'}
-
-        return state
+        return self.dict_rep()
 
     def __str__(self):
         table = []
         table.append(['', 'Col 1', 'Col 2', 'Col 3'])
         for i in range(3):
-            table.append(['Row %i' % (i+1)] + self.state[i*3:i*3+3])
+            table.append(['Row %i' % (i+1)] +
+                         [s.value for s in self.board[i*3: i*3+3]])
 
         return tabulate(table, tablefmt="fancy_grid", stralign="center")
 
@@ -94,15 +157,25 @@ class TicTacToe(object):
         Row -> 1-3 range inclusive
         Col -> 1-3 range inclusive
         """
-        idx = (row-1) * 3 + (col-1)
-        if idx < 0 or idx > len(self.state):
+        if row < 1 or row > 3:
             raise ValueError("Move not on board")
-        if self.state[idx] != "":
+        if col < 1 or col > 3:
+            raise ValueError("Move not on board")
+
+        idx = (row - 1) * 3 + (col - 1)
+        if idx < 0 or idx > len(self.board):
+            raise ValueError("Move not on board")
+        if self.board[idx].value != "":
             raise ValueError("Cannot play already marked spot")
-        if player != self.current_player():
+        if player != self.current_player:
             raise ValueError("Wrong player")
 
-        self.state[idx] = player
+        self.board[idx].value = player
+        
+        if self.current_player == "X":
+            self.current_player = "O"
+        else:
+            self.current_player = "X"
 
     def winner(self):
         """
@@ -111,33 +184,40 @@ class TicTacToe(object):
         """
 
         # rows
-        if len(set(self.state[0:3])) == 1 and self.state[0] != '':
-            return self.state[0]
-        if len(set(self.state[3:6])) == 1 and self.state[3] != '':
-            return self.state[3]
-        if len(set(self.state[6:9])) == 1 and self.state[6] != '':
-            return self.state[6]
+        if (len(set([s.value for s in self.board[0:3]])) == 1 and
+                     self.board[0].value != ''):
+            return self.board[0].value
+        if (len(set([s.value for s in self.board[3:6]])) == 1 and
+                     self.board[3].value != ''):
+            return self.board[3].value
+        if (len(set([s.value for s in self.board[6:9]])) == 1 and
+                     self.board[6].value != ''):
+            return self.board[6].value
 
         # cols
-        if (len(set([self.state[0], self.state[3], self.state[6]])) == 1 and
-                self.state[0] != ''):
-            return self.state[0]
-        if (len(set([self.state[1], self.state[4], self.state[7]])) == 1 and
-                self.state[1] != ''):
-            return self.state[1]
-        if (len(set([self.state[2], self.state[5], self.state[8]])) == 1 and
-                self.state[2] != ''):
-            return self.state[2]
+        if (len(set([self.board[0].value, self.board[3].value,
+                     self.board[6].value])) == 1 and self.board[0].value != ''):
+            return self.board[0].value
+        if (len(set([self.board[1].value, self.board[4].value,
+                     self.board[7].value])) == 1 and
+                self.board[1].value != ''):
+            return self.board[1].value
+        if (len(set([self.board[2].value, self.board[5].value,
+                     self.board[8].value])) == 1 and
+                self.board[2].value != ''):
+            return self.board[2].value
 
         # diags
-        if (len(set([self.state[0], self.state[4], self.state[8]])) == 1 and
-                self.state[0] != ''):
-            return self.state[0]
-        if (len(set([self.state[6], self.state[4], self.state[2]])) == 1 and
-                self.state[6] != ''):
-            return self.state[6]
+        if (len(set([self.board[0].value, self.board[4].value,
+                     self.board[8].value])) == 1 and
+                self.board[0].value != ''):
+            return self.board[0].value
+        if (len(set([self.board[6].value, self.board[4].value,
+                     self.board[2].value])) == 1 and
+                self.board[6].value != ''):
+            return self.board[6].value
 
-        if '' not in set(self.state):
+        if '' not in set([s.value for s in self.board]):
             return 'DRAW'
 
         return None
@@ -152,7 +232,7 @@ def play_game_manually():
 
         while game.winner() is None:
             print()
-            print("Current Player: " + game.current_player())
+            print("Current Player: " + game.current_player)
             print(game)
 
             try:
@@ -162,7 +242,7 @@ def play_game_manually():
 
                 row = int(loc[0])
                 col = int(loc[1])
-                game.mark(row, col, game.current_player())
+                game.mark(row, col, game.current_player)
             except ValueError:
                 print("############################")
                 print("# Invalid move, try again. #")
@@ -193,7 +273,7 @@ def train_agent(agent_class):
 
         while game.winner() is None:
             print()
-            print("Current Player: " + game.current_player())
+            print("Current Player: " + game.current_player)
             print(game)
             original_state = game.machine_rep()
             pprint(original_state)
@@ -210,7 +290,7 @@ def train_agent(agent_class):
 
                     row = int(loc[0])
                     col = int(loc[1])
-                    player = game.current_player()
+                    player = game.current_player
 
                     game.mark(row, col, player)
 
@@ -228,7 +308,7 @@ def train_agent(agent_class):
                     correctness = correctness == ""
 
                     if correctness:
-                        game.mark(row, col, game.current_player())
+                        game.mark(row, col, game.current_player)
                         correctness = 1
                     else:
                         correctness = -1
@@ -256,6 +336,7 @@ def train_agent(agent_class):
 
 
 if __name__ == "__main__":
+    play_game_manually()
     parser = argparse.ArgumentParser(description='An interactive training demo'
                                      'for apprentice agents.')
     parser.add_argument('-agent', choices=['Modular', 'RLAgent', 'Memo'],
