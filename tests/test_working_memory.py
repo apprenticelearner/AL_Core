@@ -5,6 +5,7 @@ from experta import Field
 from experta import TEST
 from experta import Rule
 from experta import DefFacts
+import pytest
 
 from apprentice.working_memory.adapters._pyknow import PyknowWorkingMemory
 
