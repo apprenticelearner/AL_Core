@@ -5,6 +5,7 @@
    :caption: Contents:
 
    agents.rst
+   working_memory.rst
    learners.rst
    planners.rst
 
