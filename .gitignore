@@ -104,3 +104,6 @@ ENV/
 
 # Temporary vim files
 *.swp
+
+# PyCharm config
+.idea/

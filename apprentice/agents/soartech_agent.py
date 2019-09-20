@@ -45,7 +45,7 @@ class SoarTechAgent(BaseAgent):
         self.working_memory.declare(state_pos_diff)
 
         while True:
-            candiate_skills = [skill for skill in self.working_memory.agenda]
+            candidate_skills = [skill for skill in self.working_memory.agenda]
             if len(candidate_skills) == 0:
                 break
             best_skill = select_skill(candidate_skills, state)

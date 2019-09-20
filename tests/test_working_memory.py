@@ -5,6 +5,7 @@ from experta import Field
 from experta import TEST
 from experta import Rule
 from experta import DefFacts
+import pytest
 
 from apprentice.working_memory.adapters._pyknow import PyknowWorkingMemory
 
@@ -55,7 +56,7 @@ class FibonacciCalculator(KnowledgeEngine):
         print("Fibonnaci digit in position {position} is {value}".format(
             position=t, value=v))
 
-
+@pytest.mark.xfail
 def test_ke_1():
 
     pkke = FibonacciCalculator()
