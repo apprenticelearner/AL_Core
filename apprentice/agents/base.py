@@ -1,5 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
+from typing import Collection
+from working_memory.representation import Skill
 
 from jsondiff import diff
 
@@ -7,7 +9,7 @@ from jsondiff import diff
 class BaseAgent(metaclass=ABCMeta):
     prior_state = None
 
-    def __init__(self, prior_skills: Collection[Skills]):
+    def __init__(self, prior_skills: Collection[Skill]):
         """
         Creates an agent with the provided skills.
         """

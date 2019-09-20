@@ -4,7 +4,7 @@ Agents
 BaseAgent
 ---------
 
-.. automodule:: agents.BaseAgent
+.. automodule:: agents.base
    :members:
    :undoc-members:
    :show-inheritance:
@@ -12,7 +12,7 @@ BaseAgent
 SoarTechAgent
 -------------
 
-.. automodule:: agents.SoarTechAgent
+.. automodule:: agents.soartech_agent
    :members:
    :undoc-members:
    :show-inheritance:

@@ -1,4 +1,7 @@
-from agents.BaseAgent import BaseAgent
+from typing import Collection
+
+from working_memory.representation import Skill
+from agents.base import BaseAgent
 
 
 class SoarTechAgent(BaseAgent):
@@ -6,7 +9,7 @@ class SoarTechAgent(BaseAgent):
     A SoarTech version of an Apprentice Agent.
     """
 
-    def __init__(self, feature_set, function_set):
+    def __init__(self, prior_skills: Collection[Skill]):
         # Just track the state as a set of Facts?
         self.last_state = None
 

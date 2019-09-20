@@ -15,7 +15,7 @@ from planners.fo_planner import subst
 from planners.rulesets import functionsets
 from planners.rulesets import featuresets
 # from planners.fo_planner import arith_rules
-from agents.BaseAgent import BaseAgent
+from agents.base import BaseAgent
 
 # rules = arith_rules
 epsilon = .9

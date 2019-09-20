@@ -1,4 +1,4 @@
-from agents.BaseAgent import BaseAgent
+from agents.base import BaseAgent
 
 
 def freeze(obj):
