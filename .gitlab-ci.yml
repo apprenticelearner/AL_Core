@@ -49,6 +49,7 @@ sphinx:
   dependencies:
     - flake8
   script:
+    - pip install -r requirements.txt
     - pip install -r docs/doc-requirements.txt
     - apt-get update
     - apt-get install make
