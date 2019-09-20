@@ -14,5 +14,7 @@ training agents via demonstration and feedback.
 
 Documentation: https://apprentice.hq-git.soartech.com/apprentice
 
-Install the core module via pip with the following command:
-`pip install -f https://USERNAME:PASSWORD@nexus.soartech.com:8443/nexus/repository/pypi-internal/simple/ apprentice` where USERNAME and PASSWORD are your nexus credentials.
+Install the core module via pip with the following command::
+    pip install -f https://USERNAME:PASSWORD@nexus.soartech.com:8443/nexus/repository/pypi-internal/simple/ apprentice
+
+where USERNAME and PASSWORD are your nexus credentials.
