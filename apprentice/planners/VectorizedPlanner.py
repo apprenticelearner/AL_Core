@@ -12,7 +12,7 @@ import itertools
 import re 
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
-from planners.base_planner import BasePlanner, PLANNERS
+from apprentice.planners.base_planner import BasePlanner, PLANNERS
 
 function_set = []
 feature_set = []

@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from typing import Dict
 from typing import Collection
-from working_memory.representation import Skill
+from apprentice.working_memory.representation import Skill
 
 from jsondiff import diff
 

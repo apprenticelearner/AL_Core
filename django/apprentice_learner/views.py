@@ -20,14 +20,14 @@ from django.conf import settings
 from apprentice_learner.models import Agent
 from apprentice_learner.models import Project
 from apprentice_learner.models import Operator
-from agents.Stub import Stub
-from agents.Memo import Memo
-from agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
-from agents.ModularAgent import ModularAgent
-from agents.RLAgent import RLAgent
-from planners.rulesets import custom_feature_set
-from planners.rulesets import custom_function_set
-import custom_operators
+from apprentice.agents.Stub import Stub
+from apprentice.agents.Memo import Memo
+from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
+from apprentice.agents.ModularAgent import ModularAgent
+from apprentice.agents.RLAgent import RLAgent
+from apprentice.planners.rulesets import custom_feature_set
+from apprentice.planners.rulesets import custom_function_set
+import apprentice.custom_operators
 
 # import cProfile
 # pr = cProfile.Profile()

@@ -6,11 +6,11 @@ from itertools import product
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 
-from planners.fo_planner import Operator
-from planners.fo_planner import build_index
+from apprentice.planners.fo_planner import Operator
+from apprentice.planners.fo_planner import build_index
 # from planners.fo_planner import subst
-from planners.fo_planner import is_variable
-from planners.fo_planner import extract_strings
+from apprentice.planners.fo_planner import is_variable
+from apprentice.planners.fo_planner import extract_strings
 
 pool = None
 

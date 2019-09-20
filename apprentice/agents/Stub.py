@@ -1,4 +1,4 @@
-from agents.base import BaseAgent
+from apprentice.agents.base import BaseAgent
 
 
 class Stub(BaseAgent):

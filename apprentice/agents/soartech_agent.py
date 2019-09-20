@@ -1,7 +1,7 @@
 from typing import Collection
 
-from working_memory.representation import Skill
-from agents.base import BaseAgent
+from apprentice.working_memory.representation import Skill
+from apprentice.agents.base import BaseAgent
 
 
 class SoarTechAgent(BaseAgent):

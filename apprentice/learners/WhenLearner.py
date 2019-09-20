@@ -1,7 +1,7 @@
 from sklearn.tree import _tree
 from pprint import pprint
 from copy import deepcopy
-from learners.pyibl import Agent
+from apprentice.learners.pyibl import Agent
 import numpy as np
 
 from sklearn.feature_extraction import DictVectorizer

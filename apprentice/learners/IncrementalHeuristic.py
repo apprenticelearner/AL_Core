@@ -9,15 +9,15 @@ from py_search.base import Node
 from py_search.optimization import simulated_annealing
 # from py_search.optimization import hill_climbing
 
-from planners.fo_planner import Operator
-from planners.fo_planner import build_index
+from apprentice.planners.fo_planner import Operator
+from apprentice.planners.fo_planner import build_index
 
-from learners.utils import rename
-from learners.utils import clause_length
-from learners.utils import count_elements
-from learners.utils import test_coverage
-from learners.utils import get_variablizations
-from learners.utils import weighted_choice
+from apprentice.learners.utils import rename
+from apprentice.learners.utils import clause_length
+from apprentice.learners.utils import count_elements
+from apprentice.learners.utils import test_coverage
+from apprentice.learners.utils import get_variablizations
+from apprentice.learners.utils import weighted_choice
 
 clause_accuracy_weight = 0.95
 max_literal_length = 300

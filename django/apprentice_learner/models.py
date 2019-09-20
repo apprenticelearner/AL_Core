@@ -3,7 +3,7 @@ from picklefield.fields import PickledObjectField
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 
-from planners.fo_planner import Operator as Opp
+from apprentice.planners.fo_planner import Operator as Opp
 
 # class PyFunction(models.Model):
 #     name = models.CharField(max_length=200)

@@ -1,6 +1,6 @@
 from pprint import pprint
 
-from agents.utils import tup_sai
+from apprentice.agents.utils import tup_sai
 
 
 class IncrementalMany(object):

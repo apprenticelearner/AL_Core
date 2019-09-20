@@ -10,12 +10,12 @@ from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.cobweb3 import Cobweb3Tree
 
-from planners.fo_planner import FoPlanner
-from planners.fo_planner import subst
-from planners.rulesets import functionsets
-from planners.rulesets import featuresets
-# from planners.fo_planner import arith_rules
-from agents.base import BaseAgent
+from apprentice.planners.fo_planner import FoPlanner
+from apprentice.planners.fo_planner import subst
+from apprentice.planners.rulesets import functionsets
+from apprentice.planners.rulesets import featuresets
+# from apprentice.planners.fo_planner import arith_rules
+from apprentice.agents.base import BaseAgent
 
 # rules = arith_rules
 epsilon = .9

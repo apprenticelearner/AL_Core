@@ -9,10 +9,10 @@ from concept_formation.preprocessor import NameStandardizer
 from concept_formation.structure_mapper import StructureMapper
 from concept_formation.structure_mapper import rename_flat
 from concept_formation.structure_mapper import contains_component
-from learners.IncrementalHeuristic import IncrementalHeuristic
-from planners.fo_planner import Operator
-from planners.fo_planner import build_index
-from planners.fo_planner import subst
+from apprentice.learners.IncrementalHeuristic import IncrementalHeuristic
+from apprentice.planners.fo_planner import Operator
+from apprentice.planners.fo_planner import build_index
+from apprentice.planners.fo_planner import subst
 import numpy as np
 
 global my_gensym_counter

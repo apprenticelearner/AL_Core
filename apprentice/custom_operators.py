@@ -1,4 +1,4 @@
-from planners.fo_planner import Operator
+from apprentice.planners.fo_planner import Operator
 # from planners.VectorizedPlanner import BaseOperator
 
 '''							USAGE INSTRUCTIONS 

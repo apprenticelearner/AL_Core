@@ -10,7 +10,7 @@ from concept_formation.utils import isNumber
 from py_search.base import Problem
 from py_search.base import Node
 from py_search.uninformed import iterative_deepening_search
-from planners.base_planner import BasePlanner
+from apprentice.planners.base_planner import BasePlanner
 # from py_search.uninformed import depth_first_search
 # from py_search.uninformed import breadth_first_search
 # from py_search.informed import iterative_deepening_best_first_search
@@ -734,7 +734,7 @@ class FoPlannerModule(BasePlanner):
                 rg_exp.append(ele)
         return rg_exp
 
-from planners.base_planner import PLANNERS
+from apprentice.planners.base_planner import PLANNERS
 PLANNERS["foplanner"] = FoPlannerModule
 
 

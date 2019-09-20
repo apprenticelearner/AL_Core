@@ -4,7 +4,7 @@ Agents
 BaseAgent
 ---------
 
-.. automodule:: agents.base
+.. automodule:: apprentice.agents.base
    :members:
    :undoc-members:
    :show-inheritance:
@@ -12,7 +12,7 @@ BaseAgent
 SoarTechAgent
 -------------
 
-.. automodule:: agents.soartech_agent
+.. automodule:: apprentice.agents.soartech_agent
    :members:
    :undoc-members:
    :show-inheritance:
@@ -20,7 +20,7 @@ SoarTechAgent
 ModularAgent
 ------------
 
-.. automodule:: agents.ModularAgent
+.. automodule:: apprentice.agents.ModularAgent
    :members:
    :undoc-members:
    :show-inheritance:
@@ -28,22 +28,22 @@ ModularAgent
 RLAgent
 -------
 
-.. automodule:: agents.RLAgent
+.. automodule:: apprentice.agents.RLAgent
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: agents.WhereWhenHowNoFoa
+.. automodule:: apprentice.agents.WhereWhenHowNoFoa
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: agents.Memo
+.. automodule:: apprentice.agents.Memo
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: agents.Stub
+.. automodule:: apprentice.agents.Stub
    :members:
    :undoc-members:
    :show-inheritance:

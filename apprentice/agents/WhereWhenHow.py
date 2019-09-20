@@ -5,19 +5,19 @@ from random import choice
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 
-from agents.utils import gen_varnames
-from agents.utils import compute_features
-from agents.utils import weighted_choice
-from agents.BaseAgent import BaseAgent
-from planners.action_planner import ActionPlanner
-from learners.WhenLearner import get_when_learner
-from learners.HowLearner import get_how_learner
-# from agents.WhatLearner import what_learners
-# from agents.WhatLearner import GrammarLearner
-# from agents.WhatLearner import NeuralNetLearnedFeatures
-# from agents.WhatLearner import GrammarLearnedFeatures
-from learners.WhereLearner import MostSpecific
-from learners.WhereLearner import SpecificToGeneral
+from apprentice.agents.utils import gen_varnames
+from apprentice.agents.utils import compute_features
+from apprentice.agents.utils import weighted_choice
+from apprentice.agents.BaseAgent import BaseAgent
+from apprentice.planners.action_planner import ActionPlanner
+from apprentice.learners.WhenLearner import get_when_learner
+from apprentice.learners.HowLearner import get_how_learner
+# from apprentice.agents.WhatLearner import what_learners
+# from apprentice.agents.WhatLearner import GrammarLearner
+# from apprentice.agents.WhatLearner import NeuralNetLearnedFeatures
+# from apprentice.agents.WhatLearner import GrammarLearnedFeatures
+from apprentice.learners.WhereLearner import MostSpecific
+from apprentice.learners.WhereLearner import SpecificToGeneral
 
 
 class WhereWhenHow(BaseAgent):

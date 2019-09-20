@@ -4,7 +4,7 @@ Learners
 Grammar
 -------
 
-.. automodule:: learners.Grammar
+.. automodule:: apprentice.learners.Grammar
    :members:
    :undoc-members:
    :show-inheritance:
@@ -12,7 +12,7 @@ Grammar
 HowLearner
 ----------
 
-.. automodule:: learners.HowLearner
+.. automodule:: apprentice.learners.HowLearner
    :members:
    :undoc-members:
    :show-inheritance:
@@ -20,7 +20,7 @@ HowLearner
 HowLearnerOld
 --------------
 
-.. automodule:: learners.HowLearnerOld
+.. automodule:: apprentice.learners.HowLearnerOld
    :members:
    :undoc-members:
    :show-inheritance:
@@ -28,7 +28,7 @@ HowLearnerOld
 IncrementalHeuristic
 --------------------
 
-.. automodule:: learners.IncrementalHeuristic
+.. automodule:: apprentice.learners.IncrementalHeuristic
    :members:
    :undoc-members:
    :show-inheritance:
@@ -36,7 +36,7 @@ IncrementalHeuristic
 WhatLearner
 -----------
 
-.. automodule:: learners.WhatLearner
+.. automodule:: apprentice.learners.WhatLearner
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,7 +44,7 @@ WhatLearner
 WhenLearner
 -----------
 
-.. automodule:: learners.WhenLearner
+.. automodule:: apprentice.learners.WhenLearner
    :members:
    :undoc-members:
    :show-inheritance:
@@ -52,7 +52,7 @@ WhenLearner
 WhereLearner
 ------------
 
-.. automodule:: learners.WhereLearner
+.. automodule:: apprentice.learners.WhereLearner
    :members:
    :undoc-members:
    :show-inheritance:
@@ -60,7 +60,7 @@ WhereLearner
 WhichLearner
 ------------
 
-.. automodule:: learners.WhichLearner
+.. automodule:: apprentice.learners.WhichLearner
    :members:
    :undoc-members:
    :show-inheritance:
@@ -68,7 +68,7 @@ WhichLearner
 Utils
 -----
 
-.. automodule:: learners.utils
+.. automodule:: apprentice.learners.utils
    :members:
    :undoc-members:
    :show-inheritance:
