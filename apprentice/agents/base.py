@@ -28,7 +28,7 @@ class BaseAgent(metaclass=ABCMeta):
         """
         pass
 
-    def train(self, state: Dict, selection: str, action: str, inputs
+    def train(self, state: Dict, selection: str, action: str, inputs:
               Collection[str], reward: float, skill_label: str,
               foci_of_attention: Collection[str]):
         """
