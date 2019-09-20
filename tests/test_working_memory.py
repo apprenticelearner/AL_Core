@@ -55,7 +55,7 @@ class FibonacciCalculator(KnowledgeEngine):
         print("Fibonnaci digit in position {position} is {value}".format(
             position=t, value=v))
 
-
+@pytest.mark.xfail
 def test_ke_1():
 
     pkke = FibonacciCalculator()
