@@ -83,27 +83,32 @@ class SoarTechAgent(BaseAgent):
         return self.train_diff(pos_diff, neg_diff, selection, action, inputs,
                                reward, skill_label, foci_of_attention)
 
-    def train_diff(self, state_pos_diff, state_neg_diff, selection, action,
+    def train_diff(self, state_diff, next_state_diff, selection, action,
                    inputs, reward, skill_label, foci_of_attention):
         """
+        Need the diff for the current state as well as the state diff for
+        computing the state that results from taking the action. This is
+        needed for performing Q learning.
+
         Accepts a JSON object representing the state, a string representing the
         skill label, a list of strings representing the foas, a string
         representing the selection, a string representing the action, list of
         strings representing the inputs, and a boolean correctness.
         """
         # relational inference step?
-        self.working_memory.retract(state_neg_diff)
-        self.working_memory.declare(state_pos_diff)
+        self.working_memory.update(state_diff)
 
-        skill_sequence = self.explain(selection, action, inputs)
+        # explain gets access to current state through self.working_memory
+        activation_sequence = self.explain(selection, action, inputs)
 
-        # might need to distinguish here between a skill and a skill
-        # instantiation; could return skill instantiation that has a pointer to
-        # a skill
-        if len(skill_sequence) == 1:
-            skill = skill_sequence[0]
+        if len(activation_sequence) == 1:
+            activation = activation_sequence[0]
         else:
-            skill = self.how_learning(skill_sequence)
+            # compile discovered activation seq into new skill and return
+            # activation of it
+            activation = self.how_learning(activation_sequence)
 
-        skill.update_where(self.working_memory, reward)
-        skill.update_when(self.working_memory, reward)
+        # activation has pointers to skill, state context, and match
+        # information; still working out what this interface looks like.
+        activation.update_where(self.working_memory, reward)
+        activation.update_when(self.working_memory, reward, next_state_diff)
