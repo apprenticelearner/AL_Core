@@ -201,7 +201,9 @@ class QLearner:
 
 
 def state_to_key(state):
-    return trim(tuple(sorted(state.get_view("key_vals_grounded"))))
+    # Why do we need to sort?
+    # return trim(tuple(sorted(state.get_view("key_vals_grounded"))))
+    return trim(tuple(state.get_view("key_vals_grounded")))
 
 
 # temporary
@@ -323,9 +325,12 @@ class QlearnerAgent(BaseAgent):
         self.when_learner = get_when_learner(when_learner)
         self.which_learner = get_which_learner(heuristic_learner,
                                                how_cull_rule)
-        self.planner = get_planner(planner, search_depth=search_depth,
-                                   function_set=function_set,
-                                   feature_set=feature_set)
+        planner_class = get_planner_class(planner)
+        self.feature_set = planner_class.resolve_operators(feature_set)
+        self.function_set = planner_class.resolve_operators(function_set)
+        self.planner = planner_class(search_depth=search_depth,
+                                   function_set=self.function_set,
+                                   feature_set=self.feature_set)
         self.rhs_list = []
         self.rhs_by_label = {}
         self.rhs_by_how = {}
@@ -353,6 +358,7 @@ class QlearnerAgent(BaseAgent):
         # categorize the state using trestle
         #s = self.q_learner.T.categorize(flatten_state(state)).concept_id
 
+        print(state)
         s = state_to_key(state)
 
         if s in self.q_learner.Q:
@@ -373,39 +379,9 @@ class QlearnerAgent(BaseAgent):
                 yield item[0], None
         '''
 
-        '''
-        for rhs in rhs_list:
-            for match in self.where_learner.get_matches(rhs, state):
-                if(len(match) != len(set(match))):
-                    continue
-
-                if(self.when_learner.state_format == "variablized_state"):
-                    pred_state = variablize_by_where(
-                                     state.get_view("flat_ungrounded"), match)
-                else:
-                    pred_state = state
-
-                if(self.when_learner.predict(rhs, pred_state) <= 0):
-                    continue
-
-                mapping = {v: m for v, m in zip(rhs.all_vars, match)}
-                explanation = Explanation(rhs, mapping)
-
-                if(add_skill_info):
-                    when_info = self.when_learner.skill_info(rhs, pred_state)
-                    where_info = [x.replace("?ele-", "") for x in match]
-                    skill_info = {"when": tuple(when_info),
-                                  "where": tuple(where_info),
-                                  "how": str(rhs.input_rule),
-                                  "which": 0.0}
-                else:
-                    skill_info = None
-
-                yield explanation, skill_info
-        '''
     def request(self, state, add_skill_info=False):  # -> Returns sai
-        #state = StateMultiView("object", state)
-        state_featurized = self.planner.apply_featureset(StateMultiView("object", state))
+        state_view = StateMultiView("object", state)
+        state_featurized = self.planner.apply_featureset(state_view)
         state_featurized.compute_from('key_vals_grounded','flat_ungrounded')
         # rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
