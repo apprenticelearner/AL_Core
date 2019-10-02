@@ -6,15 +6,16 @@ from ..base import WorkingMemory
 from ..representation import Fact
 from ..representation import Skill
 
+
 # register referenced type as abstract base class for type checking
-Fact.register(pk.fact.Fact)
+#Fact.register(pk.fact.Fact)
 
 
 class PyknowWorkingMemory(WorkingMemory):
     def __init__(self):
         self.ke = pk.engine.KnowledgeEngine()
 
-    def get_facts(self) -> Iterable[Fact]:
+    def get_facts(self) -> Iterable[dict]:
         return self.ke.facts
 
     def get_skills(self) -> Iterable[Skill]:
@@ -30,6 +31,7 @@ class PyknowWorkingMemory(WorkingMemory):
         self.ke.modify(fact)
 
     def update_skill(self, skill: Skill):
+        # rebuild entire knowledge engine
         pass
 
     #####
