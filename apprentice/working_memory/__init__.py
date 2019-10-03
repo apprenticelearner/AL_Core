@@ -1,1 +1,1 @@
-from .adapters.experta_ import ExpertaWorkingMemory
+from .adapters.experta_.workingmemory import ExpertaWorkingMemory
