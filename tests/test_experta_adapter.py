@@ -7,9 +7,10 @@ Created on Mon Sep 30 19:23:40 2019
 
 import experta as ex
 from apprentice.working_memory.adapters.experta_.factory import \
-    ExpertaConditionFactory, ExpertaSkillFactory, ExpertaActivationFactory, \
+    ExpertaConditionFactory, ExpertaSkillFactory, ExpertaActivationFactory
 
-from apprentice.working_memory.adapters.experta_.workingmemory import ExpertaWorkingMemory
+from apprentice.working_memory.adapters.experta_.workingmemory import \
+    ExpertaWorkingMemory
 from apprentice.working_memory.representation import Skill, Activation
 
 
@@ -45,11 +46,12 @@ def test_experta_skill_factory_transforms():
 def test_experta_activation_factory_transforms():
     ke = get_KE_fixture()
     a = ke.declare_fact().step()
+
     b = ExpertaActivationFactory(ke).from_ex_activation(a)
     assert isinstance(b, Activation)
     c = ExpertaActivationFactory(ke).to_ex_activation(b)
     assert isinstance(c, ex.activation.Activation)
-    assert a == c
+    assert a.context == c.context
 
 
 def test_experta_condition_factory_transforms():
