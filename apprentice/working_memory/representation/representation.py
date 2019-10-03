@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Collection, Callable, Any
 
 from experta.conditionalelement import ConditionalElement as Condition
-from experta.conditionalelement import OperableCE
 
 
 # class Condition(tuple):
@@ -10,9 +9,9 @@ from experta.conditionalelement import OperableCE
 #         return tuple.__new__(Condition, args)
 
 
-class Fact(OperableCE, dict):
-    def __new__(cls, *args):
-        return dict.__new__(Fact, args)
+# class Fact(dict):
+#     def __new__(cls, *args):
+#         return dict.__new__(Fact, args)
 
 
 @dataclass
