@@ -11,13 +11,14 @@ class SoarTechAgent(BaseAgent):
     A SoarTech version of an Apprentice Agent.
     """
 
-    def __init__(self, prior_skills: Collection[Skill]):
+    def __init__(self, prior_skills: Collection[Skill],
+                 wm:WorkingMemory=ExpertaWorkingMemory):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
-        self.last_state = None
+        self.last_state = {}
 
         # Need a working memory class
-        self.working_memory = None
+        self.working_memory = wm()
         self.working_memory.add_skills(prior_skills)
 
     def select_skill(self, candidate_skills: Collection[Skill]) -> Skill:
