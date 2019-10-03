@@ -6,9 +6,10 @@ Created on Mon Sep 30 19:23:40 2019
 """
 
 import experta as ex
-from apprentice.working_memory.adapters.experta_ import \
+from apprentice.working_memory.adapters.experta_.factory import \
     ExpertaConditionFactory, ExpertaSkillFactory, ExpertaActivationFactory, \
-    ExpertaWorkingMemory
+
+from apprentice.working_memory.adapters.experta_.workingmemory import ExpertaWorkingMemory
 from apprentice.working_memory.representation import Skill, Activation
 
 
