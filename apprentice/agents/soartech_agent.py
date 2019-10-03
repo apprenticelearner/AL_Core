@@ -15,7 +15,7 @@ class SoarTechAgent(BaseAgent):
                  wm:WorkingMemory=ExpertaWorkingMemory):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
-        self.last_state = {}
+        self.prior_state = {}
 
         # Need a working memory class
         self.working_memory = wm()
