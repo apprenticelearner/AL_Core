@@ -60,6 +60,10 @@ def test_experta_condition_factory_transforms():
 
 
 def test_experta_add_fact():
+    """
+    .. todo::
+        - Add more complicated test of nested dicts/facts
+    """
     wm = ExpertaWorkingMemory(get_KE_fixture())
     ke2 = get_KE_fixture()
     ke2.declare(ex.Fact(a=1))
