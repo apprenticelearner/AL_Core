@@ -57,7 +57,8 @@ class SoarTechAgent(BaseAgent):
         # This should do essentially what `engine.run` is doing from
         # PyKnow. Pyknow currently uses salience to choose rule order, but
         # we want to essentially set salience using the when learning.
-        while not self.working_memory.output:
+        self.working_memory.output = None
+        while self.working_memory.output is None:
             candidate_activations = [activation for activation in
                                      self.working_memory.activations]
             if len(candidate_activations) == 0:
