@@ -5,9 +5,9 @@ from typing import Callable
 import experta as ex
 import jsondiff
 
-from ..base import WorkingMemory
-from ..representation import Activation
-from ..representation import Skill
+from apprentice.working_memory.base import WorkingMemory
+from apprentice.working_memory.representation import Activation
+from apprentice.working_memory.representation import Skill
 
 
 # from ..representation import Condition
