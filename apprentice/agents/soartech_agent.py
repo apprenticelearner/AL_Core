@@ -21,7 +21,7 @@ class SoarTechAgent(BaseAgent):
         self.working_memory = wm()
         self.working_memory.add_skills(prior_skills)
 
-    def select_skill(self, candidate_skills: Collection[Skill]) -> Skill:
+    def select_activation(self, candidate_activations: Collection[Activation]) -> Activation:
         """
         Given a list of candidate skills evaluate them and determines which one
         has the highest expected rewared in the current state.
@@ -38,11 +38,12 @@ class SoarTechAgent(BaseAgent):
         """
         # just passing in the working memory facts to each skill, where the
         # facts is just the current state representation.
-        skills = [(skill.expected_reward(self.working_memory.facts), random(),
-                   skill) for skill in candidate_skills]
-        skills.sort(reverse=True)
-        expected_reward, _, best_skill = skills[0]
-        return best_skill
+        activations = [(activation.expected_reward(self.working_memory.facts),
+                       random(), activation) for activation in
+                       candidate_activations]
+        activations.sort(reverse=True)
+        expected_reward, _, best_activation = activations[0]
+        return best_activation
 
     def request_diff(self, state_diff: Dict):
         """
@@ -59,6 +60,7 @@ class SoarTechAgent(BaseAgent):
         # we want to essentially set salience using the when learning.
         self.working_memory.output = None
         while self.working_memory.output is None:
+            self.working_memory.step()
             candidate_activations = [activation for activation in
                                      self.working_memory.activations]
             if len(candidate_activations) == 0:
