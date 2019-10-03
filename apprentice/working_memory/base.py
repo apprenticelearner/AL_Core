@@ -1,18 +1,22 @@
 from abc import ABCMeta
 from abc import abstractmethod
+from typing import Callable
 from typing import Collection
-from typing import List
 from typing import Dict
+from typing import Any
 
-from apprentice.working_memory.representation import Skill
 from apprentice.working_memory.representation import Activation
-from apprentice.working_memory.representation import Fact
+from apprentice.working_memory.representation import Skill
 
 
 class WorkingMemory(metaclass=ABCMeta):
     """
     Abstract base class for working memory
     """
+    def build_skill(self, _condition: Any,
+                    _function: Callable,
+                    _name: str = None) -> Skill:
+        return self.skill_factory.build(_condition, _function, _name)
 
     @abstractmethod
     def update(self, diff: Dict) -> None:
@@ -25,7 +29,7 @@ class WorkingMemory(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def facts(self) -> Collection[Fact]:
+    def facts(self) -> Collection[dict]:
         """
         Get the facts currently in working memory.
         """
@@ -39,8 +43,12 @@ class WorkingMemory(metaclass=ABCMeta):
         """
         pass
 
+    def add_facts(self, facts: Collection[dict]) -> None:
+        for fact in facts:
+            self.add_fact(fact)
+
     @abstractmethod
-    def add_fact(self, fact: Fact) -> None:
+    def add_fact(self, fact: dict) -> None:
         """
         Add a fact to working memory
 
@@ -66,7 +74,7 @@ class WorkingMemory(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def update_fact(self, fact: Fact) -> None:
+    def update_fact(self, fact: dict) -> None:
         """
         Update a fact in working memory
 
@@ -95,10 +103,18 @@ class WorkingMemory(metaclass=ABCMeta):
     @abstractmethod
     def output(self) -> object:
         """
-        Returns an object; what will ultimately get sent over back as an action.
+        Returns an object; what will ultimately get sent over back as an
+        action.
 
         .. todo::
             
             Write a setter to set object.
+        """
+        pass
+
+    @abstractmethod
+    def run(self):
+        """
+            update KE/perform inference (under what conditions?)
         """
         pass
