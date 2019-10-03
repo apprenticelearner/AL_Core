@@ -12,7 +12,8 @@ class SoarTechAgent(BaseAgent):
     """
 
     def __init__(self, prior_skills: Collection[Skill],
-                 wm:WorkingMemory=ExpertaWorkingMemory):
+                 wm:WorkingMemory=ExpertaWorkingMemory,
+                 when:WhenLearner=WhenLearner):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
         self.prior_state = {}
@@ -20,6 +21,9 @@ class SoarTechAgent(BaseAgent):
         # Need a working memory class
         self.working_memory = wm()
         self.working_memory.add_skills(prior_skills)
+        
+        # will take a activation and facts and return reward
+        self.when_learning = when()
 
     def select_activation(self, candidate_activations: Collection[Activation]) -> Activation:
         """
@@ -38,7 +42,7 @@ class SoarTechAgent(BaseAgent):
         """
         # just passing in the working memory facts to each skill, where the
         # facts is just the current state representation.
-        activations = [(activation.expected_reward(self.working_memory.facts),
+        activations = [(self.when_learning(activation, self.working_memory.facts),
                        random(), activation) for activation in
                        candidate_activations]
         activations.sort(reverse=True)
@@ -58,17 +62,17 @@ class SoarTechAgent(BaseAgent):
         # This should do essentially what `engine.run` is doing from
         # PyKnow. Pyknow currently uses salience to choose rule order, but
         # we want to essentially set salience using the when learning.
-        self.working_memory.output = None
-        while self.working_memory.output is None:
+        output = None
+        while output is None:
             self.working_memory.step()
             candidate_activations = [activation for activation in
                                      self.working_memory.activations]
             if len(candidate_activations) == 0:
                 return {}
             best_activation = self.select_activation(candidate_activations)
-            best_activation.fire()
+            output = best_activation.fire()
 
-        return self.working_memory.output
+        return output
 
     def train(self, state, selection, action, inputs, reward, skill_label,
               foci_of_attention):
