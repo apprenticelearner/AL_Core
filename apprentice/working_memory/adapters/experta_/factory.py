@@ -116,7 +116,7 @@ class ExpertaActivationFactory(Factory):
                          _activation: Activation) -> ex.activation.Activation:
         return ex.activation.Activation(
             self.skill_factory.to_ex_rule(_activation.skill),
-            _activation.context, _activation.context)
+            set(_activation.context.values()), _activation.context)
 
     def fire(self):
         self.base.fire()

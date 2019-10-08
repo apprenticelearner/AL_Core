@@ -8,11 +8,13 @@ from .factory import ExpertaSkillFactory, ExpertaConditionFactory, \
 
 
 class ExpertaWorkingMemory(WorkingMemory):
-    def __init__(self, ke=None):
+    def __init__(self, ke=None, reset=True):
         if ke is None:
             ke = ex.engine.KnowledgeEngine()
         self.ke = ke
-        # self.ke.reset()
+        if reset:
+            self.ke.reset()
+
         self.skill_factory = ExpertaSkillFactory(ke)
         self.activation_factory = ExpertaActivationFactory(ke)
         self.condition_factory = ExpertaConditionFactory()
@@ -29,7 +31,7 @@ class ExpertaWorkingMemory(WorkingMemory):
 
     @property
     def facts(self):
-        return self.ke.facts.values()
+        return [f.as_dict() for f in self.ke.facts.values()]
 
     def add_fact(self, fact: dict):
         f = ex.Fact(**fact)
@@ -46,6 +48,8 @@ class ExpertaWorkingMemory(WorkingMemory):
     def add_skill(self, skill: Skill):
         rule = self.skill_factory.to_ex_rule(skill)
         setattr(self.ke, rule._wrapped.__name__, rule)
+        rule.ke = self.ke
+        rule._wrapped_self = self.ke
         self.ke.matcher.__init__(self.ke)
 
     def update_skill(self, skill: Skill):

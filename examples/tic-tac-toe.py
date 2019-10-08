@@ -2,16 +2,16 @@ from pprint import pprint
 from tabulate import tabulate
 import argparse
 
-from planners.fo_planner import Operator
-from agents.RLAgent import RLAgent
-from agents.ModularAgent import ModularAgent
-from agents.Memo import Memo
+from apprentice.planners.fo_planner import Operator
+from apprentice.agents.RLAgent import RLAgent
+from apprentice.agents.ModularAgent import ModularAgent
+from apprentice.agents.Memo import Memo
 
 from experta import Fact
 from experta import KnowledgeEngine
 from experta import MATCH
 from experta import AS
-# from experta import Field
+
 from experta import TEST
 from experta import Rule
 # from experta import DefFacts

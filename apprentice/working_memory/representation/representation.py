@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Collection, Callable, Any
+import uuid
 
 from experta.conditionalelement import ConditionalElement as Condition
 
@@ -18,7 +19,7 @@ from experta.conditionalelement import ConditionalElement as Condition
 class Skill:
     conditions: Collection[Condition]
     function_: Callable
-    name: str
+    name: str = "skill_"+str(uuid.uuid1())
 
 
 @dataclass

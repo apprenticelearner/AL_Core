@@ -1,9 +1,12 @@
+from random import random
+from typing import Any
 from typing import Collection
 from typing import Dict
-from random import random
 
-from apprentice.working_memory.representation import Skill
 from apprentice.agents.base import BaseAgent
+from apprentice.working_memory import ExpertaWorkingMemory
+from apprentice.working_memory.base import WorkingMemory
+from apprentice.working_memory.representation import Skill, Activation
 
 
 class SoarTechAgent(BaseAgent):
@@ -12,8 +15,8 @@ class SoarTechAgent(BaseAgent):
     """
 
     def __init__(self, prior_skills: Collection[Skill],
-                 wm:WorkingMemory=ExpertaWorkingMemory,
-                 when:WhenLearner=WhenLearner):
+                 wm: WorkingMemory = ExpertaWorkingMemory(),
+                 when: Any = None):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
         self.prior_state = {}
@@ -21,11 +24,15 @@ class SoarTechAgent(BaseAgent):
         # Need a working memory class
         self.working_memory = wm()
         self.working_memory.add_skills(prior_skills)
-        
-        # will take a activation and facts and return reward
-        self.when_learning = when()
 
-    def select_activation(self, candidate_activations: Collection[Activation]) -> Activation:
+        # will take a activation and facts and return reward
+        if when is not None:
+            self.when_learning = when()
+        else:
+            self.when_learning = None
+
+    def select_activation(self, candidate_activations: Collection[
+        Activation]) -> Activation:
         """
         Given a list of candidate skills evaluate them and determines which one
         has the highest expected rewared in the current state.
@@ -42,9 +49,13 @@ class SoarTechAgent(BaseAgent):
         """
         # just passing in the working memory facts to each skill, where the
         # facts is just the current state representation.
-        activations = [(self.when_learning(activation, self.working_memory.facts),
-                       random(), activation) for activation in
-                       candidate_activations]
+        if self.when_learning is None:
+            return random.choice(candidate_activations)
+
+        activations = [
+            (self.when_learning(activation, self.working_memory.facts),
+             random(), activation) for activation in
+            candidate_activations]
         activations.sort(reverse=True)
         expected_reward, _, best_activation = activations[0]
         return best_activation
@@ -82,6 +93,8 @@ class SoarTechAgent(BaseAgent):
         representing the selection, a string representing the action, list of
         strings representing the inputs, and a boolean correctness.
         """
+        return
+
         if self.last_state is None:
             return self.request_diff(state, [])
 
@@ -103,6 +116,7 @@ class SoarTechAgent(BaseAgent):
         representing the selection, a string representing the action, list of
         strings representing the inputs, and a boolean correctness.
         """
+        return
         # relational inference step?
         self.working_memory.update(state_diff)
 
