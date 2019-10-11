@@ -1,5 +1,4 @@
 import experta as ex
-import jsondiff
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill
 
@@ -14,31 +13,44 @@ class ExpertaWorkingMemory(WorkingMemory):
         self.ke = ke
         if reset:
             self.ke.reset()
-
+        #self.lookup = {}
         self.skill_factory = ExpertaSkillFactory(ke)
         self.activation_factory = ExpertaActivationFactory(ke)
         self.condition_factory = ExpertaConditionFactory()
 
-    def update(self, diff):
-        for k, v in diff.items():
-            if k is jsondiff.symbols.delete:
-                self.retract(ex.Fact(**v))
-            if k is jsondiff.symbols.add:
-                self.declare(ex.Fact(**v))
+    def step(self):
+        self.ke.step()
 
     def output(self):
         raise NotImplementedError
 
     @property
     def facts(self):
-        return [f.as_dict() for f in self.ke.facts.values()]
+        d= {k: v.as_dict() for k, v in self.ke.facts.items()}
+        return d
+        # f in self.ke.facts.values()]
 
     def add_fact(self, fact: dict):
         f = ex.Fact(**fact)
+        #key = hash(f)
         self.ke.declare(f)
+        # todo: integrate lookup into experta factlist
+        #self.lookup[key] = f
+
+    def remove_fact(self, fact: dict = None, key: str = None):
+        #if key is not None:
+            #fact = self.lookup[key]
+
+        f = ex.Fact(**fact)
+
+        self.ke.retract(f)
+        #del self.lookup[key]
 
     def update_fact(self, fact: dict):
-        self.ke.modify(ex.Fact(**fact))
+        raise NotImplementedError
+        # todo: what is this for
+        f = ex.Fact(**fact)
+        self.ke.modify()
 
     @property
     def skills(self):
@@ -57,7 +69,8 @@ class ExpertaWorkingMemory(WorkingMemory):
 
     @property
     def activations(self):
-        for a in self.activations:
+        for a in self.ke.agenda.activations:
+        #for a in self.ke.get_activations()[0]:
             yield self.activation_factory.from_ex_activation(a)
 
     def run(self):
