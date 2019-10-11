@@ -16,9 +16,8 @@ class WorkingMemory(metaclass=ABCMeta):
     """
 
     def build_skill(self, _condition: Any,
-                    _function: Callable,
-                    _name: str = None) -> Skill:
-        return self.skill_factory.build(_condition, _function, _name)
+                    _function: Callable) -> Skill:
+        return self.skill_factory.build(_condition, _function)
 
     def update(self, diff: Dict) -> None:
         """
