@@ -1,4 +1,5 @@
-from random import random
+import random
+from abc import ABCMeta
 from typing import Any
 from typing import Collection
 from typing import Dict
@@ -6,7 +7,7 @@ from typing import Dict
 from apprentice.agents.base import BaseAgent
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
-from apprentice.working_memory.representation import Skill, Activation
+from apprentice.working_memory.representation import Skill, Activation, Sai
 
 
 class SoarTechAgent(BaseAgent):
@@ -14,7 +15,7 @@ class SoarTechAgent(BaseAgent):
     A SoarTech version of an Apprentice Agent.
     """
 
-    def __init__(self, prior_skills: Collection[Skill],
+    def __init__(self, prior_skills: Collection[Skill] = None,
                  wm: WorkingMemory = ExpertaWorkingMemory(),
                  when: Any = None):
         # Just track the state as a set of Facts?
@@ -22,8 +23,13 @@ class SoarTechAgent(BaseAgent):
         self.prior_state = {}
 
         # Need a working memory class
-        self.working_memory = wm()
-        self.working_memory.add_skills(prior_skills)
+        if isinstance(wm, WorkingMemory):
+            self.working_memory = wm
+        if isinstance(wm, ABCMeta):
+            self.working_memory = wm()
+
+        if prior_skills is not None:
+            self.working_memory.add_skills(prior_skills)
 
         # will take a activation and facts and return reward
         if when is not None:
@@ -54,7 +60,7 @@ class SoarTechAgent(BaseAgent):
 
         activations = [
             (self.when_learning(activation, self.working_memory.facts),
-             random(), activation) for activation in
+             random.random(), activation) for activation in
             candidate_activations]
         activations.sort(reverse=True)
         expected_reward, _, best_activation = activations[0]
@@ -68,24 +74,27 @@ class SoarTechAgent(BaseAgent):
         :param state_diff: a state diff output from JSON Diff.
         """
         # Just loads in the differences from the state diff
+
         self.working_memory.update(state_diff)
 
         # This should do essentially what `engine.run` is doing from
         # PyKnow. Pyknow currently uses salience to choose rule order, but
         # we want to essentially set salience using the when learning.
         output = None
-        while output is None:
+        while not isinstance(output, Sai):
             self.working_memory.step()
+
             candidate_activations = [activation for activation in
                                      self.working_memory.activations]
             if len(candidate_activations) == 0:
                 return {}
             best_activation = self.select_activation(candidate_activations)
-            output = best_activation.fire()
+            output = self.working_memory.activation_factory.to_ex_activation(best_activation).fire(self.working_memory.ke)
+            #output = best_activation.fire()
 
         return output
 
-    def train(self, state, selection, action, inputs, reward, skill_label,
+    def train(self, state: dict, sai: Sai, reward, skill_label,
               foci_of_attention):
         """
         Accepts a JSON object representing the state, a string representing the
@@ -134,3 +143,6 @@ class SoarTechAgent(BaseAgent):
         # information; still working out what this interface looks like.
         activation.update_where(self.working_memory, reward)
         activation.update_when(self.working_memory, reward, next_state_diff)
+
+    def train_last_state(self, *args):
+        pass
