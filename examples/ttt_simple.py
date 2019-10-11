@@ -149,7 +149,7 @@ class ttt_oracle:
             if self.board[0][col] != "" and (
                     self.board[0][col] == self.board[1][col] == self.board[2][
                 col]):
-                return self.board[row][0]
+                return self.board[0][col]
 
         if self.board[0][0] != "" and (
                 self.board[0][0] == self.board[1][1] == self.board[2][2]):
