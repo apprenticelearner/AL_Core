@@ -1,15 +1,15 @@
-from experta import *
-from experta.conditionalelement import __all__, OperableCE
-
-from ttt_simple import ttt_engine, ttt_oracle
-from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.agents import SoarTechAgent
+from apprentice.working_memory import ExpertaWorkingMemory
+from ttt_simple import ttt_engine, ttt_oracle
 
 if __name__ == "__main__":
-    t = ttt_engine()
+    # with experta knowledge engine
     o = ttt_oracle()
-    wm = ExpertaWorkingMemory(ke=t)
-    a = SoarTechAgent(wm=wm)
+    wm1 = ExpertaWorkingMemory(ke=ttt_engine())
+    a1 = SoarTechAgent(wm=wm1)
 
-
-
+    while not o.check_winner():
+        d = o.as_dict()
+        sai = a1.request(d)
+        getattr(o, sai.action)(**sai.input)
+        print(o)
