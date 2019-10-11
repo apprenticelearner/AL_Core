@@ -1,6 +1,6 @@
+import uuid
 from dataclasses import dataclass
 from typing import Collection, Callable, Any
-import uuid
 
 from experta.conditionalelement import ConditionalElement as Condition
 
@@ -14,12 +14,18 @@ from experta.conditionalelement import ConditionalElement as Condition
 #     def __new__(cls, *args):
 #         return dict.__new__(Fact, args)
 
+@dataclass
+class Sai:
+    selection: Any
+    action: Any
+    input: Any
+
 
 @dataclass
 class Skill:
     conditions: Collection[Condition]
     function_: Callable
-    name: str = "skill_"+str(uuid.uuid1())
+    #name: str = "skill_" + str(uuid.uuid1())
 
 
 @dataclass
