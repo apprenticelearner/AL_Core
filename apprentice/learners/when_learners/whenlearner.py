@@ -10,6 +10,12 @@ class WhenLearner(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def update(self, state: dict, action: Activation, reward: float, next_state: dict,
-               next_actions: Collection[Activation]) -> None:
+    def update(
+        self,
+        state: dict,
+        action: Activation,
+        reward: float,
+        next_state: dict,
+        next_actions: Collection[Activation],
+    ) -> None:
         ...

@@ -18,7 +18,7 @@ class Tabular:
         if x not in self.row:
             self.row[x] = self.q_init
 
-        self.row[x] = ((1 - self.alpha) * self.row[x] + self.alpha * learned_reward)
+        self.row[x] = (1 - self.alpha) * self.row[x] + self.alpha * learned_reward
 
     def get_q(self, state):
         x = frozenset(state.items())
@@ -28,7 +28,7 @@ class Tabular:
 
 
 class QLearner(WhenLearner):
-    def __init__(self,  q_init=0, discount=1, learning_rate=0.1, func=None):
+    def __init__(self, q_init=0, discount=1, learning_rate=0.1, func=None):
         self.func = func
         if self.func is None:
             self.func = Tabular
@@ -45,14 +45,20 @@ class QLearner(WhenLearner):
             return self.q_init
         return self.Q[action].get_q(state)
 
-    def update(self, state: dict, action: Activation,
-               reward: float, next_state: dict, next_actions: Collection[Activation]) -> None:
+    def update(
+        self,
+        state: dict,
+        action: Activation,
+        reward: float,
+        next_state: dict,
+        next_actions: Collection[Activation],
+    ) -> None:
         q_next_est = max((self.evaluate(next_state, a) for a in next_actions))
         learned_reward = reward + self.discount * q_next_est
 
         if action not in self.Q:
-            self.Q[action] = self.func(q_init=self.q_init, learning_rate=self.learning_rate)
+            self.Q[action] = self.func(
+                q_init=self.q_init, learning_rate=self.learning_rate
+            )
 
         self.Q[action].update(state, learned_reward)
-
-
