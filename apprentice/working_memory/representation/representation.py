@@ -14,21 +14,21 @@ from experta.conditionalelement import ConditionalElement as Condition
 #     def __new__(cls, *args):
 #         return dict.__new__(Fact, args)
 
-@dataclass
+@dataclass(frozen=True)
 class Sai:
     selection: Any
     action: Any
     input: Any
 
 
-@dataclass
+@dataclass(frozen=True)
 class Skill:
     conditions: Collection[Condition]
     function_: Callable
     #name: str = "skill_" + str(uuid.uuid1())
 
 
-@dataclass
+@dataclass(frozen=True)
 class Activation:
     skill: Skill
     context: dict
@@ -36,3 +36,6 @@ class Activation:
     @property
     def fire(self) -> Any:
         raise NotImplementedError
+
+    def __hash__(self):
+        return hash((self.skill, tuple(sorted(self.context))))

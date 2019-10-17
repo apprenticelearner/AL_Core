@@ -12,4 +12,8 @@ if __name__ == "__main__":
         d = o.as_dict()
         sai = a1.request(d)
         getattr(o, sai.action)(**sai.input)
+#        if done
+#            reward = 1 if win else 0
+#        a1.train(d, o.as_dict(), sai, reward, None, None)
         print(o)
+

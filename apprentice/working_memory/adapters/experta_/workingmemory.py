@@ -26,9 +26,21 @@ class ExpertaWorkingMemory(WorkingMemory):
 
     @property
     def facts(self):
-        d= {k: v.as_dict() for k, v in self.ke.facts.items()}
-        return d
+        labeled_facts = {k: v.as_dict() for k, v in self.ke.facts.items()}
+        return labeled_facts
+
         # f in self.ke.facts.values()]
+
+    @property
+    def state(self):
+        from experta import Fact
+        state = {}
+        for i, fact in enumerate(self.ke.facts.values()):
+            for feature_key, feature_value in fact.as_dict().items():
+                if Fact.is_special(feature_key):
+                    continue
+                state['{0}_{1}'.format(str(feature_key), str(i))] = feature_value
+        return state
 
     def add_fact(self, fact: dict):
         f = ex.Fact(**fact)

@@ -80,7 +80,6 @@ class ExpertaSkillFactory(Factory):
             #_name = 'skill_' + str(uuid.uuid1())
 
         s = Skill(_condition, _function)#, _name)
-        s._ke = self._ke
         return s
 
     def from_ex_rule(self, _rule: ex.Rule) -> Skill:

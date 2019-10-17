@@ -5,6 +5,8 @@ from typing import Collection
 from typing import Dict
 
 from apprentice.agents.base import BaseAgent
+from apprentice.learners import WhenLearner
+from apprentice.learners.when_learners.q_learner import QLearner
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
@@ -15,13 +17,12 @@ class SoarTechAgent(BaseAgent):
     A SoarTech version of an Apprentice Agent.
     """
 
-    def __init__(self, prior_skills: Collection[Skill] = None,
-                 wm: WorkingMemory = ExpertaWorkingMemory(),
-                 when: Any = None):
+    def __init__(self, prior_skills: Collection[Skill] = None, wm: WorkingMemory = ExpertaWorkingMemory(),
+                 when: WhenLearner = QLearner):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
+        super().__init__(prior_skills)
         self.prior_state = {}
-
         # Need a working memory class
         if isinstance(wm, WorkingMemory):
             self.working_memory = wm
@@ -51,7 +52,7 @@ class SoarTechAgent(BaseAgent):
             Might also need some kind of strategy for choosing, currently just
                 choosing best.
 
-        :param candidate_skills: Skills being considered for activation
+        :param candidate_activations: Skills being considered for activation
         """
         # just passing in the working memory facts to each skill, where the
         # facts is just the current state representation.
@@ -59,9 +60,8 @@ class SoarTechAgent(BaseAgent):
             return random.choice(candidate_activations)
 
         activations = [
-            (self.when_learning(activation, self.working_memory.facts),
-             random.random(), activation) for activation in
-            candidate_activations]
+            (self.when_learning.evaluate(self.working_memory.facts, activation), random.random(), activation) for
+            activation in candidate_activations]
         activations.sort(reverse=True)
         expected_reward, _, best_activation = activations[0]
         return best_activation
@@ -89,11 +89,13 @@ class SoarTechAgent(BaseAgent):
             if len(candidate_activations) == 0:
                 return {}
             best_activation = self.select_activation(candidate_activations)
-            output = self.working_memory.activation_factory.to_ex_activation(best_activation).fire(self.working_memory.ke)
-            #output = best_activation.fire()
+            output = self.working_memory.activation_factory.to_ex_activation(best_activation).fire(
+                self.working_memory.ke)
+            # output = best_activation.fire()
 
         return output
 
+    # TODO Comment this out handled in base class.
     def train(self, state: dict, sai: Sai, reward, skill_label,
               foci_of_attention):
         """
@@ -130,7 +132,16 @@ class SoarTechAgent(BaseAgent):
         self.working_memory.update(state_diff)
 
         # explain gets access to current state through self.working_memory
-        activation_sequence = self.explain(selection, action, inputs)
+        # activation_sequence = self.explain(selection, action, inputs)
+        activation_sequence = None
+        for act in self.working_memory.activations():
+            output = act.fire()
+            # from the method args.
+            if output == sai:
+                activation_sequence = [act]
+
+        if activation_squence is None:
+            raise Exception("no explaination")
 
         if len(activation_sequence) == 1:
             activation = activation_sequence[0]
@@ -141,7 +152,7 @@ class SoarTechAgent(BaseAgent):
 
         # activation has pointers to skill, state context, and match
         # information; still working out what this interface looks like.
-        activation.update_where(self.working_memory, reward)
+        # activation.update_where(self.working_memory, reward)
         activation.update_when(self.working_memory, reward, next_state_diff)
 
     def train_last_state(self, *args):
