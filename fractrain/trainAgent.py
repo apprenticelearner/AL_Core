@@ -11,6 +11,8 @@ import csv
 # content editable true when answer is false or empty; otherwise content editable false
 # numba
 
+#smallEdit
+
 
 url = "http://127.0.0.1:8000/"
 
@@ -47,7 +49,7 @@ def log_rules(state):
     fi = open(logfilename,"a+")
     fi.write(str(rule)+"\n")
     fi.close()
-    
+
 def create_agent():
     input_for_create = {"stay_active":True,"dont_save":True,"no_ops_parse":True,"args":{"when_learner":"decisiontree","where_learner":"MostSpecific","planner":"fo_planner"},"feature_set":["equals"],"function_set":
             ["add",
@@ -62,11 +64,11 @@ def create_agent():
     agentID = response.json()["agent_id"]
     print("agent id:", agentID)
     return agentID
-    
+
 def request_and_log(state, eq, part, trainingPart, url, agentID,  csvWriter):
     reqReq = requests.post(url+"request/"+str(agentID)+"/", json={"state": state})
     rule = ""
-    
+
     try:
         computedResponse = reqReq.json()["inputs"]["value"]
         obj = {"states":[state,],}
@@ -91,14 +93,14 @@ def get_desired_response(eq, part):
     '''
     resultnum, resultdenom = eq[2].split("/")
     return resultnum if part == 'num' else resultdenom
-    
-    
+
+
 def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle = True):
     problems = []
     for i in range(num_problems):
         for operatorWord in operators:
             operator = opsdict[operatorWord]
-            
+
             xn = random.randrange(lower_bound,upper_bound)
             yn = random.randrange(lower_bound,upper_bound)
             xd = random.randrange(lower_bound,upper_bound)
@@ -106,12 +108,12 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
                 yd = xd
             else:
                 yd = random.randrange(lower_bound,upper_bound)
-            
+
             if operator == ':':
                 resultNum = xn*yd
             else:
                 resultNum = eval(str(xn) + operator + str(yn))
-                
+
             if operator == '*':
                 resultDenom = eval(str(xd) + operator + str(yd))
             elif operator == ':':
@@ -127,7 +129,7 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
 
 def train(agentID):
     bignums = generate_problems(1, 10, ['Mult','Add','Sub','Div'],10)
-    
+
     logHeader = ['Problem','Operator','Part','TrainingPart','ComputedAnswer','CorrectAnswer','Correct','Rule']
     trainingParts = ['before','afterNegativeFeedback','afterTraining']
     with open(logfilename,'w') as csvfile:
@@ -146,7 +148,7 @@ def train(agentID):
                 int(resultdenom)
             except ValueError:
                 continue
-                
+
             parts = ["num","denom"]
             for fractionPart in parts:
                 curLogRow = {}
@@ -168,7 +170,7 @@ def train(agentID):
                     state["?ele-denom3"] = {"id":"denom3","value":"","contentEditable":True}
                     correctResponse = resultdenom
                     selection = "denom3"
-                    
+
                 input_for_get = {
                     "states":[
                            state,
@@ -187,8 +189,8 @@ def train(agentID):
                     }
                     trainReq = requests.post(url+"train/"+str(agentID)+"/", json=obj)
                     computedResponse = request_and_log(state, eq, fractionPart, trainingParts[1], url, agentID,  csvwriter)
-                
-        
+
+
                 obj = {
                   "selection": selection,
                   "action": "UpdateTextField",
@@ -207,6 +209,6 @@ def main():
     else:
         agentID = 1
     train(agentID)
-    
+
 if __name__ == "__main__":
-    main()   
+    main()
