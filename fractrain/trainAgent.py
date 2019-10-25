@@ -295,7 +295,7 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
 
 
 def train(agentID):
-    bignums = generate_problems(1, 10, ['Mult', 'Add', 'Sub', 'Div'], 10)
+    bignums = generate_problems(1, 10, ['Mult', 'Add', 'Sub', 'Div'], 50)
 
     logHeader = ['Problem', 'Operator', 'Part', 'TrainingPart', 'ComputedAnswer', 'CorrectAnswer', 'Correct', 'Rule']
     trainingParts = ['before', 'afterNegativeFeedback', 'afterTraining']
@@ -304,10 +304,10 @@ def train(agentID):
         csvwriter.writeheader()
         problemNumber = 0
 
-        allStates = makeAllStates(bignums)
+        # allStates = makeAllStates(bignums)
 
         for eq in bignums:
-            getRules(allStates, eq, url, agentID, problemNumber)
+            # getRules(allStates, eq, url, agentID, problemNumber)
             trainOneState(eq, trainingParts, agentID, csvwriter)
             problemNumber += 1
 
