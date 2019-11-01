@@ -124,13 +124,11 @@ def getRules(states, eq, url, agentID, problemNumber):
 
     if not rule:
         rule = ["Don't know"]
-    if str(rule[0]) in rules:
-        row = [str(problemNumber), problem, allRules, rule, rules, len(rules), len(allRules)]
-    else:
+    if str(rule[0]) not in rules:
         rules[str(rule[0])] = str(i)
 
-        row = [str(problemNumber), problem, allRules, rule, rules, len(rules), len(allRules)]
-    with open('getRules.csv', 'a', newline='\n') as fd:
+    row = [str(problemNumber), problem, allRules, rule, rules, len(rules), len(allRules)]
+    with open('getRules.csv', 'a') as fd:
         writer = csv.writer(fd)
         writer.writerow(row)
 
@@ -203,9 +201,17 @@ def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, sh
                 resultDenom = xd * yn
             else:  # operator == '+' or operator == '-':
                 resultDenom = xd
+
+            # Simplifies fraction
             resultFractionParts = str(Fraction(resultNum, resultDenom)).split("/")
+            resultNum = resultFractionParts[0]
+            if len(resultFractionParts) == 1:
+                resultDenom = 1
+            else:
+                resultDenom = resultFractionParts[1]
+
             problems.append([str(xn) + "/" + str(xd) + operator + str(yn) + "/" + str(yd), operatorWord,
-                             str(resultFractionParts[0]) + "/" + str(resultFractionParts[1])])
+                             str(resultNum) + "/" + str(resultDenom)])
     print(problems)
     if shuffle:
         random.shuffle(problems)

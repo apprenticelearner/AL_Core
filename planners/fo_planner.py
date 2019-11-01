@@ -879,7 +879,7 @@ class FoPlanner:
                 for effects in match_effects:
                     new.update(effects)
 
-            # print(match_effects)
+            print(match_effects)
 
             # for o in self.operators:
             #     match_effects = self.get_effects((o, epsilon))
