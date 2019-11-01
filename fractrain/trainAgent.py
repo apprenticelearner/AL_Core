@@ -7,6 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # from nltk.grammar import PCFG
 import random
 import csv
+from fractions import Fraction
 
 # content editable true when answer is false or empty; otherwise content editable false
 # numba
@@ -202,8 +203,9 @@ def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, sh
                 resultDenom = xd * yn
             else:  # operator == '+' or operator == '-':
                 resultDenom = xd
+            resultFractionParts = str(Fraction(resultNum, resultDenom)).split("/")
             problems.append([str(xn) + "/" + str(xd) + operator + str(yn) + "/" + str(yd), operatorWord,
-                             str(resultNum) + "/" + str(resultDenom)])
+                             str(resultFractionParts[0]) + "/" + str(resultFractionParts[1])])
     print(problems)
     if shuffle:
         random.shuffle(problems)
