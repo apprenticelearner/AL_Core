@@ -61,6 +61,8 @@ def create_agent():
                              "subtract",
                              "multiply",
                              "divide",
+                             "lcm",
+                             "gcd",
                              ], "name": "Control_Stu_01266dfb27cc2e1a087884753dbe4f67", "agent_type": "ModularAgent",
                         "project_id": 1}
     url = "http://127.0.0.1:8000/"
@@ -127,7 +129,7 @@ def getRules(states, eq, url, agentID, problemNumber):
         rules[str(rule[0])] = str(i)
 
         row = [str(problemNumber), problem, allRules, rule, rules, len(rules), len(allRules)]
-    with open('getRules.csv', 'a') as fd:
+    with open('getRules.csv', 'a', newline='\n') as fd:
         writer = csv.writer(fd)
         writer.writerow(row)
 
@@ -144,6 +146,39 @@ def get_desired_response(eq, part):
 
 def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle=True):
     problems = []
+    for i in range(num_problems):
+        for operatorWord in operators:
+            operator = opsdict[operatorWord]
+
+            xn = random.randrange(lower_bound, upper_bound)
+            yn = random.randrange(lower_bound, upper_bound)
+            xd = random.randrange(lower_bound, upper_bound)
+            if operator == '+' or operator == '-':
+                yd = xd
+            else:
+                yd = random.randrange(lower_bound, upper_bound)
+
+            if operator == ':':
+                resultNum = xn * yd
+            else:
+                resultNum = eval(str(xn) + operator + str(yn))
+
+            if operator == '*':
+                resultDenom = eval(str(xd) + operator + str(yd))
+            elif operator == ':':
+                resultDenom = xd * yn
+            else:  # operator == '+' or operator == '-':
+                resultDenom = xd
+            problems.append([str(xn) + "/" + str(xd) + operator + str(yn) + "/" + str(yd), operatorWord,
+                             str(resultNum) + "/" + str(resultDenom)])
+    print(problems)
+    if shuffle:
+        random.shuffle(problems)
+    return problems
+
+def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, shuffle=True):
+    problems = []
+    operators =['Mult']
     for i in range(num_problems):
         for operatorWord in operators:
             operator = opsdict[operatorWord]
@@ -295,7 +330,7 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
 
 
 def train(agentID):
-    bignums = generate_problems(1, 10, ['Mult', 'Add', 'Sub', 'Div'], 50)
+    bignums = generateMulti_problems(1, 10, ['Mult', 'Add', 'Sub', 'Div'], 50)
 
     logHeader = ['Problem', 'Operator', 'Part', 'TrainingPart', 'ComputedAnswer', 'CorrectAnswer', 'Correct', 'Rule']
     trainingParts = ['before', 'afterNegativeFeedback', 'afterTraining']
@@ -304,10 +339,10 @@ def train(agentID):
         csvwriter.writeheader()
         problemNumber = 0
 
-        # allStates = makeAllStates(bignums)
+        allStates = makeAllStates(bignums)
 
         for eq in bignums:
-            # getRules(allStates, eq, url, agentID, problemNumber)
+            getRules(allStates, eq, url, agentID, problemNumber)
             trainOneState(eq, trainingParts, agentID, csvwriter)
             problemNumber += 1
 
