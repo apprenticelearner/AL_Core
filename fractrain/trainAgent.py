@@ -127,10 +127,8 @@ def getRules(states, eq, url, agentID, problemNumber):
     if str(rule[0]) not in rules:
         rules[str(rule[0])] = str(i)
 
-    row = [str(problemNumber), problem, allRules, rule, rules, len(rules), len(allRules)]
-    with open('getRules.csv', 'a') as fd:
-        writer = csv.writer(fd)
-        writer.writerow(row)
+    row = [str(problemNumber), problem, allRules, rule, rules, len(rules)]
+    return row
 
 
 def get_desired_response(eq, part):
@@ -175,20 +173,24 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
         random.shuffle(problems)
     return problems
 
-def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, shuffle=True):
+def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, shuffle=False):
     problems = []
     operators =['Mult']
     for i in range(num_problems):
         for operatorWord in operators:
             operator = opsdict[operatorWord]
 
-            xn = random.randrange(lower_bound, upper_bound)
+            #xn = random.randrange(lower_bound, upper_bound)
+            xn = 1
             yn = random.randrange(lower_bound, upper_bound)
-            xd = random.randrange(lower_bound, upper_bound)
+            #xd = random.randrange(lower_bound, upper_bound)
+            xd = 1
+
             if operator == '+' or operator == '-':
                 yd = xd
             else:
-                yd = random.randrange(lower_bound, upper_bound)
+                # yd = random.randrange(lower_bound, upper_bound)
+                yd = random.randrange(1, 5) * yn
 
             if operator == ':':
                 resultNum = xn * yd
@@ -338,7 +340,7 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
 
 
 def train(agentID):
-    bignums = generateMulti_problems(1, 10, ['Mult', 'Add', 'Sub', 'Div'], 50)
+    bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 50)
 
     logHeader = ['Problem', 'Operator', 'Part', 'TrainingPart', 'ComputedAnswer', 'CorrectAnswer', 'Correct', 'Rule']
     trainingParts = ['before', 'afterNegativeFeedback', 'afterTraining']
@@ -349,13 +351,22 @@ def train(agentID):
 
         allStates = makeAllStates(bignums)
 
+
+        statesHeader = ['ProblemNumber', 'Problem', 'RulesforAllStates', 'RuleUsedtoSolve', 'AllUniqueRules', 'TotalNumberofUniqueRules']
+        statesRow = []
         for eq in bignums:
-            getRules(allStates, eq, url, agentID, problemNumber)
+            statesRow.append(getRules(allStates, eq, url, agentID, problemNumber))
             trainOneState(eq, trainingParts, agentID, csvwriter)
             problemNumber += 1
 
 
+        with open('getRules.csv', 'w') as result_file:
+            wr = csv.writer(result_file, dialect='excel')
+            wr.writerows([statesHeader])
+            wr.writerows(statesRow)
+
 def main():
+    random.seed(9001)
     if createNewAgent:
         agentID = create_agent()
     else:
