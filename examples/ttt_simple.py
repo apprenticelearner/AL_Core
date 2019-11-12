@@ -1,6 +1,6 @@
 import schema
 from apprentice.working_memory.representation.representation import Sai
-from experta import Fact, Field, KnowledgeEngine, AS, TEST, Rule, MATCH
+from experta import Fact, Field, KnowledgeEngine, AS, TEST, Rule, MATCH, NOT
 from tabulate import tabulate
 
 
@@ -42,6 +42,7 @@ class ttt_engine(KnowledgeEngine):
 
     @Rule(
         Fact(type='CurrentPlayer', player=MATCH.player),
+        NOT(Fact(type='PossibleMove', row=MATCH.row, col=MATCH.col, player=MATCH.player)),
         AS.square << Fact(type='Square', row=MATCH.row, col=MATCH.col,
                           player=""))
     def suggest_move(self, row, col, player):

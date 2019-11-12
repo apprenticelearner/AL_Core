@@ -1,7 +1,4 @@
-from typing import Dict, Collection, FrozenSet
-from abc import ABCMeta, abstractmethod
-
-from experta import Fact
+from typing import Collection
 
 from apprentice.learners.WhenLearner import WhenLearner
 from apprentice.working_memory.representation import Activation
@@ -14,21 +11,23 @@ class Tabular:
         self.alpha = learning_rate
 
     def update(self, state, learned_reward):
-        x = frozenset(state.items())
-        if x not in self.row:
-            self.row[x] = self.q_init
+        s = frozenset(state)
+        if s not in self.row:
+            self.row[s] = self.q_init
 
-        self.row[x] = (1 - self.alpha) * self.row[x] + self.alpha * learned_reward
+        self.row[s] = (1 - self.alpha) * self.row[s] + self.alpha * learned_reward
 
     def get_q(self, state):
-        x = frozenset(state.items())
-        if x not in self.row:
-            self.row[x] = self.q_init
-        return self.row[x]
+        s = frozenset(state)
+        if s not in self.row:
+            self.row[s] = self.q_init
+        return self.row[s]
 
+    def __str__(self):
+        return str(self.row)
 
 class QLearner(WhenLearner):
-    def __init__(self, q_init=0, discount=1, learning_rate=0.1, func=None):
+    def __init__(self, q_init=1, discount=0.1, learning_rate=0.1, func=None):
         self.func = func
         if self.func is None:
             self.func = Tabular
@@ -41,9 +40,10 @@ class QLearner(WhenLearner):
     def evaluate(self, state: dict, action: Activation) -> float:
         if state is None:
             return 0
-        if action not in self.Q:
+        a = action
+        if a not in self.Q:
             return self.q_init
-        return self.Q[action].get_q(state)
+        return self.Q[a].get_q(state)
 
     def update(
         self,
@@ -53,12 +53,22 @@ class QLearner(WhenLearner):
         next_state: dict,
         next_actions: Collection[Activation],
     ) -> None:
-        q_next_est = max((self.evaluate(next_state, a) for a in next_actions))
-        learned_reward = reward + self.discount * q_next_est
 
-        if action not in self.Q:
-            self.Q[action] = self.func(
+        q_next_est = 0
+        if len(next_actions) != 0:
+            q_next_est = max((self.evaluate(next_state, a) for a in next_actions))
+
+        learned_reward = reward + self.discount * q_next_est
+        a = action
+        if a not in self.Q:
+            self.Q[a] = self.func(
                 q_init=self.q_init, learning_rate=self.learning_rate
             )
 
-        self.Q[action].update(state, learned_reward)
+        self.Q[a].update(state, learned_reward)
+
+
+    def __str__(self):
+        s = ""
+        for k, v in self.Q.items():
+            print("{}: {}".format(k,str(v)))

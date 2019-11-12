@@ -31,21 +31,22 @@ class BaseAgent(metaclass=ABCMeta):
         """
         pass
 
-    def train(self, state: Dict, sai: Sai, reward: float, skill_label: str,
+    def train(self, state: Dict, next_state: Dict, sai: Dict, reward: float, skill_label: str,
               foci_of_attention: Collection[str]):
         """
-        Accepts a JSON/Dict object representing the state, a string
-        representing the
-        skill label, a list of strings representing the foas, a string
-        representing the selection, a string representing the action, list of
-        strings representing the inputs, and a boolean correctness.
+        Accepts a JSON/Dict object representing the state,
+        a JSON/Dict object representing the state after the SAI is invoked,
+        a string representing the skill label,
+        a list of strings representing the foas,
+        a string representation the selection action and inputs,
+        a reward
         """
-        return self.train_diff(diff(self.prior_state, state), sai, reward,
+        return self.train_diff(diff(self.prior_state, state), diff(self.prior_state, next_state), sai, reward,
                                skill_label,
                                foci_of_attention)
 
     @abstractmethod
-    def train_diff(self, state_diff, sai, reward,
+    def train_diff(self, state_diff, next_state_diff, sai, reward,
                    skill_label, foci_of_attention):
         """
         Updates the state by some provided diff, then trains on the provided

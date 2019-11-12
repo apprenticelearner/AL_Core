@@ -31,16 +31,24 @@ class ExpertaWorkingMemory(WorkingMemory):
 
         # f in self.ke.facts.values()]
 
+    def get_hashable_facts(self):
+        from experta import Fact
+        for fact in self.facts.values():
+            yield frozenset((k,v) for k,v in fact.items() if not Fact.is_special(k))
+
     @property
     def state(self):
         from experta import Fact
+
+        #return frozenset(self.get_hashable_facts())
+
         state = {}
         for i, fact in enumerate(self.ke.facts.values()):
             for feature_key, feature_value in fact.as_dict().items():
                 if Fact.is_special(feature_key):
                     continue
                 state['{0}_{1}'.format(str(feature_key), str(i))] = feature_value
-        return state
+        return frozenset(state)
 
     def add_fact(self, fact: dict):
         f = ex.Fact(**fact)

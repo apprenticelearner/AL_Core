@@ -60,7 +60,7 @@ class SoarTechAgent(BaseAgent):
             return random.choice(candidate_activations)
 
         activations = [
-            (self.when_learning.evaluate(self.working_memory.facts, activation), random.random(), activation) for
+            (self.when_learning.evaluate(self.working_memory.state, activation), random.random(), activation) for
             activation in candidate_activations]
         activations.sort(reverse=True)
         expected_reward, _, best_activation = activations[0]
@@ -81,42 +81,33 @@ class SoarTechAgent(BaseAgent):
         # PyKnow. Pyknow currently uses salience to choose rule order, but
         # we want to essentially set salience using the when learning.
         output = None
-        while not isinstance(output, Sai):
+        candidate_activations = [activation for activation in
+                                 self.working_memory.activations]
+        while True:
             self.working_memory.step()
 
-            candidate_activations = [activation for activation in
-                                     self.working_memory.activations]
+
             if len(candidate_activations) == 0:
                 return {}
             best_activation = self.select_activation(candidate_activations)
+            state = self.working_memory.state
+
             output = self.working_memory.activation_factory.to_ex_activation(best_activation).fire(
                 self.working_memory.ke)
-            # output = best_activation.fire()
+
+            if isinstance(output, Sai):
+                break
+
+            candidate_activations = [activation for activation in
+                                     self.working_memory.activations]
+            next_state = self.working_memory.state
+
+            if self.when_learning:
+                self.when_learning.update(state, best_activation, 0, next_state, candidate_activations)
 
         return output
 
-    # TODO Comment this out handled in base class.
-    def train(self, state: dict, sai: Sai, reward, skill_label,
-              foci_of_attention):
-        """
-        Accepts a JSON object representing the state, a string representing the
-        skill label, a list of strings representing the foas, a string
-        representing the selection, a string representing the action, list of
-        strings representing the inputs, and a boolean correctness.
-        """
-        return
-
-        if self.last_state is None:
-            return self.request_diff(state, [])
-
-        pos_diff = state - self.last_state
-        neg_diff = self.last_state - state
-
-        return self.train_diff(pos_diff, neg_diff, selection, action, inputs,
-                               reward, skill_label, foci_of_attention)
-
-    def train_diff(self, state_diff, next_state_diff, selection, action,
-                   inputs, reward, skill_label, foci_of_attention):
+    def train_diff(self, state_diff, next_state_diff, sai, reward, skill_label, foci_of_attention):
         """
         Need the diff for the current state as well as the state diff for
         computing the state that results from taking the action. This is
@@ -127,33 +118,46 @@ class SoarTechAgent(BaseAgent):
         representing the selection, a string representing the action, list of
         strings representing the inputs, and a boolean correctness.
         """
-        return
         # relational inference step?
         self.working_memory.update(state_diff)
 
-        # explain gets access to current state through self.working_memory
-        # activation_sequence = self.explain(selection, action, inputs)
-        activation_sequence = None
-        for act in self.working_memory.activations():
-            output = act.fire()
-            # from the method args.
+        state = None
+        sai_activation = None
+        for activation in self.working_memory.activations:
+            state = self.working_memory.state
+            output = self.working_memory.activation_factory.to_ex_activation(activation).fire(self.working_memory.ke)
             if output == sai:
-                activation_sequence = [act]
+                sai_activation = activation
+                break
 
-        if activation_squence is None:
-            raise Exception("no explaination")
+        self.working_memory.update(next_state_diff)
+        next_state = self.working_memory.state
+        next_activations = list(self.working_memory.activations)
 
-        if len(activation_sequence) == 1:
-            activation = activation_sequence[0]
-        else:
-            # compile discovered activation seq into new skill and return
-            # activation of it
-            activation = self.how_learning(activation_sequence)
+        if self.when_learning and state and sai_activation:
+            self.when_learning.update(state, sai_activation, reward, next_state, next_activations)
+
+        #activation_sequence = None
+        #for act in self.working_memory.activations():
+        #    output = act.fire()
+        #    # from the method args.
+        #    if output == sai:
+        #        activation_sequence = [act]
+
+        #if activation_squence is None:
+        #    raise Exception("no explaination")
+
+        #if len(activation_sequence) == 1:
+        #    activation = activation_sequence[0]
+        #else:
+        #    # compile discovered activation seq into new skill and return
+        #    # activation of it
+        #    activation = self.how_learning(activation_sequence)
 
         # activation has pointers to skill, state context, and match
         # information; still working out what this interface looks like.
         # activation.update_where(self.working_memory, reward)
-        activation.update_when(self.working_memory, reward, next_state_diff)
+        #activation.update_when(self.working_memory, reward, next_state_diff)
 
     def train_last_state(self, *args):
         pass
