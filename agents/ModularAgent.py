@@ -201,6 +201,7 @@ class ModularAgent(BaseAgent):
 
             if(add_skill_info):
                 response["skill_info"] = skill_info
+            break
 
             if retrieved:
                 break
