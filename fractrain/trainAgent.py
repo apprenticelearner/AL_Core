@@ -105,11 +105,7 @@ def getRules(states, eq, url, agentID, problemNumber):
     rule = requests.post(url + "get_skills/" + str(agentID) + "/", json=obj)
     rule = rule.json()
     problem, operator, result = eq
-    rules = {}
-    allRules = []
-
-    i = 0
-    a = 0
+    rules = []
     for state in states:
         obj = {"states": [state, ], }
         rule = requests.post(url + "get_skills/" + str(agentID) + "/", json=obj)
@@ -117,15 +113,12 @@ def getRules(states, eq, url, agentID, problemNumber):
         if not rule:
             rule = ["Don't know"]
         if str(rule[0]) not in rules:
-            rules[str(rule[0])] = str(i)
-            i += 1
-
-        allRules.append(str(rule[0]))
+            rules.append(str(rule[0]))
 
     if not rule:
         rule = ["Don't know"]
     if str(rule[0]) not in rules:
-        rules[str(rule[0])] = str(i)
+        rules.append(str(rule[0]))
 
     row = [str(problemNumber), problem, rule, rules, len(rules)]
     return row
@@ -180,12 +173,12 @@ def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, sh
         for operatorWord in operators:
             operator = opsdict[operatorWord]
 
-            #xn = random.randrange(lower_bound, upper_bound)
-            xn = 1
+            xn = random.randrange(lower_bound, upper_bound)
+            # xn = 1
             randomV = random.randrange(lower_bound, upper_bound)
             yn = randomV * random.randrange(1, 5)
-            #xd = random.randrange(lower_bound, upper_bound)
-            xd = 1
+            xd = random.randrange(lower_bound, upper_bound)
+            # xd = 1
 
             if operator == '+' or operator == '-':
                 yd = xd
@@ -352,14 +345,15 @@ def train(agentID):
 
         allStates = makeAllStates(bignums)
 
-
-        statesHeader = ['ProblemNumber', 'Problem', 'RuleUsedtoSolve', 'AllUniqueRules', 'TotalNumberofUniqueRules']
+        statesHeader = ['ProblemNumber', 'Problem', 'RuleUsedtoSolve', 'AllUniqueRules', 'TotalNumberofUniqueRules', 'ChangeInRuleset']
         statesRow = []
         for eq in bignums:
             statesRow.append(getRules(allStates, eq, url, agentID, problemNumber))
             trainOneState(eq, trainingParts, agentID, csvwriter)
             problemNumber += 1
 
+        for index in range(1, len(statesRow)):
+            statesRow[index].append(list(set(statesRow[index][3])-set(statesRow[index-1][3])))
 
         with open('getRules.csv', 'w') as result_file:
             wr = csv.writer(result_file, dialect='excel')
