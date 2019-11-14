@@ -127,7 +127,7 @@ def getRules(states, eq, url, agentID, problemNumber):
     if str(rule[0]) not in rules:
         rules[str(rule[0])] = str(i)
 
-    row = [str(problemNumber), problem, allRules, rule, rules, len(rules)]
+    row = [str(problemNumber), problem, rule, rules, len(rules)]
     return row
 
 
@@ -341,7 +341,7 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
 
 
 def train(agentID):
-    bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 5)
+    bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 20)
 
     logHeader = ['Problem', 'Operator', 'Part', 'TrainingPart', 'ComputedAnswer', 'CorrectAnswer', 'Correct', 'Rule']
     trainingParts = ['before', 'afterNegativeFeedback', 'afterTraining']
@@ -353,7 +353,7 @@ def train(agentID):
         allStates = makeAllStates(bignums)
 
 
-        statesHeader = ['ProblemNumber', 'Problem', 'RulesforAllStates', 'RuleUsedtoSolve', 'AllUniqueRules', 'TotalNumberofUniqueRules']
+        statesHeader = ['ProblemNumber', 'Problem', 'RuleUsedtoSolve', 'AllUniqueRules', 'TotalNumberofUniqueRules']
         statesRow = []
         for eq in bignums:
             statesRow.append(getRules(allStates, eq, url, agentID, problemNumber))
