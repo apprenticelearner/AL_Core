@@ -57,7 +57,7 @@ def log_rules(state):
 def create_agent():
     input_for_create = {"stay_active": True, "dont_save": True, "no_ops_parse": True,
                         "args": {"when_learner": "decisiontree", "where_learner": "MostSpecific",
-                                 "planner": "fo_planner"}, "feature_set": ["equals"], "function_set":
+                                 "planner": "fo_planner"}, "feature_set": ["equals", "lcm", "gcd"], "function_set":
                             ["add",
                              "subtract",
                              "multiply",
@@ -182,7 +182,8 @@ def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, sh
 
             #xn = random.randrange(lower_bound, upper_bound)
             xn = 1
-            yn = random.randrange(lower_bound, upper_bound)
+            randomV = random.randrange(lower_bound, upper_bound)
+            yn = randomV * random.randrange(1, 5)
             #xd = random.randrange(lower_bound, upper_bound)
             xd = 1
 
@@ -190,7 +191,7 @@ def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, sh
                 yd = xd
             else:
                 # yd = random.randrange(lower_bound, upper_bound)
-                yd = random.randrange(1, 5) * yn
+                yd = randomV * random.randrange(1, 5)
 
             if operator == ':':
                 resultNum = xn * yd
@@ -340,7 +341,7 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
 
 
 def train(agentID):
-    bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 50)
+    bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 5)
 
     logHeader = ['Problem', 'Operator', 'Part', 'TrainingPart', 'ComputedAnswer', 'CorrectAnswer', 'Correct', 'Rule']
     trainingParts = ['before', 'afterNegativeFeedback', 'afterTraining']

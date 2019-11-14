@@ -429,14 +429,14 @@ Operator.register("divide", div_rule)
 lcm_rule = Operator(('lcm', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv')],
-                    [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
+                    [(('value', ('lcm', ('value', '?x'), ('value', '?y'))),
                       (int_float_lcm, '?xv', '?yv'))])
 Operator.register("lcm", lcm_rule)
 
 gcd_rule = Operator(('gcd', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
                      (('value', '?y'), '?yv')],
-                    [(('value', ('Divide', ('value', '?x'), ('value', '?y'))),
+                    [(('value', ('gcd', ('value', '?x'), ('value', '?y'))),
                       (int_float_gcd, '?xv', '?yv'))])
 Operator.register("gcd", gcd_rule)
 
