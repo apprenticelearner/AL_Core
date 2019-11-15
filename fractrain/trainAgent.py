@@ -332,6 +332,45 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
 
         computedResponse = request_and_log(state, eq, fractionPart, trainingParts[2], url, agentID, csvwriter)
 
+def writeGetRulesFile(statesRow, statesHeader):
+    for index in range(1, len(statesRow)):
+        statesRow[index].append(list(set(statesRow[index][3]) - set(statesRow[index - 1][3])))
+
+    with open('getRules.csv', 'w') as result_file:
+        wr = csv.writer(result_file, dialect='excel')
+        wr.writerows([statesHeader])
+        wr.writerows(statesRow)
+
+def writeRuleReportFile(statesRow, ruleReportHeader):
+        ruleReportArray = []
+        for index in range(len(statesRow)):
+            ruleReportRow = []
+            ruleReportRow.append(statesRow[index][2][0])
+            if 'when' not in statesRow[index][2][0] and 'where' not in statesRow[index][2][0]:
+                ruleReportRow.append('N/A')
+                ruleReportRow.append('N/A')
+                ruleReportRow.append('N/A')
+                ruleReportArray.append(ruleReportRow)
+                continue
+
+            ruleReportRow.append(len(str(statesRow[index][2][0]['when'])))
+            ruleReportRow.append(len(str(statesRow[index][2][0]['where'])))
+            indexesOfEqual = find(str(statesRow[index][2][0]['when']), '=')
+            containsDigit = False
+            for indexOfEqual in indexesOfEqual:
+                if str(statesRow[index][2][0]['when'])[indexOfEqual+1].isdigit():
+                    containsDigit = True
+            ruleReportRow.append(containsDigit)
+            ruleReportArray.append(ruleReportRow)
+
+        with open('ruleReport.csv', 'w') as result_file:
+            wr = csv.writer(result_file, dialect='excel')
+            wr.writerows([ruleReportHeader])
+            wr.writerows(ruleReportArray)
+
+def find(s, ch):
+    return [i for i, ltr in enumerate(s) if ltr == ch]
+
 
 def train(agentID):
     bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 20)
@@ -346,19 +385,15 @@ def train(agentID):
         allStates = makeAllStates(bignums)
 
         statesHeader = ['ProblemNumber', 'Problem', 'RuleUsedtoSolve', 'AllUniqueRules', 'TotalNumberofUniqueRules', 'ChangeInRuleset']
+        ruleReportHeader = ['rule', 'whenSize', 'whereSize', 'containConstant']
         statesRow = []
         for eq in bignums:
             statesRow.append(getRules(allStates, eq, url, agentID, problemNumber))
             trainOneState(eq, trainingParts, agentID, csvwriter)
             problemNumber += 1
 
-        for index in range(1, len(statesRow)):
-            statesRow[index].append(list(set(statesRow[index][3])-set(statesRow[index-1][3])))
-
-        with open('getRules.csv', 'w') as result_file:
-            wr = csv.writer(result_file, dialect='excel')
-            wr.writerows([statesHeader])
-            wr.writerows(statesRow)
+        #writeGetRulesFile(statesRow, statesHeader)
+        writeRuleReportFile(statesRow, ruleReportHeader)
 
 def main():
     random.seed(9001)
