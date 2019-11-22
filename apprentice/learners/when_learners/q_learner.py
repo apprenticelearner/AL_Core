@@ -5,13 +5,13 @@ from apprentice.working_memory.representation import Activation
 
 
 class Tabular:
-    def __init__(self, q_init=0, learning_rate=0.1):
+    def __init__(self, q_init=0.6, learning_rate=0.9):
         self.row = {}
         self.q_init = q_init
         self.alpha = learning_rate
 
     def update(self, state, learned_reward):
-        s = frozenset(state)
+        s = state
         if s not in self.row:
             self.row[s] = self.q_init
 
@@ -27,7 +27,7 @@ class Tabular:
         return str(self.row)
 
 class QLearner(WhenLearner):
-    def __init__(self, q_init=1, discount=0.1, learning_rate=0.1, func=None):
+    def __init__(self, q_init=0.6, discount=0.8, learning_rate=0.9, func=None):
         self.func = func
         if self.func is None:
             self.func = Tabular
@@ -40,7 +40,7 @@ class QLearner(WhenLearner):
     def evaluate(self, state: dict, action: Activation) -> float:
         if state is None:
             return 0
-        a = action
+        a = action.as_hash_repr()
         if a not in self.Q:
             return self.q_init
         return self.Q[a].get_q(state)
@@ -59,7 +59,7 @@ class QLearner(WhenLearner):
             q_next_est = max((self.evaluate(next_state, a) for a in next_actions))
 
         learned_reward = reward + self.discount * q_next_est
-        a = action
+        a = action.as_hash_repr()
         if a not in self.Q:
             self.Q[a] = self.func(
                 q_init=self.q_init, learning_rate=self.learning_rate
@@ -67,8 +67,3 @@ class QLearner(WhenLearner):
 
         self.Q[a].update(state, learned_reward)
 
-
-    def __str__(self):
-        s = ""
-        for k, v in self.Q.items():
-            print("{}: {}".format(k,str(v)))

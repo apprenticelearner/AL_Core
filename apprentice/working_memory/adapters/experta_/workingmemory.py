@@ -42,13 +42,15 @@ class ExpertaWorkingMemory(WorkingMemory):
 
         #return frozenset(self.get_hashable_facts())
 
-        state = {}
-        for i, fact in enumerate(self.ke.facts.values()):
-            for feature_key, feature_value in fact.as_dict().items():
-                if Fact.is_special(feature_key):
-                    continue
-                state['{0}_{1}'.format(str(feature_key), str(i))] = feature_value
-        return frozenset(state)
+        #state = {}
+        #for i, fact in enumerate(self.ke.facts.values()):
+        #    for feature_key, feature_value in fact.as_dict().items():
+        #        if Fact.is_special(feature_key):
+        #            continue
+        #        state['{0}_{1}'.format(str(feature_key), str(i))] = feature_value
+
+        return frozenset([fact.as_frozenset() for fact in self.ke.facts.values()])
+
 
     def add_fact(self, fact: dict):
         f = ex.Fact(**fact)

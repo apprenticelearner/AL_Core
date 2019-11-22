@@ -29,7 +29,7 @@ if __name__ == "__main__":
 #    print("Pretest win rate: {}".format(wins/pre_test_games))
 
     # train to win with O
-    num_traning_games = 500
+    num_traning_games = 1050
     for i in range(num_traning_games):
         o = ttt_oracle()
         winner = False
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
             a1.train(state, next_state, sai, reward, "", [""])
 
-    test_games = 25
+    test_games = 20
     wins = 0
     for i in range(test_games):
         o = ttt_oracle()
@@ -58,7 +58,7 @@ if __name__ == "__main__":
             d = o.as_dict()
             sai = a1.request(d)
             getattr(o, sai.action)(**sai.input)
-            print(o)
+        print(o)
         if o.check_winner() == "O":
             wins += 1
         if o.check_winner() == "X":

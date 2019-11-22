@@ -37,5 +37,25 @@ class Activation:
     def fire(self) -> Any:
         raise NotImplementedError
 
-    def __hash__(self):
-        return hash((self.skill, tuple(sorted(self.context))))
+    def _hash__(self):
+        return hash(self.as_hash_repr())
+   #     from experta import Fact
+   #     c = {}
+   #     for k,v in self.context.items():
+   #         if isinstance(v, Fact):
+   #             c[k] = v.as_frozenset()
+   #         else:
+   #             c[k] = v
+
+   #     return hash((self.skill, frozenset(c)))
+
+    def as_hash_repr(self):
+        from experta import Fact
+        c = {}
+        for k,v in self.context.items():
+            if isinstance(v, Fact):
+                c[k] = v.as_frozenset()
+            else:
+                c[k] = v
+
+        return self.skill, frozenset(c.items())

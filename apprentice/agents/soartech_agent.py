@@ -92,8 +92,10 @@ class SoarTechAgent(BaseAgent):
             best_activation = self.select_activation(candidate_activations)
             state = self.working_memory.state
 
+
             output = self.working_memory.activation_factory.to_ex_activation(best_activation).fire(
                 self.working_memory.ke)
+
 
             if isinstance(output, Sai):
                 break
@@ -133,6 +135,9 @@ class SoarTechAgent(BaseAgent):
         self.working_memory.update(next_state_diff)
         next_state = self.working_memory.state
         next_activations = list(self.working_memory.activations)
+
+
+
 
         if self.when_learning and state and sai_activation:
             self.when_learning.update(state, sai_activation, reward, next_state, next_activations)
