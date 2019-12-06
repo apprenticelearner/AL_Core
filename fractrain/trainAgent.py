@@ -19,6 +19,8 @@ logfilename = "MultOnly.txt"
 createNewAgent = True
 includeNegativeFeedback = True
 
+logStates = True;
+
 opsdict = {"Mult": "*", "Add": "+", "Sub": "-", "Div": ":", }
 
 
@@ -60,7 +62,7 @@ def create_agent():
                              "multiply",
                              "divide",
                              "lcm",
-                             "gcd",
+                             "gcd"
                              ], "name": "Control_Stu_01266dfb27cc2e1a087884753dbe4f67", "agent_type": "ModularAgent",
                         "project_id": 1}
     url = "http://127.0.0.1:8000/"
@@ -72,7 +74,7 @@ def create_agent():
     return agentID
 
 
-def request_and_log(state, eq, part, trainingPart, url, agentID, csvWriter):
+def request_and_log(state, eq, part, trainingPart, url, agentID, csvWriter, lastTrained=None):
     reqReq = requests.post(url + "request/" + str(agentID) + "/", json={"state": state})
     rule = ""
 
@@ -89,6 +91,8 @@ def request_and_log(state, eq, part, trainingPart, url, agentID, csvWriter):
            'ComputedAnswer': computedResponse,
            'CorrectAnswer': correctResponse,
            'Correct': correctResponse == computedResponse, 'Rule': rule}
+    if lastTrained is not None and logStates:
+        row['SAI'] = lastTrained
     csvWriter.writerow(row)
     return computedResponse
     # log_accuracy(prob, resultnum, "x", numeratorComputed, "x")
@@ -177,7 +181,7 @@ def generate_simplification_probs(lower_bound, upper_bound, num_problems, shuffl
             xn = ""#random.randrange(lower_bound, upper_bound)
             # xn = 1
             randomV = random.randrange(lower_bound, upper_bound)
-            likelyGCD = random.randrange(1,9);
+            likelyGCD = random.randrange(2,9);
             yn = likelyGCD*random.randrange(lower_bound, upper_bound)
             xd = ""#random.randrange(lower_bound, upper_bound)
             # xd = 1
@@ -357,7 +361,7 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
             ],
         }
 
-        computedResponse = request_and_log(state, eq, fractionPart, trainingParts[0], url, agentID, csvwriter)
+        computedResponse = request_and_log(state, eq, fractionPart, trainingParts[0], url, agentID, csvwriter, state)
         if includeNegativeFeedback and computedResponse != correctResponse:
             obj = {
                 "selection": selection,
@@ -369,7 +373,7 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
                 "state": state
             }
             trainReq = requests.post(url + "train/" + str(agentID) + "/", json=obj)
-            computedResponse = request_and_log(state, eq, fractionPart, trainingParts[1], url, agentID, csvwriter)
+            computedResponse = request_and_log(state, eq, fractionPart, trainingParts[1], url, agentID, csvwriter, obj)
 
         obj = {
             "selection": selection,
@@ -381,8 +385,7 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
             "state": state
         }
         trainReq = requests.post(url + "train/" + str(agentID) + "/", json=obj)
-
-        computedResponse = request_and_log(state, eq, fractionPart, trainingParts[2], url, agentID, csvwriter)
+        computedResponse = request_and_log(state, eq, fractionPart, trainingParts[2], url, agentID, csvwriter,obj)
 
 def writeGetRulesFile(statesRow, statesHeader):
     '''
@@ -457,10 +460,12 @@ def find(s, ch):
 
 def train(agentID):
     # bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 20)
-    bignums = generate_simplification_probs(121, 130, 20)
+    bignums = generate_simplification_probs(5, 25, 20)
 
 
     logHeader = ['Problem', 'Operator', 'Part', 'TrainingPart', 'ComputedAnswer', 'CorrectAnswer', 'Correct', 'Rule']
+    if logStates:
+        logHeader.insert(-1, 'SAI')
     trainingParts = ['before', 'afterNegativeFeedback', 'afterTraining']
     with open(logfilename, 'w') as csvfile:
         csvwriter = csv.DictWriter(csvfile, fieldnames=logHeader)
