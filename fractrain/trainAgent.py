@@ -19,7 +19,7 @@ logfilename = "MultOnly.txt"
 createNewAgent = True
 includeNegativeFeedback = True
 
-logStates = True;
+logStates = True
 
 opsdict = {"Mult": "*", "Add": "+", "Sub": "-", "Div": ":", }
 
@@ -181,7 +181,7 @@ def generate_simplification_probs(lower_bound, upper_bound, num_problems, shuffl
             xn = ""#random.randrange(lower_bound, upper_bound)
             # xn = 1
             randomV = random.randrange(lower_bound, upper_bound)
-            likelyGCD = random.randrange(2,9);
+            likelyGCD = random.randrange(2,9)
             yn = likelyGCD*random.randrange(lower_bound, upper_bound)
             xd = ""#random.randrange(lower_bound, upper_bound)
             # xd = 1
@@ -271,9 +271,6 @@ def makeAllStates(bignums):
     for eq in bignums:
         prob, op, result = eq
         result = result.replace(" ", "")
-        lhs, rhs = prob.split(opsdict[op])
-        num1, denom1 = lhs.split("/")
-        num2, denom2 = rhs.split("/")
         if not (result.count("/") == 1): continue
         resultnum, resultdenom = result.split("/")
         try:
@@ -285,25 +282,7 @@ def makeAllStates(bignums):
         parts = ["num", "denom"]
         for fractionPart in parts:
             curLogRow = {}
-            state = {"?ele-num1": {"id": "num1", "value": num1, "contentEditable": False},
-                     "?ele-num2": {"id": "num2", "value": num2, "contentEditable": False},
-                     "?ele-denom1": {"id": "denom1", "value": denom1, "contentEditable": False},
-                     "?ele-denom2": {"id": "denom2", "value": denom2, "contentEditable": False},
-                     "?ele-op": {"id": "op", "value": op, "contentEditable": False}
-
-                     }
-            if fractionPart == "num":
-                # numerator stuff
-                state["?ele-num3"] = {"id": "num3", "value": "", "contentEditable": True}
-                state["?ele-denom3"] = {"id": "denom3", "value": "", "contentEditable": False}
-                correctResponse = resultnum
-                selection = "num3"
-            else:
-                # demonator stuff
-                state["?ele-num3"] = {"id": "num3", "value": resultnum, "contentEditable": False}
-                state["?ele-denom3"] = {"id": "denom3", "value": "", "contentEditable": True}
-                correctResponse = resultdenom
-                selection = "denom3"
+            state, _ = makeJSONState(eq, fractionPart)
 
             input_for_get = {
                 "states": [
@@ -313,13 +292,15 @@ def makeAllStates(bignums):
             allStates.append(state)
     return allStates
 
-
-def trainOneState(eq, trainingParts, agentID, csvwriter):
+def makeJSONState(eq, fractionPart):
     '''
-    This function is the original function that just trains the agent on the current
-    state that it calculates given a fraction problem.
+    Generates a state representation for the given problem (plain text fraction arithmetic problem)
+    and returns the corresponding JSON. If fractionPart is "num", then only the resulting numerator
+    is editable and the denominator is empty. Otherwise, the numerator is filled in with the correct
+    response and only the denominator is editable.
+    Returns a pair with the first element being the JSON state and the second element being the
+    correct response that we'd like the system to generate for this state.
     '''
-    fracStates = []
     prob, op, result = eq
     result = result.replace(" ", "")
     lhs, rhs = prob.split(opsdict[op])
@@ -331,28 +312,47 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
         int(resultnum)
         int(resultdenom)
     except ValueError:
-        return
+        return {}
+
+    state = {"?ele-num1": {"id": "num1", "value": num1, "contentEditable": False},
+             "?ele-num2": {"id": "num2", "value": num2, "contentEditable": False},
+             "?ele-denom1": {"id": "denom1", "value": denom1, "contentEditable": False},
+             "?ele-denom2": {"id": "denom2", "value": denom2, "contentEditable": False},
+             "?ele-num2copy": {"id": "num2copy", "value": num2, "contentEditable": False},
+             "?ele-denom2copy": {"id": "denom2copy", "value": denom2, "contentEditable": False},
+             "?ele-op": {"id": "op", "value": op, "contentEditable": False}
+
+             }
+    if fractionPart == "num":
+        # numerator stuff
+        state["?ele-num3"] = {"id": "num3", "value": "", "contentEditable": True}
+        state["?ele-denom3"] = {"id": "denom3", "value": "", "contentEditable": False}
+        correctResponse = resultnum
+        selection = "num3"
+    else:
+        # denominator stuff
+        state["?ele-num3"] = {"id": "num3", "value": resultnum, "contentEditable": False}
+        state["?ele-denom3"] = {"id": "denom3", "value": "", "contentEditable": True}
+        correctResponse = resultdenom
+        selection = "denom3"
+
+    return state, correctResponse
+
+
+def trainOneState(eq, trainingParts, agentID, csvwriter):
+    '''
+    This function is the original function that just trains the agent on the current
+    state that it calculates given a fraction problem.
+    '''
+    fracStates = []
 
     parts = ["num", "denom"]
     for fractionPart in parts:
         curLogRow = {}
-        state = {"?ele-num1": {"id": "num1", "value": num1, "contentEditable": False},
-                 "?ele-num2": {"id": "num2", "value": num2, "contentEditable": False},
-                 "?ele-denom1": {"id": "denom1", "value": denom1, "contentEditable": False},
-                 "?ele-denom2": {"id": "denom2", "value": denom2, "contentEditable": False},
-                 "?ele-op": {"id": "op", "value": op, "contentEditable": False}
-
-                 }
+        state, correctResponse = makeJSONState(eq, fractionPart)
         if fractionPart == "num":
-            # numerator stuff
-            state["?ele-num3"] = {"id": "num3", "value": "", "contentEditable": True}
-            state["?ele-denom3"] = {"id": "denom3", "value": "", "contentEditable": False}
-            correctResponse = resultnum
             selection = "num3"
         else:
-            state["?ele-num3"] = {"id": "num3", "value": resultnum, "contentEditable": False}
-            state["?ele-denom3"] = {"id": "denom3", "value": "", "contentEditable": True}
-            correctResponse = resultdenom
             selection = "denom3"
 
         input_for_get = {
