@@ -227,7 +227,7 @@ class ModularAgent(BaseAgent):
                 itr = self.planner.how_search(state, sai,
                                               operators=[rhs.input_rule],
                                               foci_of_attention=foci_of_attention,
-                                              search_depth=2,
+                                              search_depth=1,
                                               allow_bottomout=False,
                                               allow_copy=False)
 
