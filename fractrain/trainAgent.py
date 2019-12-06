@@ -14,9 +14,6 @@ from fractions import Fraction
 
 
 url = "http://127.0.0.1:8000/"
-
-fdir = "/Users/gabriel/Desktop/"
-fname = "fractionInfo.csv"
 logfilename = "MultOnly.txt"
 
 createNewAgent = True
@@ -165,6 +162,40 @@ def generate_problems(lower_bound, upper_bound, operators, num_problems, shuffle
     if shuffle:
         random.shuffle(problems)
     return problems
+
+def generate_simplification_probs(lower_bound, upper_bound, num_problems, shuffle=False):
+    problems = []
+    operators =['Mult']
+    for i in range(num_problems):
+
+            xn = ""#random.randrange(lower_bound, upper_bound)
+            # xn = 1
+            randomV = random.randrange(lower_bound, upper_bound)
+            likelyGCD = random.randrange(1,9);
+            yn = likelyGCD*random.randrange(lower_bound, upper_bound)
+            xd = ""#random.randrange(lower_bound, upper_bound)
+            # xd = 1
+            yd = likelyGCD*random.randrange(lower_bound, upper_bound)
+
+            # correct answer is simplification
+            resultNum = yn
+            resultDenom = yd
+
+            # Simplifies fraction
+            resultFractionParts = str(Fraction(resultNum, resultDenom)).split("/")
+            resultNum = resultFractionParts[0]
+            if len(resultFractionParts) == 1:
+                resultDenom = 1
+            else:
+                resultDenom = resultFractionParts[1]
+
+            problems.append([str(xn) + "/" + str(xd) + "*" + str(yn) + "/" + str(yd), "Mult",
+                             str(resultNum) + "/" + str(resultDenom)])
+    print(problems)
+    if shuffle:
+        random.shuffle(problems)
+    return problems
+
 
 def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, shuffle=False):
     problems = []
@@ -373,7 +404,9 @@ def find(s, ch):
 
 
 def train(agentID):
-    bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 20)
+    # bignums = generateMulti_problems(1, 50, ['Mult', 'Add', 'Sub', 'Div'], 20)
+    bignums = generate_simplification_probs(121, 130, 20)
+
 
     logHeader = ['Problem', 'Operator', 'Part', 'TrainingPart', 'ComputedAnswer', 'CorrectAnswer', 'Correct', 'Rule']
     trainingParts = ['before', 'afterNegativeFeedback', 'afterTraining']
