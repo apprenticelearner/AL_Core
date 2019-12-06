@@ -95,8 +95,14 @@ def request_and_log(state, eq, part, trainingPart, url, agentID, csvWriter):
 
 
 def getRules(states, eq, url, agentID, problemNumber):
-    # Function that writes to a file with problem number, problem, rule # used to solve problem, rule used to solve
-    # problem, all the rules it has used, and the amount of different rules it has used.
+    '''
+    This function takes in all the states so that it can test all the rules that the
+    agent is priortizing when it solves all the problems, even the ones it hasn't learned
+    the correct rule to solve.
+    Function that returns a list containing the problem #, the string version of the problem
+    the rule it used to solve the problem, a set of all the rules it used to solve all the problems
+    from the state, and actual amount of different rules it used.
+    '''
 
     obj = {"states": [states[problemNumber], ], }
     rule = requests.post(url + "get_skills/" + str(agentID) + "/", json=obj)
@@ -198,6 +204,12 @@ def generate_simplification_probs(lower_bound, upper_bound, num_problems, shuffl
 
 
 def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, shuffle=False):
+    '''
+    This function looks the same as the generate_problems function. It was just
+    a helper function I used to only generate multiplication problems. I copy pasted
+    this function because I didn't want to modify the original function and forget to
+    reverse it.
+    '''
     problems = []
     operators =['Mult']
     for i in range(num_problems):
@@ -246,6 +258,11 @@ def generateMulti_problems(lower_bound, upper_bound, operators, num_problems, sh
 
 
 def makeAllStates(bignums):
+    '''
+    Makes every single state given the list of problems. This is used for the getRules
+    function. This creates the states in the same json format that trainOneState does but
+    this function doesn't train the agent from the states that it creates.
+    '''
     allStates = []
     for eq in bignums:
         prob, op, result = eq
@@ -294,6 +311,10 @@ def makeAllStates(bignums):
 
 
 def trainOneState(eq, trainingParts, agentID, csvwriter):
+    '''
+    This function is the original function that just trains the agent on the current
+    state that it calculates given a fraction problem.
+    '''
     fracStates = []
     prob, op, result = eq
     result = result.replace(" ", "")
@@ -364,6 +385,15 @@ def trainOneState(eq, trainingParts, agentID, csvwriter):
         computedResponse = request_and_log(state, eq, fractionPart, trainingParts[2], url, agentID, csvwriter)
 
 def writeGetRulesFile(statesRow, statesHeader):
+    '''
+    This function writes the list created from the getRules function and writes it to
+    a csv file called getRules.csv.
+    This function also added an extra column that tells us which rule has been added.
+    That part of the function hasn't completely worked because if no rule has been added
+    but rules have been taken away such that the agent isn't using certain rules anymore,
+    this function doesn't print which rule has been taken away.
+    # TODO: Column for Added Rules, Column for Deleted Rules
+    '''
     for index in range(1, len(statesRow)):
         statesRow[index].append(list(set(statesRow[index][3]) - set(statesRow[index - 1][3])))
 
@@ -373,33 +403,55 @@ def writeGetRulesFile(statesRow, statesHeader):
         wr.writerows(statesRow)
 
 def writeRuleReportFile(statesRow, ruleReportHeader):
-        ruleReportArray = []
-        for index in range(len(statesRow)):
-            ruleReportRow = []
-            ruleReportRow.append(statesRow[index][2][0])
-            if 'when' not in statesRow[index][2][0] and 'where' not in statesRow[index][2][0]:
-                ruleReportRow.append('N/A')
-                ruleReportRow.append('N/A')
-                ruleReportRow.append('N/A')
-                ruleReportArray.append(ruleReportRow)
-                continue
-
-            ruleReportRow.append(len(str(statesRow[index][2][0]['when'])))
-            ruleReportRow.append(len(str(statesRow[index][2][0]['where'])))
-            indexesOfEqual = find(str(statesRow[index][2][0]['when']), '=')
-            containsDigit = False
-            for indexOfEqual in indexesOfEqual:
-                if str(statesRow[index][2][0]['when'])[indexOfEqual+1].isdigit():
-                    containsDigit = True
-            ruleReportRow.append(containsDigit)
+    '''
+    Using the list created from getRules, this function saves all the rules that
+    was used to solve a problem and writes the string length of when and where clause
+    as well as whether the when clause contains a constant.
+    # TODO: Instead of checking the string length of the when clause, it is better to
+    # check how many items are in the when clause and the string length per item
+    # TODO: Check to see if how contains a constant
+    # TODO: Get the where clause as list and see how many items are in the list.
+    '''
+    ruleReportArray = []
+    for index in range(len(statesRow)):
+        ruleReportRow = []
+        #statesRow[index][2] is the list that contains the rule used to solve the problem.
+        #statesRow[index][2][0] accesses that rule.
+        ruleReportRow.append(statesRow[index][2][0])
+        # This checks if the rule that it sees doesn't contain a when or where clause because
+        # the might be something like "I Don't Know".
+        if 'when' not in statesRow[index][2][0] and 'where' not in statesRow[index][2][0]:
+            ruleReportRow.append('N/A')
+            ruleReportRow.append('N/A')
+            ruleReportRow.append('N/A')
             ruleReportArray.append(ruleReportRow)
+            continue
 
-        with open('ruleReport.csv', 'w') as result_file:
-            wr = csv.writer(result_file, dialect='excel')
-            wr.writerows([ruleReportHeader])
-            wr.writerows(ruleReportArray)
+        #appends the length of the when clause
+        ruleReportRow.append(len(str(statesRow[index][2][0]['when'])))
+        #appends the length of the where clause
+        ruleReportRow.append(len(str(statesRow[index][2][0]['where'])))
+
+        #Checks to see if there is a constant in the when cause by checking if a
+        #constant appears after the equals sign. Appends the boolean called containsDigit
+        indexesOfEqual = find(str(statesRow[index][2][0]['when']), '=')
+        containsDigit = False
+        for indexOfEqual in indexesOfEqual:
+            if str(statesRow[index][2][0]['when'])[indexOfEqual+1].isdigit():
+                containsDigit = True
+        ruleReportRow.append(containsDigit)
+        ruleReportArray.append(ruleReportRow)
+
+    with open('ruleReport.csv', 'w') as result_file:
+        wr = csv.writer(result_file, dialect='excel')
+        wr.writerows([ruleReportHeader])
+        wr.writerows(ruleReportArray)
 
 def find(s, ch):
+    '''
+    This helper function is used to find where the equal sign is in the when clause.
+    Used in writeRuleReportFile.
+    '''
     return [i for i, ltr in enumerate(s) if ltr == ch]
 
 
