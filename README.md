@@ -1,3 +1,14 @@
+# Apprentice / AL_Core
+
+[![Pipeline
+Status](https://hq-git.soartech.com/apprentice/apprentice/badges/master/pipeline.svg)](https://hq-git.soartech.com/apprentice/apprentice/commits/master)
+
+[![Coverage
+Report](https://hq-git.soartech.com/apprentice/apprentice/badges/master/coverage.svg)](https://apprentice.hq-git.soartech.com/apprentice/coverage/)
+
+The Apprentice Learner API, this library implement a general interface for
+training agents via demonstration and feedback.
+
 # Installation
 There are two main GitHub repositories for working with AL. We will general refer to these as apprentince_learner_api (https://github.com/apprenticelearner/apprentice_learner_api), which is the core library, and AL_HTML (https://github.com/apprenticelearner/AL_HTML), which contains code for interfacing AL with CTAT-HTML tutors.
 
