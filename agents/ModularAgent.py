@@ -189,6 +189,32 @@ class ModularAgent(BaseAgent):
 
         return response
 
+    def request_n(self, state, add_skill_info=False, n=1):  # -> Returns list<Explanation>
+        state = StateMultiView("object", state)
+        state = self.planner.apply_featureset(state)
+        rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
+
+        explanations = self.applicable_explanations(
+                            state, rhs_list=rhs_list,
+                            add_skill_info=add_skill_info)
+
+        responses = []
+
+        for _ in range(n):
+            explanation, skill_info = next(explanations, None)
+            tmp_resp = explanation.to_response(state, self)
+            if tmp_resp['inputs']['value'] is None:
+                continue
+            if(add_skill_info):
+                tmp_resp["skill_info"] = skill_info
+            responses.append(tmp_resp)
+
+        return responses
+
+                
+
+        return response
+
     # ------------------------------TRAIN----------------------------------------
 
     def where_matches(self, explanations, state):  # -> list<Explanation>, list<Explanation>
