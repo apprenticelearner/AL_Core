@@ -3,6 +3,10 @@ from typing import Collection
 from apprentice.learners.WhenLearner import WhenLearner
 from apprentice.working_memory.representation import Activation
 
+# from concept_formation.trestle import TrestleTree
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.linear_model import LinearRegression
+
 
 class Tabular:
     def __init__(self, q_init=0.6, learning_rate=0.9):
@@ -11,7 +15,7 @@ class Tabular:
         self.alpha = learning_rate
 
     def update(self, state, learned_reward):
-        s = state
+        s = frozenset(state)
         if s not in self.row:
             self.row[s] = self.q_init
 
@@ -25,6 +29,7 @@ class Tabular:
 
     def __str__(self):
         return str(self.row)
+
 
 class QLearner(WhenLearner):
     def __init__(self, q_init=0.6, discount=0.8, learning_rate=0.9, func=None):
@@ -61,9 +66,26 @@ class QLearner(WhenLearner):
         learned_reward = reward + self.discount * q_next_est
         a = action.as_hash_repr()
         if a not in self.Q:
-            self.Q[a] = self.func(
-                q_init=self.q_init, learning_rate=self.learning_rate
-            )
+            self.Q[a] = self.func(q_init=self.q_init, learning_rate=self.learning_rate)
 
         self.Q[a].update(state, learned_reward)
 
+
+class LinearFunc:
+    def __init__(self, q_init=0, learning_rate=0):
+        self.clf = LinearRegression()
+        self.dv = DictVectorizer()
+        self.X = []
+        self.Y = []
+        self.q_init = q_init
+
+    def update(self, state, learned_reward):
+        self.X.append(state)
+        self.Y.append(learned_reward)
+        self.clf.fit(self.dv.fit_transform(self.X), self.Y)
+
+    def get_q(self, state):
+        if len(self.X) == 0:
+            return self.q_init
+        x = self.dv.transform([state])
+        return self.clf.predict(x)[0]

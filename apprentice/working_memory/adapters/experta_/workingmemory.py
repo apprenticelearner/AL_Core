@@ -2,8 +2,11 @@ import experta as ex
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill
 
-from .factory import ExpertaSkillFactory, ExpertaConditionFactory, \
-    ExpertaActivationFactory
+from .factory import (
+    ExpertaSkillFactory,
+    ExpertaConditionFactory,
+    ExpertaActivationFactory,
+)
 
 
 class ExpertaWorkingMemory(WorkingMemory):
@@ -13,7 +16,7 @@ class ExpertaWorkingMemory(WorkingMemory):
         self.ke = ke
         if reset:
             self.ke.reset()
-        #self.lookup = {}
+        # self.lookup = {}
         self.skill_factory = ExpertaSkillFactory(ke)
         self.activation_factory = ExpertaActivationFactory(ke)
         self.condition_factory = ExpertaConditionFactory()
@@ -31,42 +34,49 @@ class ExpertaWorkingMemory(WorkingMemory):
 
         # f in self.ke.facts.values()]
 
-    def get_hashable_facts(self):
-        from experta import Fact
-        for fact in self.facts.values():
-            yield frozenset((k,v) for k,v in fact.items() if not Fact.is_special(k))
-
     @property
     def state(self):
         from experta import Fact
 
-        #return frozenset(self.get_hashable_facts())
+        # return frozenset(self.get_hashable_facts())
 
-        #state = {}
-        #for i, fact in enumerate(self.ke.facts.values()):
+        # state = {}
+        # for i, fact in enumerate(self.ke.facts.values()):
         #    for feature_key, feature_value in fact.as_dict().items():
         #        if Fact.is_special(feature_key):
         #            continue
         #        state['{0}_{1}'.format(str(feature_key), str(i))] = feature_value
+        factlist = []
+        for fact in self.ke.facts.values():
+            f = {}
+            for k, v in fact.as_dict().items():
+                if not Fact.is_special(k):
+                    f[k] = v
+            factlist.append(f)
 
-        return frozenset([fact.as_frozenset() for fact in self.ke.facts.values()])
+        # state = {'<f-{}>'.format(i): f for i,f in enumerate(sorted(factlist))}
+        state = {}
+        for i, fact in enumerate(sorted(factlist, key=lambda d: sorted(d.items()))):
+            for k, v in fact.items():
+                state["{0}_{1}".format(str(k), str(i))] = v
 
+        return state
 
     def add_fact(self, fact: dict):
         f = ex.Fact(**fact)
-        #key = hash(f)
+        # key = hash(f)
         self.ke.declare(f)
         # todo: integrate lookup into experta factlist
-        #self.lookup[key] = f
+        # self.lookup[key] = f
 
     def remove_fact(self, fact: dict = None, key: str = None):
-        #if key is not None:
-            #fact = self.lookup[key]
+        # if key is not None:
+        # fact = self.lookup[key]
 
         f = ex.Fact(**fact)
 
         self.ke.retract(f)
-        #del self.lookup[key]
+        # del self.lookup[key]
 
     def update_fact(self, fact: dict):
         raise NotImplementedError
@@ -92,7 +102,7 @@ class ExpertaWorkingMemory(WorkingMemory):
     @property
     def activations(self):
         for a in self.ke.agenda.activations:
-        #for a in self.ke.get_activations()[0]:
+            # for a in self.ke.get_activations()[0]:
             yield self.activation_factory.from_ex_activation(a)
 
     def run(self):
