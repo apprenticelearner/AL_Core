@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Collection
 
 from apprentice.learners.WhenLearner import WhenLearner
@@ -6,6 +7,8 @@ from apprentice.working_memory.representation import Activation
 # from concept_formation.trestle import TrestleTree
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LinearRegression
+from concept_formation.cobweb3 import Cobweb3Tree
+
 
 
 class Tabular:
@@ -89,3 +92,16 @@ class LinearFunc:
             return self.q_init
         x = self.dv.transform([state])
         return self.clf.predict(x)[0]
+
+
+class Cobweb:
+    def __init__(self, q_init=0, learning_rate=0):
+        self.tree = Cobweb3Tree()
+
+    def update(self, state, learned_reward):
+        x = deepcopy(state)
+        x['_q'] = float(learned_reward)
+        self.tree.ifit(x)
+
+    def get_q(self, state):
+        return self.tree.categorize(state).predict('_q')

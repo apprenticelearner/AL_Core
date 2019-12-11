@@ -8,14 +8,14 @@ if __name__ == "__main__":
     # with experta knowledge engine
     wm1 = ExpertaWorkingMemory(ke=ttt_engine())
     a1 = SoarTechAgent(
-        wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0)
+        wm=wm1, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.6)
     )
 
-    max_traning_games = 1000
+    max_training_games = 500
     consecutive_wins = 0
     prev_win_board = None
     i = 0
-    while consecutive_wins < 5 and i < max_traning_games:
+    while consecutive_wins < 5 and i < max_training_games:
         o = ttt_oracle()
         winner = False
         print("Training game {}".format(i))
@@ -42,6 +42,7 @@ if __name__ == "__main__":
             a1.train(state, next_state, sai, reward, "", [""])
 
     test_games = 20
+    a1.epsilon = 0
     wins = 0
     for i in range(test_games):
         o = ttt_oracle()

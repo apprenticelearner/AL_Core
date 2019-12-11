@@ -37,15 +37,6 @@ class ExpertaWorkingMemory(WorkingMemory):
     @property
     def state(self):
         from experta import Fact
-
-        # return frozenset(self.get_hashable_facts())
-
-        # state = {}
-        # for i, fact in enumerate(self.ke.facts.values()):
-        #    for feature_key, feature_value in fact.as_dict().items():
-        #        if Fact.is_special(feature_key):
-        #            continue
-        #        state['{0}_{1}'.format(str(feature_key), str(i))] = feature_value
         factlist = []
         for fact in self.ke.facts.values():
             f = {}
@@ -54,7 +45,6 @@ class ExpertaWorkingMemory(WorkingMemory):
                     f[k] = v
             factlist.append(f)
 
-        # state = {'<f-{}>'.format(i): f for i,f in enumerate(sorted(factlist))}
         state = {}
         for i, fact in enumerate(sorted(factlist, key=lambda d: sorted(d.items()))):
             for k, v in fact.items():

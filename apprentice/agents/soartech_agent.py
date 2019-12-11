@@ -22,6 +22,7 @@ class SoarTechAgent(BaseAgent):
         prior_skills: Collection[Skill] = None,
         wm: WorkingMemory = ExpertaWorkingMemory(),
         when: WhenLearner = QLearner,
+        epsilon: float = 0.05
     ):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
@@ -41,6 +42,8 @@ class SoarTechAgent(BaseAgent):
             self.when_learning = when
         else:
             self.when_learning = None
+
+        self.epsilon = epsilon
 
     def select_activation(
         self, candidate_activations: Collection[Activation]
@@ -62,6 +65,9 @@ class SoarTechAgent(BaseAgent):
         # just passing in the working memory facts to each skill, where the
         # facts is just the current state representation.
         if self.when_learning is None:
+            return random.choice(candidate_activations)
+
+        if random.random() < self.epsilon:
             return random.choice(candidate_activations)
 
         activations = [
@@ -140,12 +146,12 @@ class SoarTechAgent(BaseAgent):
         state = None
         sai_activation = None
 
-        while True:
+        while sai_activation is None:
             candidate_activations = [
                 activation for activation in self.working_memory.activations
             ]
             if len(candidate_activations) == 0:
-                return {}
+                return
             for activation in candidate_activations:
                 state = self.working_memory.state
                 output = self.working_memory.activation_factory.to_ex_activation(
@@ -154,8 +160,6 @@ class SoarTechAgent(BaseAgent):
                 if output == sai:
                     sai_activation = activation
                     break
-            if sai_activation is not None:
-                break
 
         self.working_memory.update(next_state_diff)
         next_state = self.working_memory.state
