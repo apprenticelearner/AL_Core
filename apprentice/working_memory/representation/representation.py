@@ -57,7 +57,7 @@ class Activation:
         c = {}
         for k, v in self.context.items():
             if isinstance(v, Fact):
-                c[k] = v.as_frozenset()
+                c[k] = frozenset([(fk,fv) for fk, fv in v.items() if not Fact.is_special(fk)])
             else:
                 c[k] = v
 
