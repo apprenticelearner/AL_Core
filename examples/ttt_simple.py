@@ -154,9 +154,6 @@ class ttt_oracle:
             ):
                 return self.board[row][0]
 
-        if moves == 9:
-            return "draw"
-
         for col in range(3):
             if self.board[0][col] != "" and (
                 self.board[0][col] == self.board[1][col] == self.board[2][col]
@@ -172,6 +169,9 @@ class ttt_oracle:
             self.board[2][0] == self.board[1][1] == self.board[0][2]
         ):
             return self.board[2][0]
+
+        if moves == 9:
+            return "draw"
 
         return False
 
