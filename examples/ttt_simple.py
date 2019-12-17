@@ -29,36 +29,38 @@ class ttt_engine(KnowledgeEngine):
     #         for col in range(3):
     #             yield Square(row=row, col=col, player='')
 
-    @Rule(
-        AS.square1 << Square(row=MATCH.row, col=MATCH.square1col),
-        AS.square2 << Square(row=MATCH.row, col=MATCH.square2col),
-        TEST(lambda square1col, square2col: square2col == square1col + 1),
-    )
-    def horizontally_adj(self, row, square1col, square2col):
-        relation = Fact(
-            relation="horizontally_adjacent",
-            row=row,
-            square1col=square1col,
-            square2col=square2col,
-        )
-        # self.declare(relation)
+    # @Rule(
+    #     AS.square1 << Square(row=MATCH.row, col=MATCH.square1col),
+    #     AS.square2 << Square(row=MATCH.row, col=MATCH.square2col),
+    #     TEST(lambda square1col, square2col: square2col == square1col + 1),
+    # )
+    # def horizontally_adj(self, row, square1col, square2col):
+    #     relation = Fact(
+    #         relation="horizontally_adjacent",
+    #         row=row,
+    #         square1col=square1col,
+    #         square2col=square2col,
+    #     )
+    # self.declare(relation)
 
     # ... other relations
 
     @Rule(
         Fact(type="CurrentPlayer", player=MATCH.player),
-        NOT(
-            Fact(type="PossibleMove", row=MATCH.row, col=MATCH.col, player=MATCH.player)
-        ),
-        AS.square << Fact(type="Square", row=MATCH.row, col=MATCH.col, player=""),
+        AS.square << Fact(type="Square", row=MATCH.row, col=MATCH.col,
+                          player=""),
+        NOT(Fact(type="PossibleMove", row=MATCH.row, col=MATCH.col,
+                 player=MATCH.player))
     )
     def suggest_move(self, row, col, player):
-        self.declare(Fact(type="PossibleMove", row=row, col=col, player=player))
+        self.declare(Fact(type="PossibleMove", row=row, col=col,
+                          player=player))
 
     @Rule(
         Fact(type="CurrentPlayer", player=MATCH.player),
         AS.square
-        << Fact(type="PossibleMove", row=MATCH.row, col=MATCH.col, player=MATCH.player),
+        << Fact(type="PossibleMove", row=MATCH.row, col=MATCH.col,
+                player=MATCH.player),
     )
     def make_move(self, row, col, player):
         return Sai(None, "move", {"row": row, "col": col, "player": player})
@@ -115,16 +117,16 @@ class ttt_oracle:
 
     def __str__(self):
         table = []
-        table.append(["", "Col 1", "Col 2", "Col 3"])
+        table.append(["", "Col 0", "Col 1", "Col 2"])
         for i in range(3):
-            table.append(["Row %i" % (i + 1)] + [s for s in self.board[i]])
+            table.append(["Row %i" % i] + [s for s in self.board[i]])
 
         return tabulate(table, tablefmt="fancy_grid", stralign="center")
 
     def move(self, row, col, player):
         """
-        Row -> 1-3 range inclusive
-        Col -> 1-3 range inclusive
+        Row -> 0-2 range inclusive
+        Col -> 0-2 range inclusive
         """
         if row < 0 or row > 2:
             raise ValueError("Move not on board")

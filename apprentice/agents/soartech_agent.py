@@ -72,7 +72,8 @@ class SoarTechAgent(BaseAgent):
 
         activations = [
             (
-                self.when_learning.evaluate(self.working_memory.state, activation),
+                self.when_learning.evaluate(self.working_memory.state,
+                                            activation),
                 random.random(),
                 activation,
             )
@@ -100,9 +101,8 @@ class SoarTechAgent(BaseAgent):
         candidate_activations = [
             activation for activation in self.working_memory.activations
         ]
-        while True:
-            self.working_memory.step()
 
+        while True:
             if len(candidate_activations) == 0:
                 return {}
             best_activation = self.select_activation(candidate_activations)
@@ -122,14 +122,96 @@ class SoarTechAgent(BaseAgent):
 
             if self.when_learning:
                 self.when_learning.update(
-                    state, best_activation, 0, next_state, candidate_activations
+                    state, best_activation, 0, next_state,
+                    candidate_activations
                 )
 
         return output
 
-    def train_diff(
-        self, state_diff, next_state_diff, sai, reward, skill_label, foci_of_attention
-    ):
+    def train_diff(self, state_diff, next_state_diff, sai, reward, skill_label,
+                   foci_of_attention):
+        """
+        Need the diff for the current state as well as the state diff for
+        computing the state that results from taking the action. This is
+        needed for performing Q learning.
+
+        Accepts a JSON object representing the state, a string representing the
+        skill label, a list of strings representing the foas, a string
+        representing the selection, a string representing the action, list of
+        strings representing the inputs, and a boolean correctness.
+        """
+        self.working_memory.update(state_diff)
+
+        # This should do essentially what `engine.run` is doing from
+        # PyKnow. Pyknow currently uses salience to choose rule order, but
+        # we want to essentially set salience using the when learning.
+        output = None
+
+        candidate_activations = [
+            activation for activation in self.working_memory.activations
+        ]
+
+        while True: 
+            # outer loop checks if the sai is the one we're trying to explain
+            while True:
+                # inner loop is essentially request, just keep expanding until you get sais
+                print("LEN CANDIDATES", len(candidate_activations))
+
+                if len(candidate_activations) == 0:
+                    print("#####################")
+                    print("FAILURE TO EXPLAIN!!!")
+                    print("#####################")
+                    return {}
+
+                best_activation = self.select_activation(candidate_activations)
+                state = self.working_memory.state
+
+                output = self.working_memory.activation_factory.to_ex_activation(
+                    best_activation
+                ).fire(self.working_memory.ke)
+
+                if isinstance(output, Sai):
+                    break
+
+                candidate_activations = [
+                    activation for activation in
+                    self.working_memory.activations
+                ]
+                next_state = self.working_memory.state
+
+                if self.when_learning:
+                    self.when_learning.update(
+                        state, best_activation, 0, next_state,
+                        candidate_activations
+                    )
+
+            if output != sai:
+                candidate_activations = [act for act in candidate_activations
+                                         if act != best_activation]
+                continue
+
+            if next_state_diff is None:
+                next_state = None
+                candidate_activations = []
+
+            else:
+                self.working_memory.update(next_state_diff)
+                next_state = self.working_memory.state
+                candidate_activations = [activation for activation in
+                                         self.working_memory.activations]
+
+            if self.when_learning:
+                self.when_learning.update(
+                    state, best_activation,
+                    0 if output is None else reward,
+                    next_state,
+                    candidate_activations
+                )
+
+            break
+
+    def train_diff_old(self, state_diff, next_state_diff, sai, reward,
+                       skill_label, foci_of_attention):
         """
         Need the diff for the current state as well as the state diff for
         computing the state that results from taking the action. This is
@@ -161,9 +243,13 @@ class SoarTechAgent(BaseAgent):
                     sai_activation = activation
                     break
 
-        self.working_memory.update(next_state_diff)
-        next_state = self.working_memory.state
-        next_activations = list(self.working_memory.activations)
+        if next_state_diff is None:
+            next_state = None
+            next_activations = []
+        else:
+            self.working_memory.update(next_state_diff)
+            next_state = self.working_memory.state
+            next_activations = list(self.working_memory.activations)
 
         if self.when_learning and state and sai_activation:
             self.when_learning.update(

@@ -45,10 +45,18 @@ class ExpertaWorkingMemory(WorkingMemory):
                     f[k] = v
             factlist.append(f)
 
+        # from pprint import pprint
+        # pprint(factlist)
+
         state = {}
-        for i, fact in enumerate(sorted(factlist, key=lambda d: sorted(d.items()))):
-            for k, v in fact.items():
-                state["{0}_{1}".format(str(k), str(i))] = v
+        for fact in factlist:
+            state[tuple(sorted("%s=%s" % (k, v)
+                               for k, v in fact.items()))] = True
+
+        # for i, fact in enumerate(sorted(factlist, key=lambda d:
+        # sorted(d.items()))):
+        #     for k, v in fact.items():
+        #         state["{0}_{1}".format(str(k), str(i))] = v
 
         return state
 
