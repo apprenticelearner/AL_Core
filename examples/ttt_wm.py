@@ -8,7 +8,8 @@ if __name__ == "__main__":
     # with experta knowledge engine
     wm1 = ExpertaWorkingMemory(ke=ttt_engine())
     a1 = SoarTechAgent(
-        wm=wm1, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.6)
+        # wm=wm1, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.0)
+        wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0.0)
     )
 
     max_training_games = 500
@@ -28,6 +29,10 @@ if __name__ == "__main__":
             next_state = o.as_dict()
             winner = o.check_winner()
             reward = 0
+
+            if winner is not False:
+                next_state = None
+
             if winner == "X":
                 reward = -1
                 consecutive_wins = 0

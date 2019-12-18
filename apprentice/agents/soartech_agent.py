@@ -155,7 +155,7 @@ class SoarTechAgent(BaseAgent):
             # outer loop checks if the sai is the one we're trying to explain
             while True:
                 # inner loop is essentially request, just keep expanding until you get sais
-                print("LEN CANDIDATES", len(candidate_activations))
+                # print("LEN CANDIDATES", len(candidate_activations))
 
                 if len(candidate_activations) == 0:
                     print("#####################")

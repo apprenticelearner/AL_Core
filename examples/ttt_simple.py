@@ -1,6 +1,6 @@
 import schema
 from apprentice.working_memory.representation.representation import Sai
-from experta import Fact, Field, KnowledgeEngine, AS, TEST, Rule, MATCH, NOT
+from experta import Fact, Field, KnowledgeEngine, AS, Rule, MATCH, NOT
 from tabulate import tabulate
 
 
@@ -104,7 +104,8 @@ class ttt_oracle:
                 yield i
 
         idg = ids()
-        d = {next(idg): {"type": "CurrentPlayer", "player": self.current_player}}
+        d = {next(idg): {"type": "CurrentPlayer", "player":
+                         self.current_player}}
         for row in range(3):
             for col in range(3):
                 d[next(idg)] = {

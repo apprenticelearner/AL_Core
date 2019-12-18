@@ -1,4 +1,6 @@
+import jsondiff
 import experta as ex
+
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill
 
@@ -16,7 +18,6 @@ class ExpertaWorkingMemory(WorkingMemory):
         self.ke = ke
         if reset:
             self.ke.reset()
-        # self.lookup = {}
         self.skill_factory = ExpertaSkillFactory(ke)
         self.activation_factory = ExpertaActivationFactory(ke)
         self.condition_factory = ExpertaConditionFactory()
@@ -36,12 +37,11 @@ class ExpertaWorkingMemory(WorkingMemory):
 
     @property
     def state(self):
-        from experta import Fact
         factlist = []
         for fact in self.ke.facts.values():
             f = {}
             for k, v in fact.as_dict().items():
-                if not Fact.is_special(k):
+                if not ex.Fact.is_special(k):
                     f[k] = v
             factlist.append(f)
 
@@ -60,27 +60,24 @@ class ExpertaWorkingMemory(WorkingMemory):
 
         return state
 
-    def add_fact(self, fact: dict):
+    def add_fact(self, key: object, fact: dict) -> None:
         f = ex.Fact(**fact)
-        # key = hash(f)
         self.ke.declare(f)
-        # todo: integrate lookup into experta factlist
-        # self.lookup[key] = f
+        self.lookup[key] = f
 
-    def remove_fact(self, fact: dict = None, key: str = None):
-        # if key is not None:
-        # fact = self.lookup[key]
-
-        f = ex.Fact(**fact)
-
+    def remove_fact(self, key: object) -> bool:
+        if key not in self.lookup:
+            return False
+        f = self.lookup[key]
         self.ke.retract(f)
-        # del self.lookup[key]
+        return True
 
-    def update_fact(self, fact: dict):
-        raise NotImplementedError
-        # todo: what is this for
-        f = ex.Fact(**fact)
-        self.ke.modify()
+    def update_fact(self, key: object, diff: dict) -> None:
+        old_fact = self.lookup[key]
+        new_fact = apply_diff_to_fact(old_fact, diff)
+        self.ke.retract(old_fact)
+        self.ke.declare(new_fact)
+        self.lookup[key] = new_fact
 
     @property
     def skills(self):
@@ -105,3 +102,21 @@ class ExpertaWorkingMemory(WorkingMemory):
 
     def run(self):
         self.ke.run()
+
+
+def apply_diff_to_fact(fact: ex.Fact, diff: dict) -> ex.Fact:
+    if jsondiff.symbols.replace in diff:
+        return ex.Fact(**diff[jsondiff.symbols.replace])
+
+    new_fact = {}
+    for k in fact:
+        if (jsondiff.symbols.delete in diff and
+                k in diff[jsondiff.symbols.delete]):
+            continue
+        new_fact[k] = fact[k]
+
+    for k in diff:
+        if k is not jsondiff.symbols.delete:
+            new_fact[k] = diff[k]
+
+    return ex.Fact(**new_fact)

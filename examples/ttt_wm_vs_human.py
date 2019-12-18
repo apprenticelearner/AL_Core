@@ -9,9 +9,8 @@ if __name__ == "__main__":
     # with experta knowledge engine
     wm1 = ExpertaWorkingMemory(ke=ttt_engine())
     a1 = SoarTechAgent(
-        wm=wm1, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.6)
-        # wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc,
-        #                                 q_init=0.6)
+        # wm=wm1, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.0)
+        wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0.0)
     )
 
     new_game = True

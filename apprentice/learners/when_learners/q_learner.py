@@ -11,7 +11,8 @@ from concept_formation.cobweb3 import Cobweb3Tree
 
 
 class QLearner(WhenLearner):
-    def __init__(self, q_init=0.6, discount=0.8, learning_rate=0.9, func=None):
+    def __init__(self, q_init=0.0, discount=0.99, learning_rate=0.9,
+                 func=None):
         self.func = func
         if self.func is None:
             self.func = Tabular
@@ -42,22 +43,6 @@ class QLearner(WhenLearner):
         if len(next_actions) != 0:
             q_next_est = max((self.evaluate(next_state, a)
                               for a in next_actions))
-
-        from pprint import pprint
-        print('LEN A in Q', len(self.Q))
-        for a in self.Q:
-            print(self.Q[a].tree.root.av_counts['_q'])
-        print("state")
-        pprint(state)
-        print()
-        print("action")
-        pprint(action)
-        print()
-        print("next_state")
-        pprint(next_state)
-        print()
-        print("immediate reward", reward)
-        print("discounted future reward", self.discount * q_next_est)
 
         learned_reward = reward + self.discount * q_next_est
         a = action.as_hash_repr()
