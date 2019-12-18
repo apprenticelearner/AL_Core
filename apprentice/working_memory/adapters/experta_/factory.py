@@ -76,11 +76,10 @@ class ExpertaSkillFactory(Factory):
     def build(self, _condition: Any,
               _function: Callable,
               _name: str = None) -> Skill:
-        if _name is None:
-            _name = 'skill_' + str(uuid.uuid1())
+        #if _name is None:
+            #_name = 'skill_' + str(uuid.uuid1())
 
-        s = Skill(_condition, _function, _name)
-        s._ke = self._ke
+        s = Skill(_condition, _function)#, _name)
         return s
 
     def from_ex_rule(self, _rule: ex.Rule) -> Skill:
@@ -116,7 +115,7 @@ class ExpertaActivationFactory(Factory):
                          _activation: Activation) -> ex.activation.Activation:
         return ex.activation.Activation(
             self.skill_factory.to_ex_rule(_activation.skill),
-            _activation.context, _activation.context)
+            set(_activation.context.values()), _activation.context)
 
     def fire(self):
         self.base.fire()

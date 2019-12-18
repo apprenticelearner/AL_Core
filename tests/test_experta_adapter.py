@@ -4,13 +4,15 @@ Created on Mon Sep 30 19:23:40 2019
 
 @author: robert.sheline
 """
-
+import jsondiff
 import experta as ex
 from apprentice.working_memory.adapters.experta_.factory import \
     ExpertaConditionFactory, ExpertaSkillFactory, ExpertaActivationFactory
 
 from apprentice.working_memory.adapters.experta_.workingmemory import \
     ExpertaWorkingMemory
+from apprentice.working_memory.adapters.experta_.workingmemory import \
+    apply_diff_to_fact
 from apprentice.working_memory.representation import Skill, Activation
 
 
@@ -31,6 +33,23 @@ def get_KE_fixture():
             self.activated = True
 
     return KE()
+
+
+def test_apply_diff_to_fact():
+    s1 = {'a': 1, 'b': 1, 'c': 1}
+    s2 = {'a': 1, 'b': 2, 'd': 1}
+    diff = jsondiff.diff(s1, s2)
+
+    f = ex.Fact(**s1)
+    f2 = apply_diff_to_fact(f, diff)
+
+    assert 'a' in f2
+    assert 'b' in f2
+    assert 'c' not in f2
+    assert 'd' in f2
+    assert f2['a'] == 1
+    assert f2['b'] == 2
+    assert f2['d'] == 1
 
 
 def test_experta_skill_factory_transforms():
