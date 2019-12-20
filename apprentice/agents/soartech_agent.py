@@ -10,6 +10,7 @@ from apprentice.learners.when_learners.q_learner import QLearner
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
+from apprentice.working_memory.skills import RandomFracEngine
 
 
 class SoarTechAgent(BaseAgent):
@@ -22,7 +23,7 @@ class SoarTechAgent(BaseAgent):
         feature_set,
         function_set,
         prior_skills: Collection[Skill] = None,
-        wm: WorkingMemory = ExpertaWorkingMemory(),
+        wm: WorkingMemory = ExpertaWorkingMemory(ke=RandomFracEngine()),
         when: WhenLearner = QLearner,
         epsilon: float = 0.05
     ):
