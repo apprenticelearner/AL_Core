@@ -20,6 +20,8 @@ from django.conf import settings
 from apprentice_learner.models import Agent
 from apprentice_learner.models import Project
 from apprentice_learner.models import Operator
+
+from apprentice.agents import SoarTechAgent
 from apprentice.agents.Stub import Stub
 from apprentice.agents.Memo import Memo
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
@@ -42,7 +44,8 @@ AGENTS = {'Stub': Stub,
           'Memo': Memo,
           'RLAgent': RLAgent,
           'WhereWhenHowNoFoa': WhereWhenHowNoFoa,
-          'ModularAgent' : ModularAgent}
+          'ModularAgent' : ModularAgent,
+          'SoartechAgent': SoarTechAgent}
 
 def get_agent_by_id(id):
     global active_agent, active_agent_id, dont_save
@@ -311,8 +314,10 @@ def train(http_request, agent_id):
         agent = get_agent_by_id(agent_id)
         agent.inc_train()
 
-        agent.instance.train(data['state'], data['selection'], data['action'],
-                             data['inputs'], data['reward'],
+        sai = { 'selection': data['selection'], 'action': data['action'], 'input': data['inputs'] }
+
+        agent.instance.train(data['state'], data['next_state'],
+                             sai, data['reward'],
                              data['skill_label'], data['foci_of_attention'])
         global dont_save
         if(not dont_save): agent.save()

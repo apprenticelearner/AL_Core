@@ -19,6 +19,8 @@ class SoarTechAgent(BaseAgent):
 
     def __init__(
         self,
+        feature_set,
+        function_set,
         prior_skills: Collection[Skill] = None,
         wm: WorkingMemory = ExpertaWorkingMemory(),
         when: WhenLearner = QLearner,
