@@ -45,32 +45,32 @@ class ttt_engine(KnowledgeEngine):
 
     # ... other relations
 
-    @Rule(
-        Fact(type="CurrentPlayer", player=MATCH.player),
-        AS.square << Fact(type="Square", row=MATCH.row, col=MATCH.col,
-                          player=""),
-        NOT(Fact(type="PossibleMove", row=MATCH.row, col=MATCH.col,
-                 player=MATCH.player))
-    )
-    def suggest_move(self, row, col, player):
-        self.declare(Fact(type="PossibleMove", row=row, col=col,
-                          player=player))
-
-    @Rule(
-        Fact(type="CurrentPlayer", player=MATCH.player),
-        AS.square
-        << Fact(type="PossibleMove", row=MATCH.row, col=MATCH.col,
-                player=MATCH.player),
-    )
-    def make_move(self, row, col, player):
-        return Sai(None, "move", {"row": row, "col": col, "player": player})
+    # @Rule(
+    #     Fact(type="CurrentPlayer", player=MATCH.player),
+    #     AS.square << Fact(type="Square", row=MATCH.row, col=MATCH.col,
+    #                       player=""),
+    #     NOT(Fact(type="PossibleMove", row=MATCH.row, col=MATCH.col,
+    #              player=MATCH.player))
+    # )
+    # def suggest_move(self, row, col, player):
+    #     self.declare(Fact(type="PossibleMove", row=row, col=col,
+    #                       player=player))
 
     # @Rule(
-    #        Fact(type='CurrentPlayer', player=MATCH.player),
-    #        AS.square << Fact(type='Square', row=MATCH.row, col=MATCH.col,
-    #                          player=""))
+    #     Fact(type="CurrentPlayer", player=MATCH.player),
+    #     AS.square
+    #     << Fact(type="PossibleMove", row=MATCH.row, col=MATCH.col,
+    #             player=MATCH.player),
+    # )
     # def make_move(self, row, col, player):
-    #    return Sai(None, 'move', {'row': row, 'col': col, 'player': player})
+    #     return Sai(None, "move", {"row": row, "col": col, "player": player})
+
+    @Rule(
+           Fact(type='CurrentPlayer', player=MATCH.player),
+           Fact(type='Square', row=MATCH.row, col=MATCH.col, player="")
+    )
+    def make_move(self, row, col, player):
+        return Sai(None, 'move', {'row': row, 'col': col, 'player': player})
 
 
 class ttt_oracle:

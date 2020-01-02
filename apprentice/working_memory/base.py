@@ -33,7 +33,8 @@ class WorkingMemory(metaclass=ABCMeta):
         """
         for k in diff:
             if k is jsondiff.symbols.replace:
-                for k2 in self.lookup:
+                keys = [k2 for k2 in self.lookup]
+                for k2 in keys:
                     self.remove_fact(k2)
                 for k2, v in diff[k].items():
                     self.add_fact(k2, v)

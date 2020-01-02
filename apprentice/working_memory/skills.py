@@ -1,4 +1,4 @@
-from experta import Rule, Fact, W, KnowledgeEngine, MATCH, TEST, AS
+from experta import Rule, Fact, W, KnowledgeEngine, MATCH, TEST, AS, NOT
 from random import randint
 
 from apprentice.working_memory.representation import Sai
@@ -23,6 +23,15 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='done',
                    action='ButtonPressed',
                    input={'value': -1})
+        # input={'value': '-1'})
+
+    @Rule(
+        Fact(id=MATCH.field_id, contentEditable=True, value=MATCH.value)
+    )
+    def check(self, field_id):
+        return Sai(selection=field_id,
+                   action='UpdateTextArea',
+                   input={'value': "x"})
 
     @Rule(
         Fact(id=W(), contentEditable=False, value=MATCH.value),
@@ -30,6 +39,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(id=MATCH.field_id, contentEditable=True, value=W()))
     def update_field(self, field_id, value):
         return Sai(selection=field_id,
+                   # action='UpdateTextField',
                    action='UpdateTextArea',
                    input={'value': value})
 
@@ -42,7 +52,8 @@ class FractionsEngine(KnowledgeEngine):
                          value=MATCH.value2),
         TEST(lambda id1, id2: id1 <= id2),
         TEST(lambda fact2: 'depth' not in fact2 or fact2['depth'] < max_depth),
-        TEST(lambda value2: is_numeric_str(value2))
+        TEST(lambda value2: is_numeric_str(value2)),
+        NOT(Fact(operator='add', ele1=MATCH.id1, ele2=MATCH.id2))
     )
     def add(self, id1, value1, fact1, id2, value2, fact2):
         new_id = 'add(%s, %s)' % (id1, id2)
@@ -57,6 +68,9 @@ class FractionsEngine(KnowledgeEngine):
         new_depth = 1 + max(depth1, depth2)
 
         self.declare(Fact(id=new_id,
+                          operator='add',
+                          ele1=id1,
+                          ele2=id2,
                           contentEditable=False,
                           value=new_value,
                           depth=new_depth))
@@ -70,12 +84,13 @@ class FractionsEngine(KnowledgeEngine):
                          value=MATCH.value2),
         TEST(lambda id1, id2: id1 <= id2),
         TEST(lambda fact2: 'depth' not in fact2 or fact2['depth'] < max_depth),
-        TEST(lambda value2: is_numeric_str(value2))
+        TEST(lambda value2: is_numeric_str(value2)),
+        NOT(Fact(operator='multiply', ele1=MATCH.id1, ele2=MATCH.id2))
     )
-    def subtract(self, id1, value1, fact1, id2, value2, fact2):
-        new_id = 'subtract(%s, %s)' % (id1, id2)
+    def multiply(self, id1, value1, fact1, id2, value2, fact2):
+        new_id = 'multiply(%s, %s)' % (id1, id2)
 
-        new_value = float(value1) - float(value2)
+        new_value = float(value1) * float(value2)
         if new_value.is_integer():
             new_value = int(new_value)
         new_value = str(new_value)
@@ -85,45 +100,12 @@ class FractionsEngine(KnowledgeEngine):
         new_depth = 1 + max(depth1, depth2)
 
         self.declare(Fact(id=new_id,
+                          operator='multiply',
+                          ele1=id1,
+                          ele2=id2,
                           contentEditable=False,
                           value=new_value,
                           depth=new_depth))
-
-    # @Rule(
-    #     Fact(id=MATCH.id1, contentEditable=False, value=MATCH.value1),
-    #     TEST(lambda value1: is_numeric_str(value1)),
-    #     Fact(id=MATCH.id2, contentEditable=False, value=MATCH.value2),
-    #     TEST(lambda value2: is_numeric_str(value2))
-    # )
-    # def multiply(self, id1, value1, id2, value2):
-    #     new_value = float(value1) * float(value2)
-    #     if new_value.is_integer():
-    #         new_value = int(new_value)
-    #     new_value = str(new_value)
-
-    #     new_id = 'multiply(%s, %s)' % (id1, id2)
-
-    #     self.declare(Fact(id=new_id,
-    #                       contentEditable=False,
-    #                       value=new_value))
-
-    # @Rule(
-    #     Fact(id=MATCH.id1, contentEditable=False, value=MATCH.value1),
-    #     TEST(lambda value1: is_numeric_str(value1)),
-    #     Fact(id=MATCH.id2, contentEditable=False, value=MATCH.value2),
-    #     TEST(lambda value2: is_numeric_str(value2))
-    # )
-    # def divide(self, id1, value1, id2, value2):
-    #     new_value = float(value1) / float(value2)
-    #     if new_value.is_integer():
-    #         new_value = int(new_value)
-    #     new_value = str(new_value)
-
-    #     new_id = 'divide(%s, %s)' % (id1, id2)
-
-    #     self.declare(Fact(id=new_id,
-    #                       contentEditable=False,
-    #                       value=new_value))
 
 
 class RandomFracEngine(KnowledgeEngine):

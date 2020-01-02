@@ -6,6 +6,7 @@ django-codemirror2==0.2
 django-cors-headers==2.4.0
 django-flashpolicies==1.10
 django-python-code-field==1.0.0
+-e git+https://github.com/eharpste/django-picklefield.git#egg=django-picklefield
 multiprocess==0.70.6.1
 munkres==1.0.12
 numpy>=1.16.0

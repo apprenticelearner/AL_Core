@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Collection, Callable, Any
 
 from experta.conditionalelement import ConditionalElement as Condition
+from experta import Fact
 
 
 # class Condition(tuple):
@@ -51,13 +52,31 @@ class Activation:
 
     #     return hash((self.skill, frozenset(c)))
 
-    def as_hash_repr(self):
-        from experta import Fact
+    def get_rule_name(self):
+        return self.skill.function_.__name__
 
+    def get_rule_bindings(self):
+        bindings = {}
+
+        facts = sorted([(k, v) for k, v in self.context.items() if
+                        isinstance(v, Fact)])
+        facts = [v for k, v in facts]
+
+        for i, v in enumerate(facts):
+            for fk, fv in v.items():
+                if Fact.is_special(fk):
+                    continue
+                bindings['fact-%i: %s' % (i, fk)] = fv
+
+        # print(bindings)
+        return bindings
+
+    def as_hash_repr(self):
         c = {}
         for k, v in self.context.items():
             if isinstance(v, Fact):
-                c[k] = frozenset([(fk,fv) for fk, fv in v.items() if not Fact.is_special(fk)])
+                c[k] = frozenset([(fk, fv) for fk, fv in v.items() if not
+                                  Fact.is_special(fk)])
             else:
                 c[k] = v
 

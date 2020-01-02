@@ -2,17 +2,18 @@ from apprentice.agents import SoarTechAgent
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.learners.when_learners import q_learner
 from ttt_simple import ttt_engine, ttt_oracle
-from apprentice.learners.when_learners import q_learner
 
 if __name__ == "__main__":
     # with experta knowledge engine
     wm1 = ExpertaWorkingMemory(ke=ttt_engine())
     a1 = SoarTechAgent(
-        # wm=wm1, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.0)
-        wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0.0)
+        wm=wm1, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.0),
+        feature_set=[], function_set=[],
+        # wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0.0),
+        negative_actions=True, action_penalty=0.0, epsilon=0.3
     )
 
-    max_training_games = 500
+    max_training_games = 100
     consecutive_wins = 0
     prev_win_board = None
     i = 0
@@ -45,6 +46,7 @@ if __name__ == "__main__":
                     consecutive_wins = 0
 
             a1.train(state, next_state, sai, reward, "", [""])
+        print("Final reward = %0.1f" % reward)
 
     test_games = 20
     a1.epsilon = 0

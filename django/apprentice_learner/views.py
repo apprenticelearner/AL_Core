@@ -29,7 +29,8 @@ from apprentice.agents.ModularAgent import ModularAgent
 from apprentice.agents.RLAgent import RLAgent
 from apprentice.planners.rulesets import custom_feature_set
 from apprentice.planners.rulesets import custom_function_set
-import apprentice.custom_operators
+# import apprentice.custom_operators
+from apprentice.working_memory.representation import Sai
 
 # import cProfile
 # pr = cProfile.Profile()
@@ -37,7 +38,7 @@ import apprentice.custom_operators
 
 active_agent = None
 active_agent_id = None
-dont_save = False
+dont_save = True
 
 
 AGENTS = {
@@ -219,6 +220,11 @@ def request(http_request, agent_id):
         # pr.disable()
         # pr.dump_stats("al.cprof")
 
+        if isinstance(response, Sai):
+            return HttpResponse(json.dumps({'selection': response.selection,
+                                            'action': response.action,
+                                            'inputs': response.input}))
+
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
@@ -320,11 +326,11 @@ def train(http_request, agent_id):
         agent = get_agent_by_id(agent_id)
         agent.inc_train()
 
-        sai = {
-            "selection": data["selection"],
-            "action": data["action"],
-            "input": data["inputs"],
-        }
+        sai = Sai(
+            selection=data["selection"],
+            action=data["action"],
+            input=data["inputs"],
+        )
 
         agent.instance.train(
             data["state"],
@@ -334,6 +340,7 @@ def train(http_request, agent_id):
             data["skill_label"],
             data["foci_of_attention"],
         )
+
         global dont_save
         if not dont_save:
             agent.save()

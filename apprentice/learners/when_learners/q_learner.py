@@ -25,10 +25,17 @@ class QLearner(WhenLearner):
     def evaluate(self, state: dict, action: Activation) -> float:
         if state is None:
             return 0
-        a = action.as_hash_repr()
-        if a not in self.Q:
+        name = action.get_rule_name()
+        bindings = action.get_rule_bindings()
+        if name not in self.Q:
             return self.q_init
-        return self.Q[a].get_q(state)
+        state = deepcopy(state)
+        for a, v in bindings.items():
+            if isinstance(v, bool):
+                state[('ACTION_FEATURE', a)] = str(v)
+            else:
+                state[('ACTION_FEATURE', a)] = v
+        return self.Q[name].get_q(state)
 
     def update(
         self,
@@ -44,13 +51,23 @@ class QLearner(WhenLearner):
             q_next_est = max((self.evaluate(next_state, a)
                               for a in next_actions))
 
-        learned_reward = reward + self.discount * q_next_est
-        a = action.as_hash_repr()
-        if a not in self.Q:
-            self.Q[a] = self.func(q_init=self.q_init,
-                                  learning_rate=self.learning_rate)
+        # print('q_next_est', q_next_est)
+        # print('updating %s' % action.get_rule_name(),
+        #       action.get_rule_bindings())
 
-        self.Q[a].update(state, learned_reward)
+        learned_reward = reward + self.discount * q_next_est
+        name = action.get_rule_name()
+        bindings = action.get_rule_bindings()
+        state = deepcopy(state)
+        for a, v in bindings.items():
+            if isinstance(v, bool):
+                state[('ACTION_FEATURE', a)] = str(v)
+            else:
+                state[('ACTION_FEATURE', a)] = v
+        if name not in self.Q:
+            self.Q[name] = self.func(q_init=self.q_init,
+                                     learning_rate=self.learning_rate)
+        self.Q[name].update(state, learned_reward)
 
 
 class Tabular:
@@ -80,7 +97,7 @@ class Tabular:
 class LinearFunc:
     def __init__(self, q_init=0, learning_rate=0):
         self.clf = LinearRegression()
-        self.dv = DictVectorizer()
+        self.dv = DictVectorizer(sort=False)
         self.X = []
         self.Y = []
         self.q_init = q_init
@@ -91,6 +108,7 @@ class LinearFunc:
         # print()
         self.X.append(state)
         self.Y.append(learned_reward)
+        # print('training on', self.Y)
         self.clf.fit(self.dv.fit_transform(self.X), self.Y)
 
     def get_q(self, state):

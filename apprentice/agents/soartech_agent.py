@@ -1,16 +1,18 @@
 import random
 from abc import ABCMeta
-from typing import Any
+# from typing import Any
 from typing import Collection
 from typing import Dict
+from copy import deepcopy
 
 from apprentice.agents.base import BaseAgent
 from apprentice.learners import WhenLearner
 from apprentice.learners.when_learners.q_learner import QLearner
+from apprentice.learners.when_learners.q_learner import LinearFunc
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
-from apprentice.working_memory.skills import RandomFracEngine
+from apprentice.working_memory.skills import FractionsEngine
 
 
 class SoarTechAgent(BaseAgent):
@@ -23,9 +25,11 @@ class SoarTechAgent(BaseAgent):
         feature_set,
         function_set,
         prior_skills: Collection[Skill] = None,
-        wm: WorkingMemory = ExpertaWorkingMemory(ke=RandomFracEngine()),
-        when: WhenLearner = QLearner,
-        epsilon: float = 0.05
+        wm: WorkingMemory = ExpertaWorkingMemory(ke=FractionsEngine()),
+        when: WhenLearner = QLearner(func=LinearFunc),
+        epsilon: float = 0.05,
+        action_penalty: float = -0.05,
+        negative_actions: bool = False
     ):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
@@ -47,6 +51,14 @@ class SoarTechAgent(BaseAgent):
             self.when_learning = None
 
         self.epsilon = epsilon
+        self.action_penalty = action_penalty
+        self.negative_actions = negative_actions
+
+    def __deepcopy__(self, memo):
+        print()
+        print("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
+        print()
+        return None
 
     def select_activation(
         self, candidate_activations: Collection[Activation]
@@ -68,23 +80,27 @@ class SoarTechAgent(BaseAgent):
         # just passing in the working memory facts to each skill, where the
         # facts is just the current state representation.
         if self.when_learning is None:
-            return random.choice(candidate_activations)
+            return random.choice(candidate_activations), 0
 
         if random.random() < self.epsilon:
-            return random.choice(candidate_activations)
+            return random.choice(candidate_activations), 0
 
         activations = [
             (
-                self.when_learning.evaluate(self.working_memory.state,
-                                            activation),
+                self.when_learning.evaluate(state=self.working_memory.state,
+                                            action=activation),
                 random.random(),
                 activation,
             )
             for activation in candidate_activations
         ]
         activations.sort(reverse=True)
+
+        # print('q values')
+        # from pprint import pprint
+        # pprint([(s, a.get_rule_name()) for s, _, a in activations])
         expected_reward, _, best_activation = activations[0]
-        return best_activation
+        return best_activation, expected_reward
 
     def request_diff(self, state_diff: Dict):
         """
@@ -108,8 +124,12 @@ class SoarTechAgent(BaseAgent):
         while True:
             if len(candidate_activations) == 0:
                 return {}
-            best_activation = self.select_activation(candidate_activations)
+            best_activation, expected_reward = self.select_activation(
+                candidate_activations)
             state = self.working_memory.state
+
+            if not self.negative_actions and expected_reward < 0.0:
+                return {}
 
             output = self.working_memory.activation_factory.to_ex_activation(
                 best_activation
@@ -125,7 +145,7 @@ class SoarTechAgent(BaseAgent):
 
             if self.when_learning:
                 self.when_learning.update(
-                    state, best_activation, 0, next_state,
+                    state, best_activation, self.action_penalty, next_state,
                     candidate_activations
                 )
 
@@ -143,6 +163,8 @@ class SoarTechAgent(BaseAgent):
         representing the selection, a string representing the action, list of
         strings representing the inputs, and a boolean correctness.
         """
+        print(sai)
+        # print(state_diff)
         self.working_memory.update(state_diff)
 
         # This should do essentially what `engine.run` is doing from
@@ -154,19 +176,27 @@ class SoarTechAgent(BaseAgent):
             activation for activation in self.working_memory.activations
         ]
 
-        while True: 
+        while True:
+
+            # from pprint import pprint
+            # pprint(self.working_memory.state)
+
             # outer loop checks if the sai is the one we're trying to explain
             while True:
-                # inner loop is essentially request, just keep expanding until you get sais
+                # inner loop is essentially request, just keep expanding until
+                # you get sais
                 # print("LEN CANDIDATES", len(candidate_activations))
 
                 if len(candidate_activations) == 0:
+                    # TODO add a rule that generates the "input" into working
+                    # memory, so it can be explained via recall and update.
                     print("#####################")
                     print("FAILURE TO EXPLAIN!!!")
                     print("#####################")
                     return {}
 
-                best_activation = self.select_activation(candidate_activations)
+                best_activation, expected_reward = self.select_activation(
+                    candidate_activations)
                 state = self.working_memory.state
 
                 output = self.working_memory.activation_factory.to_ex_activation(
@@ -184,14 +214,19 @@ class SoarTechAgent(BaseAgent):
 
                 if self.when_learning:
                     self.when_learning.update(
-                        state, best_activation, 0, next_state,
-                        candidate_activations
+                        state, best_activation, self.action_penalty,
+                        next_state, candidate_activations
                     )
 
+            print('trying', output, 'vs.', sai)
             if output != sai:
+                print('failed!')
+                print()
                 candidate_activations = [act for act in candidate_activations
                                          if act != best_activation]
                 continue
+            print('success!')
+            print()
 
             if next_state_diff is None:
                 next_state = None
@@ -206,7 +241,8 @@ class SoarTechAgent(BaseAgent):
             if self.when_learning:
                 self.when_learning.update(
                     state, best_activation,
-                    0 if output is None else reward,
+                    self.action_penalty if output is None
+                    else self.action_penalty + reward,
                     next_state,
                     candidate_activations
                 )

@@ -41,7 +41,11 @@ class ExpertaWorkingMemory(WorkingMemory):
         for fact in self.ke.facts.values():
             f = {}
             for k, v in fact.as_dict().items():
-                if not ex.Fact.is_special(k):
+                if ex.Fact.is_special(k):
+                    continue
+                if isinstance(v, bool):
+                    f[k] = str(v)
+                else:
                     f[k] = v
             factlist.append(f)
 
@@ -49,9 +53,17 @@ class ExpertaWorkingMemory(WorkingMemory):
         # pprint(factlist)
 
         state = {}
+        # for fact in factlist:
+        #     state[tuple(sorted("%s=%s" % (k, v)
+        #                        for k, v in fact.items()))] = True
+
         for fact in factlist:
-            state[tuple(sorted("%s=%s" % (k, v)
-                               for k, v in fact.items()))] = True
+            if 'id' not in fact:
+                continue
+            for k, v in fact.items():
+                if k == 'id':
+                    continue
+                state[(k, fact['id'])] = v
 
         # for i, fact in enumerate(sorted(factlist, key=lambda d:
         # sorted(d.items()))):
@@ -70,7 +82,7 @@ class ExpertaWorkingMemory(WorkingMemory):
             return False
         f = self.lookup[key]
         self.ke.retract(f)
-        return True
+        del self.lookup[key]
 
     def update_fact(self, key: object, diff: dict) -> None:
         old_fact = self.lookup[key]
