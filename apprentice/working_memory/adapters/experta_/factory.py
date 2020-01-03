@@ -119,3 +119,4 @@ class ExpertaActivationFactory(Factory):
 
     def fire(self):
         self.base.fire()
+
