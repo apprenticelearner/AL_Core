@@ -1,9 +1,14 @@
+import jsondiff
 import experta as ex
+
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill
 
-from .factory import ExpertaSkillFactory, ExpertaConditionFactory, \
-    ExpertaActivationFactory
+from .factory import (
+    ExpertaSkillFactory,
+    ExpertaConditionFactory,
+    ExpertaActivationFactory,
+)
 
 
 class ExpertaWorkingMemory(WorkingMemory):
@@ -13,7 +18,6 @@ class ExpertaWorkingMemory(WorkingMemory):
         self.ke = ke
         if reset:
             self.ke.reset()
-        #self.lookup = {}
         self.skill_factory = ExpertaSkillFactory(ke)
         self.activation_factory = ExpertaActivationFactory(ke)
         self.condition_factory = ExpertaConditionFactory()
@@ -31,46 +35,61 @@ class ExpertaWorkingMemory(WorkingMemory):
 
         # f in self.ke.facts.values()]
 
-    def get_hashable_facts(self):
-        from experta import Fact
-        for fact in self.facts.values():
-            yield frozenset((k,v) for k,v in fact.items() if not Fact.is_special(k))
-
     @property
     def state(self):
-        from experta import Fact
+        factlist = []
+        for fact in self.ke.facts.values():
+            f = {}
+            for k, v in fact.as_dict().items():
+                if ex.Fact.is_special(k):
+                    continue
+                if isinstance(v, bool):
+                    f[k] = str(v)
+                else:
+                    f[k] = v
+            factlist.append(f)
 
-        #return frozenset(self.get_hashable_facts())
+        # from pprint import pprint
+        # pprint(factlist)
 
         state = {}
-        for i, fact in enumerate(self.ke.facts.values()):
-            for feature_key, feature_value in fact.as_dict().items():
-                if Fact.is_special(feature_key):
+        # for fact in factlist:
+        #     state[tuple(sorted("%s=%s" % (k, v)
+        #                        for k, v in fact.items()))] = True
+
+        for fact in factlist:
+            if 'id' not in fact:
+                continue
+            for k, v in fact.items():
+                if k == 'id':
                     continue
-                state['{0}_{1}'.format(str(feature_key), str(i))] = feature_value
-        return frozenset(state)
+                state[(k, fact['id'])] = v
 
-    def add_fact(self, fact: dict):
+        # for i, fact in enumerate(sorted(factlist, key=lambda d:
+        # sorted(d.items()))):
+        #     for k, v in fact.items():
+        #         state["{0}_{1}".format(str(k), str(i))] = v
+
+        return state
+
+    def add_fact(self, key: object, fact: dict) -> None:
         f = ex.Fact(**fact)
-        #key = hash(f)
         self.ke.declare(f)
-        # todo: integrate lookup into experta factlist
-        #self.lookup[key] = f
+        self.lookup[key] = f
 
-    def remove_fact(self, fact: dict = None, key: str = None):
-        #if key is not None:
-            #fact = self.lookup[key]
-
-        f = ex.Fact(**fact)
-
+    def remove_fact(self, key: object) -> bool:
+        if key not in self.lookup:
+            return False
+        f = self.lookup[key]
         self.ke.retract(f)
-        #del self.lookup[key]
+        del self.lookup[key]
 
-    def update_fact(self, fact: dict):
-        raise NotImplementedError
-        # todo: what is this for
-        f = ex.Fact(**fact)
-        self.ke.modify()
+    def update_fact(self, key: object, diff: dict) -> None:
+        old_fact = self.lookup[key]
+        new_fact = apply_diff_to_fact(old_fact, diff)
+        self.ke.retract(old_fact)
+        self.ke.declare(new_fact)
+        self.lookup[key] = new_fact
 
     @property
     def skills(self):
@@ -94,8 +113,26 @@ class ExpertaWorkingMemory(WorkingMemory):
     @property
     def activations(self):
         for a in self.ke.agenda.activations:
-        #for a in self.ke.get_activations()[0]:
+            # for a in self.ke.get_activations()[0]:
             yield self.activation_factory.from_ex_activation(a)
 
     def run(self):
         self.ke.run()
+
+
+def apply_diff_to_fact(fact: ex.Fact, diff: dict) -> ex.Fact:
+    if jsondiff.symbols.replace in diff:
+        return ex.Fact(**diff[jsondiff.symbols.replace])
+
+    new_fact = {}
+    for k in fact:
+        if (jsondiff.symbols.delete in diff and
+                k in diff[jsondiff.symbols.delete]):
+            continue
+        new_fact[k] = fact[k]
+
+    for k in diff:
+        if k is not jsondiff.symbols.delete:
+            new_fact[k] = diff[k]
+
+    return ex.Fact(**new_fact)
