@@ -1,11 +1,12 @@
 import ast
 import hashlib
-import inspect
+#import inspect
 import re
 import types
 
 from experta import Fact
 
+import apprentice.explain.inspect_patch as inspect
 
 def rename_function_unique(func, suffix, reverse=False):
     s = inspect.getsource(func)
@@ -43,24 +44,66 @@ def rename_rule_unique(rule):
     return rule
 
 
+def parse_lambda(l):
+    """ Attempts to parse lambda ast from source.
+    Might break under certain conditions, e.g. if there are multiple
+    lambdas defined in the same line/lines of source
+
+    returns an ast assigning the lambda to the identifier "foo42",
+    so the lambda can be retrieved from the module it is executed in
+    """
+    if hasattr(l, '_ast'):
+        return l._ast
+
+    s = inspect.getsource(l)
+    s2 = s[s.find('lambda '):]
+    oparens = 0
+    for i, c in enumerate(s2):
+        if c == '(':
+            oparens += 1
+        if c == ')':
+            if oparens == 0:
+                s2 = s2[:i]
+                break
+            else:
+                oparens -= 1
+
+    s2 = "foo42 = " + s2
+    return ast.parse(s2)
+
+
+def rename_lambda(l, mapping):
+    """ takes a lambda, returns a lambda """
+    tree = parse_lambda(l)
+    tree2 = rename(mapping, tree)
+    return get_func_from_ast(tree2)
+
+
 def get_func_from_ast(tree):
-    """ return a function object from an ast """
+    """ return functions/lambas from a module-level ast, i.e. function
+    definition or lambda-assignments"""
     compiled = compile(tree, '', 'exec')
-    module = types.ModuleType(
-        "testmodule")  # uuid? Creating many modules an issue?
+    module = types.ModuleType("testmodule")
     exec(compiled, module.__dict__)
-    # assumes only one function in the module. Not 100% sure if this is
-    # portable
-    return \
-        [x for x in module.__dict__.values() if
-         isinstance(x, types.FunctionType)][
-            0]
+
+    funcs = [x for x in module.__dict__.values() if
+             isinstance(x, types.FunctionType)]
+
+    if len(funcs) == 0:
+        return None
+
+    if len(funcs) == 1:
+        ret = funcs[0]
+        ret._ast = tree
+
+    return ret
 
 
 def parse(*funcs, drop_declare=True):
     """ *args: list of functions
         returns: list of asts
     """
+
     if len(funcs) > 1:
         return list(filter(lambda x: x is not None, [parse(f) for f in funcs]))
 
@@ -69,7 +112,7 @@ def parse(*funcs, drop_declare=True):
     # drop comments
     source = [s.split('#')[0] for s in source]
 
-    #drop decorators
+    # drop decorators
     def_line = -1
     for i, s in enumerate(source):
         if 'def' in s and 'self' in s:
@@ -92,9 +135,10 @@ def parse(*funcs, drop_declare=True):
     if len(source) == 1:
         return None
 
-    #unindent source
+    # unindent source
     extra_whitespace = source[0].find('def')
-    source = [s[extra_whitespace:] for s in source]
+    if extra_whitespace > 0:
+        source = [s[extra_whitespace:] for s in source]
 
     return ast.parse('\n'.join(source))
 
@@ -109,6 +153,10 @@ def rename(mapping, *asts):
             if hasattr(node, 'arg'):
                 while node.arg in mapping:
                     node.arg = mapping[node.arg]
+
+    if len(asts) == 1:
+        return asts[0]
+
     return asts
 
 
