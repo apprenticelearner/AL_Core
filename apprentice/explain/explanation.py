@@ -1,23 +1,26 @@
-import inspect
-
-from experta import Rule, W
+import apprentice.explain.inspect_patch as inspect
+from experta import Rule, W, TEST
 from experta.unification import unify
 
-from .util import join, rename, parse
+from .util import join, rename, parse, rename_lambda, dump
 
 
 class Explanation:
     def __init__(self, fact):
         self.rules = []
         self.conditions = []
+        self.tests = []  # lambdas
         self.general = self.explain_fact(fact)
-
-        self.rules = self.rules[::-1]  # order rules logically
         self.conditions = [f.copy(sub=self.general) for f in self.conditions]
+        self.tests = [TEST(rename_lambda(t[0], self.general)) for t in self.tests]
+        self.rules = self.rules[::-1]  # order rules logically
         self.new_rule = self.compose()
 
     def compose(self):
         asts = parse(*self.rules)
+
+        if len(asts) == 0:
+            return False  # none of the functions had an effect
 
         # extract variable names from W() objects
         mapping = {k.__bind__: v.__bind__ for k, v in
@@ -35,7 +38,8 @@ class Explanation:
         new_name = '_'.join([r._wrapped.__name__ for r in self.rules])
         func = join(new_name, ['self'] + list(set(sig)), *asts)
 
-        # construct new function
+        # construct new function with
+        self.conditions.extend(self.tests)
         r = Rule(*self.conditions)
 
         # programmatically decorate func with Rule r
@@ -85,10 +89,18 @@ class Explanation:
                 # antecedent fact is a terminal, so the condition of this
                 # fact is the boundary condition
                 else:
-                    self.conditions.extend(fact.__source__.rule._args)
+                    for conj in fact.__source__.rule._args:
+                        if type(conj) is not TEST:
+                            self.conditions.append(conj)
+                    # self.conditions.extend(fact.__source__.rule._args)
 
             # LHS of current rule, i.e. RHS of explanation tuple
+
             for conj in fact.__source__.rule._args:
+                if type(conj) is TEST:
+                    self.tests.append(conj)
+                    continue
+
                 e2 = tuple(self.get_condition_binding(conj).values())
 
                 for e1 in e1s:
@@ -110,3 +122,5 @@ class Explanation:
                             break
 
         return general
+
+
