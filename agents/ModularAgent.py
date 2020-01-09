@@ -11,7 +11,7 @@ from agents.BaseAgent import BaseAgent
 from learners.WhenLearner import get_when_learner
 from learners.WhereLearner import get_where_learner
 from learners.WhichLearner import get_which_learner
-from planners.base_planner import get_planner
+from planners.base_planner import get_planner_class
 from planners.VectorizedPlanner import VectorizedPlanner
 from types import MethodType
 
@@ -249,9 +249,13 @@ class ModularAgent(BaseAgent):
         self.when_learner = get_when_learner(when_learner)
         self.which_learner = get_which_learner(heuristic_learner,
                                                how_cull_rule)
-        self.planner = get_planner(planner, search_depth=search_depth,
-                                   function_set=function_set,
-                                   feature_set=feature_set)
+
+        planner_class = get_planner_class(planner)
+        self.feature_set = planner_class.resolve_operators(feature_set)
+        self.function_set = planner_class.resolve_operators(function_set)
+        self.planner = planner_class(search_depth=search_depth,
+                                   function_set=self.function_set,
+                                   feature_set=self.feature_set)
 
         sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]
         self.state_variablizer = MethodType(sv, self)

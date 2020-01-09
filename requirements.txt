@@ -1,6 +1,7 @@
+colorama==0.4.1
 concept-formation==0.3.4
 dill==0.2.8.2
-Django==2.1.2
+Django==2.1.11
 django-codemirror2==0.2
 django-cors-headers==2.4.0
 django-flashpolicies==1.10
@@ -8,16 +9,15 @@ django-flashpolicies==1.10
 django-python-code-field==1.0.0
 multiprocess==0.70.6.1
 munkres==1.0.12
-numpy==1.15.2
+numpy>=1.16.0
 ordered-set==3.0.2
 prettytable==0.7.2
 py-search==2.0.1
 pyreadline==2.1
 pytz==2018.5
-scikit-learn==0.20.0
+scikit-learn==0.21.2
 scipy==1.1.0
 six==1.11.0
-sklearn==0.0
 tabulate==0.8.2
 verlib==0.1
 torch>=1.0.0

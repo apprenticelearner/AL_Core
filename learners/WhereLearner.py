@@ -1181,7 +1181,11 @@ def flatten_n_slice(lst):
     out = np.array([x for x in itertools.chain(*flat)])
     return out,slices
 
-import torch
+try:
+    import torch
+    from torch.nn import functional as F
+except:
+    pass
 def mask_select(x, m):
     return x[m.nonzero().view(-1)]
 

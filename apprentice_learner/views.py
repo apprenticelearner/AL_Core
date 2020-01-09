@@ -27,6 +27,7 @@ from agents.ModularAgent import ModularAgent
 from agents.RLAgent import RLAgent
 from planners.rulesets import custom_feature_set
 from planners.rulesets import custom_function_set
+import custom_operators
 
 # import cProfile
 # pr = cProfile.Profile()
@@ -116,11 +117,24 @@ def create(http_request):
             errs.append(str.format("project: {} does not exist", project_id))
             project = None
 
-    feature_set, errs = parse_operator_set(data, 'feature_set', errs)
-    function_set, errs = parse_operator_set(data, 'function_set', errs)
+    if(data.get('no_ops_parse',True)):
+        if("feature_set" in data):
+            feature_set = data["feature_set"]
+        else:
+            errs.append("Request body missing 'feature_set'. " + \
+             "Add it or set {'no_ops_parse':False} to draw from the database. ")
+        if("function_set" in data):
+            function_set = data["function_set"]
+        else:
+            errs.append("Request body missing 'function_set'. " + \
+             "Add it or set {'no_ops_parse':False} to draw from the database. ")
+
+    else:
+        feature_set, errs = parse_operator_set(data, 'feature_set', errs)
+        function_set, errs = parse_operator_set(data, 'function_set', errs)
 
     if len(errs) > 0:
-        print('errors: {}'.format(','.join(errs)))
+        print('errors:\n {}'.format('\n'.join(errs)))
         return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
 
     if 'args' not in data:
@@ -161,10 +175,10 @@ def create(http_request):
         active_agent = None
         active_agent_id = None
         dont_save = False
-    if(str(data.get("stay_active",False)).lower() == 'true'):
+    if(str(data.get("stay_active",True)).lower() == 'true'):
         active_agent = agent
         active_agent_id = str(agent.id)
-        dont_save = str(data.get("dont_save", False)).lower() == "true"
+        dont_save = str(data.get("dont_save", True)).lower() == "true"
 
     return HttpResponse(json.dumps(ret_data))
 
@@ -273,7 +287,7 @@ def train(http_request, agent_id):
             errs.append("request body missing 'state'")
         
         explicit = False
-        if "explanations" in data:
+        if "skill_applications" in data or "explanations" in data:
             if 'rewards' not in data:
                 errs.append("request body missing 'rewards'")
             explicit = True
@@ -305,7 +319,8 @@ def train(http_request, agent_id):
         agent.inc_train()
 
         if(explicit):
-            response = agent.instance.train_explicit(data['state'],data['explanations'],
+            sk_apps = data.get('skill_applications', data['explanations'])
+            response = agent.instance.train_explicit(data['state'],sk_apps,
                                                      data['rewards'],**data.get('kwargs',{}))
         else:
             response = agent.instance.train(data['state'], data['selection'], data['action'],
