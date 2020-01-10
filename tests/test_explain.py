@@ -17,7 +17,6 @@ def test_explain():
     new_wm.add_rule(r)
 
     # test that the new rule fires correctly
-    new_wm.ke.reset()
     new_wm.ke.run(10)
     assert new_wm.ke.fired == cf.fired
 
