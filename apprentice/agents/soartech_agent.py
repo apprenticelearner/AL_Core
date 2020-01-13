@@ -12,7 +12,8 @@ from apprentice.learners.when_learners.q_learner import LinearFunc
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
-from apprentice.working_memory.skills import FractionsEngine
+from apprentice.working_memory.skills import AdditionEngine as Engine
+from apprentice.log import log
 
 
 class SoarTechAgent(BaseAgent):
@@ -25,7 +26,7 @@ class SoarTechAgent(BaseAgent):
         feature_set,
         function_set,
         prior_skills: Collection[Skill] = None,
-        wm: WorkingMemory = ExpertaWorkingMemory(ke=FractionsEngine()),
+        wm: WorkingMemory = ExpertaWorkingMemory(ke=Engine()),
         when: WhenLearner = QLearner(func=LinearFunc),
         epsilon: float = 0.05,
         action_penalty: float = -0.05,
@@ -55,9 +56,7 @@ class SoarTechAgent(BaseAgent):
         self.negative_actions = negative_actions
 
     def __deepcopy__(self, memo):
-        print()
-        print("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
-        print()
+        log.debug("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
         return None
 
     def select_activation(
@@ -190,9 +189,9 @@ class SoarTechAgent(BaseAgent):
                 if len(candidate_activations) == 0:
                     # TODO add a rule that generates the "input" into working
                     # memory, so it can be explained via recall and update.
-                    print("#####################")
-                    print("FAILURE TO EXPLAIN!!!")
-                    print("#####################")
+                    log.debug("#####################")
+                    log.debug("FAILURE TO EXPLAIN!!!")
+                    log.debug("#####################")
                     return {}
 
                 best_activation, expected_reward = self.select_activation(
@@ -218,15 +217,16 @@ class SoarTechAgent(BaseAgent):
                         next_state, candidate_activations
                     )
 
-            print('trying', output, 'vs.', sai)
+            log.debug('trying', output, 'vs.', sai)
             if output != sai:
-                print('failed!')
-                print()
+                log.debug('failed!')
+
                 candidate_activations = [act for act in candidate_activations
                                          if act != best_activation]
                 continue
-            print('success!')
-            print()
+
+
+            log.debug('success explaining sai')
 
             if next_state_diff is None:
                 next_state = None

@@ -2,19 +2,28 @@ import apprentice.explain.inspect_patch as inspect
 from experta import Rule, W, TEST
 from experta.unification import unify
 
-from .util import join, rename, parse, rename_lambda, dump
+from .util import join, rename, parse, rename_lambda
 
 
 class Explanation:
-    def __init__(self, fact):
+    def __init__(self, fact, abstract=False):
+        if abstract:
+            raise NotImplementedError
+
         self.rules = []
         self.conditions = []
         self.tests = []  # lambdas
         self.general = self.explain_fact(fact)
+
+        # extract variable names from W() objects
+        self.mapping = {k.__bind__: v.__bind__ for k, v in
+                        self.general.items()}
         self.conditions = [f.copy(sub=self.general) for f in self.conditions]
-        self.tests = [TEST(rename_lambda(t[0], self.general)) for t in self.tests]
+        self.tests = [TEST(rename_lambda(t[0], self.mapping)) for t in
+                      self.tests]
         self.rules = self.rules[::-1]  # order rules logically
         self.new_rule = self.compose()
+
 
     def compose(self):
         asts = parse(*self.rules)
@@ -22,10 +31,7 @@ class Explanation:
         if len(asts) == 0:
             return False  # none of the functions had an effect
 
-        # extract variable names from W() objects
-        mapping = {k.__bind__: v.__bind__ for k, v in
-                   self.general.items()}
-        asts = rename(mapping, *asts)
+        asts = [rename(self.mapping, tree) for tree in asts]
 
         # construct signature from bound condition values
         sig = []
@@ -67,6 +73,9 @@ class Explanation:
         binding['__class__'] = condition.__class__.__name__
         return binding  # [condition.__class__.__name__] + list(
         # binding.values())
+
+    def explain_fact_abstract(self, fact):
+        raise NotImplementedError
 
     def explain_fact(self, fact, general={}, root=True):
         # because we are only building general substitution, only consider
@@ -122,5 +131,3 @@ class Explanation:
                             break
 
         return general
-
-

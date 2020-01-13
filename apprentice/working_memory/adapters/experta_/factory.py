@@ -79,8 +79,6 @@ class ExpertaSkillFactory(Factory):
 
         s = Skill(_condition, _function)#, _name)
 
-        #todo: set ke here?
-
         return s
 
     def from_ex_rule(self, _rule: ex.Rule) -> Skill:

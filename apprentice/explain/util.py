@@ -1,12 +1,12 @@
 import ast
 import hashlib
-#import inspect
+# import inspect
 import re
 import types
 
+import apprentice.explain.inspect_patch as inspect
 from experta import Fact
 
-import apprentice.explain.inspect_patch as inspect
 
 def rename_function_unique(func, suffix, reverse=False):
     s = inspect.getsource(func)
@@ -143,21 +143,27 @@ def parse(*funcs, drop_declare=True):
     return ast.parse('\n'.join(source))
 
 
-def rename(mapping, *asts):
+def rename(mapping, tree):
     """ rename function ast variable names according to provided mapping """
-    for tree in asts:
-        for node in ast.walk(tree):
-            if hasattr(node, 'id'):
-                while node.id in mapping:
-                    node.id = mapping[node.id]
-            if hasattr(node, 'arg'):
-                while node.arg in mapping:
-                    node.arg = mapping[node.arg]
+    for node in ast.walk(tree):
+        if hasattr(node, 'id'):
+            while node.id in mapping:
+                node.id = mapping[node.id]
+        if hasattr(node, 'arg'):
+            while node.arg in mapping:
+                node.arg = mapping[node.arg]
 
-    if len(asts) == 1:
-        return asts[0]
+    # remove duplicate arguments
+    for node in ast.walk(tree):
+        if type(node) is ast.arguments:
+            unique = {}
+            for arg in node.args:
+                if arg.arg not in unique.keys():
+                    unique[arg.arg] = arg
 
-    return asts
+            node.args = list(unique.values())
+
+    return tree
 
 
 def join(new_name, new_args, *asts):
