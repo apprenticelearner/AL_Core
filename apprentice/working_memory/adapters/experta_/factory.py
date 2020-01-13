@@ -78,10 +78,7 @@ class ExpertaSkillFactory(Factory):
               _name: str = None) -> Skill:
 
         s = Skill(_condition, _function)#, _name)
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
+        #todo: set ke here?
         return s
 
     def from_ex_rule(self, _rule: ex.Rule) -> Skill:
