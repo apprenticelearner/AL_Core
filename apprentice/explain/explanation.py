@@ -1,5 +1,5 @@
 import apprentice.explain.inspect_patch as inspect
-from experta import Rule, W, TEST
+from experta import Rule, W, TEST, Fact
 from experta.unification import unify
 
 from .util import join, rename, parse, rename_lambda
@@ -26,10 +26,14 @@ class Explanation:
 
 
     def compose(self):
-        asts = parse(*self.rules)
-
+        rules = list(filter(lambda x: type(x) is Rule, self.rules))
+        #print("!!!!!RULES!!!!!:", rules)
+        if len(rules) == 1:
+            return None #function is only
+        asts = parse(*rules)
+        #print('!!!!!!!!!!!!!', self.rules, ' ::: ', asts)
         if len(asts) == 0:
-            return False  # none of the functions had an effect
+            return None  # none of the functions had an effect
 
         asts = [rename(self.mapping, tree) for tree in asts]
 
@@ -85,25 +89,27 @@ class Explanation:
             # keep track of rules that need to be fired for composition
             self.rules.append(fact.__source__.rule)
             e1s = []
+            fs = fact.__source__
             for antecedent_fact in fact.__source__.facts:
+                if type(antecedent_fact) is Fact:
+                    # antecedent fact came from another rule, so the backchain
+                    # must continue
+                    if antecedent_fact.__source__ is not None:
+                        e1s.append((antecedent_fact,
+                                    tuple(self.get_rule_binding(
+                                        antecedent_fact.__source__.rule).values(
 
-                # antecedent fact came from another rule, so the backchain
-                # must continue
-                if antecedent_fact.__source__ is not None:
-                    e1s.append((antecedent_fact,
-                                tuple(self.get_rule_binding(
-                                    antecedent_fact.__source__.rule).values(
-
-                                ))))
-                # antecedent fact is a terminal, so the condition of this
-                # fact is the boundary condition
-                else:
-                    for conj in fact.__source__.rule._args:
-                        if type(conj) is not TEST:
-                            self.conditions.append(conj)
-                    # self.conditions.extend(fact.__source__.rule._args)
+                                    ))))
+                    # antecedent fact is a terminal, so the condition of this
+                    # fact is the boundary condition
+                    else:
+                        for conj in fact.__source__.rule._args:
+                            if type(conj) is not TEST:
+                                self.conditions.append(conj)
+                        # self.conditions.extend(fact.__source__.rule._args)
 
             # LHS of current rule, i.e. RHS of explanation tuple
+            r = fact.__source__.rule
 
             for conj in fact.__source__.rule._args:
                 if type(conj) is TEST:
@@ -131,3 +137,5 @@ class Explanation:
                             break
 
         return general
+
+

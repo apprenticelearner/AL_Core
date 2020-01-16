@@ -140,7 +140,9 @@ def parse(*funcs, drop_declare=True):
     if extra_whitespace > 0:
         source = [s[extra_whitespace:] for s in source]
 
-    return ast.parse('\n'.join(source))
+    source = '\n'.join(source)
+    print(source)
+    return ast.parse(source)
 
 
 def rename(mapping, tree):
