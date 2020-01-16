@@ -14,12 +14,8 @@ from apprentice.learners.when_learners.q_learner import LinearFunc
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
-<<<<<<< HEAD
-from apprentice.working_memory.skills import AdditionEngine as Engine
-from apprentice.log import log
-=======
-from apprentice.working_memory.skills import FractionsEngine, fraction_skill_set
->>>>>>> api-changes
+from apprentice.working_memory.skills import FractionsEngine, \
+    fraction_skill_set
 
 
 class SoarTechAgent(BaseAgent):
@@ -28,21 +24,15 @@ class SoarTechAgent(BaseAgent):
     """
 
     def __init__(
-        self,
-<<<<<<< HEAD
-        feature_set,
-        function_set,
-        prior_skills: Collection[Skill] = None,
-        wm: WorkingMemory = ExpertaWorkingMemory(ke=Engine()),
-=======
-        wm: WorkingMemory = ExpertaWorkingMemory(ke=KnowledgeEngine()),
->>>>>>> api-changes
-        when: WhenLearner = QLearner(func=LinearFunc),
-        epsilon: float = 0.05,
-        action_penalty: float = -0.05,
-        negative_actions: bool = False,
-        skill_map: Dict[str, Skill] = fraction_skill_set,
-        prior_skills: Collection[str] = frozenset(['click_done', 'check', 'update', 'add', 'multiply']),
+            self,
+            wm: WorkingMemory = ExpertaWorkingMemory(ke=KnowledgeEngine()),
+            when: WhenLearner = QLearner(func=LinearFunc),
+            epsilon: float = 0.05,
+            action_penalty: float = -0.05,
+            negative_actions: bool = False,
+            skill_map: Dict[str, Skill] = fraction_skill_set,
+            prior_skills: Collection[str] = frozenset(
+                ['click_done', 'check', 'update', 'add', 'multiply']),
             **kwargs
     ):
         # Just track the state as a set of Facts?
@@ -59,10 +49,9 @@ class SoarTechAgent(BaseAgent):
         print(prior_skills)
         print(epsilon)
         if prior_skills is not None:
-            prior_skills = [skill_map[s] for s in prior_skills if s in skill_map]
+            prior_skills = [skill_map[s] for s in prior_skills if
+                            s in skill_map]
             self.working_memory.add_skills(prior_skills)
-            
-
 
         # will take a activation and facts and return reward
         if when is not None:
@@ -75,11 +64,13 @@ class SoarTechAgent(BaseAgent):
         self.negative_actions = negative_actions
 
     def __deepcopy__(self, memo):
-        log.debug("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
+        print()
+        print("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
+        print()
         return None
 
     def select_activation(
-        self, candidate_activations: Collection[Activation]
+            self, candidate_activations: Collection[Activation]
     ) -> Activation:
         """
         Given a list of candidate skills evaluate them and determines which one
@@ -208,16 +199,17 @@ class SoarTechAgent(BaseAgent):
                 if len(candidate_activations) == 0:
                     # TODO add a rule that generates the "input" into working
                     # memory, so it can be explained via recall and update.
-                    log.debug("#####################")
-                    log.debug("FAILURE TO EXPLAIN!!!")
-                    log.debug("#####################")
+                    print("#####################")
+                    print("FAILURE TO EXPLAIN!!!")
+                    print("#####################")
                     return {}
 
                 best_activation, expected_reward = self.select_activation(
                     candidate_activations)
                 state = self.working_memory.state
 
-                output = self.working_memory.activation_factory.to_ex_activation(
+                output = self.working_memory.activation_factory\
+                    .to_ex_activation(
                     best_activation
                 ).fire(self.working_memory.ke)
 
@@ -236,16 +228,15 @@ class SoarTechAgent(BaseAgent):
                         next_state, candidate_activations
                     )
 
-            log.debug('trying', output, 'vs.', sai)
+            print('trying', output, 'vs.', sai)
             if output != sai:
-                log.debug('failed!')
-
+                print('failed!')
+                print()
                 candidate_activations = [act for act in candidate_activations
                                          if act != best_activation]
                 continue
-
-
-            log.debug('success explaining sai')
+            print('success!')
+            print()
 
             if next_state_diff is None:
                 next_state = None
@@ -294,7 +285,8 @@ class SoarTechAgent(BaseAgent):
                 return
             for activation in candidate_activations:
                 state = self.working_memory.state
-                output = self.working_memory.activation_factory.to_ex_activation(
+                output = self.working_memory.activation_factory\
+                    .to_ex_activation(
                     activation
                 ).fire(self.working_memory.ke)
                 if output == sai:
