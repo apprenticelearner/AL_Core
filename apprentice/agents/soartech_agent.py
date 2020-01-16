@@ -5,6 +5,8 @@ from typing import Collection
 from typing import Dict
 from copy import deepcopy
 
+from experta import KnowledgeEngine
+
 from apprentice.agents.base import BaseAgent
 from apprentice.learners import WhenLearner
 from apprentice.learners.when_learners.q_learner import QLearner
@@ -12,7 +14,7 @@ from apprentice.learners.when_learners.q_learner import LinearFunc
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
-from apprentice.working_memory.skills import FractionsEngine
+from apprentice.working_memory.skills import FractionsEngine, fraction_skill_set
 
 
 class SoarTechAgent(BaseAgent):
@@ -22,18 +24,19 @@ class SoarTechAgent(BaseAgent):
 
     def __init__(
         self,
-        feature_set,
-        function_set,
-        prior_skills: Collection[Skill] = None,
-        wm: WorkingMemory = ExpertaWorkingMemory(ke=FractionsEngine()),
+        wm: WorkingMemory = ExpertaWorkingMemory(ke=KnowledgeEngine()),
         when: WhenLearner = QLearner(func=LinearFunc),
         epsilon: float = 0.05,
         action_penalty: float = -0.05,
-        negative_actions: bool = False
+        negative_actions: bool = False,
+        skill_map: Dict[str, Skill] = fraction_skill_set,
+        prior_skills: Collection[str] = frozenset(['click_done', 'check', 'update', 'add', 'multiply']),
+            **kwargs
     ):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
-        super().__init__(prior_skills)
+        super().__init__()
+
         self.prior_state = {}
         # Need a working memory class
         if isinstance(wm, WorkingMemory):
@@ -41,8 +44,13 @@ class SoarTechAgent(BaseAgent):
         if isinstance(wm, ABCMeta):
             self.working_memory = wm()
 
+        print(prior_skills)
+        print(epsilon)
         if prior_skills is not None:
+            prior_skills = [skill_map[s] for s in prior_skills if s in skill_map]
             self.working_memory.add_skills(prior_skills)
+            
+
 
         # will take a activation and facts and return reward
         if when is not None:

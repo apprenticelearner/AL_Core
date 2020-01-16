@@ -1,5 +1,7 @@
 import schema
-from apprentice.working_memory.representation.representation import Sai
+
+from apprentice.working_memory.adapters.experta_.factory import ExpertaSkillFactory
+from apprentice.working_memory.representation.representation import Sai, Skill
 from experta import Fact, Field, KnowledgeEngine, AS, Rule, MATCH, NOT
 from tabulate import tabulate
 
@@ -18,6 +20,7 @@ class PossibleMove(Square):
 
 class CurrentPlayer(Fact):
     name = Field(schema.Or("X", "O"), mandatory=True)
+
 
 
 class ttt_engine(KnowledgeEngine):
@@ -72,6 +75,11 @@ class ttt_engine(KnowledgeEngine):
     def make_move(self, row, col, player):
         return Sai(None, 'move', {'row': row, 'col': col, 'player': player})
 
+
+ke = ttt_engine()
+make_move_skill = ExpertaSkillFactory(ke).from_ex_rule(ke.make_move)
+
+ttt_skill_map = {'make_move': make_move_skill}
 
 class ttt_oracle:
     """
