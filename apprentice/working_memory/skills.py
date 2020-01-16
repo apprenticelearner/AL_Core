@@ -15,11 +15,12 @@ def is_numeric_str(x):
 
 
 class AdditionEngine(KnowledgeEngine):
-
+    sais = []
     @Rule(
         Fact(id='done')
     )
     def click_done(self):
+        print("FIRED CLICK DONE")
         return Sai(selection='done',
                    action='ButtonPressed',
                    #input={'value': -1})
@@ -29,6 +30,7 @@ class AdditionEngine(KnowledgeEngine):
         Fact(id=MATCH.field_id, contentEditable=True, value=MATCH.value)
     )
     def check(self, field_id):
+        print("FIRED CHECK")
         return Sai(selection=field_id,
                    action='UpdateTextArea',
                    input={'value': "x"})
@@ -38,10 +40,14 @@ class AdditionEngine(KnowledgeEngine):
         TEST(lambda value_from: value_from != ""),
         Fact(id=MATCH.field_id, contentEditable=True, value=W()))
     def update_field(self, field_id, value):
-        return Sai(selection=field_id,
+        print("FIRED UPDATE FIELD")
+        s = Sai(selection=field_id,
                    action='UpdateTextField',
                    #action='UpdateTextArea',
                    input={'value': value})
+        if int(value) == 3:
+            self.sais.append(s)
+        return s
 
     @Rule(
         AS.fact1 << Fact(id=MATCH.id1, contentEditable=False,
@@ -56,6 +62,7 @@ class AdditionEngine(KnowledgeEngine):
         NOT(Fact(operator='add', ele1=MATCH.id1, ele2=MATCH.id2))
     )
     def add(self, id1, value1, fact1, id2, value2, fact2):
+        print("FIRED ADD")
         new_id = 'add(%s, %s)' % (id1, id2)
 
         new_value = float(value1) + float(value2)
@@ -182,3 +189,31 @@ class RandomFracEngine(KnowledgeEngine):
     )
     def click_done(self):
         return Sai(selection='done', action='ButtonPressed', input={'value': -1})
+
+def fact_from_dict(f):
+    if '__class__' in f:
+        fact_class = f['__class__']
+    else:
+        fact_class = Fact
+    f2 = {k:v for k,v in f.items() if k[:2]!="__"}
+    return fact_class(f2)
+
+if __name__=="__main__":
+    from apprentice.explain.explanation import Explanation
+
+    engine = AdditionEngine()
+    engine.reset()
+
+    f1 = Fact(id='JCommTable.R0C0', value ='1', contentEditable= False)
+    f2 = Fact(id='JCommTable.R1C0', value ='2', contentEditable= False)
+    f3 = Fact(id='JCommTable.R1C1', contentEditable=True, value='')
+
+    engine.declare(f1)
+    engine.declare(f2)
+    engine.declare(f3)
+    engine.run(10)
+    sais = engine.sais
+    ex = Explanation(engine.sais[0])
+    nr = ex.new_rule
+
+    pass
