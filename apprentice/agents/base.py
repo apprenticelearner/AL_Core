@@ -10,7 +10,7 @@ from jsondiff import diff
 class BaseAgent(metaclass=ABCMeta):
     prior_state = {}
 
-    def __init__(self, prior_skills: Collection[Skill]):
+    def __init__(self):
         """
         Creates an agent with the provided skills.
         """
