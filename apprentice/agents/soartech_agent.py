@@ -25,12 +25,13 @@ class SoarTechAgent(BaseAgent):
         self,
         wm: WorkingMemory = ExpertaWorkingMemory(ke=KnowledgeEngine()),
         when: WhenLearner = DQNLearner(),
-        epsilon: float = 0.05,
+        epsilon: float = 0.3,
         action_penalty: float = -0.05,
         negative_actions: bool = False,
         skill_map: Dict[str, Skill] = fraction_skill_set,
         prior_skills: Collection[str] = frozenset(['click_done', 'check',
-                                                   'update', 'add',
+                                                   'update_answer',
+                                                   'update_convert', 'add',
                                                    'multiply']),
         **kwargs
     ):

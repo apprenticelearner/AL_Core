@@ -2,11 +2,12 @@ from experta import Rule, Fact, W, KnowledgeEngine, MATCH, TEST, AS, NOT
 from random import randint
 
 from apprentice.working_memory.adapters.experta_.factory import ExpertaSkillFactory
-from apprentice.working_memory.representation import Sai, Skill
+from apprentice.working_memory.representation import Sai
 
 max_depth = 1
 
 answer_field = ['JCommTable6.R0C0', 'JCommTable6.R1C0']
+
 
 def is_numeric_str(x):
     try:
@@ -14,7 +15,6 @@ def is_numeric_str(x):
         return True
     except Exception:
         return False
-
 
 
 class FractionsEngine(KnowledgeEngine):
@@ -156,20 +156,30 @@ ke = FractionsEngine()
 skill_factory = ExpertaSkillFactory(ke)
 click_done_skill = skill_factory.from_ex_rule(ke.click_done)
 check_skill = skill_factory.from_ex_rule(ke.check)
-update_field_skill = skill_factory.from_ex_rule(ke.update_field)
+update_answer_field_skill = skill_factory.from_ex_rule(ke.update_answer_field)
+update_convert_field_skill = skill_factory.from_ex_rule(
+    ke.update_convert_field)
 add_skill = skill_factory.from_ex_rule(ke.add)
 multiply_skill = skill_factory.from_ex_rule(ke.multiply)
-fraction_skill_set = {'click_done': click_done_skill, 'check': check_skill, 'update': update_field_skill, 'add': add_skill, 'multiply': multiply_skill}
+
+fraction_skill_set = {'click_done': click_done_skill, 'check': check_skill,
+                      'update_answer': update_answer_field_skill,
+                      'update_convert': update_convert_field_skill,
+                      'add': add_skill,
+                      'multiply': multiply_skill}
+
 
 class RandomFracEngine(KnowledgeEngine):
     @Rule(
         Fact(id=MATCH.id, contentEditable=True, value=W())
     )
     def input_random(self, id):
-        return Sai(selection=id, action='UpdateTextArea', input={'value': str(randint(0, 100))})
+        return Sai(selection=id, action='UpdateTextArea',
+                   input={'value': str(randint(0, 100))})
 
     @Rule(
         Fact(id='done')
     )
     def click_done(self):
-        return Sai(selection='done', action='ButtonPressed', input={'value': -1})
+        return Sai(selection='done', action='ButtonPressed',
+                   input={'value': -1})
