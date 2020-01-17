@@ -1,7 +1,8 @@
 from experta import Rule, Fact, W, KnowledgeEngine, MATCH, TEST, AS, NOT
 from random import randint
 
-from apprentice.working_memory.representation import Sai
+from apprentice.working_memory.adapters.experta_.factory import ExpertaSkillFactory
+from apprentice.working_memory.representation import Sai, Skill
 
 max_depth = 1
 
@@ -13,6 +14,7 @@ def is_numeric_str(x):
         return True
     except Exception:
         return False
+
 
 
 class FractionsEngine(KnowledgeEngine):
@@ -149,6 +151,15 @@ class FractionsEngine(KnowledgeEngine):
                           value=new_value,
                           depth=new_depth))
 
+
+ke = FractionsEngine()
+skill_factory = ExpertaSkillFactory(ke)
+click_done_skill = skill_factory.from_ex_rule(ke.click_done)
+check_skill = skill_factory.from_ex_rule(ke.check)
+update_field_skill = skill_factory.from_ex_rule(ke.update_field)
+add_skill = skill_factory.from_ex_rule(ke.add)
+multiply_skill = skill_factory.from_ex_rule(ke.multiply)
+fraction_skill_set = {'click_done': click_done_skill, 'check': check_skill, 'update': update_field_skill, 'add': add_skill, 'multiply': multiply_skill}
 
 class RandomFracEngine(KnowledgeEngine):
     @Rule(

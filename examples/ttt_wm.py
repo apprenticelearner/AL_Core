@@ -1,17 +1,20 @@
+from experta import KnowledgeEngine
+
 from apprentice.agents import SoarTechAgent
 from apprentice.working_memory import ExpertaWorkingMemory
-from apprentice.learners.when_learners import q_learner
-from ttt_simple import ttt_engine, ttt_oracle
+from ttt_simple import ttt_oracle
+
+from examples.ttt_simple import ttt_skill_map
 
 if __name__ == "__main__":
     # with experta knowledge engine
-    wm1 = ExpertaWorkingMemory(ke=ttt_engine())
+    wm2 = ExpertaWorkingMemory(ke=KnowledgeEngine())
     a1 = SoarTechAgent(
-        wm=wm1,
+        wm=wm2,
         # when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.0),
         feature_set=[], function_set=[],
-        # wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0.0),
-        negative_actions=True, action_penalty=0.0, epsilon=0.05
+        negative_actions=True, action_penalty=0.0, epsilon=0.3,
+        skill_map=ttt_skill_map, prior_skills=['make_move']
     )
 
     max_training_games = 100
