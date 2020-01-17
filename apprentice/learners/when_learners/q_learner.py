@@ -7,6 +7,7 @@ from apprentice.working_memory.representation import Activation
 # from concept_formation.trestle import TrestleTree
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import SGDRegressor
 from concept_formation.cobweb3 import Cobweb3Tree
 
 
@@ -67,6 +68,14 @@ class QLearner(WhenLearner):
         if name not in self.Q:
             self.Q[name] = self.func(q_init=self.q_init,
                                      learning_rate=self.learning_rate)
+
+        from pprint import pprint
+        pprint(state)
+        # if name == "update_field":
+        #     pprint(state)
+        #     print(reward)
+        #     print(learned_reward)
+
         self.Q[name].update(state, learned_reward)
 
 
@@ -95,8 +104,10 @@ class Tabular:
 
 
 class LinearFunc:
-    def __init__(self, q_init=0, learning_rate=0):
-        self.clf = LinearRegression()
+    def __init__(self, q_init=0, learning_rate=0.9):
+        # self.clf = LinearRegression()
+        self.clf = SGDRegressor(shuffle=False, max_iter=1,
+                                learning_rate="constant", eta0=learning_rate)
         self.dv = DictVectorizer(sort=False)
         self.X = []
         self.Y = []

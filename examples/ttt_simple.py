@@ -5,14 +5,14 @@ from tabulate import tabulate
 
 
 class Square(Fact):
-    row = Field(int, mandatory=True)
-    col = Field(int, mandatory=True)
+    row = Field(str, mandatory=True)
+    col = Field(str, mandatory=True)
     player = Field(str, mandatory=True)
 
 
 class PossibleMove(Square):
-    row = Field(int, mandatory=True)
-    col = Field(int, mandatory=True)
+    row = Field(str, mandatory=True)
+    col = Field(str, mandatory=True)
     player = Field(str, mandatory=True)
 
 
@@ -70,6 +70,7 @@ class ttt_engine(KnowledgeEngine):
            Fact(type='Square', row=MATCH.row, col=MATCH.col, player="")
     )
     def make_move(self, row, col, player):
+        print("moving", row, col, player)
         return Sai(None, 'move', {'row': row, 'col': col, 'player': player})
 
 
@@ -110,8 +111,8 @@ class ttt_oracle:
             for col in range(3):
                 d[next(idg)] = {
                     "type": "Square",
-                    "row": row,
-                    "col": col,
+                    "row": str(row),
+                    "col": str(col),
                     "player": self.board[row][col],
                 }
         return d
@@ -129,6 +130,8 @@ class ttt_oracle:
         Row -> 0-2 range inclusive
         Col -> 0-2 range inclusive
         """
+        row = int(row)
+        col = int(col)
         if row < 0 or row > 2:
             raise ValueError("Move not on board")
         if col < 0 or col > 2:

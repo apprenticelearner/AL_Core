@@ -5,6 +5,7 @@ from apprentice.working_memory.representation import Sai
 
 max_depth = 1
 
+answer_field = ['JCommTable6.R0C0', 'JCommTable6.R1C0']
 
 def is_numeric_str(x):
     try:
@@ -20,24 +21,62 @@ class FractionsEngine(KnowledgeEngine):
         Fact(id='done')
     )
     def click_done(self):
+        print('clicking done')
         return Sai(selection='done',
                    action='ButtonPressed',
                    input={'value': -1})
         # input={'value': '-1'})
 
     @Rule(
-        Fact(id=MATCH.field_id, contentEditable=True, value=MATCH.value)
+        Fact(id="JCommTable8.R0C0", contentEditable=True, value="")
     )
-    def check(self, field_id):
-        return Sai(selection=field_id,
+    def check(self):
+        print('checking box')
+        return Sai(selection="JCommTable8.R0C0",
                    action='UpdateTextArea',
                    input={'value': "x"})
 
+    # @Rule(
+    #     Fact(id=MATCH.id1, contentEditable=False, value=MATCH.value1),
+    #     TEST(lambda value1: value1 != ""),
+    #     Fact(id=MATCH.id2, contentEditable=False, value=MATCH.value2),
+    #     TEST(lambda value2: value2 != ""),
+    #     NOT(Fact(relation='equal', ele1=MATCH.id1, ele2=MATCH.id2))
+    # )
+    # def equal(self, id1, value1, id2, value2):
+    #     new_id = "equal(%s, %s)" % (id1, id2)
+    #     equality = value1 == value2
+    #     print('declaring equality', id1, id2, equality)
+    #     self.declare(Fact(id=new_id,
+    #                       relation='equal',
+    #                       ele1=id1,
+    #                       ele2=id2,
+    #                       r_val=equality))
+
+    @Rule(
+        Fact(id='JCommTable8.R0C0', contentEditable=False, value='x'),
+        Fact(id=W(), contentEditable=False, value=MATCH.value),
+        TEST(lambda value: value != "" and is_numeric_str(value)),
+        Fact(id=MATCH.field_id, contentEditable=True, value=W()),
+        TEST(lambda field_id: field_id != 'JCommTable8.R0C0'),
+        TEST(lambda field_id: field_id not in answer_field)
+    )
+    def update_convert_field(self, field_id, value):
+        print('updating convert field', field_id, value)
+        return Sai(selection=field_id,
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': value})
+
     @Rule(
         Fact(id=W(), contentEditable=False, value=MATCH.value),
-        TEST(lambda value_from: value_from != ""),
-        Fact(id=MATCH.field_id, contentEditable=True, value=W()))
-    def update_field(self, field_id, value):
+        TEST(lambda value: value != "" and is_numeric_str(value)),
+        Fact(id=MATCH.field_id, contentEditable=True, value=W()),
+        TEST(lambda field_id: field_id != 'JCommTable8.R0C0'),
+        TEST(lambda field_id: field_id in answer_field)
+    )
+    def update_answer_field(self, field_id, value):
+        print('updating answer field', field_id, value)
         return Sai(selection=field_id,
                    # action='UpdateTextField',
                    action='UpdateTextArea',
@@ -67,6 +106,8 @@ class FractionsEngine(KnowledgeEngine):
         depth2 = 0 if 'depth' not in fact2 else fact2['depth']
         new_depth = 1 + max(depth1, depth2)
 
+        print('adding', id1, id2)
+
         self.declare(Fact(id=new_id,
                           operator='add',
                           ele1=id1,
@@ -88,6 +129,7 @@ class FractionsEngine(KnowledgeEngine):
         NOT(Fact(operator='multiply', ele1=MATCH.id1, ele2=MATCH.id2))
     )
     def multiply(self, id1, value1, fact1, id2, value2, fact2):
+        print('multiplying', id1, id2)
         new_id = 'multiply(%s, %s)' % (id1, id2)
 
         new_value = float(value1) * float(value2)
