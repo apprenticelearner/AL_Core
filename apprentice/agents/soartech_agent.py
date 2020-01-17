@@ -8,12 +8,12 @@ from experta import KnowledgeEngine
 
 from apprentice.agents.base import BaseAgent
 from apprentice.learners import WhenLearner
-# from apprentice.learners.when_learners.actor_critic_learner import ActorCriticLearner
 from apprentice.learners.when_learners.dqn_learner import DQNLearner
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
-from apprentice.working_memory.skills import FractionsEngine, fraction_skill_set
+from apprentice.working_memory.skills import fraction_skill_set
+from apprentice.log import log
 
 
 class SoarTechAgent(BaseAgent):
@@ -67,9 +67,7 @@ class SoarTechAgent(BaseAgent):
         self.negative_actions = negative_actions
 
     def __deepcopy__(self, memo):
-        print()
-        print("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
-        print()
+        log.debug("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
         return None
 
     def select_activation(
@@ -213,9 +211,9 @@ class SoarTechAgent(BaseAgent):
                 if len(candidate_activations) == 0:
                     # TODO add a rule that generates the "input" into working
                     # memory, so it can be explained via recall and update.
-                    print("#####################")
-                    print("FAILURE TO EXPLAIN!!!")
-                    print("#####################")
+                    log.debug("#####################")
+                    log.debug("FAILURE TO EXPLAIN!!!")
+                    log.debug("#####################")
                     return {}
 
                 best_activation, expected_reward = self.select_activation(
@@ -246,7 +244,9 @@ class SoarTechAgent(BaseAgent):
                     )
 
             # print('trying', output, 'vs.', sai)
+            log.debug('trying', output, 'vs.', sai)
             if output != sai:
+                log.debug('failed!')
                 # print('failed!')
                 # print()
                 # candidate_activations = [act for act in candidate_activations
@@ -263,6 +263,7 @@ class SoarTechAgent(BaseAgent):
                     )
 
                 continue
+            # log.debug('success explaining sai')
             # print('success!')
             # print()
 

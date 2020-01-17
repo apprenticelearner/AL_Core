@@ -1,6 +1,8 @@
 import uuid
 from dataclasses import dataclass
 from typing import Collection, Callable, Any
+import inspect
+import experta
 
 from experta.conditionalelement import ConditionalElement as Condition
 from experta import Fact
@@ -16,11 +18,24 @@ from experta import Fact
 #         return dict.__new__(Fact, args)
 
 
-@dataclass(frozen=True)
+@dataclass#(frozen=True) #
 class Sai:
     selection: Any
     action: Any
     input: Any
+
+    def __post_init__(self):
+        try:
+            activation_frame = inspect.currentframe().f_back.f_back.f_back.f_back
+            assert type(activation_frame.f_locals[
+                            'self']) == experta.activation.Activation
+
+            self.__source__ = activation_frame.f_locals['self']
+            print(activation_frame.f_locals['self'])
+        except AssertionError:
+            pass
+        except AttributeError:
+            pass
 
 
 @dataclass(frozen=True)

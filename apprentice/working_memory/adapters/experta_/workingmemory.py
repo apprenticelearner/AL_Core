@@ -98,10 +98,14 @@ class ExpertaWorkingMemory(WorkingMemory):
 
     def add_skill(self, skill: Skill):
         rule = self.skill_factory.to_ex_rule(skill)
+        self.add_rule(rule)
+
+    def add_rule(self, rule: ex.Rule):
         setattr(self.ke, rule._wrapped.__name__, rule)
         rule.ke = self.ke
         rule._wrapped_self = self.ke
         self.ke.matcher.__init__(self.ke)
+        self.ke.reset() #todo: not sure if this is necessary
 
     def update_skill(self, skill: Skill):
         self.add_skill(skill)
