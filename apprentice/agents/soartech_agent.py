@@ -3,6 +3,7 @@ from abc import ABCMeta
 # from typing import Any
 from typing import Collection
 from typing import Dict
+from pprint import pprint
 
 from experta import KnowledgeEngine
 
@@ -29,10 +30,13 @@ class SoarTechAgent(BaseAgent):
         action_penalty: float = -0.05,
         negative_actions: bool = False,
         skill_map: Dict[str, Skill] = fraction_skill_set,
-        prior_skills: Collection[str] = frozenset(['click_done', 'check',
-                                                   'update_answer',
-                                                   'update_convert', 'add',
-                                                   'multiply']),
+        prior_skills: Collection[str] = frozenset([
+            'equal', 'add', 'multiply']),
+            # 'click_done', 'check',
+            #                                        'equal',
+            #                                        'update_answer',
+            #                                        'update_convert', 'add',
+            #                                        'multiply']),
         **kwargs
     ):
         # Just track the state as a set of Facts?
@@ -108,8 +112,7 @@ class SoarTechAgent(BaseAgent):
         activations.sort(reverse=True)
 
         # print('q values')
-        # from pprint import pprint
-        print([s for s, _, _ in activations])
+        # print([s for s, _, _ in activations])
         # print([(s, a.get_rule_name()) for s, _, a in activations])
         expected_reward, _, best_activation = activations[0]
         return best_activation, expected_reward
@@ -133,9 +136,12 @@ class SoarTechAgent(BaseAgent):
             activation for activation in self.working_memory.activations
         ]
 
+        print("LENGTH OF ACTIVATIONS", len(candidate_activations))
+
         while True:
             if len(candidate_activations) == 0:
                 return {}
+
             best_activation, expected_reward = self.select_activation(
                 candidate_activations)
             state = self.working_memory.state
@@ -156,6 +162,7 @@ class SoarTechAgent(BaseAgent):
             next_state = self.working_memory.state
 
             if self.when_learning:
+                print('request')
                 self.when_learning.update(
                     state, best_activation, self.action_penalty, next_state,
                     candidate_activations
@@ -199,7 +206,6 @@ class SoarTechAgent(BaseAgent):
 
         while True:
 
-            # from pprint import pprint
             # pprint(self.working_memory.state)
 
             # outer loop checks if the sai is the one we're trying to explain
@@ -219,7 +225,6 @@ class SoarTechAgent(BaseAgent):
                 best_activation, expected_reward = self.select_activation(
                     candidate_activations)
 
-                # from pprint import pprint
                 # pprint(self.working_memory.state)
                 # print('firing', best_activation.get_rule_name())
                 state = self.working_memory.state
@@ -235,6 +240,7 @@ class SoarTechAgent(BaseAgent):
                     activation for activation in
                     self.working_memory.activations
                 ]
+                
                 next_state = self.working_memory.state
 
                 if self.when_learning:
@@ -246,8 +252,8 @@ class SoarTechAgent(BaseAgent):
             # print('trying', output, 'vs.', sai)
             log.debug('trying', output, 'vs.', sai)
             if output != sai:
-                log.debug('failed!')
-                # print('failed!')
+                # log.debug('failed!')
+                print('failed!')
                 # print()
                 # candidate_activations = [act for act in candidate_activations
                 #                          if act != best_activation]
@@ -264,7 +270,7 @@ class SoarTechAgent(BaseAgent):
 
                 continue
             # log.debug('success explaining sai')
-            # print('success!')
+            print('success!')
             # print()
 
             self.update_final(state, reward, next_state_diff, best_activation)
@@ -273,7 +279,7 @@ class SoarTechAgent(BaseAgent):
 
     def update_final(self, state, reward, next_state_diff, best_activation):
         """
-        Just assume for now that all reward states are essentially terminal.
+        Do the final update for an observable SAI producing activation.
         """
         if next_state_diff is None:
             next_state = None
@@ -284,6 +290,7 @@ class SoarTechAgent(BaseAgent):
             next_state = self.working_memory.state
             candidate_activations = [activation for activation in
                                      self.working_memory.activations]
+
 
         if self.when_learning:
             self.when_learning.update(

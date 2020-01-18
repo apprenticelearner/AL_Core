@@ -10,15 +10,17 @@ from apprentice.learners.when_learners.actor_critic import ValueNet
 from apprentice.learners.when_learners.actor_critic import ActionNet
 from apprentice.learners.when_learners.replay_memory import ReplayMemory
 from apprentice.learners.when_learners.replay_memory import Transition
+from apprentice.learners.when_learners.fractions_hasher import FractionsStateHasher
+from apprentice.learners.when_learners.fractions_hasher import FractionsActionHasher
 
 # from concept_formation.trestle import TrestleTree
-from sklearn.feature_extraction import FeatureHasher
+# from sklearn.feature_extraction import FeatureHasher
 
 
 class DQNLearner(WhenLearner):
     def __init__(self, gamma=0.7, lr=3e-5, batch_size=32, mem_capacity=10000,
-                 state_size=10000, action_size=1000, state_hidden_size=100,
-                 action_hidden_size=50):
+                 state_size=394, action_size=244, state_hidden_size=30,
+                 action_hidden_size=30):
         self.device = torch.device("cuda" if torch.cuda.is_available() else
                                    "cpu")
         self.gamma = gamma
@@ -30,10 +32,14 @@ class DQNLearner(WhenLearner):
         self.state_hidden_size = state_hidden_size
         self.action_hidden_size = action_hidden_size
 
-        self.state_hasher = FeatureHasher(n_features=self.state_size,
-                                          alternate_sign=False)
-        self.action_hasher = FeatureHasher(n_features=self.action_size,
-                                           alternate_sign=False)
+        # self.state_hasher = FeatureHasher(n_features=self.state_size,
+        #                                   alternate_sign=False)
+        # self.action_hasher = FeatureHasher(n_features=self.action_size,
+        #                                    alternate_sign=False)
+
+        # special case to make things run faster and drop values
+        self.state_hasher = FractionsStateHasher()
+        self.action_hasher = FractionsActionHasher()
 
         self.value_net = ValueNet(self.state_size, self.state_hidden_size)
         self.action_net = ActionNet(self.action_size, self.state_hidden_size,
@@ -62,7 +68,9 @@ class DQNLearner(WhenLearner):
         # from pprint import pprint
         # pprint(state)
         # pprint(self.state_hasher.transform([state]).toarray().tolist())
+        # print(self.state_hasher.transform([state]).shape)
         # print()
+
         return self.state_hasher.transform([state]).toarray()
 
     def gen_action_vectors(
@@ -84,6 +92,7 @@ class DQNLearner(WhenLearner):
         # from pprint import pprint
         # pprint(action_dicts[0])
         # pprint(self.action_hasher.transform([action_dicts[0]]).toarray().tolist())
+        # print(self.action_hasher.transform([action_dicts[0]]).shape)
 
         return self.action_hasher.transform(action_dicts).toarray()
 
