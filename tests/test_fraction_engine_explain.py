@@ -26,11 +26,16 @@ def test_compile_addition():
     new_wm = ExpertaWorkingMemory(EmptyAdditionEngine())
     new_wm.add_rule(nr)
 
-    new_wm.ke.declare(f1)
-    new_wm.ke.declare(f2)
-    new_wm.ke.declare(f3)
+    f1b = Fact(id='JCommTable.R0C0', value='1', contentEditable=False)
+    f2b = Fact(id='JCommTable.R1C0', value='2', contentEditable=False)
+    f3b = Fact(id='JCommTable.R1C1', contentEditable=True, value='')
+
+    new_wm.ke.declare(f1b)
+    new_wm.ke.declare(f2b)
+    new_wm.ke.declare(f3b)
     # test that the new rule fires correctly
     new_wm.ke.run(10)
-    assert new_wm.ke.sais[0] == Sai(selection='JCommTable.R1C1',
+    s = new_wm.ke.sais[0]
+    assert s == Sai(selection='JCommTable.R1C1',
                                     action='UpdateTextField',
                                     input={'value': '3'})
