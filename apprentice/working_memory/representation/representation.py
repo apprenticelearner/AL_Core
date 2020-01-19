@@ -31,10 +31,8 @@ class Sai:
                             'self']) == experta.activation.Activation
 
             self.__source__ = activation_frame.f_locals['self']
-            print(activation_frame.f_locals['self'])
-        except AssertionError:
-            pass
-        except AttributeError:
+            #print(activation_frame.f_locals['self'])
+        except (AssertionError, AttributeError, KeyError):
             pass
 
 
