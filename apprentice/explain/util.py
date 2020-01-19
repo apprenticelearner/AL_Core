@@ -217,7 +217,7 @@ def rename(mapping, tree):
     return tree
 
 
-def join(new_name, new_args, globals, *asts):
+def join(new_name, new_args, globs, *asts):
     """ join multiple functions under a new signature, returns new function"""
     root = asts[0]
 
@@ -228,7 +228,7 @@ def join(new_name, new_args, globals, *asts):
     for graft in asts[1:]:
         root.body[0].body += graft.body[0].body
 
-    return get_func_from_ast(root, globals)
+    return get_func_from_ast(root, globs)
 
 
 # def parseprint(foo, filename='<unknown>', mode="exec", **kwargs):
