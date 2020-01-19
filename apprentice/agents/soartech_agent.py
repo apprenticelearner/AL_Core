@@ -5,7 +5,7 @@ from typing import Collection
 from typing import Dict
 from copy import deepcopy
 
-from experta import KnowledgeEngine
+from experta import KnowledgeEngine, Fact
 
 from apprentice.agents.base import BaseAgent
 from apprentice.learners import WhenLearner
@@ -16,6 +16,7 @@ from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
 from apprentice.working_memory.skills import FractionsEngine, \
     fraction_skill_set
+from apprentice.explain.explanation import Explanation
 
 
 class SoarTechAgent(BaseAgent):
@@ -213,6 +214,11 @@ class SoarTechAgent(BaseAgent):
                     best_activation
                 ).fire(self.working_memory.ke)
 
+                ex_activation = \
+                    self.working_memory.activation_factory.to_ex_activation(
+                    best_activation
+                )
+
                 if isinstance(output, Sai):
                     break
 
@@ -237,6 +243,16 @@ class SoarTechAgent(BaseAgent):
                 continue
             print('success!')
             print()
+
+            temp = Fact(foo='bar')
+            temp.__source__ = ex_activation
+
+            x = Explanation(temp)
+            r = x.new_rule
+
+            if r is  not None:
+                print("adding new rules")
+                self.working_memory.add_rule(r)
 
             if next_state_diff is None:
                 next_state = None
