@@ -3,20 +3,18 @@ from abc import ABCMeta
 # from typing import Any
 from typing import Collection
 from typing import Dict
-from copy import deepcopy
+from pprint import pprint
 
 from experta import KnowledgeEngine, Fact
 
 from apprentice.agents.base import BaseAgent
 from apprentice.learners import WhenLearner
-from apprentice.learners.when_learners.q_learner import QLearner
-from apprentice.learners.when_learners.q_learner import LinearFunc
+from apprentice.learners.when_learners.dqn_learner import DQNLearner
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
-from apprentice.working_memory.skills import FractionsEngine, \
-    fraction_skill_set
-from apprentice.explain.explanation import Explanation
+from apprentice.working_memory.skills import fraction_skill_set
+from apprentice.log import log
 
 
 class SoarTechAgent(BaseAgent):
@@ -25,22 +23,30 @@ class SoarTechAgent(BaseAgent):
     """
 
     def __init__(
-            self,
-            wm: WorkingMemory = ExpertaWorkingMemory(ke=KnowledgeEngine()),
-            when: WhenLearner = QLearner(func=LinearFunc),
-            epsilon: float = 0.05,
-            action_penalty: float = -0.05,
-            negative_actions: bool = False,
-            skill_map: Dict[str, Skill] = fraction_skill_set,
-            prior_skills: Collection[str] = frozenset(
-                ['click_done', 'check', 'update', 'add', 'multiply']),
-            **kwargs
+        self,
+        wm: WorkingMemory = ExpertaWorkingMemory(ke=KnowledgeEngine()),
+        when: WhenLearner = DQNLearner(),
+        epsilon: float = 0.3,
+        action_penalty: float = -0.05,
+        negative_actions: bool = False,
+        skill_map: Dict[str, Skill] = fraction_skill_set,
+        prior_skills: Collection[str] = frozenset([
+            'equal', 'add', 'multiply']),
+            # 'click_done', 'check',
+            #                                        'equal',
+            #                                        'update_answer',
+            #                                        'update_convert', 'add',
+            #                                        'multiply']),
+        **kwargs
     ):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
         super().__init__()
 
         self.prior_state = {}
+        self.last_activation = None
+        self.last_sai = None
+
         # Need a working memory class
         if isinstance(wm, WorkingMemory):
             self.working_memory = wm
@@ -50,8 +56,8 @@ class SoarTechAgent(BaseAgent):
         print(prior_skills)
         print(epsilon)
         if prior_skills is not None:
-            prior_skills = [skill_map[s] for s in prior_skills if
-                            s in skill_map]
+            prior_skills = [skill_map[s]
+                            for s in prior_skills if s in skill_map]
             self.working_memory.add_skills(prior_skills)
 
         # will take a activation and facts and return reward
@@ -93,12 +99,13 @@ class SoarTechAgent(BaseAgent):
             return random.choice(candidate_activations), 0
 
         if random.random() < self.epsilon:
+            print('random action')
             return random.choice(candidate_activations), 0
 
         activations = [
             (
-                self.when_learning.evaluate(state=self.working_memory.state,
-                                            action=activation),
+                self.when_learning.eval(state=self.working_memory.state,
+                                        action=activation),
                 random.random(),
                 activation,
             )
@@ -107,8 +114,8 @@ class SoarTechAgent(BaseAgent):
         activations.sort(reverse=True)
 
         # print('q values')
-        # from pprint import pprint
-        # pprint([(s, a.get_rule_name()) for s, _, a in activations])
+        # print([s for s, _, _ in activations])
+        # print([(s, a.get_rule_name()) for s, _, a in activations])
         expected_reward, _, best_activation = activations[0]
         return best_activation, expected_reward
 
@@ -131,9 +138,12 @@ class SoarTechAgent(BaseAgent):
             activation for activation in self.working_memory.activations
         ]
 
+        print("LENGTH OF ACTIVATIONS", len(candidate_activations))
+
         while True:
             if len(candidate_activations) == 0:
                 return {}
+
             best_activation, expected_reward = self.select_activation(
                 candidate_activations)
             state = self.working_memory.state
@@ -154,10 +164,14 @@ class SoarTechAgent(BaseAgent):
             next_state = self.working_memory.state
 
             if self.when_learning:
+                print('request')
                 self.when_learning.update(
                     state, best_activation, self.action_penalty, next_state,
                     candidate_activations
                 )
+
+        self.last_activation = best_activation
+        self.last_sai = output
 
         return output
 
@@ -173,7 +187,13 @@ class SoarTechAgent(BaseAgent):
         representing the selection, a string representing the action, list of
         strings representing the inputs, and a boolean correctness.
         """
-        print(sai)
+        if self.last_sai == sai and state_diff == {}:
+            print("MATCHING LAST SAI")
+            self.update_final(self.working_memory.state, reward,
+                              next_state_diff, self.last_activation)
+            return
+
+        # print(sai)
         # print(state_diff)
         self.working_memory.update(state_diff)
 
@@ -188,7 +208,6 @@ class SoarTechAgent(BaseAgent):
 
         while True:
 
-            # from pprint import pprint
             # pprint(self.working_memory.state)
 
             # outer loop checks if the sai is the one we're trying to explain
@@ -207,6 +226,9 @@ class SoarTechAgent(BaseAgent):
 
                 best_activation, expected_reward = self.select_activation(
                     candidate_activations)
+
+                # pprint(self.working_memory.state)
+                # print('firing', best_activation.get_rule_name())
                 state = self.working_memory.state
 
                 output = self.working_memory.activation_factory\
@@ -226,6 +248,7 @@ class SoarTechAgent(BaseAgent):
                     activation for activation in
                     self.working_memory.activations
                 ]
+                
                 next_state = self.working_memory.state
 
                 if self.when_learning:
@@ -234,46 +257,56 @@ class SoarTechAgent(BaseAgent):
                         next_state, candidate_activations
                     )
 
-            print('trying', output, 'vs.', sai)
+            # print('trying', output, 'vs.', sai)
+            log.debug('trying', output, 'vs.', sai)
             if output != sai:
+                # log.debug('failed!')
                 print('failed!')
-                print()
-                candidate_activations = [act for act in candidate_activations
-                                         if act != best_activation]
+                # print()
+                # candidate_activations = [act for act in candidate_activations
+                #                          if act != best_activation]
+
+                # if the reward is positive, then we assume any other action is
+                # a negative example. So we train on the explity negatives.
+                if self.when_learning and reward > 0:
+                    self.when_learning.update(
+                        state, best_activation,
+                        self.action_penalty - 1.0,
+                        # state, []
+                        state, candidate_activations
+                    )
+
                 continue
+            # log.debug('success explaining sai')
             print('success!')
-            print()
+            # print()
 
-            temp = Fact(foo='bar')
-            temp.__source__ = ex_activation
-
-            x = Explanation(temp)
-            r = x.new_rule
-
-            if r is  not None:
-                print("adding new rules")
-                self.working_memory.add_rule(r)
-
-            if next_state_diff is None:
-                next_state = None
-                candidate_activations = []
-
-            else:
-                self.working_memory.update(next_state_diff)
-                next_state = self.working_memory.state
-                candidate_activations = [activation for activation in
-                                         self.working_memory.activations]
-
-            if self.when_learning:
-                self.when_learning.update(
-                    state, best_activation,
-                    self.action_penalty if output is None
-                    else self.action_penalty + reward,
-                    next_state,
-                    candidate_activations
-                )
+            self.update_final(state, reward, next_state_diff, best_activation)
 
             break
+
+    def update_final(self, state, reward, next_state_diff, best_activation):
+        """
+        Do the final update for an observable SAI producing activation.
+        """
+        if next_state_diff is None:
+            next_state = None
+            candidate_activations = []
+
+        else:
+            self.working_memory.update(next_state_diff)
+            next_state = self.working_memory.state
+            candidate_activations = [activation for activation in
+                                     self.working_memory.activations]
+
+
+        if self.when_learning:
+            self.when_learning.update(
+                state, best_activation,
+                self.action_penalty + reward,
+                # next_state, []
+                next_state, candidate_activations
+            )
 
     def train_diff_old(self, state_diff, next_state_diff, sai, reward,
                        skill_label, foci_of_attention):

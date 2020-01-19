@@ -2,19 +2,19 @@ from experta import KnowledgeEngine
 
 from apprentice.agents import SoarTechAgent
 from apprentice.working_memory import ExpertaWorkingMemory
-from apprentice.learners.when_learners import q_learner
-from ttt_simple import ttt_engine, ttt_oracle
+from ttt_simple import ttt_oracle
 
-from examples.ttt_simple import make_move_skill, ttt_skill_map
+from examples.ttt_simple import ttt_skill_map
 
 if __name__ == "__main__":
     # with experta knowledge engine
-    wm2 = ExpertaWorkingMemory(ke =KnowledgeEngine())
+    wm2 = ExpertaWorkingMemory(ke=KnowledgeEngine())
     a1 = SoarTechAgent(
-        wm=wm2, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.0),
+        wm=wm2,
+        # when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.0),
         feature_set=[], function_set=[],
-        # wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0.0),
-        negative_actions=True, action_penalty=0.0, epsilon=0.3, skill_map=ttt_skill_map, prior_skills=['make_move']
+        negative_actions=True, action_penalty=0.0, epsilon=0.3,
+        skill_map=ttt_skill_map, prior_skills=['make_move']
     )
 
     max_training_games = 100
@@ -24,7 +24,11 @@ if __name__ == "__main__":
     while consecutive_wins < 5 and i < max_training_games:
         o = ttt_oracle()
         winner = False
+        print("#############################")
         print("Training game {}".format(i))
+        print("#############################")
+        print()
+
         i += 1
         while not winner:
             state = o.as_dict()
@@ -50,7 +54,10 @@ if __name__ == "__main__":
                     consecutive_wins = 0
 
             a1.train(state, next_state, sai, reward, "", [""])
+        print("#############################")
         print("Final reward = %0.1f" % reward)
+        print("#############################")
+        print()
 
     test_games = 20
     a1.epsilon = 0
@@ -68,4 +75,7 @@ if __name__ == "__main__":
         if o.check_winner() == "X":
             wins -= 1
 
+    print("#############################")
     print("test win rate: {}".format(wins / test_games))
+    print("#############################")
+    print()

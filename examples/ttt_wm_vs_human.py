@@ -1,7 +1,7 @@
 from apprentice.agents import SoarTechAgent
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.representation import Sai
-from apprentice.learners.when_learners import q_learner
+# from apprentice.learners.when_learners import q_learner
 from ttt_simple import ttt_engine, ttt_oracle
 
 
@@ -35,8 +35,10 @@ if __name__ == "__main__":
     a1 = SoarTechAgent(
         # wm=wm1, when=q_learner.QLearner(func=q_learner.Cobweb, q_init=0.0)
         feature_set=[], function_set=[],
-        wm=wm1, when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0.0),
-        # negative_actions=True,
+        wm=wm1,
+        epsilon=0.5,
+        # when=q_learner.QLearner(func=q_learner.LinearFunc, q_init=0.0),
+        negative_actions=True,
         action_penalty=0.0
     )
 
@@ -106,6 +108,7 @@ if __name__ == "__main__":
         print(game)
         print()
 
-        new = input("Play again? Press enter to continue or type 'no' to"
-                    " stop.")
-        new_game = new == ""
+        new_game = True
+        # new = input("Play again? Press enter to continue or type 'no' to"
+        #             " stop.")
+        # new_game = new == ""
