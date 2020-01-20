@@ -1,5 +1,6 @@
 import random
 from abc import ABCMeta
+
 # from typing import Any
 from typing import Collection
 from typing import Dict
@@ -32,21 +33,23 @@ class SoarTechAgent(BaseAgent):
         action_penalty: float = -0.05,
         negative_actions: bool = False,
         skill_map: Dict[str, Skill] = fraction_skill_set,
-        prior_skills: Collection[str] = frozenset([
-        #     'equal',
-        #     'add',
-        #     'multiply'
-        # ]),
-            'click_done', 'check',
-                                                   # 'equal',
-                                                   'update_answer',
-                                                   'update_convert', 'add',
-                                                   'multiply']),
+            prior_skills=None,
         **kwargs
     ):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
         super().__init__()
+
+        if prior_skills is None:
+            prior_skills = {
+                "click_done": True,
+                "check": True,
+                "equal": False,
+                "update_answer": True,
+                "update_convert": True,
+                "add": True,
+                "multiply": True,
+            }
 
         self.prior_state = {}
         self.last_activation = None
@@ -59,10 +62,12 @@ class SoarTechAgent(BaseAgent):
             self.working_memory = wm()
 
         print(prior_skills)
-        if prior_skills is not None:
-            prior_skills = [skill_map[s]
-                            for s in prior_skills if s in skill_map]
-            self.working_memory.add_skills(prior_skills)
+        prior_skills = [
+            skill_map[s]
+            for s, active in prior_skills.items()
+            if active and s in skill_map
+        ]
+        self.working_memory.add_skills(prior_skills)
 
         # will take a activation and facts and return reward
         if when is not None:
@@ -73,15 +78,16 @@ class SoarTechAgent(BaseAgent):
         self.request_epsilon = request_epsilon
         self.train_epsilon = train_epsilon
         self.action_penalty = action_penalty
-        print('action_penalty', action_penalty)
+        print("action_penalty", action_penalty)
         self.negative_actions = negative_actions
 
     def __deepcopy__(self, memo):
         log.debug("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
         return None
 
-    def select_activation(self, candidate_activations: Collection[Activation],
-                          is_train=False) -> Activation:
+    def select_activation(
+        self, candidate_activations: Collection[Activation], is_train=False
+    ) -> Activation:
         """
         Given a list of candidate skills evaluate them and determines which one
         has the highest expected rewared in the current state.
@@ -102,17 +108,18 @@ class SoarTechAgent(BaseAgent):
             return random.choice(candidate_activations), 0
 
         if not is_train and random.random() < self.request_epsilon:
-            print('random action')
+            print("random action")
             return random.choice(candidate_activations), 0
 
         if is_train and random.random() < self.train_epsilon:
-            print('random action')
+            print("random action")
             return random.choice(candidate_activations), 0
 
         activations = [
             (
-                self.when_learning.eval(state=self.working_memory.state,
-                                        action=activation),
+                self.when_learning.eval(
+                    state=self.working_memory.state, action=activation
+                ),
                 random.random(),
                 activation,
             )
@@ -153,7 +160,8 @@ class SoarTechAgent(BaseAgent):
                 return {}
 
             best_activation, expected_reward = self.select_activation(
-                candidate_activations)
+                candidate_activations
+            )
             state = self.working_memory.state
 
             if not self.negative_actions and expected_reward < 0.0:
@@ -163,18 +171,24 @@ class SoarTechAgent(BaseAgent):
                 best_activation
             ).fire(self.working_memory.ke)
             # pprint(self.working_memory.facts)
-            tabu.add((best_activation.get_rule_name(), frozenset(
-                best_activation.get_rule_bindings().items())))
+            tabu.add(
+                (
+                    best_activation.get_rule_name(),
+                    frozenset(best_activation.get_rule_bindings().items()),
+                )
+            )
 
             if isinstance(output, Sai):
                 break
 
             candidate_activations = [
-                activation for activation in
-                self.working_memory.activations
-                if (activation.get_rule_name(),
-                    frozenset(activation.get_rule_bindings().items())) not
-                in tabu
+                activation
+                for activation in self.working_memory.activations
+                if (
+                    activation.get_rule_name(),
+                    frozenset(activation.get_rule_bindings().items()),
+                )
+                not in tabu
             ]
             # pprint([{a: self.working_memory.facts[fid][a] for a in
             #          self.working_memory.facts[fid] if a != "__factid__"}
@@ -183,10 +197,13 @@ class SoarTechAgent(BaseAgent):
             next_state = self.working_memory.state
 
             if self.when_learning:
-                print('request')
+                print("request")
                 self.when_learning.update(
-                    state, best_activation, self.action_penalty, next_state,
-                    candidate_activations
+                    state,
+                    best_activation,
+                    self.action_penalty,
+                    next_state,
+                    candidate_activations,
                 )
 
         self.last_activation = best_activation
@@ -194,8 +211,9 @@ class SoarTechAgent(BaseAgent):
 
         return output
 
-    def train_diff(self, state_diff, next_state_diff, sai, reward, skill_label,
-                   foci_of_attention):
+    def train_diff(
+        self, state_diff, next_state_diff, sai, reward, skill_label, foci_of_attention
+    ):
         """
         Need the diff for the current state as well as the state diff for
         computing the state that results from taking the action. This is
@@ -210,8 +228,9 @@ class SoarTechAgent(BaseAgent):
 
         if self.last_sai == sai and state_diff == {}:
             print("MATCHING LAST SAI")
-            self.update_final(self.working_memory.state, reward,
-                              next_state_diff, self.last_activation)
+            self.update_final(
+                self.working_memory.state, reward, next_state_diff, self.last_activation
+            )
             return
 
         # print(sai)
@@ -247,7 +266,8 @@ class SoarTechAgent(BaseAgent):
                     return {}
 
                 best_activation, expected_reward = self.select_activation(
-                    candidate_activations, is_train=True)
+                    candidate_activations, is_train=True
+                )
 
                 # pprint(self.working_memory.state)
                 # print('firing', best_activation.get_rule_name())
@@ -256,9 +276,12 @@ class SoarTechAgent(BaseAgent):
                 output = self.working_memory.activation_factory.to_ex_activation(
                     best_activation
                 ).fire(self.working_memory.ke)
-                tabu.add((best_activation.get_rule_name(),
-                          frozenset(
-                              best_activation.get_rule_bindings().items())))
+                tabu.add(
+                    (
+                        best_activation.get_rule_name(),
+                        frozenset(best_activation.get_rule_bindings().items()),
+                    )
+                )
                 print(tabu)
                 print("TABU LENGTH", len(tabu))
                 # pprint(self.working_memory.facts)
@@ -267,11 +290,13 @@ class SoarTechAgent(BaseAgent):
                     break
 
                 candidate_activations = [
-                    activation for activation in
-                    self.working_memory.activations
-                    if (activation.get_rule_name(),
-                        frozenset(activation.get_rule_bindings().items())) not
-                    in tabu
+                    activation
+                    for activation in self.working_memory.activations
+                    if (
+                        activation.get_rule_name(),
+                        frozenset(activation.get_rule_bindings().items()),
+                    )
+                    not in tabu
                 ]
 
                 print("LENGTH OF ACTIVATIONS", len(candidate_activations))
@@ -279,42 +304,49 @@ class SoarTechAgent(BaseAgent):
                 # pprint([{a: self.working_memory.facts[fid][a] for a in
                 #          self.working_memory.facts[fid] if a != "__factid__"}
                 #         for fid in self.working_memory.facts])
-                
+
                 next_state = self.working_memory.state
 
                 if self.when_learning:
                     self.when_learning.update(
-                        state, best_activation, self.action_penalty,
-                        next_state, candidate_activations
+                        state,
+                        best_activation,
+                        self.action_penalty,
+                        next_state,
+                        candidate_activations,
                     )
 
             # print('trying', output, 'vs.', sai)
-            log.debug('trying', output, 'vs.', sai)
+            log.debug("trying", output, "vs.", sai)
             if output != sai:
                 # log.debug('failed!')
-                print('failed!')
+                print("failed!")
                 # print()
                 candidate_activations = [
-                    activation for activation in
-                    self.working_memory.activations
-                    if (activation.get_rule_name(),
-                        frozenset(activation.get_rule_bindings().items())) not
-                    in tabu
+                    activation
+                    for activation in self.working_memory.activations
+                    if (
+                        activation.get_rule_name(),
+                        frozenset(activation.get_rule_bindings().items()),
+                    )
+                    not in tabu
                 ]
 
                 # if the reward is positive, then we assume any other action is
                 # a negative example. So we train on the explity negatives.
                 if self.when_learning and reward > 0:
                     self.when_learning.update(
-                        state, best_activation,
+                        state,
+                        best_activation,
                         self.action_penalty - 1.0,
                         # state, []
-                        state, candidate_activations
+                        state,
+                        candidate_activations,
                     )
 
                 continue
             # log.debug('success explaining sai')
-            print('success!')
+            print("success!")
             # print()
 
             self.update_final(state, reward, next_state_diff, best_activation)
@@ -332,17 +364,19 @@ class SoarTechAgent(BaseAgent):
         else:
             self.working_memory.update(next_state_diff)
             next_state = self.working_memory.state
-            candidate_activations = [activation for activation in
-                                     self.working_memory.activations]
+            candidate_activations = [
+                activation for activation in self.working_memory.activations
+            ]
         print("LENGTH OF ACTIVATIONS", len(candidate_activations))
-
 
         if self.when_learning:
             self.when_learning.update(
-                state, best_activation,
+                state,
+                best_activation,
                 self.action_penalty + reward,
                 # next_state, []
-                next_state, candidate_activations
+                next_state,
+                candidate_activations,
             )
 
     def train_last_state(self, *args):
