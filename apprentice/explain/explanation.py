@@ -27,6 +27,8 @@ class Explanation:
         self.tests = [TEST(rename_lambda(t[0], self.mapping)) for t in
                       self.tests]
         self.rules = self.rules[::-1]  # order rules logically
+
+        print("!!!EXPLANATION RULES ", self.rules)
         self.new_rule = self.compose()
 
     def compose(self):
@@ -148,6 +150,7 @@ class Explanation:
     def explain_fact(self, fact, general={}, root=True):
         # because we are only building general substitution, only consider
         # facts who came from an activation i.e. rule
+
         if fact.__source__ is not None:
 
             # keep track of rules that need to be fired for composition

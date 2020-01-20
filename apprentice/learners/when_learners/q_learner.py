@@ -69,8 +69,8 @@ class QLearner(WhenLearner):
             self.Q[name] = self.func(q_init=self.q_init,
                                      learning_rate=self.learning_rate)
 
-        from pprint import pprint
-        pprint(state)
+        #from pprint import pprint
+        #pprint(state)
         # if name == "update_field":
         #     pprint(state)
         #     print(reward)
