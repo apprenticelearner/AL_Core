@@ -157,6 +157,200 @@ class FractionsEngine(KnowledgeEngine):
                           value=new_value,
                           depth=new_depth))
 
+    @Rule(
+        Fact(id='JCommTable.R0C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable2.R0C0', contentEditable=False, value="*"),
+        Fact(id='JCommTable3.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable6.R0C0', contentEditable=True)
+    )
+    def correct_multiply_num(self, value1, value2):
+        new_value = float(value1) * float(value2)
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        return Sai(selection='JCommTable6.R0C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': new_value})
+
+    @Rule(
+        Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable2.R0C0', contentEditable=False, value="*"),
+        Fact(id='JCommTable3.R1C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable6.R1C0', contentEditable=True)
+    )
+    def correct_multiply_denom(self, value1, value2):
+        new_value = float(value1) * float(value2)
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        return Sai(selection='JCommTable6.R1C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': new_value})
+
+    @Rule(
+        Fact(id='JCommTable6.R0C0', contentEditable=False),
+        Fact(id='JCommTable6.R1C0', contentEditable=False),
+        Fact(id='done')
+    )
+    def correct_done(self):
+        return Sai(selection='done',
+                   action='ButtonPressed',
+                   input={'value': -1})
+
+    @Rule(
+        Fact(id='JCommTable.R0C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
+        Fact(id='JCommTable3.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable3.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable6.R0C0', contentEditable=True)
+    )
+    def correct_add_same_num(self, value1, value2):
+        new_value = float(value1) + float(value2)
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        return Sai(selection='JCommTable6.R0C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': new_value})
+
+    @Rule(
+        Fact(id='JCommTable.R0C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
+        Fact(id='JCommTable3.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable3.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable6.R1C0', contentEditable=True)
+    )
+    def correct_copy_same_denom(self, value3):
+        return Sai(selection='JCommTable6.R1C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': value3})
+
+    @Rule(
+        Fact(id="JCommTable.R1C0", contentEditable=False, value=MATCH.denom),
+        Fact(id="JCommTable2.R0C0", contentEditable=False, value="+"),
+        Fact(id="JCommTable3.R1C0", contentEditable=False, value=MATCH.denom),
+        Fact(id="JCommTable8.R0C0", contentEditable=True, value="")
+    )
+    def correct_check(self):
+        print('checking box')
+        return Sai(selection="JCommTable8.R0C0",
+                   action='UpdateTextArea',
+                   input={'value': "x"})
+
+    @Rule(
+        Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
+        Fact(id="JCommTable8.R0C0", contentEditable=False, value="x"),
+        Fact(id='JCommTable.R0C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable3.R1C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable4.R0C0', contentEditable=True)
+    )
+    def correct_convert_num1(self, value1, value2):
+        new_value = float(value1) * float(value2)
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        return Sai(selection='JCommTable4.R0C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': new_value})
+
+    @Rule(
+        Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
+        Fact(id="JCommTable8.R0C0", contentEditable=False, value="x"),
+        Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable3.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable5.R0C0', contentEditable=True)
+    )
+    def correct_convert_num2(self, value1, value2):
+        new_value = float(value1) * float(value2)
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        return Sai(selection='JCommTable5.R0C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': new_value})
+
+    @Rule(
+        Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
+        Fact(id="JCommTable8.R0C0", contentEditable=False, value="x"),
+        Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable3.R1C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable4.R1C0', contentEditable=True)
+    )
+    def correct_convert_denom1(self, value1, value2):
+        new_value = float(value1) * float(value2)
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        return Sai(selection='JCommTable4.R1C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': new_value})
+
+    @Rule(
+        Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
+        Fact(id="JCommTable8.R0C0", contentEditable=False, value="x"),
+        Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable3.R1C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable5.R1C0', contentEditable=True)
+    )
+    def correct_convert_denom2(self, value1, value2):
+        new_value = float(value1) * float(value2)
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        return Sai(selection='JCommTable5.R1C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': new_value})
+
+    @Rule(
+        Fact(id='JCommTable4.R0C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable5.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable4.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable5.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable7.R0C0', contentEditable=False, value="+"),
+        Fact(id='JCommTabl6.R0C0', contentEditable=True),
+    )
+    def correct_add_convert_num(self, value1, value2):
+        new_value = float(value1) + float(value2)
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        return Sai(selection='JCommTabl6.R0C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': new_value})
+
+    @Rule(
+        Fact(id='JCommTable4.R0C0', contentEditable=False, value=MATCH.value1),
+        Fact(id='JCommTable5.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable4.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable5.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable7.R0C0', contentEditable=False, value="+"),
+        Fact(id='JCommTabl6.R1C0', contentEditable=True),
+    )
+    def correct_copy_convert_denom(self, value3):
+        return Sai(selection='JCommTabl6.R1C0',
+                   # action='UpdateTextField',
+                   action='UpdateTextArea',
+                   input={'value': value3})
+
 
 ke = FractionsEngine()
 skill_factory = ExpertaSkillFactory(ke)
@@ -169,12 +363,43 @@ update_convert_field_skill = skill_factory.from_ex_rule(
 add_skill = skill_factory.from_ex_rule(ke.add)
 multiply_skill = skill_factory.from_ex_rule(ke.multiply)
 
+
+correct_multiply_num = skill_factory.from_ex_rule(ke.correct_multiply_num)
+correct_multiply_denom = skill_factory.from_ex_rule(ke.correct_multiply_denom)
+
+correct_add_same_num = skill_factory.from_ex_rule(ke.correct_add_same_num)
+correct_copy_same_denom = skill_factory.from_ex_rule(ke.correct_copy_same_denom)
+
+correct_check = skill_factory.from_ex_rule(ke.correct_check)
+correct_convert_num1 = skill_factory.from_ex_rule(ke.correct_convert_num1)
+correct_convert_num2 = skill_factory.from_ex_rule(ke.correct_convert_num2)
+correct_convert_denom1 = skill_factory.from_ex_rule(ke.correct_convert_denom1)
+correct_convert_denom2 = skill_factory.from_ex_rule(ke.correct_convert_denom2)
+correct_add_convert_num = skill_factory.from_ex_rule(ke.correct_add_convert_num)
+correct_copy_convert_denom = skill_factory.from_ex_rule(ke.correct_copy_convert_denom)
+
+correct_done = skill_factory.from_ex_rule(ke.correct_done)
+
 fraction_skill_set = {'click_done': click_done_skill, 'check': check_skill,
                       'update_answer': update_answer_field_skill,
                       'update_convert': update_convert_field_skill,
                       'equal': equal_skill,
                       'add': add_skill,
-                      'multiply': multiply_skill}
+                      'multiply': multiply_skill,
+
+                      'correct_multiply_num': correct_multiply_num,
+                      'correct_multiply_denom': correct_multiply_denom,
+                      'correct_done': correct_done,
+                      'correct_add_same_num': correct_add_same_num,
+                      'correct_copy_same_denom': correct_copy_same_denom,
+                      'correct_check': correct_check,
+                      'correct_convert_num1': correct_convert_num1,
+                      'correct_convert_num2': correct_convert_num2,
+                      'correct_convert_denom1': correct_convert_denom1,
+                      'correct_convert_denom2': correct_convert_denom2,
+                      'correct_add_convert_num': correct_add_convert_num,
+                      'correct_copy_convert_denom': correct_copy_convert_denom
+                      }
 
 
 class RandomFracEngine(KnowledgeEngine):
