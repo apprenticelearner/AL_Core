@@ -1,5 +1,5 @@
 from apprentice.explain.explanation import Explanation
-from apprentice.working_memory.skills import AdditionEngine, EmptyAdditionEngine
+from apprentice.working_memory.skills_test import AdditionEngine, EmptyAdditionEngine
 from apprentice.working_memory.representation import Sai
 from apprentice.working_memory import ExpertaWorkingMemory
 import inspect
