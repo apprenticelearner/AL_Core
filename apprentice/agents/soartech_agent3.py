@@ -16,7 +16,7 @@ from apprentice.working_memory.representation import Skill, Activation, Sai
 from apprentice.working_memory.skills import fraction_skill_set
 from apprentice.log import log
 
-
+from apprentice.explain.explanation import Explanation
 class SoarTechAgent(BaseAgent):
     """
     A SoarTech version of an Apprentice Agent.
@@ -281,6 +281,9 @@ class SoarTechAgent(BaseAgent):
             print('success!')
             # print()
 
+            ex = Explanation(sai)
+            print("EXPLANATION SUCCESS!!!")
+            print("NEW RULE", ex.new_rule)
             self.update_final(state, reward, next_state_diff, best_activation)
 
             break
