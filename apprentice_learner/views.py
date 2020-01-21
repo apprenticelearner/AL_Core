@@ -319,7 +319,7 @@ def train(http_request, agent_id):
         agent.inc_train()
 
         if(explicit):
-            sk_apps = data.get('skill_applications', data['explanations'])
+            sk_apps = data.get('skill_applications', data.get('explanations',None))
             response = agent.instance.train_explicit(data['state'],sk_apps,
                                                      data['rewards'],**data.get('kwargs',{}))
         else:
