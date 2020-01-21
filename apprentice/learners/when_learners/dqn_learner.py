@@ -135,15 +135,15 @@ class DQNLearner(WhenLearner):
             next_state_v = self.gen_state_vector(next_state)
             next_action_vs = self.gen_action_vectors(next_actions)
 
-        print("REWARD")
-        print(reward)
-        print("NEXT SAs")
-        if next_state_v is None:
-            print("NONE")
-        else:
-            print(next_state_v.shape)
-            print(next_action_vs.shape)
-        print()
+        # #print("REWARD")
+        # #print(reward)
+        # #print("NEXT SAs")
+        # if next_state_v is None:
+        #     pass #print("NONE")
+        # else:
+        #     #print(next_state_v.shape)
+        #     print(next_action_vs.shape)
+        # print()
 
         self.replay_memory.push(
             torch.from_numpy(state_v).float().to(self.device),
@@ -169,13 +169,13 @@ class DQNLearner(WhenLearner):
         if updates > 100:
             updates = 100
 
-        print('# updates =', updates)
+        #print('# updates =', updates)
         print('len replay mem =', len(self.replay_memory))
         loss = []
         for _ in range(updates):
             loss.append(self.optimize_model())
 
-        print("LOSS", loss)
+        #print("LOSS", loss)
 
     def optimize_model(self):
         batch_size = self.batch_size
