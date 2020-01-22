@@ -98,7 +98,7 @@ class DQNLearner(WhenLearner):
         with torch.no_grad():
             state_val, state_hidden = self.value_net(state_x)
             action_val = self.action_net(action_x, state_hidden)
-            return action_val[0].cpu().item()
+            return state_val[0].cpu().item() + action_val[0].cpu().item()
 
     def eval_multiple(self, state: dict,
                       actions: Collection[Activation]) -> Collection[float]:
@@ -114,7 +114,8 @@ class DQNLearner(WhenLearner):
             state_val, state_hidden = self.value_net(state_x)
             action_val = self.action_net(action_x,
                                          state_hidden.expand(len(actions), -1))
-            return action_val[0].cpu().tolist()
+            return (state_val.expand(len(actions), -1) + action_val).squeeze(1).cpu().tolist()
+
 
     def update(
         self,
