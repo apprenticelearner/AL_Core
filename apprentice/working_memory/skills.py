@@ -431,24 +431,3 @@ def fact_from_dict(f):
         fact_class = Fact
     f2 = {k: v for k, v in f.items() if k[:2] != "__"}
     return fact_class(f2)
-
-
-if __name__ == "__main__":
-    from apprentice.explain.explanation import Explanation
-
-    engine = AdditionEngine()
-    engine.reset()
-
-    f1 = Fact(id='JCommTable.R0C0', value='1', contentEditable=False)
-    f2 = Fact(id='JCommTable.R1C0', value='2', contentEditable=False)
-    f3 = Fact(id='JCommTable.R1C1', contentEditable=True, value='')
-
-    engine.declare(f1)
-    engine.declare(f2)
-    engine.declare(f3)
-    engine.run(10)
-    sais = engine.sais
-    ex = Explanation(engine.sais[0])
-    nr = ex.new_rule
-
-    pass

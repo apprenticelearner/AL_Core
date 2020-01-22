@@ -23,6 +23,7 @@ class DQNLearner(WhenLearner):
                  action_hidden_size=30):
         self.device = torch.device("cuda" if torch.cuda.is_available() else
                                    "cpu")
+        self.device = "cpu" #TODO: make cuda not break elsewhere
         self.gamma = gamma
         self.lr = lr
         self.batch_size = batch_size
@@ -65,12 +66,6 @@ class DQNLearner(WhenLearner):
     def gen_state_vector(self, state: dict) -> np.ndarray:
         state = {str(a): state[a] for a in state}
 
-        # from pprint import pprint
-        # pprint(state)
-        # pprint(self.state_hasher.transform([state]).toarray().tolist())
-        # print(self.state_hasher.transform([state]).shape)
-        # print()
-
         return self.state_hasher.transform([state]).toarray()
 
     def gen_action_vectors(
@@ -88,11 +83,6 @@ class DQNLearner(WhenLearner):
                 else:
                     act_d[str(a)] = v
             action_dicts.append(act_d)
-
-        # from pprint import pprint
-        # pprint(action_dicts[0])
-        # pprint(self.action_hasher.transform([action_dicts[0]]).toarray().tolist())
-        # print(self.action_hasher.transform([action_dicts[0]]).shape)
 
         return self.action_hasher.transform(action_dicts).toarray()
 

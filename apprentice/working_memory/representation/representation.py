@@ -1,11 +1,10 @@
-import uuid
+import inspect
 from dataclasses import dataclass
 from typing import Collection, Callable, Any
-import inspect
-import experta
 
-from experta.conditionalelement import ConditionalElement as Condition
+import experta
 from experta import Fact
+from experta.conditionalelement import ConditionalElement as Condition
 
 
 # class Condition(tuple):
@@ -18,23 +17,27 @@ from experta import Fact
 #         return dict.__new__(Fact, args)
 
 
-@dataclass#(frozen=True) #
+@dataclass  # (frozen=True) #
 class Sai:
     selection: Any
     action: Any
     input: Any
 
     def __post_init__(self):
+        self.__source__ = None
         try:
-            activation_frame = inspect.currentframe().f_back.f_back.f_back.f_back
-            assert type(activation_frame.f_locals[
-                            'self']) == experta.activation.Activation
+            activation_frame = inspect.currentframe().f_back
+            for i in range(7):
+                if 'self' in activation_frame.f_locals:
+                    if type(activation_frame.f_locals[
+                                'self']) == experta.activation.Activation:
 
-            self.__source__ = activation_frame.f_locals['self']
-            print(activation_frame.f_locals['self'])
-        except AssertionError:
-            pass
-        except AttributeError:
+                        self.__source__ = activation_frame.f_locals['self']
+                        #print("!!!Source assigned: ", self.__source__)
+                        break
+                activation_frame = activation_frame.f_back
+        except (AssertionError, AttributeError, KeyError) as e:
+            #print("!!!Error assingning source: ", e)
             pass
 
 
@@ -91,7 +94,7 @@ class Activation:
         for k, v in self.context.items():
             if isinstance(v, Fact):
                 c[k] = frozenset([(fk, fv) for fk, fv in v.items() if not
-                                  Fact.is_special(fk)])
+                Fact.is_special(fk)])
             else:
                 c[k] = v
 

@@ -2,6 +2,7 @@ from apprentice.explain.explanation import Explanation
 from apprentice.working_memory import ExpertaWorkingMemory
 
 from kill_engine import KillEngine, KillEngineEmpty
+from experta import Fact, KnowledgeEngine
 
 def test_explain():
     cf = KillEngine()
@@ -20,5 +21,3 @@ def test_explain():
     new_wm.ke.run(10)
     assert new_wm.ke.fired == cf.fired
 
-
-test_explain()
