@@ -142,8 +142,8 @@ class SoarTechAgent(BaseAgent):
 
         activations.sort(reverse=True)
 
-        # print('q values')
-        # print([s for s, _, _ in activations])
+        print('q values')
+        print([s for s, _, _ in activations])
         # print([(s, a.get_rule_name()) for s, _, a in activations])
         expected_reward, _, best_activation = activations[0]
         return best_activation, expected_reward
@@ -185,6 +185,8 @@ class SoarTechAgent(BaseAgent):
             output = self.working_memory.activation_factory.to_ex_activation(
                 best_activation
             ).fire(self.working_memory.ke)
+
+            print("FIRING... expected reward =", expected_reward)
             # pprint(self.working_memory.facts)
             tabu.add(
                 (
@@ -352,8 +354,7 @@ class SoarTechAgent(BaseAgent):
                         best_activation,
                         self.action_penalty - 1.0,
                         # state, []
-                        state,
-                        candidate_activations,
+                        state, candidate_activations,
                     )
 
                 continue
@@ -387,8 +388,7 @@ class SoarTechAgent(BaseAgent):
                 best_activation,
                 self.action_penalty + reward,
                 # next_state, []
-                next_state,
-                candidate_activations,
+                next_state, candidate_activations,
             )
 
     def train_last_state(self, *args):

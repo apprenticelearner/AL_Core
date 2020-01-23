@@ -18,12 +18,12 @@ from apprentice.learners.when_learners.fractions_hasher import FractionsActionHa
 
 
 class DQNLearner(WhenLearner):
-    def __init__(self, gamma=0.7, lr=3e-5, batch_size=32, mem_capacity=10000,
-                 state_size=394, action_size=244, state_hidden_size=30,
-                 action_hidden_size=30):
+    def __init__(self, gamma=0.7, lr=3e-3, batch_size=64, mem_capacity=10000,
+                 state_size=394, action_size=244, state_hidden_size=197,
+                 action_hidden_size=122):
         self.device = torch.device("cuda" if torch.cuda.is_available() else
                                    "cpu")
-        self.device = "cpu" #TODO: make cuda not break elsewhere
+        self.device = "cpu"  # TODO: make cuda not break elsewhere
         self.gamma = gamma
         self.lr = lr
         self.batch_size = batch_size
@@ -47,21 +47,25 @@ class DQNLearner(WhenLearner):
                                     self.action_hidden_size)
 
         # create separate target net for computing future value
-        # self.target_value_net = ValueNet(self.state_size,
-        #                                  self.state_hidden_size)
-        # self.target_value_net.load_state_dict(self.value_net.state_dict())
-        # self.target_value_net.eval()
-        # self.target_action_net = ActionNet(self.action_size,
-        #                                    self.state_hidden_size,
-        #                                    self.action_hidden_size)
-        # self.target_action_net.load_state_dict(self.action_net.state_dict())
-        # self.target_action_net.eval()
+        self.target_value_net = ValueNet(self.state_size,
+                                         self.state_hidden_size)
+        self.target_value_net.load_state_dict(self.value_net.state_dict())
+        self.target_value_net.eval()
+        self.target_action_net = ActionNet(self.action_size,
+                                           self.state_hidden_size,
+                                           self.action_hidden_size)
+        self.target_action_net.load_state_dict(self.action_net.state_dict())
+        self.target_action_net.eval()
 
         self.replay_memory = ReplayMemory(mem_capacity)
 
         params = (list(self.value_net.parameters()) +
                   list(self.action_net.parameters()))
         self.optimizer = torch.optim.Adam(params, lr=self.lr)
+
+    def update_target_net(self):
+        self.target_value_net.load_state_dict(self.value_net.state_dict())
+        self.target_action_net.load_state_dict(self.action_net.state_dict())
 
     def gen_state_vector(self, state: dict) -> np.ndarray:
         state = {str(a): state[a] for a in state}
@@ -116,7 +120,6 @@ class DQNLearner(WhenLearner):
                                          state_hidden.expand(len(actions), -1))
             return (state_val.expand(len(actions), -1) + action_val).squeeze(1).cpu().tolist()
 
-
     def update(
         self,
         state: dict,
@@ -149,7 +152,7 @@ class DQNLearner(WhenLearner):
         self.replay_memory.push(
             torch.from_numpy(state_v).float().to(self.device),
             torch.from_numpy(action_v).float().to(self.device),
-            torch.tensor([reward]).to(self.device),
+            torch.tensor([reward]).float().to(self.device),
             None if next_state_v is None else
             torch.from_numpy(next_state_v).float().to(self.device),
             None if next_action_vs is None else
@@ -164,16 +167,18 @@ class DQNLearner(WhenLearner):
         if len(self.replay_memory) < batch_size:
             batch_size = len(self.replay_memory)
         updates = len(self.replay_memory) // batch_size
-        if updates < 10:
-            updates = 10
+        if updates < 20:
+            updates = 20 
         updates *= 3
-        if updates > 100:
-            updates = 100
+        if updates > 200:
+            updates = 200
 
         print('# updates =', updates)
         print('len replay mem =', len(self.replay_memory))
         loss = []
-        for _ in range(updates):
+        for i in range(updates):
+            if i % 5:
+                self.update_target_net()
             loss.append(self.optimize_model())
 
         print("LOSS", loss)
@@ -220,15 +225,21 @@ class DQNLearner(WhenLearner):
         if any_non_final:
 
             with torch.no_grad():
-                next_value = self.value_net(non_final_next_state)
+                next_value = self.target_value_net(non_final_next_state)
                 non_final_next_state_value, non_final_next_hidden = next_value
+
+                next_state_value_expanded = torch.cat([
+                    non_final_next_state_value[i].expand(
+                        next_action_lens[i], -1)
+                    for i in range(len(next_action_start))], 0)
 
                 next_state_hidden_expanded = torch.cat([
                     non_final_next_hidden[i].expand(next_action_lens[i], -1)
                     for i in range(len(next_action_start))], 0)
 
-                non_final_next_action_value = self.action_net(
-                    non_final_next_actions, next_state_hidden_expanded)
+                non_final_next_action_value = (
+                    next_state_value_expanded + self.target_action_net(
+                        non_final_next_actions, next_state_hidden_expanded))
 
         # Compute value of next state actions from target net
         # Detach, so we don't track gradients, target net not getting updated.
@@ -248,6 +259,9 @@ class DQNLearner(WhenLearner):
             expected_state_action_values = (
                 reward + self.gamma * next_state_values).view(batch_size, 1)
 
+        # print(torch.cat([state_action_values, expected_state_action_values], 1))
+        # print(expected_state_action_values)
+
         self.optimizer.zero_grad()
 
         loss = F.smooth_l1_loss(state_action_values,
@@ -256,10 +270,10 @@ class DQNLearner(WhenLearner):
         # perform backprop
         loss.backward()
 
-        for param in self.value_net.parameters():
-            param.grad.data.clamp_(-1, 1)
-        for param in self.action_net.parameters():
-            param.grad.data.clamp_(-1, 1)
+        # for param in self.value_net.parameters():
+        #     param.grad.data.clamp_(-1, 1)
+        # for param in self.action_net.parameters():
+        #     param.grad.data.clamp_(-1, 1)
 
         self.optimizer.step()
 
