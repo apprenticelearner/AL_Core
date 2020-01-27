@@ -381,13 +381,15 @@ def check(http_request, agent_id):
             print('errors: {}'.format(','.join(errs)))
             return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
 
-        agent = Agent.objects.get(id=agent_id)
+
+        agent = get_agent_by_id(agent_id)
         agent.inc_check()
-        agent.save()
+
+        global dont_save
+        if(not dont_save): agent.save()
 
         response = {}
-
-        response['correct'] = agent.instance.check(data['state'],
+        response['reward'] = agent.instance.check(data['state'],
                                                    data['selection'],
                                                    data['action'],
                                                    data['inputs'])

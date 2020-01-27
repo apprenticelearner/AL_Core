@@ -18,8 +18,22 @@ from types import MethodType
 # from learners.HowLearner import get_planner
 # from planners.fo_planner import FoPlanner, execute_functions, unify, subst
 import itertools
+import json
+
+import cProfile
+ 
+pr = cProfile.Profile()
+pr.enable()
+
+import atexit
+
+def cleanup(*args):
+    print("DUMP STATS")
+    pr.disable()
+    pr.dump_stats("AL_tres_fo.prof")
 
 
+atexit.register(cleanup)
 def compute_exp_depth(exp):
     """
     Doc String
@@ -43,6 +57,29 @@ def compute_exp_depth(exp):
 #         return '?foa%s' % (str(i)), i+1
 #     else:
 #         return arg, i
+
+def safe_cast(val, to_type, default=None):
+    try:
+        return to_type(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def _inputs_equal(inputsA, inputsB):        
+        keys1 = set(inputsA.keys())
+        keys2 = set(inputsB.keys())
+        if(keys1 == keys2):
+            ok = True
+            for k in keys1:
+                eq = inputsA[k] == inputsB[k]
+                floatA = safe_cast(inputsA[k],float)
+                floatB = safe_cast(inputsB[k],float)
+                float_eq = (floatA != None and floatB != None and floatA == floatB)
+                if(not (eq or float_eq)):
+                    ok = False
+            if(ok):
+                return True
+        return False
 
 def variablize_by_where_swap(self,state,rhs,  match):
     if(isinstance(state, StateMultiView)):
@@ -556,11 +593,27 @@ class ModularAgent(BaseAgent):
 
     # ------------------------------CHECK--------------------------------------
 
-    def check(self, state, sai):
-        state_featurized, knowledge_base = self.planner.apply_featureset(state)
-        explanations = self.explanations_from_skills(state, sai, self.rhs_list)
-        explanations, _ = self.where_matches(explanations)
-        return len(explanations) > 0
+    
+
+    def check(self, state, selection, action, inputs):
+        resp = self.request(state,n=-1)
+        # pprint("OUT!!!!")
+        # pprint(resp)
+        # pprint("DONE!!!!")
+        if("responses" in resp):
+            responses = resp['responses']
+            # ok = False
+            for resp in responses:
+                print(resp, selection,action,inputs)
+                if(resp['selection'] == selection and 
+                   resp['action'] == action and 
+                   _inputs_equal(resp['inputs'],inputs)):
+                    return 1
+
+        # state_featurized, knowledge_base = self.planner.apply_featureset(state)
+        # explanations = self.explanations_from_skills(state, sai, self.rhs_list)
+        # explanations, _ = self.where_matches(explanations)
+        return -1
 
     def get_skills(self, states=None):
         out = []
@@ -569,13 +622,18 @@ class ModularAgent(BaseAgent):
         for state in states:
             req = self.request(state,
                                add_skill_info=True)
-            req["where"] = tuple(len(list(req["where"].keys())) * ["?"])
-            del req["inputs"]
-            del req["mapping"]
-            print(req)
 
-            if(req is not None):
-                out.append(frozenset([(k, v) for k, v in req.items()]))
+            pprint(req)
+            if(len(req) != 0):
+                req["when"] = json.dumps(req["when"])
+                req["where"] = json.dumps(req["where"])#tuple(len(list(req["where"].keys())) * ["?"])
+                del req["inputs"]
+                del req["mapping"]
+                del req["selection"]
+                
+
+                if(req is not None):
+                    out.append(frozenset([(k, v) for k, v in req.items()]))
 
         uniq_lst = list(dict.fromkeys(out).keys())
         unique = [{k: v for k, v in x} for x in uniq_lst]  # set(out)]
