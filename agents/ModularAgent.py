@@ -212,12 +212,12 @@ def variablize_state_metaskill(self,state,rhs, where_match):
     
     
     l_core = len(state)-len(to_append)
-    pprint({k:state[k] for k in k_list[:l_core]})
-    pprint({k:state[k] for k in k_list[l_core:]})
+    # pprint({k:state[k] for k in k_list[:l_core]})
+    # pprint({k:state[k] for k in k_list[l_core:]})
     state = FlatState({k:state[k] for k in k_list[:l_core]},
                       {k:state[k] for k in k_list[l_core:]})
                 # pprint()
-    print(state)
+    # print(state)
     
     # pprint("r_state")
     # pprint(r_state)
@@ -600,11 +600,14 @@ class ModularAgent(BaseAgent):
         # pprint("OUT!!!!")
         # pprint(resp)
         # pprint("DONE!!!!")
+        print("----CHECK----")
+        print(selection, action, inputs)
+        print("-------------")
         if("responses" in resp):
             responses = resp['responses']
             # ok = False
             for resp in responses:
-                print(resp, selection,action,inputs)
+                print(resp['selection'],resp['action'],resp['inputs'], _inputs_equal(resp['inputs'],inputs))
                 if(resp['selection'] == selection and 
                    resp['action'] == action and 
                    _inputs_equal(resp['inputs'],inputs)):
