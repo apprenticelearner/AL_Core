@@ -1,10 +1,10 @@
 # Installation
-There are two main GitHub repositories for working with AL. We will general refer to these as apprentince_learner_api (https://github.com/apprenticelearner/apprentice_learner_api), which is the core library, and AL_HTML (https://github.com/apprenticelearner/AL_HTML), which contains code for interfacing AL with CTAT-HTML tutors.
+There are two main GitHub repositories for working with AL. We will general refer to these as apprentince_learner_AL_Core (https://github.com/apprenticelearner/AL_Core), which is the core library, and AL_HTML (https://github.com/apprenticelearner/AL_HTML), which contains code for interfacing AL with CTAT-HTML tutors.
 
 To get started, clone both repositories to your machine either by using the Github desktop application or by running the following commands in a terminal / command line:
 
 ```bash
-git clone https://github.com/apprenticelearner/apprentice_learner_api
+git clone https://github.com/apprenticelearner/AL_Core
 git clone https://github.com/apprenticelearner/AL_HTML
 ```
 
