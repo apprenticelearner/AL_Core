@@ -21,7 +21,7 @@ python3 -m pip install -r requirements.txt --user
 ```
 
 **If you are on Windows**, you may need to install pytorch separately. 
-We recommend downloading the relevant .whl file (mostly likely torch‑1.0.1‑cp37‑cp37m‑win_amd64.whl) from here: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytorch. Navigate a terminal to where you downloaded the file and instal with:
+We recommend downloading the relevant .whl file (mostly likely torch‑1.0.1‑cp37‑cp37m‑win_amd64.whl) from here: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pytorch. Navigate a terminal to where you downloaded the file and install with:
 
 ```bash
 python3 -m pip install torch‑1.0.1‑cp37‑cp37m‑win_amd64.whl
@@ -36,7 +36,7 @@ python3 manage.py migrate
 ````
 
 # Basic Tests
-These are a number of basic tests that are mainly useful for checking that everything has been installed correctly.
+There are a few tests which are useful for checking that everything has been installed correctly.
 
 ## Batch Training Example
 Batch training is used to provide AL agents with a predefined set of training problems that they will learn from. When training agents using this approach, you do not need to manually provide it with examples. Agents are trained using previously created practice problems. Specifically, we support the use of example tracing behavior graphs for training agents (BRD files output by CTAT for use with CTAT interfaces). This approach has been applied to model human behavior in previously authored tutoring systems from prior studies. It has also been applied to compare different tutoring systems (e.g., that present fractions training in different ways) to see which best support human learning. Finally, batch training has been employed to test different theories of how people learn—through comparison of model behavior and human behavior.
@@ -47,7 +47,7 @@ To see an example of how batch training works, naviage to the AL_HTML repo and t
 python3 ../../../train.py control_training.json
 ```
 
-You may be prompted to specify the location of the AL repo the first time you run train.py (if you screw this up you can change it in net.conf which will exist in the AL_HTML directory after running train.py at least once)
+You may be prompted to specify the location of the AL repo the first time you run train.py (if you screw this up you can change it in net.conf which will appear in the AL_HTML directory after running train.py for the first time)
 
 *If at this point an error pops up complaining about “picklefield” navigate to the ```apprentice_learner_api/src/django-picklefield``` folder and run ```python setup.py install```
 
