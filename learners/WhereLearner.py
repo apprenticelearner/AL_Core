@@ -119,7 +119,7 @@ def get_vars(arg):
 
 class WhereLearner(object):
 
-    def __init__(self, learner_name, learner_kwargs={}):
+    def __init__(self, learner_name, **learner_kwargs):
         self.learner_name = learner_name
         self.learner_kwargs = learner_kwargs
         self.rhs_by_label = {}
@@ -704,8 +704,8 @@ def get_where_sublearner(name, **learner_kwargs):
     return WHERE_SUBLEARNERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
 
-def get_where_learner(name, learner_kwargs={}):
-    return WhereLearner(name, learner_kwargs)
+def get_where_learner(name, **kwargs):
+    return WhereLearner(name, **kwargs)
 
 
 

@@ -22,18 +22,18 @@ import json
 
 import cProfile
  
-pr = cProfile.Profile()
-pr.enable()
+# pr = cProfile.Profile()
+# pr.enable()
 
 import atexit
 
-def cleanup(*args):
-    print("DUMP STATS")
-    pr.disable()
-    pr.dump_stats("AL_tres_fo.prof")
+# def cleanup(*args):
+#     print("DUMP STATS")
+#     pr.disable()
+#     pr.dump_stats("AL_tres_fo.prof")
+# atexit.register(cleanup)
 
 
-atexit.register(cleanup)
 def compute_exp_depth(exp):
     """
     Doc String
@@ -279,20 +279,25 @@ class ModularAgent(BaseAgent):
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', how_cull_rule='all',
-                 planner='fo_planner', state_variablization="metaskill", search_depth=1, numerical_epsilon=0.0,
-                 ret_train_expl=True):
+                 planner='fo_planner', state_variablization="metaskill", search_depth=1,
+                numerical_epsilon=0.0, ret_train_expl=True, **kwargs):
+                
+                
         # print(planner)
-        self.where_learner = get_where_learner(where_learner)
-        self.when_learner = get_when_learner(when_learner)
+        self.where_learner = get_where_learner(where_learner,
+                                            **kwargs.get("where_args",{}))
+        self.when_learner = get_when_learner(when_learner,
+                                            **kwargs.get("when_args",{}))
         self.which_learner = get_which_learner(heuristic_learner,
-                                               how_cull_rule)
+                                               how_cull_rule, **kwargs.get("which_args",{}))
 
         planner_class = get_planner_class(planner)
         self.feature_set = planner_class.resolve_operators(feature_set)
         self.function_set = planner_class.resolve_operators(function_set)
         self.planner = planner_class(search_depth=search_depth,
                                    function_set=self.function_set,
-                                   feature_set=self.feature_set)
+                                   feature_set=self.feature_set,
+                                   **kwargs.get("planner_args",{}))
 
         sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]
         self.state_variablizer = MethodType(sv, self)
@@ -507,7 +512,7 @@ class ModularAgent(BaseAgent):
                 # print(exp.rhs,"<----",reward)
                 # pprint([int(x) for x in fit_state.values()])
                 # print("--------------")
-
+            # print(str(exp.rhs))
             self.when_learner.ifit(exp.rhs, state, mapping, _reward)
             # else:
                 #TODO: Missing
@@ -519,7 +524,7 @@ class ModularAgent(BaseAgent):
             self.where_learner.ifit(exp.rhs, mapping, state, _reward)
 
     def train_explicit(self,state,explanations, rewards,add_skill_info=False):
-        print("TRAIN EXPLICIT")
+        print("TRAIN EXPLICIT",explanations)
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
         state_featurized = self.planner.apply_featureset(state)
@@ -538,6 +543,7 @@ class ModularAgent(BaseAgent):
 
     def train(self, state, selection, action, inputs, reward,
               skill_label, foci_of_attention,add_skill_info=False):  # -> return None
+        print("TRAIN ",inputs)
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
         sai = SAIS(selection, action, inputs)
@@ -694,17 +700,27 @@ def kb_to_flat_ungrounded(knowledge_base):
 class FlatState(dict):
     def __init__(self, core_features,secondary_features):
         self.core_len = len(core_features)
+        self.core_features = {**core_features} 
         super(FlatState,self).__init__({**core_features,**secondary_features})
 
     def __setitem__(self, x,y):
         raise NotImplementedError("FlatState is not a mutable type. Cannot set key %r to %r" % (x,y))
+
     def __eq__(self, x):
-        for i,k in enumerate(self.keys()):
-            if(i >= self.core_len):
-                break
-            if(k not in x or x[k] != self[k]):
-                return False
-        return True
+        return self.core_features == (x.core_features if isinstance(x,FlatState) else x)
+        # from datadiff import diff
+        # print(diff(dict(self),dict(x)))
+        # return super(FlatState,self).__eq__(x)
+        # keys1 = set(self.keys())
+        # keys2 = set(self.keys())
+        # inter = keys1.intersection(set(x.keys()))
+        # # if(len(inter) != 
+        # for i,k in enumerate(self.keys()):
+        #     if(i >= self.core_len):
+        #         break
+        #     if(k not in x or x[k] != self[k]):
+        #         return False
+        # return True
     def __str__(self):
         out = ""
         k_list = list(self.keys())

@@ -4,7 +4,7 @@ import itertools
 
 class WhichLearner(object):
 
-    def __init__(self, heuristic_learner, how_cull_rule,learner_kwargs={}):
+    def __init__(self, heuristic_learner, how_cull_rule,**learner_kwargs):
         
         # self.learner_name = learner_name
         self.heuristic_name = heuristic_learner
@@ -110,8 +110,8 @@ def get_how_cull_rule(name):
 def get_heuristic_sublearner(name,**learner_kwargs):
     return WHICH_HEURISTIC_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
-def get_which_learner(heuristic_learner,how_cull_rule,learner_kwargs={}):
-    return WhichLearner(heuristic_learner,how_cull_rule,learner_kwargs)
+def get_which_learner(heuristic_learner,how_cull_rule,**kwargs):
+    return WhichLearner(heuristic_learner,how_cull_rule,**kwargs)
 
 
 
