@@ -523,30 +523,30 @@ class ModularAgent(BaseAgent):
             # print(list(exp.mapping.values()))
             self.where_learner.ifit(exp.rhs, mapping, state, _reward)
 
-    def train_explicit(self,state,explanations, rewards,add_skill_info=False):
-        print("TRAIN EXPLICIT",explanations)
-        state = StateMultiView("object", state)
-        state.register_transform("*","variablize",self.state_variablizer)
-        state_featurized = self.planner.apply_featureset(state)
+    # def train_explicit(self,state,explanations, rewards,add_skill_info=False):
+    #     print("TRAIN EXPLICIT",explanations)
+    #     state = StateMultiView("object", state)
+    #     state.register_transform("*","variablize",self.state_variablizer)
+    #     state_featurized = self.planner.apply_featureset(state)
 
-        ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
-        _ = [x for x in self.applicable_explanations(state_featurized)]
-        ############################################################
+    #     ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
+    #     _ = [x for x in self.applicable_explanations(state_featurized)]
+    #     ############################################################
 
 
-        expl_objs = []
-        for expl in explanations:
-            expl_objs.append(Explanation(self.rhs_list[expl["rhs_id"]],expl["mapping"]))
+    #     expl_objs = []
+    #     for expl in explanations:
+    #         expl_objs.append(Explanation(self.rhs_list[expl["rhs_id"]],expl["mapping"]))
         
-        self.fit(expl_objs, state_featurized, rewards)
+    #     self.fit(expl_objs, state_featurized, rewards)
         
 
-    def train(self, state, selection, action, inputs, reward,
-              skill_label, foci_of_attention,add_skill_info=False):  # -> return None
+    def train(self, state, selection=None, action=None, inputs=None, reward=None,
+              skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
+              ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
         print("TRAIN ",inputs)
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
-        sai = SAIS(selection, action, inputs)
         state_featurized = self.planner.apply_featureset(state)
 
 
@@ -554,35 +554,45 @@ class ModularAgent(BaseAgent):
         _ = [x for x in self.applicable_explanations(state_featurized)]
         ############################################################
 
-        explanations = self.explanations_from_skills(state_featurized, sai,
-                                                     self.rhs_list,
-                                                     foci_of_attention)
+        #Either the explanation (i.e. prev application of skill) is provided
+        #   or we must infer it from the skills that would have fired
+        if(rhs_id is not None and mapping is not None):
+            print("AQUI",rhs_id,mapping)
+            explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
+            print(explanations)
+        elif(selection is not None and action is not None and inputs is not None):
+            sai = SAIS(selection, action, inputs)
+            explanations = self.explanations_from_skills(state_featurized, sai,
+                                                         self.rhs_list,
+                                                         foci_of_attention)
 
-        explanations, nonmatching_explanations = self.where_matches(
+            explanations, nonmatching_explanations = self.where_matches(
                                                  explanations,
                                                  state_featurized)
 
-        if(len(explanations) == 0):
+            #If no skills match then we can try partial matches. If there are
+            #   none then we must induce a new skill.  
+            if(len(explanations) == 0):
 
-            if(len(nonmatching_explanations) > 0):
-                explanations = [choice(nonmatching_explanations)]
+                if(len(nonmatching_explanations) > 0):
+                    explanations = [choice(nonmatching_explanations)]
 
-            else:
-                explanations = self.explanations_from_how_search(
-                               state_featurized, sai, foci_of_attention)
+                else:
+                    explanations = self.explanations_from_how_search(
+                                   state_featurized, sai, foci_of_attention)
 
+                    explanations = self.which_learner.cull_how(explanations)
 
-                explanations = self.which_learner.cull_how(explanations)
-
-                rhs_by_how = self.rhs_by_how.get(skill_label, {})
-                for exp in explanations:
-                    # print(str(exp))
-                    if(exp.rhs.as_tuple in rhs_by_how):
-                        exp.rhs = rhs_by_how[exp.rhs.as_tuple]
-                    else:
-                        rhs_by_how[exp.rhs.as_tuple] = exp.rhs
-                        self.rhs_by_how[skill_label] = rhs_by_how
-                        self.add_rhs(exp.rhs)
+                    rhs_by_how = self.rhs_by_how.get(skill_label, {})
+                    for exp in explanations:
+                        if(exp.rhs.as_tuple in rhs_by_how):
+                            exp.rhs = rhs_by_how[exp.rhs.as_tuple]
+                        else:
+                            rhs_by_how[exp.rhs.as_tuple] = exp.rhs
+                            self.rhs_by_how[skill_label] = rhs_by_how
+                            self.add_rhs(exp.rhs)
+        else:
+            raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
         print("EXPLANS")

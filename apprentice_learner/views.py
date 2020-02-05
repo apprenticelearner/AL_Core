@@ -285,30 +285,24 @@ def train(http_request, agent_id):
 
         if 'state' not in data or data['state'] is None:
             errs.append("request body missing 'state'")
+
+        if 'reward' not in data or data['reward'] is None:
+                if('correct' in data):
+                    data['reward'] = 2*int(data['correct'] == True)-1
+                else:
+                    errs.append("request body missing 'reward'")
         
-        explicit = False
-        if "skill_applications" in data or "explanations" in data:
-            if 'rewards' not in data:
-                errs.append("request body missing 'rewards'")
-            explicit = True
-        else:
-            if 'skill_label' not in data or data['skill_label'] is None:
-                data['skill_label'] = 'NO_LABEL'
-            if ('foci_of_attention' not in data or data['foci_of_attention'] is
-                    None):
-                data['foci_of_attention'] = None
+        
+        if 'skill_label' not in data or data['skill_label'] is None:
+            data['skill_label'] = 'NO_LABEL'
+        if('selection' in data or 'action' in data or 'inputs' in data):
             if 'selection' not in data or data['selection'] is None:
                 errs.append("request body missing 'selection'")
             if 'action' not in data or data['action'] is None:
                 errs.append("request body missing 'action'")
             if 'inputs' not in data or data['inputs'] is None:
                 errs.append("request body missing 'inputs'")
-            if 'reward' not in data or data['reward'] is None:
-                if('correct' in data):
-                    data['reward'] = 2*int(data['correct'] == True)-1
-                else:
-                    errs.append("request body missing 'reward'")
-
+            
         # Linter was complaining about too many returns so I consolidated all
         # of the errors above
         if len(errs) > 0:
@@ -318,14 +312,19 @@ def train(http_request, agent_id):
         agent = get_agent_by_id(agent_id)
         agent.inc_train()
 
-        if(explicit):
-            sk_apps = data.get('skill_applications', data.get('explanations',None))
-            response = agent.instance.train_explicit(data['state'],sk_apps,
-                                                     data['rewards'],**data.get('kwargs',{}))
-        else:
-            response = agent.instance.train(data['state'], data['selection'], data['action'],
-                             data['inputs'], data['reward'],
-                             data['skill_label'], data['foci_of_attention'], **data.get('kwargs',{}))
+        # if(explicit):
+        #     sk_apps = data.get('skill_applications', data.get('explanations',None))
+        #     response = agent.instance.train_explicit(data['state'],sk_apps,
+        #                                              data['rewards'],**data.get('kwargs',{}))
+        # else:
+
+        #Requires state, selection, action, inputs, reward
+        print(data)
+        response = agent.instance.train(**data)
+        # data['state'], data['selection'], data['action'],
+                         # data['inputs'], data['reward'],
+                         # )
+                         # data['skill_label'], data['foci_of_attention'], **data.get('kwargs',{}))
         global dont_save
         if(not dont_save): agent.save()
 
