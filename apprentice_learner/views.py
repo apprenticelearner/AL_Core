@@ -277,50 +277,55 @@ def train(http_request, agent_id):
     try:
         if http_request.method != "POST":
             return HttpResponseNotAllowed(["POST"])
-        data = json.loads(http_request.body.decode('utf-8'))
-
+        data_l = json.loads(http_request.body.decode('utf-8'))
+        if(not isinstance(data_l,list)):
+            data_l = [data_l]
+        #     for d in data:
+        #         self.train(d)
+        #     return
         # print(data)
 
         errs = []
 
-        if 'state' not in data or data['state'] is None:
-            errs.append("request body missing 'state'")
+        for data in data_l:
+            if 'state' not in data or data['state'] is None:
+                errs.append("request body missing 'state'")
 
-        if 'reward' not in data or data['reward'] is None:
-                if('correct' in data):
-                    data['reward'] = 2*int(data['correct'] == True)-1
-                else:
-                    errs.append("request body missing 'reward'")
-        
-        
-        if 'skill_label' not in data or data['skill_label'] is None:
-            data['skill_label'] = 'NO_LABEL'
-        if('selection' in data or 'action' in data or 'inputs' in data):
-            if 'selection' not in data or data['selection'] is None:
-                errs.append("request body missing 'selection'")
-            if 'action' not in data or data['action'] is None:
-                errs.append("request body missing 'action'")
-            if 'inputs' not in data or data['inputs'] is None:
-                errs.append("request body missing 'inputs'")
+            if 'reward' not in data or data['reward'] is None:
+                    if('correct' in data):
+                        data['reward'] = 2*int(data['correct'] == True)-1
+                    else:
+                        errs.append("request body missing 'reward'")
             
-        # Linter was complaining about too many returns so I consolidated all
-        # of the errors above
-        if len(errs) > 0:
-            print('errors: {}'.format(','.join(errs)))
-            return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
+            
+            if 'skill_label' not in data or data['skill_label'] is None:
+                data['skill_label'] = 'NO_LABEL'
+            if('selection' in data or 'action' in data or 'inputs' in data):
+                if 'selection' not in data or data['selection'] is None:
+                    errs.append("request body missing 'selection'")
+                if 'action' not in data or data['action'] is None:
+                    errs.append("request body missing 'action'")
+                if 'inputs' not in data or data['inputs'] is None:
+                    errs.append("request body missing 'inputs'")
+                
+            # Linter was complaining about too many returns so I consolidated all
+            # of the errors above
+            if len(errs) > 0:
+                print('errors: {}'.format(','.join(errs)))
+                return HttpResponseBadRequest('errors: {}'.format(','.join(errs)))
 
-        agent = get_agent_by_id(agent_id)
-        agent.inc_train()
+            agent = get_agent_by_id(agent_id)
+            agent.inc_train()
 
-        # if(explicit):
-        #     sk_apps = data.get('skill_applications', data.get('explanations',None))
-        #     response = agent.instance.train_explicit(data['state'],sk_apps,
-        #                                              data['rewards'],**data.get('kwargs',{}))
-        # else:
+            # if(explicit):
+            #     sk_apps = data.get('skill_applications', data.get('explanations',None))
+            #     response = agent.instance.train_explicit(data['state'],sk_apps,
+            #                                              data['rewards'],**data.get('kwargs',{}))
+            # else:
 
-        #Requires state, selection, action, inputs, reward
-        print(data)
-        response = agent.instance.train(**data)
+            #Requires state, selection, action, inputs, reward
+            # print(data)
+            response = agent.instance.train(**data)
         # data['state'], data['selection'], data['action'],
                          # data['inputs'], data['reward'],
                          # )

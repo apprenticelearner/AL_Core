@@ -544,7 +544,7 @@ class ModularAgent(BaseAgent):
     def train(self, state, selection=None, action=None, inputs=None, reward=None,
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
-        print("TRAIN ",inputs)
+        # print("TRAIN ",inputs)
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
         state_featurized = self.planner.apply_featureset(state)
@@ -557,9 +557,9 @@ class ModularAgent(BaseAgent):
         #Either the explanation (i.e. prev application of skill) is provided
         #   or we must infer it from the skills that would have fired
         if(rhs_id is not None and mapping is not None):
-            print("AQUI",rhs_id,mapping)
+            print("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
-            print(explanations)
+            print("EX: ",str(explanations[0]))
         elif(selection is not None and action is not None and inputs is not None):
             sai = SAIS(selection, action, inputs)
             explanations = self.explanations_from_skills(state_featurized, sai,
@@ -595,9 +595,9 @@ class ModularAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-        print("EXPLANS")
-        print("\n".join([str(x) for x in explanations]))
-        print("^^^^^^^^^^^")
+        # print("EXPLANS")
+        # print("\n".join([str(x) for x in explanations]))
+        # print("^^^^^^^^^^^")
         self.fit(explanations, state_featurized, reward)
         if(self.ret_train_expl):
             out = []
