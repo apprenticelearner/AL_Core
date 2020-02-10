@@ -31,7 +31,7 @@ class WhenLearner(object):
 
     def __init__(self, learner, when_type="one_learner_per_rhs",
                  state_format="variablized_state",
-                 cross_rhs_inference="implicit_negatives",
+                 cross_rhs_inference="none",
                  **learner_kwargs):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS, \
                "state_format must be one of %s but got %s" % \

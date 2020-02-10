@@ -278,7 +278,7 @@ class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
-                 heuristic_learner='proportion_correct', how_cull_rule='all',
+                 heuristic_learner='proportion_correct', how_infer_rule='first',
                  planner='fo_planner', state_variablization="metaskill", search_depth=1,
                 numerical_epsilon=0.0, ret_train_expl=True, **kwargs):
                 
@@ -289,7 +289,7 @@ class ModularAgent(BaseAgent):
         self.when_learner = get_when_learner(when_learner,
                                             **kwargs.get("when_args",{}))
         self.which_learner = get_which_learner(heuristic_learner,
-                                               how_cull_rule, **kwargs.get("which_args",{}))
+                                               how_infer_rule, **kwargs.get("which_args",{}))
 
         planner_class = get_planner_class(planner)
         self.feature_set = planner_class.resolve_operators(feature_set)
@@ -581,7 +581,7 @@ class ModularAgent(BaseAgent):
                     explanations = self.explanations_from_how_search(
                                    state_featurized, sai, foci_of_attention)
 
-                    explanations = self.which_learner.cull_how(explanations)
+                    explanations = self.which_learner.select_how(explanations)
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:

@@ -4,15 +4,15 @@ import itertools
 
 class WhichLearner(object):
 
-    def __init__(self, heuristic_learner, how_cull_rule,**learner_kwargs):
+    def __init__(self, heuristic_learner, how_infer_rule,**learner_kwargs):
         
         # self.learner_name = learner_name
         self.heuristic_name = heuristic_learner
-        self.how_cull_name = how_cull_rule
+        self.how_infer_rule = how_infer_rule
         self.learner_kwargs = learner_kwargs
         self.rhs_by_label = {}
         self.learners = {}
-        self.how_cull_rule = get_how_cull_rule(how_cull_rule)
+        self.how_infer_rule = get_how_infer_rule(how_infer_rule)
 
 
     def add_rhs(self,rhs):
@@ -30,8 +30,8 @@ class WhichLearner(object):
         # print([(x._id_num,self.learners[x].heuristic(state)) for x in out])
         return sorted(rhs_list,reverse=True, key=lambda x:self.learners[x].heuristic(state))
 
-    def cull_how(self,expl_iter):
-        return self.how_cull_rule(expl_iter)
+    def select_how(self,expl_iter):
+        return self.how_infer_rule(expl_iter)
 
 
 ####---------------HEURISTIC------------########
@@ -104,14 +104,14 @@ def return_all(expl_iter):
 
 #####---------------UTILITIES------------------#####
 
-def get_how_cull_rule(name):
+def get_how_infer_rule(name):
     return CULL_HOW_RULES[name.lower().replace(' ', '').replace('_', '')]
 
 def get_heuristic_sublearner(name,**learner_kwargs):
     return WHICH_HEURISTIC_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
-def get_which_learner(heuristic_learner,how_cull_rule,**kwargs):
-    return WhichLearner(heuristic_learner,how_cull_rule,**kwargs)
+def get_which_learner(heuristic_learner,how_infer_rule,**kwargs):
+    return WhichLearner(heuristic_learner,how_infer_rule,**kwargs)
 
 
 
