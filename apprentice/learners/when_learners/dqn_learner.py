@@ -15,15 +15,17 @@ from apprentice.learners.when_learners.fractions_hasher import FractionsActionHa
 
 # from concept_formation.trestle import TrestleTree
 # from sklearn.feature_extraction import FeatureHasher
-
+import logging
+log = logging.getLogger(__name__)
 
 class DQNLearner(WhenLearner):
     def __init__(self, gamma=0.7, lr=3e-5, batch_size=32, mem_capacity=10000,
                  state_size=394, action_size=244, state_hidden_size=30,
                  action_hidden_size=30):
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else
                                    "cpu")
-        self.device = "cpu" #TODO: make cuda not break elsewhere
+        #self.device = "cpu" #TODO: make cuda not break elsewhere
         self.gamma = gamma
         self.lr = lr
         self.batch_size = batch_size
@@ -42,9 +44,11 @@ class DQNLearner(WhenLearner):
         self.state_hasher = FractionsStateHasher()
         self.action_hasher = FractionsActionHasher()
 
-        self.value_net = ValueNet(self.state_size, self.state_hidden_size)
+        self.value_net = ValueNet(self.state_size, self.state_hidden_size).to(self.device)
         self.action_net = ActionNet(self.action_size, self.state_hidden_size,
-                                    self.action_hidden_size)
+                                    self.action_hidden_size).to(self.device)
+
+
 
         # create separate target net for computing future value
         # self.target_value_net = ValueNet(self.state_size,
@@ -135,15 +139,6 @@ class DQNLearner(WhenLearner):
             next_state_v = self.gen_state_vector(next_state)
             next_action_vs = self.gen_action_vectors(next_actions)
 
-        # #print("REWARD")
-        # #print(reward)
-        # #print("NEXT SAs")
-        # if next_state_v is None:
-        #     pass #print("NONE")
-        # else:
-        #     #print(next_state_v.shape)
-        #     print(next_action_vs.shape)
-        # print()
 
         self.replay_memory.push(
             torch.from_numpy(state_v).float().to(self.device),
@@ -169,13 +164,13 @@ class DQNLearner(WhenLearner):
         if updates > 100:
             updates = 100
 
-        #print('# updates =', updates)
-        print('len replay mem =', len(self.replay_memory))
+
+        log.debug('len replay mem =' + str(len(self.replay_memory)))
         loss = []
         for _ in range(updates):
             loss.append(self.optimize_model())
 
-        #print("LOSS", loss)
+
 
     def optimize_model(self):
         batch_size = self.batch_size
