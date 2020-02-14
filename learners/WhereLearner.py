@@ -159,6 +159,57 @@ class WhereLearner(object):
         return self.learners[rhs].skill_info()
 
 
+class FastMostSpecific(BaseILP):
+    """
+    This learner always returns the tuples it was trained with, after ensuring
+    they meet any provided constraints.
+    """
+    def __init__(self, args,constraints=None):
+        self.args = args
+        self.tuples = set()
+
+        if constraints is None:
+            self.constraints = frozenset()
+        else:
+            self.constraints = constraints
+
+    def __repr__(self):
+        return repr(self.tuples)
+
+    def __str__(self):
+        return str(self.tuples)
+
+    def check_constraints(self,t,x):
+        if(self.constraints is None):
+            return True
+        for i,part in enumerate(t):
+            c = 0 if i == 0 else 1
+            if(not self.constraints[c](x[part])):
+                return False
+        return True
+
+    def check_match(self, t, x):
+        x = x.get_view("object")
+        t = tuple(t)
+        if(self.check_constraints(t,x)):
+            if(t in self.tuples):
+                return True
+        
+        return False
+
+
+    def get_matches(self, x, epsilon=0.0):
+        x = x.get_view("object")
+
+        for t in self.tuples:
+            if(self.check_constraints(t,x)):
+                yield t
+
+
+    def ifit(self, t, x, y):
+        # t = tuple(ground(e) for e in t)
+        self.tuples.add(tuple(t))
+
 class MostSpecific(BaseILP):
     """
     This learner always returns the tuples it was trained with, after ensuring
@@ -2289,6 +2340,7 @@ class Enumerizer(Preprocessor):
 
 WHERE_SUBLEARNERS = {
     'versionspace': VersionSpace,
+    'fastmostspecific': FastMostSpecific,
     'mostspecific': MostSpecific,
     'stateresponselearner': StateResponseLearner,
     'relationallearner': RelationalLearner,
@@ -2297,6 +2349,7 @@ WHERE_SUBLEARNERS = {
 
 WHERE_STRATEGY = {
     'versionspace': "object",
+    'fastmostspecific': "object",
     'mostspecific': "first_order",
     'stateresponselearner': "first_order",
     'relationallearner': "first_order",

@@ -280,7 +280,7 @@ class ModularAgent(BaseAgent):
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', how_infer_rule='first',
                  planner='fo_planner', state_variablization="metaskill", search_depth=1,
-                numerical_epsilon=0.0, ret_train_expl=True, **kwargs):
+                 numerical_epsilon=0.0, ret_train_expl=True, **kwargs):
                 
                 
         # print(planner)
