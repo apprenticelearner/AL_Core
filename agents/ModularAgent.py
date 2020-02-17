@@ -94,7 +94,10 @@ def variablize_by_where_swap(self,state,rhs,  match):
 
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     #TODO: Do this better...
-    r_state = {key:val for key,val in r_state.items() if "contentEditable" in key or "value" in key}
+    # pprint(state)
+    # r_state = {key:val for key,val in r_state.items() if "contentEditable" in key or "value" in key}
+    if(self.strip_attrs and len(self.strip_attrs) > 0):
+        r_state = {key:val for key,val in r_state.items() if key[0] not in self.strip_attrs}
 
     return r_state
 
@@ -280,7 +283,7 @@ class ModularAgent(BaseAgent):
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', how_infer_rule='first',
                  planner='fo_planner', state_variablization="metaskill", search_depth=1,
-                 numerical_epsilon=0.0, ret_train_expl=True, **kwargs):
+                 numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[], **kwargs):
                 
                 
         # print(planner)
@@ -299,7 +302,8 @@ class ModularAgent(BaseAgent):
                                    feature_set=self.feature_set,
                                    **kwargs.get("planner_args",{}))
 
-        sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]
+        sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]        
+        self.strip_attrs = strip_attrs
         self.state_variablizer = MethodType(sv, self)
         self.rhs_list = []
         self.rhs_by_label = {}
