@@ -93,12 +93,13 @@ def variablize_by_where_swap(self,state,rhs,  match):
     #     print("val%i"%i,state[x])
 
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
+    # r_state = state
     #TODO: Do this better...
-    # pprint(state)
+    
     # r_state = {key:val for key,val in r_state.items() if "contentEditable" in key or "value" in key}
     if(self.strip_attrs and len(self.strip_attrs) > 0):
         r_state = {key:val for key,val in r_state.items() if key[0] not in self.strip_attrs}
-
+    # pprint(r_state)
     return r_state
 
 
@@ -281,7 +282,7 @@ class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
-                 heuristic_learner='proportion_correct', how_infer_rule='first',
+                 heuristic_learner='proportion_correct', explanation_choice='random',
                  planner='fo_planner', state_variablization="metaskill", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[], **kwargs):
                 
@@ -292,7 +293,7 @@ class ModularAgent(BaseAgent):
         self.when_learner = get_when_learner(when_learner,
                                             **kwargs.get("when_args",{}))
         self.which_learner = get_which_learner(heuristic_learner,
-                                               how_infer_rule, **kwargs.get("which_args",{}))
+                                               explanation_choice, **kwargs.get("which_args",{}))
 
         planner_class = get_planner_class(planner)
         self.feature_set = planner_class.resolve_operators(feature_set)

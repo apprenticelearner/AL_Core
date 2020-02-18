@@ -179,7 +179,8 @@ class WhenLearner(object):
             # print(self.sub_learners[key])
         else:
             state = state.get_view(("variablize",rhs,tuple(mapping)))
-            print(state)
+            # print("WHEN LEARNER")
+            # print(state)
             if(self.type == "one_learner_per_label"):
                 if(rhs.label not in self.sub_learners):
                     self.sub_learners[rhs.label] = get_when_sublearner(
@@ -270,9 +271,9 @@ class CustomPipeline(Pipeline):
         lvf = ListValueFlattener()
 
         x = lvf.transform(x)
-
-        # pprint(x)
-        self.X.append(tup.undo_transform(ft.transform(x)))
+        x = tup.undo_transform(ft.transform(x))
+        # pprint(x)`
+        self.X.append(x)
         self.y.append(int(y) if not isinstance(y, tuple) else y)
 
         # print("IFIT:",self.X)
@@ -417,6 +418,7 @@ class DecisionTree(DecisionTreeClassifier):
         
         # print("X",len(X[0]))
         # pprint(X)
+        # pprint(y)
         # print("y",len(y))
         # pprint(y)
         # print("--^--^--")

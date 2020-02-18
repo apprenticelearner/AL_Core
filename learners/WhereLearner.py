@@ -208,7 +208,8 @@ class FastMostSpecific(BaseILP):
 
     def ifit(self, t, x, y):
         # t = tuple(ground(e) for e in t)
-        self.tuples.add(tuple(t))
+        if(y > 0):
+            self.tuples.add(tuple(t))
 
 class MostSpecific(BaseILP):
     """
@@ -299,6 +300,7 @@ class MostSpecific(BaseILP):
 
         t = tuple(ground(e) for e in t)
         self.tuples.add(t)
+        print(len(self.tuples))
 
 
 class StateResponseLearner(BaseILP):
