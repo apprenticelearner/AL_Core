@@ -396,14 +396,36 @@ sig_fig_rule = Operator(('SigFig', '?x', '?y'),
                         [(('value', ('SigFig', ('value', '?x'),
                          ('value', '?y'))), (sig_figs, '?xv', '?yv'))])
 
-
 mult_rule = Operator(('Multiply', '?x', '?y'),
                      [(('value', '?x'), '?xv'),
-                      (('value', '?y'), '?yv')],
+                      (('value', '?y'), '?yv'),
+                      # ((lambda x, y: x.split(".R")[1] == y.split(".R")[1],"?x","?y"))
+                     ],
                      [(('value', ('Multiply', ('value', '?x'),
                                   ('value', '?y'))),
                        (int_float_multiply, '?xv', '?yv'))])
 Operator.register("multiply", mult_rule)
+
+
+num_mult_rule = Operator(('Numer_Multiply', '?x', '?y'),
+                     [(('value', '?x'), '?xv'),
+                      (('value', '?y'), '?yv'),
+                      ((lambda x, y: x.split(".R")[1] == y.split(".R")[1],"?x","?y"))
+                     ],
+                     [(('value', ('Numer_Multiply', ('value', '?x'),
+                                  ('value', '?y'))),
+                       (int_float_multiply, '?xv', '?yv'))])
+Operator.register("numerator_multiply", num_mult_rule)
+
+cross_multiply_rule = Operator(('Cross_Multiply', '?x', '?y'),
+                     [(('value', '?x'), '?xv'),
+                      (('value', '?y'), '?yv'),
+                      ((lambda x, y: x.split(".R")[1] != y.split(".R")[1],"?x","?y"))
+                     ],
+                     [(('value', ('Cross_Multiply', ('value', '?x'),
+                                  ('value', '?y'))),
+                       (int_float_multiply, '?xv', '?yv'))])
+Operator.register("cross_multiply", cross_multiply_rule)
 
 div_rule = Operator(('Divide', '?x', '?y'),
                     [(('value', '?x'), '?xv'),

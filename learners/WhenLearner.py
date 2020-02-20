@@ -193,6 +193,7 @@ class WhenLearner(object):
             elif(self.type == "one_learner_per_rhs"):
                 # print("------------------")
                 # print([str(x) for x in self.sub_learners.keys()])
+                # print([id(x) for x in self.sub_learners.values()])
                 # print("FIT:", str(rhs), reward)
                 # print("------------------")
 
@@ -413,7 +414,6 @@ def export_tree(dt):
 
 from sklearn.tree import _tree
 class DecisionTree(DecisionTreeClassifier):
-
     def fit(self,X,y):
         
         # print("X",len(X[0]))

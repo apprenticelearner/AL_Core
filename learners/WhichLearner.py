@@ -79,6 +79,7 @@ def return_all(expl_iter):
 def random(expl_iter):
     arr = [x for x in expl_iter]
     shuffle(arr)
+    # print("RANDOM",str(arr[:1][0]))
     return arr[:1]
 
 # import itertools

@@ -99,8 +99,41 @@ def variablize_by_where_swap(self,state,rhs,  match):
     # r_state = {key:val for key,val in r_state.items() if "contentEditable" in key or "value" in key}
     if(self.strip_attrs and len(self.strip_attrs) > 0):
         r_state = {key:val for key,val in r_state.items() if key[0] not in self.strip_attrs}
+
+    # for k,v in r_state.items():
+    #     print(k,v)
+    #     try:
+    #         v = float(v)
+    #         r_state[k] = v
+    #     except Exception as e:
+    #         pass
     # pprint(r_state)
     return r_state
+
+def variablize_by_where_append(self,state,rhs,match):
+    if(isinstance(state, StateMultiView)):
+        state = state.get_view("flat_ungrounded")
+    # pprint(state)
+    r_state = rename_flat(state, {})
+    if(len(match)>1):
+        r_state[("args",tuple(list(match)[1:]))] = True
+    r_state[("sel",match[0])] = True
+    if(self.strip_attrs and len(self.strip_attrs) > 0):
+        r_state = {key:val for key,val in r_state.items() if key[0] not in self.strip_attrs}
+
+    del_list = []
+    for k,v in r_state.items():
+        try:
+            if(not isinstance(v,bool)):
+                v = float(v)
+                del_list.append(k)
+        except Exception as e:
+            pass
+    for k in del_list:
+        del r_state[k]
+    # pprint(r_state)
+    return r_state
+
 
 
 def unvariablize_by_where_swap(state, match):
@@ -273,7 +306,8 @@ def expression_matches(expression, state):
 
 EMPTY_RESPONSE = {}
 
-STATE_VARIABLIZATIONS = {"whereswap": variablize_by_where_swap,
+STATE_VARIABLIZATIONS = {"whereappend": variablize_by_where_append,
+                         "whereswap": variablize_by_where_swap,
                          "relative" : variablize_state_relative,
                          "metaskill" : variablize_state_metaskill}
 
@@ -384,7 +418,9 @@ class ModularAgent(BaseAgent):
                 #               "which": 0.0}
             else:
                 skill_info = None
-
+            # print("YIELD: ",str(explanation))
+            # print("WHEN")
+            # pprint(explanation.get_skill_info(self,pred_state)['when'])
             yield explanation, skill_info
 
     def request(self, state, add_skill_info=False,n=1):  # -> Returns sai
@@ -457,9 +493,11 @@ class ModularAgent(BaseAgent):
                                               allow_copy=False)
             # assert 
             for input_rule, mapping in itr:
+
                 m = {"?sel": "?ele-" + sai.selection}
                 m.update(mapping)
-                yield Explanation(rhs, m)
+                if(len(m)==len(set(m.values()))):
+                    yield Explanation(rhs, m)
 
     def explanations_from_how_search(self, state, sai, foci_of_attention):  # -> return Iterator<Explanation>
         sel_match = next(expression_matches(
@@ -505,6 +543,9 @@ class ModularAgent(BaseAgent):
         # print("^^^^^^^^^^^^^^")
         # print(explanations,reward)
         # print("^^^^^^^^^^^^^^")
+        # print("FEEDBACK TO:")
+        # print("\n".join([str(x) for x in explanations]))
+
         for exp,_reward in zip(explanations,reward):
             mapping = list(exp.mapping.values())
             # if(self.when_learner.state_format == 'variablized_state'):
@@ -550,6 +591,9 @@ class ModularAgent(BaseAgent):
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
         # print("TRAIN ",inputs)
+        # print("STATE")
+        # pprint(state)
+        # print(", ".join([("u" if x.get("contentEditable",False) else "l") + "(%s)"%str(x.get('value',"")) for k,x in state.items()]))
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
         state_featurized = self.planner.apply_featureset(state)
@@ -574,7 +618,11 @@ class ModularAgent(BaseAgent):
             explanations, nonmatching_explanations = self.where_matches(
                                                  explanations,
                                                  state_featurized)
-
+            # print("LEN: ",len(explanations),len(nonmatching_explanations))
+            # print("MATCHING")
+            # print("\n".join([str(x) for x in explanations]))
+            # print("NON-MATCHING")
+            # print("\n".join([str(x) for x in nonmatching_explanations]))
             #If no skills match then we can try partial matches. If there are
             #   none then we must induce a new skill.  
             if(len(explanations) == 0):
@@ -600,8 +648,8 @@ class ModularAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-        # print("EXPLANS")
-        # print("\n".join([str(x) for x in explanations]))
+        # print("NUM: ",len(explanations))
+        
         # print("^^^^^^^^^^^")
         self.fit(explanations, state_featurized, reward)
         if(self.ret_train_expl):

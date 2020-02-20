@@ -211,6 +211,9 @@ class FastMostSpecific(BaseILP):
         if(y > 0):
             self.tuples.add(tuple(t))
 
+    def skill_info(self):
+        return self.tuples
+
 class MostSpecific(BaseILP):
     """
     This learner always returns the tuples it was trained with, after ensuring
