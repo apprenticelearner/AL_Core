@@ -84,7 +84,8 @@ class SoarTechAgent(BaseAgent):
     #     return None
 
     def select_activation(
-            self, candidate_activations: Collection[Activation], is_train=False
+            self, candidate_activations: Collection[Activation], is_train=False,
+            pop=False
     ) -> Activation:
         """
         Given a list of candidate skills evaluate them and determines which one
@@ -153,6 +154,7 @@ class SoarTechAgent(BaseAgent):
             best_activation, expected_reward = self.select_activation(
                 candidate_activations
             )
+            candidate_activations.remove(best_activation)
             state = self.working_memory.state
 
             if not self.negative_actions and expected_reward < 0.0:
@@ -248,9 +250,9 @@ class SoarTechAgent(BaseAgent):
                     return {}
 
                 best_activation, expected_reward = self.select_activation(
-                    candidate_activations, is_train=True
+                    candidate_activations, is_train=True, pop=True
                 )
-
+                candidate_activations.remove(best_activation)
                 state = self.working_memory.state
 
                 output = self.working_memory.activation_factory\
