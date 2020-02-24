@@ -9,8 +9,8 @@ cache:
 
 stages:
   - lint
-  - test
   - document
+  - test
   - deploy
 
 flake8:
