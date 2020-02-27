@@ -30,19 +30,21 @@ flake8:
   tags:
     - base
 
-pytest:
-  stage: test
-  allow_failure: false
+coverage:
+  stage: document
+  allow_failure: true
   script:
     - pip install -r requirements.txt
     - pip install -r test-requirements.txt
-      #- pip install tox
-      #- tox
-    - python -m pytest
+    - retval=0
+    - coverage run --source apprentice -m pytest || retval=$?
+    - coverage html -d coverage
+    - coverage report
+      # - exit "$retval"
+  coverage: '/\d+\%\s*$/'
   artifacts:
-    when: always
-    reports:
-      junit: output.xml
+    paths:
+      - coverage
   tags:
     - base
 
@@ -66,25 +68,22 @@ sphinx:
   only:
     - master
 
-coverage:
-  stage: document
-  allow_failure: true
-  dependencies:
-    - pytest
+pytest:
+  stage: test
+  allow_failure: false
   script:
     - pip install -r requirements.txt
     - pip install -r test-requirements.txt
-    - retval=0
-    - coverage run --source apprentice -m pytest || retval=$?
-    - coverage html -d coverage
-    - coverage report
-      # - exit "$retval"
-  coverage: '/\d+\%\s*$/'
+      #- pip install tox
+      #- tox
+    - python -m pytest
   artifacts:
-    paths:
-      - coverage
+    when: always
+    reports:
+      junit: output.xml
   tags:
     - base
+
 
 publish:
   stage: deploy
