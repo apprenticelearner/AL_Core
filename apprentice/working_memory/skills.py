@@ -1,8 +1,9 @@
-from experta import Rule, Fact, W, KnowledgeEngine, MATCH, TEST, AS, NOT
 from random import randint
 
-from apprentice.working_memory.adapters.experta_.factory import ExpertaSkillFactory
+from apprentice.working_memory.adapters.experta_.factory import \
+    ExpertaSkillFactory
 from apprentice.working_memory.representation import Sai
+from experta import Rule, Fact, W, KnowledgeEngine, MATCH, TEST, AS, NOT
 
 max_depth = 1
 
@@ -28,7 +29,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(id='done')
     )
     def click_done(self):
-        print('clicking done')
+        # print('clicking done')
         return Sai(selection='done',
                    action='ButtonPressed',
                    input={'value': -1})
@@ -38,7 +39,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(id="JCommTable8.R0C0", contentEditable=True, value="")
     )
     def check(self):
-        print('checking box')
+        # print('checking box')
         return Sai(selection="JCommTable8.R0C0",
                    action='UpdateTextArea',
                    input={'value': "x"})
@@ -54,7 +55,7 @@ class FractionsEngine(KnowledgeEngine):
     def equal(self, id1, value1, id2, value2):
         new_id = "equal(%s, %s)" % (id1, id2)
         equality = value1 == value2
-        print('declaring equality', id1, id2, equality)
+        # print('declaring equality', id1, id2, equality)
         self.declare(Fact(id=new_id,
                           relation='equal',
                           ele1=id1,
@@ -67,10 +68,10 @@ class FractionsEngine(KnowledgeEngine):
         TEST(lambda value: value != "" and is_numeric_str(value)),
         Fact(id=MATCH.field_id, contentEditable=True, value=W()),
         TEST(lambda field_id: field_id != 'JCommTable8.R0C0' and field_id not
-             in answer_field),
+                              in answer_field),
     )
     def update_convert_field(self, field_id, value):
-        print('updating convert field', field_id, value)
+        # print('updating convert field', field_id, value)
         return Sai(selection=field_id,
                    # action='UpdateTextField',
                    action='UpdateTextArea',
@@ -84,7 +85,7 @@ class FractionsEngine(KnowledgeEngine):
         TEST(lambda field_id: field_id in answer_field)
     )
     def update_answer_field(self, field_id, value):
-        print('updating answer field', field_id, value)
+        # print('updating answer field', field_id, value)
         return Sai(selection=field_id,
                    # action='UpdateTextField',
                    action='UpdateTextArea',
@@ -114,7 +115,7 @@ class FractionsEngine(KnowledgeEngine):
         depth2 = 0 if 'depth' not in fact2 else fact2['depth']
         new_depth = 1 + max(depth1, depth2)
 
-        print('adding', id1, id2)
+        # print('adding', id1, id2)
 
         self.declare(Fact(id=new_id,
                           operator='add',
@@ -137,7 +138,7 @@ class FractionsEngine(KnowledgeEngine):
         NOT(Fact(operator='multiply', ele1=MATCH.id1, ele2=MATCH.id2))
     )
     def multiply(self, id1, value1, fact1, id2, value2, fact2):
-        print('multiplying', id1, id2)
+        # print('multiplying', id1, id2)
         new_id = 'multiply(%s, %s)' % (id1, id2)
 
         new_value = float(value1) * float(value2)
@@ -241,7 +242,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(id="JCommTable8.R0C0", contentEditable=True, value="")
     )
     def correct_check(self):
-        print('checking box')
+        # print('checking box')
         return Sai(selection="JCommTable8.R0C0",
                    action='UpdateTextArea',
                    input={'value': "x"})
@@ -363,20 +364,22 @@ update_convert_field_skill = skill_factory.from_ex_rule(
 add_skill = skill_factory.from_ex_rule(ke.add)
 multiply_skill = skill_factory.from_ex_rule(ke.multiply)
 
-
 correct_multiply_num = skill_factory.from_ex_rule(ke.correct_multiply_num)
 correct_multiply_denom = skill_factory.from_ex_rule(ke.correct_multiply_denom)
 
 correct_add_same_num = skill_factory.from_ex_rule(ke.correct_add_same_num)
-correct_copy_same_denom = skill_factory.from_ex_rule(ke.correct_copy_same_denom)
+correct_copy_same_denom = skill_factory.from_ex_rule(
+    ke.correct_copy_same_denom)
 
 correct_check = skill_factory.from_ex_rule(ke.correct_check)
 correct_convert_num1 = skill_factory.from_ex_rule(ke.correct_convert_num1)
 correct_convert_num2 = skill_factory.from_ex_rule(ke.correct_convert_num2)
 correct_convert_denom1 = skill_factory.from_ex_rule(ke.correct_convert_denom1)
 correct_convert_denom2 = skill_factory.from_ex_rule(ke.correct_convert_denom2)
-correct_add_convert_num = skill_factory.from_ex_rule(ke.correct_add_convert_num)
-correct_copy_convert_denom = skill_factory.from_ex_rule(ke.correct_copy_convert_denom)
+correct_add_convert_num = skill_factory.from_ex_rule(
+    ke.correct_add_convert_num)
+correct_copy_convert_denom = skill_factory.from_ex_rule(
+    ke.correct_copy_convert_denom)
 
 correct_done = skill_factory.from_ex_rule(ke.correct_done)
 
@@ -425,3 +428,47 @@ def fact_from_dict(f):
         fact_class = Fact
     f2 = {k: v for k, v in f.items() if k[:2] != "__"}
     return fact_class(f2)
+
+
+if __name__ == "__main__":
+    from apprentice.working_memory import ExpertaWorkingMemory
+    import copy
+
+    # c = copy.deepcopy(fraction_skill_set['click_done'])
+    prior_skills = [fraction_skill_set['click_done']]
+    prior_skills = None
+    # wm = ExpertaWorkingMemory(ke=KnowledgeEngine())
+    # wm.add_skills(prior_skills)
+    # import collections.OrderedDict
+    if prior_skills is None:
+        prior_skills = {
+            "click_done": False,  # True,
+            "check": False,  # True,
+            "equal": False,
+            "update_answer": True,
+            "update_convert": False,  # , True,
+            "add": False,  # True,
+            "multiply": False  # , True,
+        }
+
+    wm = ExpertaWorkingMemory(ke=KnowledgeEngine())
+
+    skill_map = fraction_skill_set
+    prior_skills = [
+        skill_map[s]
+        for s, active in prior_skills.items()
+        if active and s in skill_map
+    ]
+    wm.add_skills(prior_skills)
+
+    temp = wm.ke.matcher
+    # wm.ke.matcher = None
+
+    c = copy.deepcopy(wm)
+    wm.ke.matcher = temp
+
+    # self.ke.matcher.__init__(self.ke)
+    # self.ke.reset()
+    # ftn = wm.ke.matcher.root_node.children[0]
+    # cb = ftn.callback
+    # copy.deepcopy(cb)
