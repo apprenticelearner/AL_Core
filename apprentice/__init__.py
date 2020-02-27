@@ -2,6 +2,11 @@ import logging
 import logging.config
 import os
 
+# import so "disable_loggers" can have effect
+from experta import unwatch
+
+unwatch()
+
 import coloredlogs
 import yaml
 
@@ -32,8 +37,8 @@ def setup_logging(default_path='logging.yaml', default_level=logging.INFO,
         print('Failed to load configuration file. Using default configs')
 
 
-log_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'logging.yaml')
+log_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                               'logging.yaml')
 
-setup_logging(default_path=log_path)
+setup_logging(default_path=log_config_path)
 # '%(name)s:%(lineno)s | %(message)s'

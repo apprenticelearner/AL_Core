@@ -2,7 +2,7 @@
 # and https://stackoverflow.com/questions/45465510/using-logging-with-coloredlogs
 
 version: 1
-disable_existing_loggers: true
+disable_existing_loggers: True
 
 formatters:
   standard:
