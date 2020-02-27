@@ -15,7 +15,8 @@ class WorkingMemory(metaclass=ABCMeta):
     """
     Abstract base class for working memory
     """
-    lookup = {}
+    def __init__(self, ke=None, reset=True):
+        self.lookup = {}
 
     def build_skill(self, _condition: Any,
                     _function: Callable) -> Skill:

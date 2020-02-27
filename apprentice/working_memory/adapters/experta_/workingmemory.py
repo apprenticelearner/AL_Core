@@ -21,6 +21,7 @@ class ExpertaWorkingMemory(WorkingMemory):
         self.skill_factory = ExpertaSkillFactory(ke)
         self.activation_factory = ExpertaActivationFactory(ke)
         self.condition_factory = ExpertaConditionFactory()
+        super().__init__()
 
     def step(self):
         self.ke.step()
