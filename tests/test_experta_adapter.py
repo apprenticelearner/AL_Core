@@ -64,8 +64,8 @@ def test_experta_skill_factory_transforms():
 
 def test_experta_activation_factory_transforms():
     ke = get_KE_fixture()
-    a = ke.declare_fact().step()
-
+    ke.declare_fact().step()
+    a = ke.agenda.activations[0]
     b = ExpertaActivationFactory(ke).from_ex_activation(a)
     assert isinstance(b, Activation)
     c = ExpertaActivationFactory(ke).to_ex_activation(b)
@@ -90,8 +90,10 @@ def test_experta_add_fact():
     ke2 = get_KE_fixture()
     ke2.declare(ex.Fact(a=1))
     ke2.declare(ex.Fact(b=2))
-    wm.add_facts([{'a': 1}, {'b': 2}])
-    assert list(wm.facts) == list(ke2.facts.values())
+    for i, fact in ke2.facts.items():
+        wm.add_fact(i, fact)
+
+    assert len(wm.facts) == 3
 
 
 def test_experta_skill_constructor():
@@ -107,7 +109,7 @@ def test_experta_skill_constructor():
 def test_experta_add_skills():
     wm = ExpertaWorkingMemory(get_KE_fixture())
     ke2 = get_KE_fixture()
-    wm.add_facts([{'a': 1}, {'b': 2}])
+    wm.add_facts({0: {'a': 1}, 1: {'b': 2}})
     s = wm.skill_factory.from_ex_rule(ke2._)
     wm.add_skill(s)
     assert isinstance(next(wm.skills), Skill)
@@ -119,7 +121,7 @@ def test_experta_run():
     s = wm.skill_factory.from_ex_rule(ke2._)
     wm.add_skill(s)
     assert not wm.ke.activated
-    wm.add_facts([{'a': 1}, {'b': 2}])
+    wm.add_facts({0: {'a': 1}, 1: {'b': 2}})
     wm.run()
     assert wm.ke.activated
 
@@ -132,7 +134,7 @@ def test_experta_run_2():
                                "_")
     wm.add_skill(s)
     assert not wm.ke.activated
-    wm.add_facts([{'a': 1}, {'b': 2}])
+    wm.add_facts({0: {'a': 1}, 1: {'b': 2}})
     wm.run()
     assert wm.ke.activated
 
