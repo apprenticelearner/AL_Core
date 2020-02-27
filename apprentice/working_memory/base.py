@@ -63,9 +63,9 @@ class WorkingMemory(metaclass=ABCMeta):
         """
         pass
 
-    def add_facts(self, facts: Collection[dict]) -> None:
-        for fact in facts:
-            self.add_fact(fact)
+    def add_facts(self, facts: dict) -> None:
+        for key, fact in facts.items():
+            self.add_fact(key, fact)
 
     @abstractmethod
     def add_fact(self, key: object, fact: dict) -> None:
