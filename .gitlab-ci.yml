@@ -50,6 +50,7 @@ coverage:
 
 sphinx:
   stage: document
+  allow_failure: true
   dependencies:
     - flake8
   script:
