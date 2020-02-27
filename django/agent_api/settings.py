@@ -15,7 +15,7 @@ import os
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-
+PROFILE_LOG_BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'profile')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.1/howto/deployment/checklist/
 
@@ -39,7 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'apprentice_learner',
-    'codemirror2'
+    'codemirror2',
+    'django_extensions'
 ]
 
 MIDDLEWARE = [
