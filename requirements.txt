@@ -24,4 +24,4 @@ jsondiff
 experta
 nltk
 coloredlogs
-yaml
+PyYAML
