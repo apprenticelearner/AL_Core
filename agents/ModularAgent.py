@@ -136,8 +136,11 @@ class ModularAgent(BaseAgent):
         self.explanations_list = np.empty(shape = [0, 1])
         self.activations = {}
         self.use_memory = use_memory
-
+        self.t = 0
+        self.exp_inds = {}
         print("using memory:", use_memory)
+        # with open("we_f.txt", "w") as outfile:
+        #     outfile.write("skill\ttime\tactivation\n")
 
     # -----------------------------REQUEST------------------------------------
 
@@ -301,6 +304,13 @@ class ModularAgent(BaseAgent):
 
     def train(self, state, selection, action, inputs, reward,
               skill_label, foci_of_attention):  # -> return None
+        question_type = state["?ele-f1-01"]["value"]
+        # if question_type != "":
+        #     beta = 1
+        # else:
+        #     beta = 0
+        c = 0.277
+        alpha = 0.177
         state = StateMultiView("object", state)
         sai = SAIS(selection, action, inputs)
         state_featurized = self.planner.apply_featureset(state)
@@ -314,7 +324,7 @@ class ModularAgent(BaseAgent):
                                                  explanations,
                                                  state_featurized)
 
-
+        # print("Number of explanations: ", len(explanations))
         if(len(explanations) == 0):
 
             if(len(nonmatching_explanations) > 0):
@@ -340,24 +350,47 @@ class ModularAgent(BaseAgent):
                 str_exp = str(exp)
                 self.explanations_list = np.append(self.explanations_list, str_exp)
                 if str_exp not in self.activations:
-                    self.activations[str_exp] = None
+                    self.activations[str_exp] = np.array([-np.inf])
+                    self.exp_inds[str_exp] = np.array([self.t])
+                else:
+                    self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
+
                 # COMPUTE ACTIVATION HERE #
             for str_exp in self.activations:
+                if str_exp == str(explanations[0]):
+                    if question_type != "":
+                        # print("HI")
+                        beta = 4
+                    else:
+                        beta = 0
+                else:
+                    beta = 0
                 exp_i = np.where(self.explanations_list == str_exp)[0]
                 exp_freq = exp_i.size
                 exp_times = self.explanations_list.size - exp_i
-
-                self.activations[str_exp] = self.compute_activation(exp_times, 0.5)
-
+                decay = self.compute_decay(self.activations[str_exp], self.exp_inds[str_exp] - self.exp_inds[str_exp][0], c, alpha)
+                # self.activations[str_exp] = np.append(self.activations[str_exp], self.compute_activation(exp_times, 0.5))
+                self.activations[str_exp] = np.append(self.activations[str_exp], self.compute_activation_recursive(self.t - self.exp_inds[str_exp], decay, beta))
 
 
         # self.explanations_list = np.append(self.explanations_list, [exp for exp in explanations])
         self.fit(explanations, state_featurized, reward)
+        self.t += 1
         # print("----------------------")
-        # print(self.explanations_list)
+        # print(self.explanations_list[-1])
         # self.explanations_unique, self.explanations_freq =
-        # print(self.activations)
+        # for a in self.activations:
+        #     for i in range(len(self.activations[a])):
+        #         print(a + "\t" + str(self.t - self.exp_inds[a][0]-i) + "\t" + str(self.activations[a]))
+        with open("we_saa2.txt", "w") as outfile:
+            outfile.write("skill\ttime\tactivation\n0.1")
+            for a in self.activations:
+                for i in range(len(self.activations[a])):
+                    outfile.write(a + "\t" + str(self.t - self.exp_inds[a][0]-i) + "\t" + str(self.activations[a][i])+"\n")
 
+        # with open("we_fa_lst.txt", "w") as outfile:
+        #     for item in self.explanations_list:
+        #         outfile.write("%s\n" % item)
         # with open("test_activation.txt", "a") as f:
         #     for key, val in self.activations.items():
         #         print("%s\t%s\t%s" % (str(len(self.explanations_list)), key, val), file=f)
@@ -387,9 +420,20 @@ class ModularAgent(BaseAgent):
     def compute_activation(self, times, decay):
         return math.log(np.sum(times**(-decay)))
 
+    def compute_activation_recursive(self, times, decay, beta):
+        times = times + 1
+        return beta + math.log(np.sum(np.power(times, -decay)))
+
+    def compute_decay(self, activations, exp_i, c, alpha):
+        # print("ACTIVATIONS: ", activations)
+        relevant_activations = activations[exp_i]
+        decay = c*np.exp(relevant_activations)+alpha
+        # print("DECAY: ", decay)
+        return decay
     def compute_retrieval(self, activation, tau, s):
-        # print("probability of retrieval:", (1/(1+math.exp((tau - activation) / s))))
-        return random() < (1/(1+math.exp((tau - activation) / s)))
+        # print("probability of retrieval:", (1/(1+math.exp((tau - activation[-1]) / s))))
+        # return random() < (1/(1+math.exp((tau - activation) / s)))
+        return random() < (1/(1+math.exp((tau - activation[-1]) / s)))
 
 
 
@@ -452,7 +496,6 @@ class StateMultiView(object):
                                 grounded_key_vals_state)
         self.register_transform("feat_knowledge_base", "flat_ungrounded",
                                 kb_to_flat_ungrounded)
-
     def set_view(self, view, state):
         self.views[view] = state
 
