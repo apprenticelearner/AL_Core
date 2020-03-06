@@ -87,13 +87,13 @@ publish:
   dependencies:
     - sphinx
   script:
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
     - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
     - eval $(ssh-agent -s)
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-    - ls ~/.ssh/
-    - cat ~/.ssh/is_rsa
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - git config user.email "chris.maclellan@soartech.com"
+    - git config user.name "Chris MacLellan (automated triskele)"
     - git remote rm public
     - git remote add public git@github.com:apprenticelearner/AL_Core.git
     - git push public HEAD:soartech-dev
