@@ -357,6 +357,12 @@ class SoarTechAgent(DiffBaseAgent):
                 next_state, candidate_activations,
             )
 
+    def check(self, state: Dict, sai: Sai, **kwargs) -> float:
+        """
+        Checks the correctness (reward) of an SAI action in a given state.
+        """
+        raise NotImplementedError("Check not implemented in SoarTech agent.")
+
 
 if __name__ == "__main__":
     import copy
