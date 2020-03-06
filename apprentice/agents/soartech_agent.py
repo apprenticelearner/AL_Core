@@ -37,6 +37,8 @@ class SoarTechAgent(DiffBaseAgent):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
         super().__init__()
+        self.last_activation = None
+        self.last_sai = None
 
         if prior_skills is None:
             prior_skills = {
@@ -48,10 +50,6 @@ class SoarTechAgent(DiffBaseAgent):
                 "add": True,
                 "multiply": True,
             }
-
-        self.prior_state = {}
-        self.last_activation = None
-        self.last_sai = None
 
         # Need a working memory class
         if isinstance(wm, WorkingMemory):
@@ -361,7 +359,7 @@ class SoarTechAgent(DiffBaseAgent):
         """
         Checks the correctness (reward) of an SAI action in a given state.
         """
-        raise NotImplementedError("Check not implemented in SoarTech agent.")
+        raise NotImplementedError("Check not implemented for SoarTech agent.")
 
 
 if __name__ == "__main__":

@@ -332,14 +332,12 @@ def train(http_request, agent_id):
             input=data["inputs"],
         )
 
-        agent.instance.train(
-            data["state"],
-            data["next_state"],
-            sai,
-            data["reward"],
-            data["skill_label"],
-            data["foci_of_attention"],
-        )
+        data['sai'] = sai
+        del data['selection']
+        del data['action']
+        del data['inputs']
+
+        agent.instance.train(**data)
 
         global dont_save
         if not dont_save:
@@ -401,9 +399,18 @@ def check(http_request, agent_id):
 
         response = {}
 
-        response["correct"] = agent.instance.check(
-            data["state"], data["selection"], data["action"], data["inputs"]
+        sai = Sai(
+            selection=data["selection"],
+            action=data["action"],
+            input=data["inputs"],
         )
+
+        data['sai'] = sai
+        del data['selection']
+        del data['action']
+        del data['inputs']
+
+        response["reward"] = agent.instance.check(**data)
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
