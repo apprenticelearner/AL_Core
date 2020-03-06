@@ -96,6 +96,7 @@ publish:
     - git config user.name "Chris MacLellan (automated triskele)"
     - git remote rm public
     - git remote add public git@github.com:apprenticelearner/AL_Core.git
+    - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
     - git push public HEAD:soartech-dev
   tags:
     - base
