@@ -30,14 +30,30 @@ flake8:
   tags:
     - base
 
+coverage:
+  stage: test
+  allow_failure: true
+  script:
+    - pip install -r requirements.txt --exists-action w
+    - pip install -r test-requirements.txt
+    - retval=0
+    - coverage run --source apprentice -m pytest || retval=$?
+    - coverage html -d coverage
+    - coverage report
+    - exit "$retval"
+  coverage: '/\d+\%\s*$/'
+  artifacts:
+    paths:
+      - coverage
+  tags:
+    - base
+
 pytest:
   stage: test
   allow_failure: false
   script:
     - pip install -r requirements.txt --exists-action w
     - pip install -r test-requirements.txt
-      #      #- pip install tox
-      #- tox
     - python -m pytest
   artifacts:
     when: always
@@ -49,7 +65,7 @@ pytest:
 sphinx:
   stage: document
   dependencies:
-    - flake8
+    - pytest
   script:
     - pip install -r requirements.txt --exists-action w
     - pip install -r docs/doc-requirements.txt
@@ -66,31 +82,10 @@ sphinx:
   only:
     - master
 
-coverage:
-  stage: document
-  allow_failure: true
-  dependencies:
-    - pytest
-  script:
-    - pip install -r requirements.txt --exists-action w
-    - pip install -r test-requirements.txt
-    - retval=0
-    - coverage run --source apprentice -m pytest || retval=$?
-    - coverage html -d coverage
-    - coverage report
-      # - exit "$retval"
-  coverage: '/\d+\%\s*$/'
-  artifacts:
-    paths:
-      - coverage
-  tags:
-    - base
-
 publish:
   stage: deploy
   dependencies:
     - sphinx
-    - coverage
   script:
     - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
     - eval $(ssh-agent -s)
@@ -99,6 +94,8 @@ publish:
     - chmod 700 ~/.ssh
     - git remote add public git@github.com:apprenticelearner/AL_Core.git
     - git push public master:soartech-dev
+  tags:
+    - base
   only:
     - master
 
@@ -124,7 +121,7 @@ pages:
 pypi:
   stage: deploy
   dependencies:
-    - coverage
+    - pytest
   script:
     - pip install twine
     - python setup.py sdist bdist_wheel
