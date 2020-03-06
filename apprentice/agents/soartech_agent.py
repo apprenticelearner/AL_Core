@@ -5,7 +5,7 @@ from abc import ABCMeta
 from typing import Collection
 from typing import Dict
 
-from apprentice.agents.base import BaseAgent
+from apprentice.agents.diff_base import DiffBaseAgent
 from apprentice.learners import WhenLearner
 from apprentice.learners.when_learners.dqn_learner import DQNLearner
 from apprentice.working_memory import ExpertaWorkingMemory
@@ -17,7 +17,7 @@ from experta import KnowledgeEngine
 log = logging.getLogger(__name__)
 
 
-class SoarTechAgent(BaseAgent):
+class SoarTechAgent(DiffBaseAgent):
     """
     A SoarTech version of an Apprentice Agent.
     """
@@ -53,7 +53,7 @@ class SoarTechAgent(BaseAgent):
         self.last_activation = None
         self.last_sai = None
 
-        #Need a working memory class
+        # Need a working memory class
         if isinstance(wm, WorkingMemory):
             self.working_memory = wm
         if isinstance(wm, ABCMeta):
@@ -84,8 +84,8 @@ class SoarTechAgent(BaseAgent):
     #     return None
 
     def select_activation(
-            self, candidate_activations: Collection[Activation], is_train=False,
-            pop=False
+            self, candidate_activations: Collection[Activation],
+            is_train=False, pop=False
     ) -> Activation:
         """
         Given a list of candidate skills evaluate them and determines which one
@@ -178,10 +178,10 @@ class SoarTechAgent(BaseAgent):
                 activation
                 for activation in self.working_memory.activations
                 if (
-                       activation.get_rule_name(),
-                       frozenset(activation.get_rule_bindings().items()),
-                   )
-                   not in tabu
+                    activation.get_rule_name(),
+                    frozenset(activation.get_rule_bindings().items()),
+                )
+                not in tabu
             ]
 
             next_state = self.working_memory.state
@@ -200,10 +200,7 @@ class SoarTechAgent(BaseAgent):
 
         return output
 
-    def train_diff(
-            self, state_diff, next_state_diff, sai, reward, skill_label,
-            foci_of_attention
-    ):
+    def train_diff(self, state_diff, next_state_diff, sai, reward):
         """
         Need the diff for the current state as well as the state diff for
         computing the state that results from taking the action. This is
@@ -257,8 +254,8 @@ class SoarTechAgent(BaseAgent):
 
                 output = self.working_memory.activation_factory\
                     .to_ex_activation(
-                    best_activation
-                ).fire(self.working_memory.ke)
+                        best_activation
+                    ).fire(self.working_memory.ke)
                 tabu.add(
                     (
                         best_activation.get_rule_name(),
@@ -273,10 +270,10 @@ class SoarTechAgent(BaseAgent):
                     activation
                     for activation in self.working_memory.activations
                     if (
-                           activation.get_rule_name(),
-                           frozenset(activation.get_rule_bindings().items()),
-                       )
-                       not in tabu
+                        activation.get_rule_name(),
+                        frozenset(activation.get_rule_bindings().items()),
+                    )
+                    not in tabu
                 ]
 
                 log.debug(
@@ -304,10 +301,10 @@ class SoarTechAgent(BaseAgent):
                     activation
                     for activation in self.working_memory.activations
                     if (
-                           activation.get_rule_name(),
-                           frozenset(activation.get_rule_bindings().items()),
-                       )
-                       not in tabu
+                        activation.get_rule_name(),
+                        frozenset(activation.get_rule_bindings().items()),
+                    )
+                    not in tabu
                 ]
 
                 # if the reward is positive, then we assume any other action is
@@ -356,12 +353,8 @@ class SoarTechAgent(BaseAgent):
                 candidate_activations,
             )
 
-    def train_last_state(self, *args):
-        pass
-
 
 if __name__ == "__main__":
     import copy
     a = SoarTechAgent()
     b = copy.deepcopy(a)
-

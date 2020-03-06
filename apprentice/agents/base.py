@@ -1,10 +1,11 @@
-from abc import ABCMeta, abstractmethod
-from typing import Collection
+from abc import ABCMeta
+from abc import abstractmethod
 from typing import Dict
+
+from apprentice.working_memory.representation import Sai
 
 
 class BaseAgent(metaclass=ABCMeta):
-    prior_state = {}
 
     def __init__(self, **kwargs):
         """
@@ -22,8 +23,7 @@ class BaseAgent(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def train(self, state: Dict, selection: str, action: str, inputs:
-              Collection[str], reward: float, **kwargs):
+    def train(self, state: Dict, sai: Sai, reward: float, **kwargs):
         """
         Accepts a JSON/Dict object representing the state,
         a JSON/Dict object representing the state after the SAI is invoked,
@@ -35,8 +35,7 @@ class BaseAgent(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def check(self, state: Dict, selection: str, action: str, inputs:
-              Collection[str], **kwargs) -> float:
+    def check(self, state: Dict, sai: Sai, **kwargs) -> float:
         """
         Checks the correctness (reward) of an SAI action in a given state.
         """
