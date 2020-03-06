@@ -92,9 +92,11 @@ publish:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - git config user.email "chris.maclellan@soartech.com"
-    - git config user.name "Chris MacLellan (automated gitlab build)"
-    - git commit -m "automated empty commit" --allow-empty
+      # - git config user.email "chris.maclellan@soartech.com"
+      # - git config user.name "Chris MacLellan (automated gitlab build)"
+      # - git commit -m "automated empty commit" --allow-empty
+    - git branch
+    - git remote -v
     - git remote rm public
     - git remote add public git@github.com:apprenticelearner/AL_Core.git
     - git push public master:soartech-dev
