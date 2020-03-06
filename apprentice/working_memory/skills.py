@@ -236,9 +236,10 @@ class FractionsEngine(KnowledgeEngine):
                    input={'value': value3})
 
     @Rule(
-        Fact(id="JCommTable.R1C0", contentEditable=False, value=MATCH.denom),
+        Fact(id="JCommTable.R1C0", contentEditable=False, value=MATCH.denom1),
         Fact(id="JCommTable2.R0C0", contentEditable=False, value="+"),
-        Fact(id="JCommTable3.R1C0", contentEditable=False, value=MATCH.denom),
+        Fact(id="JCommTable3.R1C0", contentEditable=False, value=MATCH.denom2),
+        TEST(lambda denom1, denom2: denom1 != denom2),
         Fact(id="JCommTable8.R0C0", contentEditable=True, value="")
     )
     def correct_check(self):
@@ -252,6 +253,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(id="JCommTable8.R0C0", contentEditable=False, value="x"),
         Fact(id='JCommTable.R0C0', contentEditable=False, value=MATCH.value1),
         Fact(id='JCommTable3.R1C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable4.R1C0', contentEditable=False),
         Fact(id='JCommTable4.R0C0', contentEditable=True)
     )
     def correct_convert_num1(self, value1, value2):
@@ -270,6 +272,9 @@ class FractionsEngine(KnowledgeEngine):
         Fact(id="JCommTable8.R0C0", contentEditable=False, value="x"),
         Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value1),
         Fact(id='JCommTable3.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable4.R0C0', contentEditable=False),
+        Fact(id='JCommTable4.R1C0', contentEditable=False),
+        Fact(id='JCommTable5.R1C0', contentEditable=False),
         Fact(id='JCommTable5.R0C0', contentEditable=True)
     )
     def correct_convert_num2(self, value1, value2):
@@ -306,6 +311,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(id="JCommTable8.R0C0", contentEditable=False, value="x"),
         Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value1),
         Fact(id='JCommTable3.R1C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable4.R1C0', contentEditable=False),
         Fact(id='JCommTable5.R1C0', contentEditable=True)
     )
     def correct_convert_denom2(self, value1, value2):
@@ -321,11 +327,11 @@ class FractionsEngine(KnowledgeEngine):
 
     @Rule(
         Fact(id='JCommTable4.R0C0', contentEditable=False, value=MATCH.value1),
-        Fact(id='JCommTable5.R0C0', contentEditable=False, value=MATCH.value2),
         Fact(id='JCommTable4.R1C0', contentEditable=False, value=MATCH.value3),
-        Fact(id='JCommTable5.R1C0', contentEditable=False, value=MATCH.value3),
         Fact(id='JCommTable7.R0C0', contentEditable=False, value="+"),
-        Fact(id='JCommTabl6.R0C0', contentEditable=True),
+        Fact(id='JCommTable5.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable5.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable6.R0C0', contentEditable=True),
     )
     def correct_add_convert_num(self, value1, value2):
         new_value = float(value1) + float(value2)
@@ -333,21 +339,21 @@ class FractionsEngine(KnowledgeEngine):
             new_value = int(new_value)
         new_value = str(new_value)
 
-        return Sai(selection='JCommTabl6.R0C0',
+        return Sai(selection='JCommTable6.R0C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
                    input={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable4.R0C0', contentEditable=False, value=MATCH.value1),
-        Fact(id='JCommTable5.R0C0', contentEditable=False, value=MATCH.value2),
         Fact(id='JCommTable4.R1C0', contentEditable=False, value=MATCH.value3),
-        Fact(id='JCommTable5.R1C0', contentEditable=False, value=MATCH.value3),
         Fact(id='JCommTable7.R0C0', contentEditable=False, value="+"),
-        Fact(id='JCommTabl6.R1C0', contentEditable=True),
+        Fact(id='JCommTable5.R0C0', contentEditable=False, value=MATCH.value2),
+        Fact(id='JCommTable5.R1C0', contentEditable=False, value=MATCH.value3),
+        Fact(id='JCommTable6.R1C0', contentEditable=True),
     )
     def correct_copy_convert_denom(self, value3):
-        return Sai(selection='JCommTabl6.R1C0',
+        return Sai(selection='JCommTable6.R1C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
                    input={'value': value3})

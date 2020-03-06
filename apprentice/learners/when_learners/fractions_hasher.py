@@ -119,8 +119,27 @@ class FractionsActionHasher(object):
         for p in prods:
             action_extremes.append({'fact-0: id': p})
 
-        rule_names = ['click_done', 'check', 'equal' 'update_convert_field',
-                      'update_answer_field', 'add', 'multiply']
+        rule_names = [
+            "click_done",
+            "check",
+            "equal",
+            "update_answer",
+            "update_convert",
+            "add",
+            "multiply",
+            "correct_multiply_num",
+            "correct_multiply_denom",
+            "correct_done",
+            "correct_add_same_num",
+            "correct_copy_same_denom",
+            "correct_check",
+            "correct_convert_num1",
+            "correct_convert_num2",
+            "correct_convert_denom1",
+            "correct_convert_denom2",
+            "correct_add_convert_num",
+            "correct_copy_convert_denom",
+        ]
         for name in rule_names:
             action_extremes.append({'rulename': name})
 

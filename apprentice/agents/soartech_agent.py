@@ -112,16 +112,22 @@ class SoarTechAgent(DiffBaseAgent):
         if is_train and random.random() < self.train_epsilon:
             return random.choice(candidate_activations), 0
 
-        activations = [
-            (
-                self.when_learning.eval(
-                    state=self.working_memory.state, action=activation
-                ),
-                random.random(),
-                activation,
-            )
-            for activation in candidate_activations
-        ]
+        # activations = [
+        #     (
+        #         self.when_learning.eval(
+        #             state=self.working_memory.state, action=activation
+        #         ),
+        #         random.random(),
+        #         activation,
+        #     )
+        #     for activation in candidate_activations
+        # ]
+
+        reward = self.when_learning.eval_multiple(
+            state=self.working_memory.state, actions=candidate_activations)
+        activations = [(reward[i], random.random(), activation) for i,
+                       activation in enumerate(candidate_activations)]
+
         activations.sort(reverse=True)
 
         expected_reward, _, best_activation = activations[0]
@@ -315,8 +321,7 @@ class SoarTechAgent(DiffBaseAgent):
                         best_activation,
                         self.action_penalty - 1.0,
                         # state, []
-                        state,
-                        candidate_activations,
+                        state, candidate_activations,
                     )
 
                 continue
@@ -349,8 +354,7 @@ class SoarTechAgent(DiffBaseAgent):
                 best_activation,
                 self.action_penalty + reward,
                 # next_state, []
-                next_state,
-                candidate_activations,
+                next_state, candidate_activations,
             )
 
 
