@@ -24,8 +24,8 @@ class SoarTechAgent(DiffBaseAgent):
 
     def __init__(
             self,
-            wm: WorkingMemory = ExpertaWorkingMemory(ke=KnowledgeEngine()),
-            when: WhenLearner = DQNLearner(),
+            wm: WorkingMemory = None,
+            when: WhenLearner = None,
             request_epsilon: float = 0.01,
             train_epsilon: float = 0.3,
             action_penalty: float = -0.05,
@@ -39,7 +39,10 @@ class SoarTechAgent(DiffBaseAgent):
         super().__init__()
         self.last_activation = None
         self.last_sai = None
-
+        if wm is None:
+            wm = ExpertaWorkingMemory(ke=KnowledgeEngine())
+        if when is None:
+            when = DQNLearner()
         if prior_skills is None:
             prior_skills = {
                 "click_done": True,
