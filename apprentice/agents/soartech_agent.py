@@ -1,5 +1,6 @@
 import logging
 import random
+from pprint import pformat
 from abc import ABCMeta
 # from typing import Any
 from typing import Collection
@@ -29,6 +30,7 @@ class SoarTechAgent(DiffBaseAgent):
             request_epsilon: float = 0.01,
             train_epsilon: float = 0.3,
             action_penalty: float = -0.05,
+            gamma: float = 0.7,
             negative_actions: bool = False,
             skill_map: Dict[str, Skill] = fraction_skill_set,
             prior_skills=None,
@@ -42,7 +44,7 @@ class SoarTechAgent(DiffBaseAgent):
         if wm is None:
             wm = ExpertaWorkingMemory(ke=KnowledgeEngine())
         if when is None:
-            when = DQNLearner()
+            when = DQNLearner(gamma=gamma)
         if prior_skills is None:
             prior_skills = {
                 "click_done": True,
@@ -61,6 +63,8 @@ class SoarTechAgent(DiffBaseAgent):
             self.working_memory = wm()
 
         log.debug(prior_skills)
+        log.debug('GAMMA = %0.2f' % gamma)
+
         prior_skills = [
             skill_map[s]
             for s, active in prior_skills.items()
@@ -131,6 +135,10 @@ class SoarTechAgent(DiffBaseAgent):
 
         activations.sort(reverse=True)
 
+        log.debug(
+            "LENGTH OF ACTIVATIONS " + str(len(activations)))
+        log.debug(str([(a[0], a[2].get_rule_name()) for a in activations]))
+
         expected_reward, _, best_activation = activations[0]
         return best_activation, expected_reward
 
@@ -161,6 +169,7 @@ class SoarTechAgent(DiffBaseAgent):
             best_activation, expected_reward = self.select_activation(
                 candidate_activations
             )
+
             candidate_activations.remove(best_activation)
             state = self.working_memory.state
 
@@ -228,6 +237,7 @@ class SoarTechAgent(DiffBaseAgent):
             return
 
         self.working_memory.update(state_diff)
+        # log.debug(pformat(self.working_memory.facts))
 
         # This should do essentially what `engine.run` is doing from
         # PyKnow. Pyknow currently uses salience to choose rule order, but
@@ -263,6 +273,7 @@ class SoarTechAgent(DiffBaseAgent):
                     .to_ex_activation(
                         best_activation
                     ).fire(self.working_memory.ke)
+
                 tabu.add(
                     (
                         best_activation.get_rule_name(),
@@ -282,11 +293,6 @@ class SoarTechAgent(DiffBaseAgent):
                     )
                     not in tabu
                 ]
-
-                log.debug(
-                    "LENGTH OF ACTIVATIONS" + str(len(candidate_activations)))
-                log.debug(
-                    str([a.get_rule_name() for a in candidate_activations]))
 
                 next_state = self.working_memory.state
 
@@ -343,6 +349,7 @@ class SoarTechAgent(DiffBaseAgent):
 
         else:
             self.working_memory.update(next_state_diff)
+            # log.debug(pformat(self.working_memory.facts))
             next_state = self.working_memory.state
             candidate_activations = [
                 activation for activation in self.working_memory.activations
