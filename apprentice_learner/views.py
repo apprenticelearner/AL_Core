@@ -118,13 +118,18 @@ def create(http_request):
             project = None
 
     if(data.get('no_ops_parse',True)):
+        feature_set = []
+        function_set = []
         if("feature_set" in data):
-            feature_set = data["feature_set"]
+            if(data["feature_set"]):
+                feature_set = data["feature_set"]
         else:
             errs.append("Request body missing 'feature_set'. " + \
              "Add it or set {'no_ops_parse':False} to draw from the database. ")
+
         if("function_set" in data):
-            function_set = data["function_set"]
+            if(data["function_set"]):
+                function_set = data["function_set"]
         else:
             errs.append("Request body missing 'function_set'. " + \
              "Add it or set {'no_ops_parse':False} to draw from the database. ")
@@ -144,11 +149,6 @@ def create(http_request):
 
     args['feature_set'] = feature_set
     args['function_set'] = function_set
-
-
-    if project is not None:
-        args['feature_set'] += project.compile_features()
-        args['function_set'] += project.compile_functions()
 
     if settings.USE_CUSTOM_OPERATORS:
         args['feature_set'] += custom_feature_set()
