@@ -187,7 +187,7 @@ class ModularAgent(BaseAgent):
                             add_skill_info=add_skill_info)
 
 
-
+        # to change: select random explanation
         response = EMPTY_RESPONSE
         for explanation, skill_info in explanations:
             # print(explanation, skill_info)
@@ -202,7 +202,7 @@ class ModularAgent(BaseAgent):
 
             if(add_skill_info):
                 response["skill_info"] = skill_info
-            break
+                break
 
             if retrieved:
                 break
@@ -303,7 +303,7 @@ class ModularAgent(BaseAgent):
 
     def train(self, state, selection, action, inputs, reward,
               skill_label, foci_of_attention):  # -> return None
-        question_type = state["?ele-f1-01"]["value"]
+        question_type = state["?ele-practice_type"]["value"]
         c = 0.277
         alpha = 0.177
         state = StateMultiView("object", state)
@@ -353,15 +353,15 @@ class ModularAgent(BaseAgent):
                 # COMPUTE ACTIVATION HERE #
             for str_exp in self.activations:
                 if str_exp == str(explanations[0]):
-                    if question_type != "": # hacky check to see WE vs RP (will prob not work now? need to change brds again)
+                    if question_type == "worked_example": # hacky check to see WE vs RP (will prob not work now? need to change brds again)
                         beta = 4
                     else:
                         beta = 0
                 else:
                     beta = 0
-                exp_i = np.where(self.explanations_list == str_exp)[0]
-                exp_freq = exp_i.size
-                exp_times = self.explanations_list.size - exp_i
+                # exp_i = np.where(self.explanations_list == str_exp)[0]
+                # exp_freq = exp_i.size
+                # exp_times = self.explanations_list.size - exp_i
                 decay = self.compute_decay(self.activations[str_exp], self.exp_inds[str_exp] - self.exp_inds[str_exp][0], c, alpha)
                 # self.activations[str_exp] = np.append(self.activations[str_exp], self.compute_activation(exp_times, 0.5)) // non-recursive
                 self.activations[str_exp] = np.append(self.activations[str_exp], self.compute_activation_recursive(self.t - self.exp_inds[str_exp], decay, beta))
@@ -374,9 +374,9 @@ class ModularAgent(BaseAgent):
     # ------------------------------CHECK--------------------------------------
 
     def check(self, state, sai):
-        state_featurized, knowledge_base = self.planner.apply_featureset(state)
+        # state_featurized, knowledge_base = self.planner.apply_featureset(state)
         explanations = self.explanations_from_skills(state, sai, self.rhs_list)
-        explanations, _ = self.where_matches(explanations)
+        explanations, _ = self.where_matches(explanations, state)
         return len(explanations) > 0
 
     def get_skills(self, states=None):
