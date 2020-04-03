@@ -13,15 +13,12 @@ RUN python3.8 -m pip install torch
 RUN git clone http://gitlab+deploy-token-9:19fecH2MzpmrGG2LULts@hq-git.soartech.com/apprentice/apprentice.git
 WORKDIR /apprentice
 RUN python3.8 setup.py install
-
-#RUN python3.8 -m pip install -U pytest #remove when pytest added to requirements
-#RUN python3.8 -m pip install multiprocess
 RUN python3.8 -m pip install -r requirements.txt --exists-action=w
 
 RUN pytest tests
 
-# Configure Services and Port
-COPY start.sh ./start.sh
-CMD ["./start.sh"]
+#COPY start.sh .
 
-#EXPOSE 8000 #django default
+EXPOSE 8000
+RUN chmod +x manage.py
+CMD ["/usr/bin/python3.8", "/apprentice/django/manage.py", "runserver"]
