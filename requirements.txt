@@ -22,7 +22,6 @@ jsondiff
 nltk
 coloredlogs
 PyYAML
-multiprocess
 scikit-learn
 numpy
 pytest
