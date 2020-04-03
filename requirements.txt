@@ -26,3 +26,4 @@ jsondiff
 nltk
 coloredlogs
 PyYAML
+pytest
