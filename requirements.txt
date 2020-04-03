@@ -23,6 +23,6 @@ nltk
 coloredlogs
 PyYAML
 multiprocess
-scipy
 scikit-learn
 numpy
+pytest
