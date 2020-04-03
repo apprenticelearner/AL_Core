@@ -14,9 +14,9 @@ RUN git clone http://gitlab+deploy-token-9:19fecH2MzpmrGG2LULts@hq-git.soartech.
 WORKDIR /apprentice
 RUN python3.8 setup.py install
 
-RUN python3.8 -m pip install -U pytest #remove when pytest added to requirements
-RUN python3.8 -m pip install multiprocess
-RUN python3.8 -m pip install -r requirements.txt -I --exists-action=w
+#RUN python3.8 -m pip install -U pytest #remove when pytest added to requirements
+#RUN python3.8 -m pip install multiprocess
+RUN python3.8 -m pip install -r requirements.txt --exists-action=w
 
 RUN pytest tests
 
