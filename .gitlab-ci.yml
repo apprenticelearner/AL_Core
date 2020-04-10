@@ -121,6 +121,17 @@ pages:
     - base
   only:
     - master
+    
+dockerize:
+  stage: deploy
+  script:
+    - docker build -t hq-git.soartech.com:4567/apprentice/apprentice .
+    - docker push hq-git.soartech.com:4567/apprentice/apprentice
+  tags:
+    - shell
+  only:
+    - master
+
 
 # pypi:
 #   stage: deploy
