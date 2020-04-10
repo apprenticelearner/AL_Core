@@ -2,7 +2,6 @@ colorama==0.4.1
 concept-formation==0.3.4
 Django==2.1.11
 django-codemirror2==0.2
-django-cors-headers==2.4.0
 django-flashpolicies==1.10
 django-extensions==2.2.8
 django-python-code-field==1.0.0
@@ -26,3 +25,4 @@ pytest
 multiprocess
 scikit-learn
 dill
+django-cors-headers
