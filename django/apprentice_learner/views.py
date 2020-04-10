@@ -3,6 +3,7 @@ Module Doc String
 """
 import json
 import traceback
+from pprint import pprint
 
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_list_or_404
@@ -21,7 +22,7 @@ from apprentice_learner.models import Agent
 from apprentice_learner.models import Project
 from apprentice_learner.models import Operator
 
-from apprentice.agents import SoarTechAgent
+from apprentice.agents.soartech_agent import SoarTechAgent
 from apprentice.agents.Stub import Stub
 from apprentice.agents.Memo import Memo
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
@@ -223,7 +224,7 @@ def request(http_request, agent_id):
         if isinstance(response, Sai):
             return HttpResponse(json.dumps({'selection': response.selection,
                                             'action': response.action,
-                                            'inputs': response.input}))
+                                            'inputs': response.inputs}))
 
         return HttpResponse(json.dumps(response))
 
@@ -329,7 +330,7 @@ def train(http_request, agent_id):
         sai = Sai(
             selection=data["selection"],
             action=data["action"],
-            input=data["inputs"],
+            inputs=data["inputs"],
         )
 
         data['sai'] = sai
@@ -349,6 +350,8 @@ def train(http_request, agent_id):
         return HttpResponse("OK")
 
     except Exception as exp:
+        print('Error on Train')
+        pprint(data)
         traceback.print_exc()
 
         # pr.disable()
@@ -402,7 +405,7 @@ def check(http_request, agent_id):
         sai = Sai(
             selection=data["selection"],
             action=data["action"],
-            input=data["inputs"],
+            inputs=data["inputs"],
         )
 
         data['sai'] = sai

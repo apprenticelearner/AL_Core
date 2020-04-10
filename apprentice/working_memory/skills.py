@@ -32,8 +32,8 @@ class FractionsEngine(KnowledgeEngine):
         # print('clicking done')
         return Sai(selection='done',
                    action='ButtonPressed',
-                   input={'value': -1})
-        # input={'value': '-1'})
+                   inputs={'value': -1})
+        # inputs={'value': '-1'})
 
     @Rule(
         Fact(id="JCommTable8.R0C0", contentEditable=True, value="")
@@ -42,7 +42,7 @@ class FractionsEngine(KnowledgeEngine):
         # print('checking box')
         return Sai(selection="JCommTable8.R0C0",
                    action='UpdateTextArea',
-                   input={'value': "x"})
+                   inputs={'value': "x"})
 
     @Rule(
         Fact(id=MATCH.id1, contentEditable=False, value=MATCH.value1),
@@ -75,7 +75,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection=field_id,
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': value})
+                   inputs={'value': value})
 
     @Rule(
         Fact(id=W(), contentEditable=False, value=MATCH.value),
@@ -89,7 +89,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection=field_id,
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': value})
+                   inputs={'value': value})
 
     @Rule(
         AS.fact1 << Fact(id=MATCH.id1, contentEditable=False,
@@ -173,7 +173,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable6.R0C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': new_value})
+                   inputs={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable.R1C0', contentEditable=False, value=MATCH.value1),
@@ -190,7 +190,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable6.R1C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': new_value})
+                   inputs={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable6.R0C0', contentEditable=False),
@@ -200,7 +200,7 @@ class FractionsEngine(KnowledgeEngine):
     def correct_done(self):
         return Sai(selection='done',
                    action='ButtonPressed',
-                   input={'value': -1})
+                   inputs={'value': -1})
 
     @Rule(
         Fact(id='JCommTable.R0C0', contentEditable=False, value=MATCH.value1),
@@ -219,7 +219,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable6.R0C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': new_value})
+                   inputs={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable.R0C0', contentEditable=False, value=MATCH.value1),
@@ -233,7 +233,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable6.R1C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': value3})
+                   inputs={'value': value3})
 
     @Rule(
         Fact(id="JCommTable.R1C0", contentEditable=False, value=MATCH.denom1),
@@ -246,7 +246,7 @@ class FractionsEngine(KnowledgeEngine):
         # print('checking box')
         return Sai(selection="JCommTable8.R0C0",
                    action='UpdateTextArea',
-                   input={'value': "x"})
+                   inputs={'value': "x"})
 
     @Rule(
         Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
@@ -265,7 +265,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable4.R0C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': new_value})
+                   inputs={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
@@ -286,7 +286,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable5.R0C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': new_value})
+                   inputs={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
@@ -304,7 +304,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable4.R1C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': new_value})
+                   inputs={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable2.R0C0', contentEditable=False, value="+"),
@@ -323,7 +323,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable5.R1C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': new_value})
+                   inputs={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable4.R0C0', contentEditable=False, value=MATCH.value1),
@@ -342,7 +342,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable6.R0C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': new_value})
+                   inputs={'value': new_value})
 
     @Rule(
         Fact(id='JCommTable4.R0C0', contentEditable=False, value=MATCH.value1),
@@ -356,7 +356,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection='JCommTable6.R1C0',
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': value3})
+                   inputs={'value': value3})
 
 
 ke = FractionsEngine()
@@ -417,14 +417,14 @@ class RandomFracEngine(KnowledgeEngine):
     )
     def input_random(self, id):
         return Sai(selection=id, action='UpdateTextArea',
-                   input={'value': str(randint(0, 100))})
+                   inputs={'value': str(randint(0, 100))})
 
     @Rule(
         Fact(id='done')
     )
     def click_done(self):
         return Sai(selection='done', action='ButtonPressed',
-                   input={'value': -1})
+                   inputs={'value': -1})
 
 
 def fact_from_dict(f):

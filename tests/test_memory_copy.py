@@ -38,7 +38,7 @@ def old_test_compile_addition():
     s = new_wm.ke.sais[0]
     assert s == Sai(selection='JCommTable.R1C1',
                                     action='UpdateTextField',
-                                    input={'value': '3'})
+                                    inputs={'value': '3'})
 
 
 def test_compile_addition_sai():
@@ -73,4 +73,4 @@ def test_compile_addition_sai():
     s = new_wm.ke.sais[0]
     assert s == Sai(selection='JCommTable.R1C1',
                                     action='UpdateTextField',
-                                    input={'value': '3'})
+                                    inputs={'value': '3'})

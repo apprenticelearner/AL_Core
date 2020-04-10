@@ -18,9 +18,9 @@ from apprentice.learners.when_learners.fractions_hasher import FractionsActionHa
 
 
 class DQNLearner(WhenLearner):
-    def __init__(self, gamma=0.7, lr=3e-5, batch_size=32, mem_capacity=10000,
-                 state_size=394, action_size=244, state_hidden_size=30,
-                 action_hidden_size=30):
+    def __init__(self, gamma=0.7, lr=3e-5, batch_size=64, mem_capacity=10000,
+                 state_size=394, action_size=257, state_hidden_size=197,
+                 action_hidden_size=122):
         self.device = torch.device("cuda" if torch.cuda.is_available() else
                                    "cpu")
         
