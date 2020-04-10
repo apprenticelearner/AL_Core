@@ -16,15 +16,10 @@ RUN python3.8 -m pip install --upgrade pip setuptools wheel
 RUN python3.8 -m pip install torch
 
 RUN mkdir -p /usr/local/apprentice
-COPY requirements.txt /usr/local/apprentice
 WORKDIR /usr/local/apprentice
+COPY ./ /usr/local/apprentice
+
 RUN python3.8 -m pip install -r requirements.txt --exists-action=w
-
-COPY apprentice /usr/local/apprentice/apprentice
-COPY setup2.py /usr/local/apprentice/setup.py
-COPY tests /usr/local/apprentice/tests
-COPY django /usr/local/apprentice/django
-
 RUN python3.8 -m pip install .
 RUN pytest tests
 
