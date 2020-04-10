@@ -21,6 +21,7 @@ COPY ./ /usr/local/apprentice
 
 RUN python3.8 -m pip install -r requirements.txt --exists-action=w
 RUN python3.8 -m pip install .
+
 RUN pytest tests
 
 #CMD ["/usr/bin/python3.8", "/usr/local/apprentice/django/manage.py", "runserver"]
