@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin
 from apprentice_learner.models import Agent
-from apprentice_learner.models import Project
+# from apprentice_learner.models import Project
 from apprentice_learner.models import Operator
 
 from codemirror2.widgets import CodeMirrorEditor
@@ -28,5 +28,5 @@ class OperatorAdmin(admin.ModelAdmin):
 
 # Register your models here.
 admin.site.register(Agent, AgentAdmin)
-admin.site.register(Project)
+# admin.site.register(Project)
 admin.site.register(Operator, OperatorAdmin)

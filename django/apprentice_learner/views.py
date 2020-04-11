@@ -3,6 +3,7 @@ Module Doc String
 """
 import json
 import traceback
+import logging
 from pprint import pprint
 
 from django.views.decorators.csrf import csrf_exempt
@@ -17,7 +18,6 @@ from django.http import HttpResponseServerError
 from django.http import HttpResponseNotAllowed
 
 from apprentice_learner.models import Agent
-from apprentice_learner.models import Project
 
 from apprentice.agents.soartech_agent import SoarTechAgent
 from apprentice.agents.Stub import Stub
@@ -29,6 +29,8 @@ from apprentice.working_memory.representation import Sai
 
 # import cProfile
 # pr = cProfile.Profile()
+
+log = logging.getLogger(__name__)
 
 
 active_agent = None
@@ -77,17 +79,6 @@ def create(http_request):
     if not errs and data["agent_type"] not in AGENTS:
         errs.append("Specified agent not supported")
 
-    project_id = data.get("project_id", 1)
-
-    if project_id == 1 or project_id == "":
-        project, created = Project.objects.get_or_create(id=1)
-    else:
-        try:
-            project = Project.objects.get(id=project_id)
-        except ObjectDoesNotExist:
-            errs.append(str.format("project: {} does not exist", project_id))
-            project = None
-
     if "args" not in data:
         args = {}
     else:
@@ -117,7 +108,9 @@ def create(http_request):
             args['function_set'] = data.pop('function_set', [])
 
     if len(errs) > 0:
-        print("errors:\n {}".format("\n".join(errs)))
+        for err in errs:
+            log.error(err)
+        # print("errors:\n {}".format("\n".join(errs)))
         return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
 
     try:
@@ -145,6 +138,8 @@ def create(http_request):
         dont_save = str(data.get("dont_save", True)).lower() == "true"
 
     if len(warns) > 0:
+        for warn in warns:
+            log.warning(warn)
         ret_data["warnings"] = warns
 
     return HttpResponse(json.dumps(ret_data))
@@ -166,7 +161,7 @@ def request(http_request, agent_id):
         data = json.loads(http_request.body.decode("utf-8"))
 
         if "state" not in data or data["state"] is None:
-            print("request body missing 'state'")
+            log.error("request body missing 'state'")
             return HttpResponseBadRequest("request body missing 'state'")
 
         agent = get_agent_by_id(agent_id)
@@ -207,7 +202,7 @@ def get_skills(http_request, agent_id):
         data = json.loads(http_request.body.decode("utf-8"))
 
         if "states" not in data or data["states"] is None:
-            print("request body missing 'states'")
+            log.error("request body missing 'states'")
             return HttpResponseBadRequest("request body missing 'states'")
 
         agent = get_agent_by_id(agent_id)
@@ -280,7 +275,9 @@ def train(http_request, agent_id):
         # Linter was complaining about too many returns so I consolidated all
         # of the errors above
         if len(errs) > 0:
-            print("errors: {}".format(",".join(errs)))
+            for err in errs:
+                log.error(err)
+            # print("errors: {}".format(",".join(errs)))
             return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
 
         agent = get_agent_by_id(agent_id)
@@ -309,8 +306,8 @@ def train(http_request, agent_id):
         return HttpResponse("OK")
 
     except Exception as exp:
-        print('Error on Train')
-        pprint(data)
+        log.error('Error on Train')
+        log.error(data)
         traceback.print_exc()
 
         # pr.disable()
@@ -352,7 +349,9 @@ def check(http_request, agent_id):
             errs.append("request body missing 'inputs'")
 
         if len(errs) > 0:
-            print("errors: {}".format(",".join(errs)))
+            for err in errs:
+                log.error(err)
+            # print("errors: {}".format(",".join(errs)))
             return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
 
         agent = Agent.objects.get(id=agent_id)

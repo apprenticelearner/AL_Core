@@ -69,24 +69,24 @@ class Operator(models.Model):
     def __str__(self):
         return self.name
 
-class Project(models.Model):
-    """
-    I hate the name Project but I need something to serve as an Agent
-    container that can be used to instantiate common settings.
-    """
-    name = models.CharField(max_length=200, blank=False, default='DEFAULT_PROJECT')
-    numerical_epsilon = models.FloatField(default=0.0)
-    feature_set = models.ManyToManyField(Operator, blank=True, related_name='feature_sets')
-    function_set = models.ManyToManyField(Operator, blank=True, related_name='function_sets')
+# class Project(models.Model):
+#     """
+#     I hate the name Project but I need something to serve as an Agent
+#     container that can be used to instantiate common settings.
+#     """
+#     name = models.CharField(max_length=200, blank=False, default='DEFAULT_PROJECT')
+#     numerical_epsilon = models.FloatField(default=0.0)
+#     feature_set = models.ManyToManyField(Operator, blank=True, related_name='feature_sets')
+#     function_set = models.ManyToManyField(Operator, blank=True, related_name='function_sets')
 
-    def compile_features(self):
-        return [op.compile() for op in self.feature_set.all()]
+#     def compile_features(self):
+#         return [op.compile() for op in self.feature_set.all()]
 
-    def compile_functions(self):
-        return [op.compile() for op in self.function_set.all()]
+#     def compile_functions(self):
+#         return [op.compile() for op in self.function_set.all()]
 
-    def __str__(self):
-        return self.name
+#     def __str__(self):
+#         return self.name
 
 class Agent(models.Model):
     """
@@ -102,7 +102,7 @@ class Agent(models.Model):
     num_check = models.IntegerField(default=0)
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True)
+    # project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True)
 
 
     def inc_request(self):
