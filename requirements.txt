@@ -1,4 +1,4 @@
-colorama==0.4.1
+colorama==0.4.3
 concept-formation==0.3.4
 Django==2.1.11
 django-codemirror2==0.2

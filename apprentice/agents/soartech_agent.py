@@ -14,6 +14,9 @@ from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
 from apprentice.working_memory.skills import fraction_skill_set
 from experta import KnowledgeEngine
+import colorama
+
+colorama.init(autoreset=True)
 
 log = logging.getLogger(__name__)
 
