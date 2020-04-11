@@ -128,7 +128,7 @@ dockerize:
     - docker build -t hq-git.soartech.com:4567/apprentice/apprentice .
     - docker push hq-git.soartech.com:4567/apprentice/apprentice
   tags:
-    - shared-shell
+    - shell
   only:
     - master
 
