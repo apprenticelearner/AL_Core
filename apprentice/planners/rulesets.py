@@ -10,32 +10,6 @@ from apprentice.planners.fo_planner import FoPlanner
 _then_gensym_counter = 0
 
 
-def custom_feature_set():
-    """
-    Return a custom set of feature operators.
-
-    Use this function to expose any custom ruleset logic you want to add that
-    doesn't rely on the Operator model system. This function will be called by
-    all agents created by the system so you can use it for custom logic but we
-    should probably turn it off if we ever have a production server.
-    """
-    return []
-
-
-def custom_function_set():
-    """
-    Return a custom set of function operators.
-
-    Use this function to expose any custom ruleset logic you want to add that
-    doesn't rely on the Operator model system. This function will be called by
-    all agents created by the system so you can use it for custom logic but we
-    should probably turn it off if we ever have a production server.
-    """
-    # return [add_rule, sub_rule, mult_rule, div_rule,ones,tens]
-    return []
-    # return [add_then_tens, add_then_ones,add_then_tens3,add_then_ones3]
-
-
 def gensym():
     global _then_gensym_counter
     _then_gensym_counter += 1
@@ -53,7 +27,6 @@ def is_str_and_not_number(s):
         return False
     except ValueError:
         return True
-
 
 
 def is_str_number(s):
@@ -254,40 +227,46 @@ def concatenate_with_space(x, y):
 def concatenate_without_space(x, y):
     return "%s%s" % (x, y)
 
+
 def ones_digit(x):
-  return x[-1]
+    return x[-1]
+
 
 def tens_digit(x):
-  return x[-2]
+    return x[-2]
+
 
 def int2_float_add_then_ones(x, y):
-  z = float(x) + float(y)
-  z = z % 10
-  if z.is_integer():
-    z = int(z)
-  return str(z)
+    z = float(x) + float(y)
+    z = z % 10
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
 
 def int2_float_add_then_tens(x, y):
-  z = float(x) + float(y)
-  z = z // 10
-  if z.is_integer():
-    z = int(z)
-  return str(z)
+    z = float(x) + float(y)
+    z = z // 10
+    if z.is_integer():
+        z = int(z)
+    return str(z)
 
 
 def int3_float_add_then_ones(x, y, w):
-  z = float(x) + float(y) + float(w)
-  z = z % 10
-  if z.is_integer():
-    z = int(z)
-  return str(z)
+    z = float(x) + float(y) + float(w)
+    z = z % 10
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
 
 def int3_float_add_then_tens(x, y, w):
-  z = float(x) + float(y) + float(w)
-  z = z // 10
-  if z.is_integer():
-    z = int(z)
-  return str(z)
+    z = float(x) + float(y) + float(w)
+    z = z // 10
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
 
 add_rule = Operator(('Add', '?x', '?y'),
                     [(('value', '?x'), '?xv'),
@@ -299,53 +278,53 @@ add_rule = Operator(('Add', '?x', '?y'),
 Operator.register("add", add_rule)
 
 add_then_ones = Operator(('Add_Then_Ones', '?x', '?y'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv'),
-                     # (lambda x, y: x <= y, '?x', '?y')
-                     ],
-                    [(('value', ('Add_Then_Ones', ('value', '?x'), ('value', '?y'))),
-                      (int2_float_add_then_ones, '?xv', '?yv'))])
+                         [(('value', '?x'), '?xv'),
+                          (('value', '?y'), '?yv'),
+                          # (lambda x, y: x <= y, '?x', '?y')
+                          ],
+                         [(('value', ('Add_Then_Ones', ('value', '?x'), ('value', '?y'))),
+                           (int2_float_add_then_ones, '?xv', '?yv'))])
 
 add_then_tens = Operator(('Add_Then_Tens', '?x', '?y'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv'),
-                     # (lambda x, y: x <= y, '?x', '?y')
-                     ],
-                    [(('value', ('Add_Then_Tens', ('value', '?x'), ('value', '?y'))),
-                      (int2_float_add_then_tens, '?xv', '?yv'))])
+                         [(('value', '?x'), '?xv'),
+                          (('value', '?y'), '?yv'),
+                          # (lambda x, y: x <= y, '?x', '?y')
+                          ],
+                         [(('value', ('Add_Then_Tens', ('value', '?x'), ('value', '?y'))),
+                           (int2_float_add_then_tens, '?xv', '?yv'))])
 
 add_then_ones3 = Operator(('Add_Then_Ones3', '?x', '?y', '?w'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv'),
-                     (('value', '?w'), '?wv'),
-                     # (lambda x, y: x <= y, '?x', '?y')
-                     ],
-                    [(('value', ('Add_Then_Ones3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
-                      (int3_float_add_then_ones, '?xv', '?yv', '?wv'))])
+                          [(('value', '?x'), '?xv'),
+                           (('value', '?y'), '?yv'),
+                           (('value', '?w'), '?wv'),
+                           # (lambda x, y: x <= y, '?x', '?y')
+                           ],
+                          [(('value', ('Add_Then_Ones3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
+                            (int3_float_add_then_ones, '?xv', '?yv', '?wv'))])
 
 add_then_tens3 = Operator(('Add_Then_Tens3', '?x', '?y', '?w'),
-                    [(('value', '?x'), '?xv'),
-                     (('value', '?y'), '?yv'),
-                     (('value', '?w'), '?wv'),
-                     # (lambda x, y: x <= y, '?x', '?y')
-                     ],
-                    [(('value', ('Add_Then_Tens3', ('value', '?x'), ('value', '?y'),('value', '?w'))),
-                      (int3_float_add_then_tens, '?xv', '?yv', '?wv'))])
+                          [(('value', '?x'), '?xv'),
+                           (('value', '?y'), '?yv'),
+                           (('value', '?w'), '?wv'),
+                           # (lambda x, y: x <= y, '?x', '?y')
+                           ],
+                          [(('value', ('Add_Then_Tens3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
+                            (int3_float_add_then_tens, '?xv', '?yv', '?wv'))])
 
 
-ones =    Operator(('Ones', '?x'),
-                    [(('value', '?x'), '?xv'),
+ones = Operator(('Ones', '?x'),
+                [(('value', '?x'), '?xv'),
                     (lambda x: x != "" and float(x) > 1, '?xv'),
-                     ],
-                    [(('value', ('Ones', ('value', '?x'))),
-                      (ones_digit, '?xv'))])
+                 ],
+                [(('value', ('Ones', ('value', '?x'))),
+                  (ones_digit, '?xv'))])
 
-tens =    Operator(('Tens', '?x'),
-                    [(('value', '?x'), '?xv'),
+tens = Operator(('Tens', '?x'),
+                [(('value', '?x'), '?xv'),
                     (lambda x: x != "" and float(x) > 10, '?xv'),
-                     ],
-                    [(('value', ('Tens', ('value', '?x'))),
-                      (tens_digit, '?xv'))])
+                 ],
+                [(('value', ('Tens', ('value', '?x'))),
+                  (tens_digit, '?xv'))])
 
 
 update_rule = Operator(('sai', '?sel', 'UpdateTable', '?val', '?ele'),
@@ -383,9 +362,9 @@ convert_units_rule = Operator(('ConvertUnits', '?x', '?y', '?z'),
                                                      '?to-unit')
                                ],
                               [(('value', ('ConvertUnits', ('value', '?x'),
-                               ('value', '?y'), ('value', '?z'))),
-                               (convert_units, '?val', '?from-unit',
-                                '?to-unit'))])
+                                           ('value', '?y'), ('value', '?z'))),
+                                  (convert_units, '?val', '?from-unit',
+                                   '?to-unit'))])
 
 
 sig_fig_rule = Operator(('SigFig', '?x', '?y'),
@@ -394,7 +373,7 @@ sig_fig_rule = Operator(('SigFig', '?x', '?y'),
                          (('type', '?y'), 'MAIN::cell'),
                          (lambda x: float(x) < 10, '?yv')],
                         [(('value', ('SigFig', ('value', '?x'),
-                         ('value', '?y'))), (sig_figs, '?xv', '?yv'))])
+                                     ('value', '?y'))), (sig_figs, '?xv', '?yv'))])
 
 
 mult_rule = Operator(('Multiply', '?x', '?y'),
@@ -434,7 +413,7 @@ is_number_rule = Operator(('IsNumber', '?x'),
 editable_rule = Operator(('Editable', '?x'),
                          [(('value', '?x'), '?xv'),
                           (('type', '?x'), 'MAIN::cell'),
-                         # (lambda x: x == "", '?xv')
+                          # (lambda x: x == "", '?xv')
                           ],
                          # [(('editable', '?x'), True)])
                          [(('editable', '?x'), (lambda x: x == "", '?xv'))])
@@ -469,7 +448,7 @@ string_subtract_rule = Operator(('string-subtract-rule',
                                  (('value', '?y'), '?yv')],
                                 [(('value', ('string-subtract-rule',
                                              '?x', '?y')),
-                                 (subtract_strings, '?xv', '?yv'))])
+                                  (subtract_strings, '?xv', '?yv'))])
 
 unigram_rule = Operator(('Unigram-rule', '?x'),
                         [(('value', '?x'), '?xv')],
@@ -489,25 +468,25 @@ add_y = Operator(('Add', '?y1', '?y2'),
                  [(('y', '?y1'), '?yv1'),
                   (('y', '?y2'), '?yv2')],
                  [(('y', ('Add', '?y1', '?y2')),
-                  (lambda y1, y2: y1 + y2, '?yv1', '?yv2'))])
+                   (lambda y1, y2: y1 + y2, '?yv1', '?yv2'))])
 
 sub_y = Operator(('Subtract', '?y1', '?y2'),
                  [(('y', '?y1'), '?yv1'),
                   (('y', '?y2'), '?yv2')],
                  [(('y', ('Subtract', '?y1', '?y2')),
-                  (lambda y1, y2: y1 - y2, '?yv1', '?yv2'))])
+                   (lambda y1, y2: y1 - y2, '?yv1', '?yv2'))])
 
 add_x = Operator(('Add', '?x1', '?x2'),
                  [(('x', '?x1'), '?xv1'),
                   (('x', '?x2'), '?xv2')],
                  [(('x', ('Add', '?x1', '?x2')),
-                  (lambda x1, x2: x1 + x2, '?xv1', '?xv2'))])
+                   (lambda x1, x2: x1 + x2, '?xv1', '?xv2'))])
 
 sub_x = Operator(('Subtract', '?x1', '?x2'),
                  [(('x', '?x1'), '?xv1'),
                   (('x', '?x2'), '?xv2')],
                  [(('x', ('Subtract', '?x1', '?x2')),
-                  (lambda x1, x2: x1 - x2, '?xv1', '?xv2'))])
+                   (lambda x1, x2: x1 - x2, '?xv1', '?xv2'))])
 
 rotate = Operator(('Rotate', '?b1'),
                   [(('x', ('bound', '?b1')), '?xv'),
@@ -518,11 +497,10 @@ rotate = Operator(('Rotate', '?b1'),
                    (('x', ('bound', ('Rotate', '?b1'))), '?xv')])
 
 
-
 # ^^^^^^^^^^^^^^^^^ Define All Operators Above This Line ^^^^^^^^^^^^^^^^^^
-for name,op in locals().copy().items():
-  if(isinstance(op, Operator)):
-    Operator.register(name,op)    
+for name, op in locals().copy().items():
+    if(isinstance(op, Operator)):
+        Operator.register(name, op)
 
 
 # Operator.register([add_rule, add_then_ones, add_then_tens,  add_then_ones3,
@@ -531,10 +509,10 @@ for name,op in locals().copy().items():
 #     is_number_rule, half_val, grammar_parser_rule, tokenize_rule,
 #     concatenate_rule, string_subtract_rule, unigram_rule, bigram_rule,
 #     half, add_y, add_rule, add_then_ones, add_then_tens, add_then_ones3,
-#     add_then_tens3, ones, tens, update_rule, done_rule, sub_rule, 
+#     add_then_tens3, ones, tens, update_rule, done_rule, sub_rule,
 #     convert_units_rule, sig_fig_rule, mult_rule, div_rule, equal_rule,
 #     is_number_rule, half_val, grammar_parser_rule, tokenize_rule,
-#     concatenate_rule,string_subtract_rule,unigram_rule,bigram_rule, 
+#     concatenate_rule,string_subtract_rule,unigram_rule,bigram_rule,
 #     half, add_y,sub_y, add_x, sub_x, rotate])
 
 
@@ -562,38 +540,37 @@ featuresets = {'tutor knowledge': [equal_rule,
 
 if __name__ == "__main__":
 
-    # facts = [(('value', 'a'), '3'),
-    #          (('value', 'b'), '3x')]
+        # facts = [(('value', 'a'), '3'),
+        #          (('value', 'b'), '3x')]
 
     facts = [
-              # (('x', ('bound', '?b1')), '?xv')
-              (('x', ('pos','rect1')),2),
-              (('y', ('pos','rect1')),1),
-              (('x', ('bound','rect1')),3),
-              (('y', ('bound','rect1')),1),
+        # (('x', ('bound', '?b1')), '?xv')
+        (('x', ('pos', 'rect1')), 2),
+        (('y', ('pos', 'rect1')), 1),
+        (('x', ('bound', 'rect1')), 3),
+        (('y', ('bound', 'rect1')), 1),
 
-              (('x', ('pos','block1')),1),
-              (('y', ('pos','block1')),2),
-              (('x', ('bound','block1')),1),
-              (('y', ('bound','block1')),1),
+        (('x', ('pos', 'block1')), 1),
+        (('y', ('pos', 'block1')), 2),
+        (('x', ('bound', 'block1')), 1),
+        (('y', ('bound', 'block1')), 1),
 
-              (('x', ('bound','block2')),1),
-              (('y', ('bound','block2')),1),
+        (('x', ('bound', 'block2')), 1),
+        (('y', ('bound', 'block2')), 1),
 
-              (('x', ('pos','check1')),1),
-              (('y', ('pos','check1')),1),
+        (('x', ('pos', 'check1')), 1),
+        (('y', ('pos', 'check1')), 1),
 
-              (('x', ('pos','check2')),1),
-              (('y', ('pos','check2')),3),
+        (('x', ('pos', 'check2')), 1),
+        (('y', ('pos', 'check2')), 3),
 
-              (('x', ('pos','check3')),3),
-              (('y', ('pos','check3')),1),
+        (('x', ('pos', 'check3')), 3),
+        (('y', ('pos', 'check3')), 1),
 
-              (('x', ('pos','check4')),3),
-              (('y', ('pos','check4')),3),
+        (('x', ('pos', 'check4')), 3),
+        (('y', ('pos', 'check4')), 3),
 
-              ]
-
+    ]
 
     # kb = FoPlanner(facts, [string_subtract_rule])
     # kb.fc_infer()
@@ -603,40 +580,35 @@ if __name__ == "__main__":
     #          (('value', 'y'), '7')]
     kb = FoPlanner(facts, rb_rules)
     from pprint import pprint
-    
 
     print('X')
     i = 0
-    for sol in kb.fc_query([(('x', '?a'),3)], 2):
-      if i % 5 == 0:
-        pprint(sol)
-      if i > 5 * 10:
-        break
-      i += 1
-
+    for sol in kb.fc_query([(('x', '?a'), 3)], 2):
+        if i % 5 == 0:
+            pprint(sol)
+        if i > 5 * 10:
+            break
+        i += 1
 
     print('Y')
     i = 0
-    for sol in kb.fc_query([(('y', '?a'),2)], 2):
-      if i % 5 == 0:
-        pprint(sol)
-      if i > 5 * 10:
-        break
-      i += 1
+    for sol in kb.fc_query([(('y', '?a'), 2)], 2):
+        if i % 5 == 0:
+            pprint(sol)
+        if i > 5 * 10:
+            break
+        i += 1
 
-
-    
     # print(len(xs))
     # pprint(xs[:10])
-    
+
     # ys = [sol for sol in kb.fc_query([(('y', '?a'),2)], 2)]
     # print('Y')
     # print(len(ys))
-    # pprint(ys[:10])    
+    # pprint(ys[:10])
 
     # print('Y')
     # for sol in kb.fc_query([(('y', '?a'),2)], 2):
     #     pprint(sol)
     # kb.fc_infer()
     # pprint(kb.facts)
-

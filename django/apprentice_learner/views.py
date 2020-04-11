@@ -15,12 +15,9 @@ from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 from django.http import HttpResponseServerError
 from django.http import HttpResponseNotAllowed
-from django.conf import settings
 
-# from apprentice_learner.models import ActionSet
 from apprentice_learner.models import Agent
 from apprentice_learner.models import Project
-from apprentice_learner.models import Operator
 
 from apprentice.agents.soartech_agent import SoarTechAgent
 from apprentice.agents.Stub import Stub
@@ -28,9 +25,6 @@ from apprentice.agents.Memo import Memo
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from apprentice.agents.ModularAgent import ModularAgent
 from apprentice.agents.RLAgent import RLAgent
-from apprentice.planners.rulesets import custom_feature_set
-from apprentice.planners.rulesets import custom_function_set
-# import apprentice.custom_operators
 from apprentice.working_memory.representation import Sai
 
 # import cProfile
@@ -61,36 +55,6 @@ def get_agent_by_id(id):
     return agent
 
 
-def parse_operator_set(data, set_name, errs=None):
-    """
-    Given a data dictionary from a request looks up and compiles a set of
-    Operators and throws appropriate exceptions when they have problems. I am
-    allowing either a list of ints, taken as primary key's of Operators, or
-    strs, which are taken as Operator names.
-    """
-    if errs is None:
-        errs = []
-    op_set = []
-    for val in data.get(set_name, []):
-        if isinstance(val, str):
-            try:
-                opr = Operator.objects.get(name=val)
-                op_set.append(opr.compile())
-            except ObjectDoesNotExist:
-                errs.append("no operator with name {} exists".format(val))
-            # This case should be impossible but I'm going to leave the error
-            # catch in
-            except MultipleObjectsReturned:
-                errs.append("multiple operators with name {} exist".format(val))
-        elif isinstance(val, int):
-            try:
-                opr = Operator.objects.get(pk=val)
-                op_set.append(opr.compile())
-            except ObjectDoesNotExist:
-                errs.append("no operator with name {} exists".format(val))
-    return op_set, errs
-
-
 @csrf_exempt
 def create(http_request):
     """
@@ -105,6 +69,7 @@ def create(http_request):
     data = json.loads(http_request.body.decode("utf-8"))
 
     errs = []
+    warns = []
 
     if "agent_type" not in data or data["agent_type"] is None:
         errs.append("request body missing 'agent_type'")
@@ -123,48 +88,39 @@ def create(http_request):
             errs.append(str.format("project: {} does not exist", project_id))
             project = None
 
-    if data.get("no_ops_parse", True):
-        if "feature_set" in data:
-            feature_set = data["feature_set"]
-        else:
-            errs.append(
-                "Request body missing 'feature_set'. "
-                + "Add it or set {'no_ops_parse':False} to draw from the database. "
-            )
-        if "function_set" in data:
-            function_set = data["function_set"]
-        else:
-            errs.append(
-                "Request body missing 'function_set'. "
-                + "Add it or set {'no_ops_parse':False} to draw from the database. "
-            )
-
-    else:
-        feature_set, errs = parse_operator_set(data, "feature_set", errs)
-        function_set, errs = parse_operator_set(data, "function_set", errs)
-
-    if len(errs) > 0:
-        print("errors:\n {}".format("\n".join(errs)))
-        return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
-
     if "args" not in data:
         args = {}
     else:
         args = data["args"]
 
-    args["feature_set"] = feature_set
-    args["function_set"] = function_set
+    if "no_ops_parse" in data:
+        warns.append(
+            "Deprecation Warning: no_ops_parse is no longer used, and it is"
+            " assumed to be True. Operators must be registered in the system"
+            " ahead of time and referenced by name."
+            )
 
-    if project is not None:
-        args["feature_set"] += project.compile_features()
-        args["function_set"] += project.compile_functions()
+    if "feature_set" in data:
+        warns.append(
+            "Deprecation Warning: feature_set is no longer used as a top level"
+            " parameter. It should be included in the args object of a"
+            " ModularAgent.")
+        if "feature_set" not in args:
+            args['feature_set'] = data.pop('feature_set', [])
 
-    if settings.USE_CUSTOM_OPERATORS:
-        args["feature_set"] += custom_feature_set()
-        args["function_set"] += custom_function_set()
+    if "function_set" in data:
+        warns.append(
+            "Deprecation Warning: function_set is no longer used as a top level"
+            " parameter. It should be included in the args object of a"
+            " ModularAgent.")
+        if "function_set" not in args:
+            args['function_set'] = data.pop('function_set', [])
+
+    if len(errs) > 0:
+        print("errors:\n {}".format("\n".join(errs)))
+        return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
 
     try:
-        # args['action_set'] = action_set
         instance = AGENTS[data["agent_type"]](**args)
         agent_name = data.get("name", "")
         agent = Agent(instance=instance, name=agent_name)
@@ -179,7 +135,7 @@ def create(http_request):
         )
 
     global active_agent, active_agent_id, dont_save
-    if active_agent != None:
+    if active_agent is not None:
         active_agent = None
         active_agent_id = None
         dont_save = False
@@ -187,6 +143,9 @@ def create(http_request):
         active_agent = agent
         active_agent_id = str(agent.id)
         dont_save = str(data.get("dont_save", True)).lower() == "true"
+
+    if len(warns) > 0:
+        ret_data["warnings"] = warns
 
     return HttpResponse(json.dumps(ret_data))
 
