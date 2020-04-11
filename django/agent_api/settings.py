@@ -39,7 +39,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'apprentice_learner',
-    'codemirror2',
     'django_extensions'
 ]
 
