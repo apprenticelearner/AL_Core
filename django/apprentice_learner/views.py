@@ -86,24 +86,23 @@ def create(http_request):
 
     if "no_ops_parse" in data:
         warns.append(
-            "Deprecation Warning: no_ops_parse is no longer used, and it is"
-            " assumed to be True. Operators must be registered in the system"
-            " ahead of time and referenced by name."
-            )
+            "Deprecation Warning: no_ops_parse is provided. This field is no"
+            " longer used and is always assumed to be True. Operators must be"
+            " registered in the system ahead of time and referenced by name.")
 
     if "feature_set" in data:
         warns.append(
-            "Deprecation Warning: feature_set is no longer used as a top level"
-            " parameter. It should be included in the args object of a"
-            " ModularAgent.")
+            "Deprecation Warning: feature_set provided at top level."
+            " feature_set is no longer used as a top level parameter."
+            " It should now be included in the args object of a ModularAgent.")
         if "feature_set" not in args:
             args['feature_set'] = data.pop('feature_set', [])
 
     if "function_set" in data:
         warns.append(
-            "Deprecation Warning: function_set is no longer used as a top level"
-            " parameter. It should be included in the args object of a"
-            " ModularAgent.")
+            "Deprecation Warning: function_set provided at top level."
+            " function_set is no longer used as a top level parameter."
+            " It should now be included in the args object of a ModularAgent.")
         if "function_set" not in args:
             args['function_set'] = data.pop('function_set', [])
 
@@ -136,6 +135,11 @@ def create(http_request):
         active_agent = agent
         active_agent_id = str(agent.id)
         dont_save = str(data.get("dont_save", True)).lower() == "true"
+    else:
+        warns.append(
+            "Stability Warning: stay_active is set to false. Serialization and"
+            " deserialization of agents is currently not working for most"
+            " agent types. Expect Errors.")
 
     if len(warns) > 0:
         for warn in warns:
@@ -170,6 +174,7 @@ def request(http_request, agent_id):
 
         global dont_save
         if not dont_save:
+            log.warning('Agent is being saved! This is probably not working.')
             agent.save()
 
         # pr.disable()
@@ -183,6 +188,9 @@ def request(http_request, agent_id):
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
+        log.error('ERROR IN REQUEST')
+        log.debug('POST data:')
+        log.debug(data)
         traceback.print_exc()
 
         # pr.disable()
@@ -211,6 +219,7 @@ def get_skills(http_request, agent_id):
 
         global dont_save
         if not dont_save:
+            log.warning('Agent is being saved! This is probably not working.')
             agent.save()
 
         # pr.disable()
@@ -298,6 +307,7 @@ def train(http_request, agent_id):
 
         global dont_save
         if not dont_save:
+            log.warning('Agent is being saved! This is probably not working.')
             agent.save()
 
         # pr.disable()
@@ -306,8 +316,9 @@ def train(http_request, agent_id):
         return HttpResponse("OK")
 
     except Exception as exp:
-        log.error('Error on Train')
-        log.error(data)
+        log.error('ERROR IN TRAIN')
+        log.debug('POST data:')
+        log.debug(data)
         traceback.print_exc()
 
         # pr.disable()
