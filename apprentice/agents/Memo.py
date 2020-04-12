@@ -1,4 +1,7 @@
+from typing import Dict
+
 from apprentice.agents.base import BaseAgent
+from apprentice.working_memory.representation import Sai
 
 
 def freeze(obj):
@@ -17,10 +20,10 @@ class Memo(BaseAgent):
 
     Made for testing the API.
     """
-    def __init__(self, feature_set, function_set):
+    def __init__(self, **kwargs):
         self.lookup = {}
 
-    def request(self, state):
+    def request(self, state: Dict, **kwargs) -> Dict:
         # print(state)
         state = freeze(state)
         resp = self.lookup.get(state, None)
@@ -29,21 +32,26 @@ class Memo(BaseAgent):
             return {}
 
         return {'skill_label': resp[0],
-                'selection': resp[1],
-                'action': resp[2],
-                'inputs': resp[3],
-                'foci_of_attention': resp[4]}
+                'selection': resp[1].selection,
+                'action': resp[1].action,
+                'inputs': resp[1].inputs}
 
-    def train(self, state, selection, action, inputs, reward,
-              skill_label="NO_LABEL", foci_of_attention=None):
+    def train(self, state: Dict, sai: Sai, reward: float, **kwargs):
         state = freeze(state)
         resp = self.lookup.get(state, None)
         if ((resp is None and reward > 0) or
-           (resp is not None and reward >= resp[5])):
-            self.lookup[state] = (skill_label, selection, action, inputs,
-                                  foci_of_attention, reward)
+           (resp is not None and reward >= resp[2])):
+            self.lookup[state] = (skill_label, sai, reward)
 
         if (resp is not None and reward < 0 and skill_label == resp[0] and
-                selection == resp[1] and action == resp[2] and inputs ==
-                resp[3] and foci_of_attention == resp[4]):
+           sai == resp[1]):
             del self.lookup[state]
+
+    def check(self, state: Dict, sai: Sai, **kwargs) -> float:
+        state = freeze(state)
+        resp = self.lookip.get(state, None)
+
+        if resp is None:
+            return 0.0
+        else:
+            return resp[2]
