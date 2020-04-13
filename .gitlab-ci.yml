@@ -125,6 +125,7 @@ pages:
 dockerize:
   stage: deploy
   script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
     - docker build -t hq-git.soartech.com:4567/apprentice/apprentice .
     - docker push hq-git.soartech.com:4567/apprentice/apprentice
   tags:
