@@ -184,6 +184,8 @@ def request(http_request, agent_id):
             return HttpResponse(json.dumps({'selection': response.selection,
                                             'action': response.action,
                                             'inputs': response.inputs}))
+        else:
+            return HttpResponse(json.dumps(response))
 
         return HttpResponse(json.dumps(response))
 

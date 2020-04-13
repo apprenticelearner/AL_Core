@@ -149,6 +149,10 @@ class RHS(object):
         b = self._id_num is not None
         c = other._id_num is not None
         return a and b and c
+    def __str__(self):
+        return str(self.input_rule)
+    def __repr__(self):
+        return self.__str__()
 
 def ground(arg):
     """
@@ -199,7 +203,7 @@ def kb_to_flat_ungrounded(knowledge_base):
 
 class StateMultiView(object):
     def __init__(self, view, state):
-        self.views = {}
+        self.views = {"*":self}
         self.set_view(view, state)
         self.transform_dict = {}
         self.register_transform("object", "flat_ungrounded", flatten_state)
@@ -222,14 +226,18 @@ class StateMultiView(object):
         return view in self.views
 
     def compute(self, view):
-        for key in self.transform_dict[view]:
-            # for key in transforms:
-            print(key)
+        if(isinstance(view,tuple)):
+            view_key = view[0]
+            view_args = view[1:]
+        else:
+            view_key = view
+            view_args = []
+
+        for key in self.transform_dict[view_key]:
             if(key in self.views):
-                out = self.transform_dict[view][key](self.views[key])
+                out = self.transform_dict[view_key][key](self.views[key],*view_args)
                 self.set_view(view, out)
                 return out
-        pprint(self.transform_dict)
         raise Exception("No transform possible from %s to %r" %
                         (list(self.views.keys()), view))
 
@@ -269,7 +277,20 @@ class Explanation(object):
         response['selection'] = self.selection_literal.replace("?ele-", "")
         response['action'] = self.rhs.action
         response['inputs'] = self.compute(state, agent)
+        response['rhs_id'] = self.rhs._id_num
         return response
+
+    def get_skill_info(self,agent,when_state=None):
+        if(when_state is None):
+            when_info = None
+        else:    
+            when_info = tuple(agent.when_learner.skill_info(self.rhs, when_state))
+        skill_info = {"when": when_info,
+                      "where": agent.where_learner.skill_info(self.rhs),
+                      "how": str(self.rhs.input_rule),
+                      "which": 0.0,
+                      "mapping" : self.mapping}
+        return skill_info
 
     def to_xml(self, agent=None):  # -> needs some way of representing itself including its when/where/how parts
         pass

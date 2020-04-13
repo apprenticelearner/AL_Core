@@ -10,6 +10,8 @@ except:
 
 import itertools
 import re 
+from torch.nn import functional as F
+
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
 from apprentice.planners.base_planner import BasePlanner, PLANNERS
@@ -18,7 +20,6 @@ function_set = []
 feature_set = []
 
 class BaseOperator(object):
-
 	registered_operators = {}
 	def __init__(self):
 		self.num_flt_inputs = 0;
@@ -173,6 +174,7 @@ class Equals(BaseOperator):
 		return torch.where(eq,eq.float(),NaN)
 
 
+
 class OperatorGraph(BaseOperator):
 	def _gen_expression(self,x,arg_type=None):
 		if(isinstance(x,(list,tuple))):
@@ -180,7 +182,7 @@ class OperatorGraph(BaseOperator):
 			rest = [self._gen_expression(x[j],front.in_arg_types[j-1]) for j in range(1,len(x))]
 			return (front,*rest)
 		elif(isinstance(x,int)):
-			arg = "?foa" + str(len(self.in_args))
+			arg = "?arg" + str(len(self.in_args))
 			self.in_args.append(arg)
 			self.in_arg_types.append(arg_type)
 			return arg
@@ -508,9 +510,6 @@ def to_rule_expression(tup, backmap):
 	else:
 		return x
 
-
-
-
 def how_search(state,
 				goal, search_depth = 1,
 				operators= None,
@@ -526,9 +525,9 @@ def how_search(state,
 		return
 
 	#TODO: Find source of weird memory overflow when -1 is a goal
-	if(goal == -1):
-		goal = 1
-	print("GOAL:", goal)
+	# if(goal == -1):
+	# 	goal = 1
+	# print("GOAL:", goal)
 	
 	if(operators == None): operators = self.function_set
 
@@ -607,7 +606,6 @@ class VectorizedPlanner(BasePlanner):
 				raise ValueError("Cannot resolve operator of type %s" % type(op))
 		return out
 
-
 	def apply_featureset(self, state, operators=None):
 		# tup = Tuplizer()
 		# flt = Flattener()
@@ -653,6 +651,7 @@ class VectorizedPlanner(BasePlanner):
 		goal = sai.inputs["value"]
 		state = state.get_view("flat_ungrounded")
 
+
 		if(operators == None and sai.action == "ButtonPressed"):
 			yield -1,{}
 			return
@@ -672,10 +671,11 @@ class VectorizedPlanner(BasePlanner):
 							allow_bottomout=allow_bottomout,
 							allow_copy=allow_copy)
 		for expr,mapping in how_itr:
+			# print(expr,mapping)
 			if(foci_of_attention != None and len(foci_of_attention) != len(mapping)):
-				print("continue",expr,mapping)
+				# print("continue",expr,mapping)
 				continue
-			print(expr)
+			# print(expr)
 			# print(expr,type(expr))
 			# print(mapping,type(mapping))
 			# print("From HOW:", search_depth)

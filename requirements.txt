@@ -24,3 +24,4 @@ multiprocess
 scikit-learn
 dill
 django-cors-headers
+numba>=0.45.0

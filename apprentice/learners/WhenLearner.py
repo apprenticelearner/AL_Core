@@ -1,4 +1,3 @@
-from sklearn.tree import _tree
 from pprint import pprint
 from copy import deepcopy
 from apprentice.learners.pyibl import Agent
@@ -18,6 +17,7 @@ from concept_formation.cobweb3 import Cobweb3Tree
 from concept_formation.trestle import TrestleTree
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.preprocessor import Flattener
+from concept_formation.preprocessor import Preprocessor
 
 # from ilp.foil_classifier import FoilClassifier
 
@@ -31,20 +31,21 @@ class WhenLearner(object):
 
     def __init__(self, learner, when_type="one_learner_per_rhs",
                  state_format="variablized_state",
-                 cross_rhs_inference="none", learner_kwargs={}):
+                 cross_rhs_inference="none",
+                 **learner_kwargs):
         assert state_format in self.__class__.STATE_FORMAT_OPTIONS, \
-            "state_format must be one of %s but got %s" % \
-            (self.__class__.STATE_FORMAT_OPTIONS, state_format)
+               "state_format must be one of %s but got %s" % \
+               (self.__class__.STATE_FORMAT_OPTIONS, state_format)
         assert when_type in self.__class__.WHEN_TYPE_OPTIONS, \
-            "when_type must be one of %s but got %s" % \
-            (self.__class__.WHEN_TYPE_OPTIONS, when_type)
+               "when_type must be one of %s but got %s" % \
+               (self.__class__.WHEN_TYPE_OPTIONS, when_type)
         assert cross_rhs_inference in self.__class__.CROSS_RHS_INFERENCE, \
-            "cross_rhs_inference must be one of %s but got %s" % \
-            (self.__class__.CROSS_RHS_INFERENCE, cross_rhs_inference)
+               "cross_rhs_inference must be one of %s but got %s" % \
+               (self.__class__.CROSS_RHS_INFERENCE, cross_rhs_inference)
 
         if(cross_rhs_inference == "rhs_in_y"):
             assert when_type == "one_learner_per_label", \
-                "when_type must be 'one_learner_per_label' if using \
+                   "when_type must be 'one_learner_per_label' if using \
                     cross_rhs_inference = 'rhs_in_y', but got %r " % when_type
 
         self.learner_name = learner
@@ -57,11 +58,18 @@ class WhenLearner(object):
             self.examples = {}
             self.implicit_examples = {}
         # (self.type == "one_learner_per_rhs"):
-        self.learners = {}
+        self.sub_learners = {}
+
+    # def all_where_parts(self,state):
+    #     for rhs in self.sub_learners.keys():
+    #         for match in self.where_learner.get_matches(rhs, state):
+    #             if(len(match) != len(set(match))):
+    #                 continue
+    #             yield rhs,match 
 
     def add_rhs(self, rhs):
         if(self.type == "one_learner_per_rhs"):
-            self.learners[rhs] = get_when_sublearner(self.learner_name,
+            self.sub_learners[rhs] = get_when_sublearner(self.learner_name,
                                                      **self.learner_kwargs)
             key = rhs
         else:
@@ -78,46 +86,87 @@ class WhenLearner(object):
             self.implicit_examples[key]['state'] = []
             self.implicit_examples[key]['reward'] = []
 
-    def ifit(self, rhs, state, reward):
+    def ifit(self, rhs, state, mapping, reward):
         # print("FIT_STATe", state)
-        # print([str(x.input_rule) for x in self.learners.keys()])
+        # print([str(x.input_rule) for x in self.sub_learners.keys()])
         # print("REQARD", reward)
-        # print("LEARNERS",self.learners)
-        # print("LEARNER",id(self.learners[rhs]))
+        # print("LEARNERS",self.sub_learners)
+        
         if(self.cross_rhs_inference == "implicit_negatives"):
+            this_state = state.get_view(("variablize",rhs,tuple(mapping)))
+            pprint(this_state)
             if(self.type == "one_learner_per_label"):
                 key = rhs.label
             elif(self.type == "one_learner_per_rhs"):
                 key = rhs
 
+
+
             states = self.examples[key]['state']
             rewards = self.examples[key]['reward']
-            states.append(state)
+            states.append(this_state)
             rewards.append(reward)
+
+            if(key not in self.sub_learners):
+                self.sub_learners[key] = get_when_sublearner(self.learner_name,
+                                                         **self.learner_kwargs)
+            # pprint(states)
+            # pprint(rewards)
 
             implicit_states = self.implicit_examples[key]['state']
             implicit_rewards = self.implicit_examples[key]['reward']
 
+            # Remove any implicit negative examples in this rhs with the current state
+            try:
+                index_value = self.implicit_examples[key]['state'].index(this_state)
+            except ValueError:
+                index_value = -1
+
+            if(index_value != -1):
+                del self.implicit_examples[key]['state'][index_value]
+                del self.implicit_examples[key]['reward'][index_value]
+
+            print("MAIN:",str(rhs))
+            self.sub_learners[key].fit(states+implicit_states,
+                                   rewards+implicit_rewards)
+
+            all_matches = {}
+            for k in state.views.keys():
+                if(isinstance(k,tuple) and k[0] == "variablize"):
+                    # print("K",k)
+                    matches = all_matches.get(k[1],[])
+                    matches.append(k[2])
+                    all_matches[k[1]] = matches
+            # print("all_matches")
+            # print(all_matches)
+            # print("implicit_rewards")
+            # print(implicit_rewards)
             if(reward > 0):
                 for other_key, other_impl_exs in self.implicit_examples.items():
+                    
                     if(other_key != key):
-
+                        print("OTHER:",str(other_key))
+                        # print(other_key, key)
                         # Add implicit negative examples to any rhs that doesn't already have this state
                         # TODO: Do this for all bindings not just for the given state
-                        if(state not in self.examples[other_key]['state']):
-                            other_impl_exs['state'].append(state)
-                            other_impl_exs['reward'].append(-1)
+                        # other_state = state.get_view(("variablize",other_key,tuple(mapping)))
+                        for m in all_matches.get(other_key,[]):
+                            # print("other_map: ",m)
+                            other_state = state.get_view(("variablize",other_key,m))
+                            # print("other_state:")
+                            # pprint(other_state)
 
-                # Remove any implicit negative examples in this rhs with the current state
-                try:
-                    index_value = self.implicit_examples[key]['state'].index(
-                        state)
-                except ValueError:
-                    index_value = -1
+                            if(other_state not in self.examples[other_key]['state']):
+                                # print("BEFORE",other_impl_exs['reward'])
+                                other_impl_exs['state'].append(other_state)
+                                other_impl_exs['reward'].append(-1)
+                                # print("AFTER",other_impl_exs['reward'])
+                        # print("TOTAL:",len(self.examples[other_key]['reward']))
+                        # print("IMPL:",len(other_impl_exs['reward']))
+                        self.sub_learners[other_key].fit(self.examples[other_key]['state']+other_impl_exs['state'],
+                                                     self.examples[other_key]['reward']+other_impl_exs['reward'])
 
-                if(index_value != -1):
-                    del self.implicit_examples[key]['state'][index_value]
-                    del self.implicit_examples[key]['reward'][index_value]
+               
 
             # PRINT AREA
             # for x in self.implicit_examples:
@@ -126,34 +175,49 @@ class WhenLearner(object):
             #     print("%s : %s" % (x.input_rule,self.examples[x]['reward']))
             # pprint(self.implicit_examples)
 
-            self.learners[key] = get_when_sublearner(self.learner_name,
-                                                     **self.learner_kwargs)
-            # pprint(states)
-            # pprint(rewards)
-            self.learners[key].fit(states+implicit_states,
-                                   rewards+implicit_rewards)
-            # print(self.learners[key])
+            
+            # print(self.sub_learners[key])
         else:
+            state = state.get_view(("variablize",rhs,tuple(mapping)))
+            # print("WHEN LEARNER")
+            # print(state)
             if(self.type == "one_learner_per_label"):
-                if(rhs.label not in self.learners):
-                    self.learners[rhs.label] = get_when_sublearner(
-                        self.learner_name,
-                        **self.learner_kwargs)
+                if(rhs.label not in self.sub_learners):
+                    self.sub_learners[rhs.label] = get_when_sublearner(
+                                                self.learner_name,
+                                                **self.learner_kwargs)
                 if(self.cross_rhs_inference == "rhs_in_y"):
-                    self.learners[rhs.label].ifit(state, (rhs._id_num, reward))
+                    self.sub_learners[rhs.label].ifit(state, (rhs._id_num, reward))
                 else:
-                    self.learners[rhs.label].ifit(state, reward)
+                    self.sub_learners[rhs.label].ifit(state, reward)
             elif(self.type == "one_learner_per_rhs"):
-                self.learners[rhs].ifit(state, reward)
+                # print("------------------")
+                # print([str(x) for x in self.sub_learners.keys()])
+                # print([id(x) for x in self.sub_learners.values()])
+                # print("FIT:", str(rhs), reward)
+                # print("------------------")
+
+                self.sub_learners[rhs].ifit(state, reward)
 
     def predict(self, rhs, state):
         # print("STATE:",state, type(state))
+        # print("------------")
+        # print(str(rhs))
         if(self.type == "one_learner_per_label"):
-            prediction = self.learners[rhs.label].predict([state])[0]
+            prediction = self.sub_learners[rhs.label].predict([state])[0]
         elif(self.type == "one_learner_per_rhs"):
-            # print(self.learners[rhs].predict([state])[0]        )
-            prediction = self.learners[rhs].predict([state])[0]
+            # print(self.sub_learners[rhs].predict([state])[0]        )
+            prediction = self.sub_learners[rhs].predict([state])[0]
+            # print("X")
 
+            # print("-")# print(self.sub_learners[rhs].X)
+            # print("y")
+            # print(self.sub_learners[rhs].y)
+        # print("--->",prediction)
+        # print("------------")
+
+        # print("BLLEEPERS")
+        # print([str(x) for x in self.sub_learners.keys()])
         if(self.cross_rhs_inference == "rhs_in_y"):
             rhs_pred, rew_pred = prediction
             if(rhs_pred != rhs._id_num):
@@ -164,13 +228,35 @@ class WhenLearner(object):
 
     def skill_info(self, rhs, state):
         key = rhs if(self.type == "one_learner_per_rhs") else rhs.label
-        sublearner = self.learners[key]
+        sublearner = self.sub_learners[key]
 
         if(isinstance(sublearner, Pipeline)):
-            feature_names = sublearner.named_steps["dict vect"].get_feature_names(
-            )
+            feature_names = sublearner.named_steps["dict vect"].get_feature_names()
 
         return sublearner.skill_info(state)
+
+class ListValueFlattener(Preprocessor):
+    def transform(self, instance):
+        if isinstance(instance,(list,tuple)):
+            return [self._transform(x) for x in instance]
+        else:
+            return self._transform(instance)
+        
+
+    def _transform(self,instance):
+        out = {}
+        for key,value in instance.items():
+            if(isinstance(value,(list,tuple))):
+                for i, v in enumerate(value):
+                    out[(key,str(i))] = v if v is not None else ""
+            else:
+                out[key] = value if value is not None else ""
+        return out 
+
+
+    def undo_transform(self, instance):
+        raise NotImplementedError()
+
 
 
 class CustomPipeline(Pipeline):
@@ -183,9 +269,12 @@ class CustomPipeline(Pipeline):
 
         ft = Flattener()
         tup = Tuplizer()
+        lvf = ListValueFlattener()
 
-        # pprint(x)
-        self.X.append(tup.undo_transform(ft.transform(x)))
+        x = lvf.transform(x)
+        x = tup.undo_transform(ft.transform(x))
+        # pprint(x)`
+        self.X.append(x)
         self.y.append(int(y) if not isinstance(y, tuple) else y)
 
         # print("IFIT:",self.X)
@@ -196,19 +285,30 @@ class CustomPipeline(Pipeline):
 
         # print("X",X)
         # NOTE: Only using boolean values
-        X = [{k: v for k, v in d.items() if isinstance(v, bool)} for d in X]
-        print("FITX", X)
+        # X = [{k: v for k, v in d.items() if isinstance(v, bool)} for d in X]
+        # print("FITX", X)
+        # print("GIN JEF", X[-1])
         ft = Flattener()
         tup = Tuplizer()
+        lvf = ListValueFlattener()
 
-        self.X = [tup.undo_transform(ft.transform(x)) for x in X]
-        self.y = [int(x) if not isinstance(x, tuple) else x for x in y]
+        X = lvf.transform(X)
+        # print("GIN FEF", X[-1])
 
+        self.X = [tup.undo_transform(ft.transform(x)) for x in X] 
+        self.y = [int(x) if not isinstance(x, tuple) else x for x in y] 
+        # print("GIN IN")
+        # print(self.X[-1])
+        # print("BLOOP:",len(self.y))
         super(CustomPipeline, self).fit(self.X, self.y)
 
     def predict(self, X):
         ft = Flattener()
         tup = Tuplizer()
+        lvf = ListValueFlattener()
+
+        X = lvf.transform(X)
+
         X = [tup.undo_transform(ft.transform(x)) for x in X]
         # print("BEEP", X)
         # print("PRED:",X)
@@ -222,6 +322,9 @@ class CustomPipeline(Pipeline):
 
         ft = Flattener()
         tup = Tuplizer()
+        lvf = ListValueFlattener()
+
+        X = lvf.transform(X)
         X = [tup.undo_transform(ft.transform(x)) for x in X]
 
         # X = self.named_steps["dict vect"].transform(x)
@@ -241,7 +344,7 @@ class CustomPipeline(Pipeline):
                 Xt = transform.transform(Xt)
                 # print("BAE_"+name,Xt)
 
-        return classifier.skill_info(Xt, feature_names)
+        return classifier.skill_info(Xt,feature_names)
 
     def __repr__(self):
         return repr(self.named_steps['clf'])
@@ -275,21 +378,74 @@ def DictVectWrapper(clf):
     #     raise NotImplementedError("Still need to write applicable_skills")
 
 
-class DecisionTree(DecisionTreeClassifier):
+count = 0
+def export_tree(dt):
+    global count
+    import pydotplus
+    from sklearn.datasets import load_iris
+    from sklearn import tree
+    import collections
 
-    # def fit(self,X,y):
-    #     print("MOOP",X)
-    #     super(DecisionTree,self).fit(X,y)
+
+    # Visualize data
+    dot_data = tree.export_graphviz(dt,
+                                    feature_names=None,
+                                    out_file=None,
+                                    filled=True,
+                                    rounded=True)
+    graph = pydotplus.graph_from_dot_data(dot_data)
+
+    colors = ('turquoise', 'orange')
+    edges = collections.defaultdict(list)
+
+    for edge in graph.get_edge_list():
+        edges[edge.get_source()].append(int(edge.get_destination()))
+
+    for edge in edges:
+        edges[edge].sort()    
+        for i in range(2):
+            dest = graph.get_node(str(edges[edge][i]))[0]
+            dest.set_fillcolor(colors[i])
+
+    print("EXPORT",'trees/tree%s.png'%count)
+    graph.write_png('trees/tree%s.png'%count)
+    count += 1
+    
+
+from sklearn.tree import _tree
+class DecisionTree(DecisionTreeClassifier):
+    def fit(self,X,y):
+        
+        # print("X",len(X[0]))
+        # pprint(X)
+        # pprint(y)
+        # print("y",len(y))
+        # pprint(y)
+        # print("--^--^--")
+        super(DecisionTree,self).fit(X,y)
+        # print(hex(id(self)))
+        # print("X")
+        # print(X)
+        # print("y",y)
+        # export_tree(self)
+        # print("------------")
+        
 
     def predict(self, X):
-        print("MOOP", X)
+        # print("PREDICT")
+        # print(hex(id(self)))
+        # print("X")
+        # print(X)
+        # export_tree(self)
+        
+        
         return super(DecisionTree, self).predict(X)
 
     def skill_info(self, examples, feature_names=None):
-        print("SLOOP", examples)
+        # print("SLOOP", examples)
         tree = self
         tree_ = tree.tree_
-        print("feature_names", feature_names)
+        # print("feature_names", feature_names)
         feature_name = [
             feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
             for i in tree_.feature
@@ -356,7 +512,7 @@ class ScikitCobweb(object):
         X = deepcopy(X)
         for i, x in enumerate(X):
             # print(y)
-            x['_y_label'] = float(y) if not isinstance(y, list) else y[i]
+            x['_y_label'] = float(y) if not isinstance(y,list) else y[i]
         self.tree.fit(X, randomize_first=False)
 
     def skill_info(self, X):
@@ -558,14 +714,13 @@ parameters_sgd = {'loss': 'perceptron'}
 # --------------------------------UTILITIES--------------------------------
 
 
-def get_when_sublearner(name, **learner_kwargs):
-    return WHEN_CLASSIFIERS[
-        name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+def get_when_sublearner(name, **kwargs):
+    return WHEN_CLASSIFIERS[name.lower().replace(' ', '').replace('_', '')](**kwargs)
 
 
-def get_when_learner(name, learner_kwargs={}):
+def get_when_learner(name, **kwargs):
     inp_d = WHEN_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
-    inp_d['learner_kwargs'] = learner_kwargs
+    inp_d.update(kwargs)
     return WhenLearner(**inp_d)
 
 

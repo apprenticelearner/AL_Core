@@ -1,18 +1,19 @@
 import numpy as np
 import itertools
+from random import shuffle
 
 
 class WhichLearner(object):
 
-    def __init__(self, heuristic_learner, how_cull_rule,learner_kwargs={}):
+    def __init__(self, heuristic_learner, explanation_choice,**learner_kwargs):
         
         # self.learner_name = learner_name
         self.heuristic_name = heuristic_learner
-        self.how_cull_name = how_cull_rule
+        self.explanation_choice = explanation_choice
         self.learner_kwargs = learner_kwargs
         self.rhs_by_label = {}
         self.learners = {}
-        self.how_cull_rule = get_how_cull_rule(how_cull_rule)
+        self.explanation_choice = get_explanation_choice(explanation_choice)
 
 
     def add_rhs(self,rhs):
@@ -30,8 +31,8 @@ class WhichLearner(object):
         # print([(x._id_num,self.learners[x].heuristic(state)) for x in out])
         return sorted(rhs_list,reverse=True, key=lambda x:self.learners[x].heuristic(state))
 
-    def cull_how(self,expl_iter):
-        return self.how_cull_rule(expl_iter)
+    def select_how(self,expl_iter):
+        return self.explanation_choice(expl_iter)
 
 
 ####---------------HEURISTIC------------########
@@ -60,7 +61,8 @@ class TotalCorrect(BaseHeuristicAgent):
 class ProportionCorrect(TotalCorrect):
     def heuristic(self,state):
         p,n = self.num_correct, self.num_incorrect
-        return (p / (p + n),  p + n)
+        s = p + n
+        return (p / s if s > 0 else 0,  s)
 
 ####---------------HOW CULL RULE------------########
 
@@ -73,6 +75,12 @@ def most_parsimonious(expl_iter):
 
 def return_all(expl_iter):
     return [x for x in expl_iter]
+
+def random(expl_iter):
+    arr = [x for x in expl_iter]
+    shuffle(arr)
+    # print("RANDOM",str(arr[:1][0]))
+    return arr[:1]
 
 # import itertools
 # def closest(expl_iter,knowledge_base):
@@ -103,14 +111,14 @@ def return_all(expl_iter):
 
 #####---------------UTILITIES------------------#####
 
-def get_how_cull_rule(name):
+def get_explanation_choice(name):
     return CULL_HOW_RULES[name.lower().replace(' ', '').replace('_', '')]
 
 def get_heuristic_sublearner(name,**learner_kwargs):
     return WHICH_HEURISTIC_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
 
-def get_which_learner(heuristic_learner,how_cull_rule,learner_kwargs={}):
-    return WhichLearner(heuristic_learner,how_cull_rule,learner_kwargs)
+def get_which_learner(heuristic_learner,explanation_choice,**kwargs):
+    return WhichLearner(heuristic_learner,explanation_choice,**kwargs)
 
 
 
@@ -122,6 +130,7 @@ WHICH_HEURISTIC_AGENTS = {
 CULL_HOW_RULES = {
     'first': first,
     'mostparsimonious': most_parsimonious,   
-    'all': return_all,   
+    'all': return_all,  
+    'random' : random,
     # 'closest': closest,   
 }
