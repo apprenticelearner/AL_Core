@@ -84,6 +84,7 @@ sphinx:
 
 publish:
   stage: deploy
+  allow_failure: true
   dependencies:
     - sphinx
   script:
