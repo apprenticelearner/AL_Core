@@ -26,3 +26,5 @@ pytest
 multiprocess
 scikit-learn
 dill
+uwsgi>=2.0,<2.1
+psycopg2
