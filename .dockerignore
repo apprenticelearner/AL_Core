@@ -1,0 +1,3 @@
+Dockerfile
+docker-compose.yml
+.gitlab-ci.yml
