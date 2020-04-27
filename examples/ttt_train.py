@@ -4,9 +4,9 @@ from apprentice.agents.Memo import Memo
 from apprentice.agents.RLAgent import RLAgent
 from apprentice.agents.soartech_agent import SoarTechAgent
 from apprentice.working_memory import ExpertaWorkingMemory
-from ttt_experta import TicTacToe, TTTEngineBasic
+from ttt_engine import TicTacToe, TTTEngineBasic
 from ttt_solver import best_move
-
+from picklefield.fields import PickledObjectField, dbsafe_encode
 
 def play_game_manually(human_role='O'):
     game = TicTacToe()
@@ -53,7 +53,7 @@ def train_agent(agent, agent_role='O', use_oracle=True, max_games=10):
 
     new_game = True
     game_count = 0
-    while new_game:
+    while game_count < max_games:
         game_count += 1
         game.reset()
 
@@ -163,11 +163,27 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.agent == 'soartech':
-        agent = SoarTechAgent(wm=ExpertaWorkingMemory(ke=TTTEngineBasic()))
+        ttt = TTTEngineBasic()
+        agent = SoarTechAgent(wm=ExpertaWorkingMemory(ke=ttt), prior_skills={})
+        #agent.working_memory.add_rule(ttt.suggest_move)
     elif args.agent == 'Memo':
         agent = Memo()
     elif args.agent == 'RLAgent':
         agent_class = RLAgent
 
     # agent = agent_class()
-    train_agent(agent)
+    train_agent(agent, max_games=3)
+
+    obj = agent.working_memory.ke.matcher.root_node
+    agent.working_memory.ke.matcher = None
+    obj = agent
+
+
+
+    pof = PickledObjectField()
+    pickled = dbsafe_encode(obj, copy=False, pickle_protocol=4)
+
+    unpickled = pof.to_python(pickled)
+
+    unpickled.working_memory.ke.init_matcher()
+    x = False
