@@ -324,7 +324,7 @@ class ModularAgent(BaseAgent):
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', explanation_choice='random',
-                 planner='fo_planner', state_variablization="metaskill", search_depth=1,
+                 planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[], **kwargs):
                 
                 
