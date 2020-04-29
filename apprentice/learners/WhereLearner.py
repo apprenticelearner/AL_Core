@@ -303,7 +303,7 @@ class MostSpecific(BaseILP):
 
         t = tuple(ground(e) for e in t)
         self.tuples.add(t)
-        print(len(self.tuples))
+        # print(len(self.tuples))
 
 
 class StateResponseLearner(BaseILP):
