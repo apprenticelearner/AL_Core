@@ -1,4 +1,5 @@
 from random import randint
+import math
 
 from apprentice.working_memory.adapters.experta_.factory import \
     ExpertaSkillFactory
@@ -152,6 +153,39 @@ class FractionsEngine(KnowledgeEngine):
 
         self.declare(Fact(id=new_id,
                           operator='multiply',
+                          ele1=id1,
+                          ele2=id2,
+                          contentEditable=False,
+                          value=new_value,
+                          depth=new_depth))
+
+    @Rule(
+      AS.fact1 << Fact(id=MATCH.id1, contentEditable=False,
+                       value=MATCH.value1),
+      TEST(lambda fact1: 'depth' not in fact1 or fact1['depth'] < max_depth),
+      TEST(lambda value1: is_numeric_str(value1)),
+      AS.fact2 << Fact(id=MATCH.id2, contentEditable=False,
+                       value=MATCH.value2),
+      TEST(lambda id1, id2: id1 <= id2),
+      TEST(lambda fact2: 'depth' not in fact2 or fact2['depth'] < max_depth),
+      TEST(lambda value2: is_numeric_str(value2)),
+      NOT(Fact(operator='lcm', ele1=MATCH.id1, ele2=MATCH.id2))
+    )
+    def least_common_multiple(self, id1, value1, fact1, id2, value2, fact2):
+        new_id = ' lcm({0}, {1})'.format(id1, id2)
+
+        gcd = math.gcd(int(value1), int(value2))
+        new_value = abs(int(value1) * int(value2)) // gcd
+        # if new_value.is_integer():
+        #     new_value = int(new_value)
+        new_value = str(new_value)
+
+        depth1 = 0 if 'depth' not in fact1 else fact1['depth']
+        depth2 = 0 if 'depth' not in fact2 else fact2['depth']
+        new_depth = 1 + max(depth1, depth2)
+
+        self.declare(Fact(id=new_id,
+                          operator='lcm',
                           ele1=id1,
                           ele2=id2,
                           contentEditable=False,
@@ -369,6 +403,7 @@ update_convert_field_skill = skill_factory.from_ex_rule(
     ke.update_convert_field)
 add_skill = skill_factory.from_ex_rule(ke.add)
 multiply_skill = skill_factory.from_ex_rule(ke.multiply)
+least_common_multiple = skill_factory.from_ex_rule(ke.least_common_multiple)
 
 correct_multiply_num = skill_factory.from_ex_rule(ke.correct_multiply_num)
 correct_multiply_denom = skill_factory.from_ex_rule(ke.correct_multiply_denom)
@@ -395,6 +430,7 @@ fraction_skill_set = {'click_done': click_done_skill, 'check': check_skill,
                       'equal': equal_skill,
                       'add': add_skill,
                       'multiply': multiply_skill,
+                      'least_common_multiple': least_common_multiple,
 
                       'correct_multiply_num': correct_multiply_num,
                       'correct_multiply_denom': correct_multiply_denom,
