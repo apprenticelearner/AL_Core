@@ -263,6 +263,7 @@ class SoarTechAgent(DiffBaseAgent):
                     # memory, so it can be explained via recall and update.
                     log.debug("#####################")
                     log.debug("FAILURE TO EXPLAIN!!!")
+                    log.debug(str(sai))
                     log.debug("#####################")
                     return {}
 
@@ -308,7 +309,7 @@ class SoarTechAgent(DiffBaseAgent):
                         candidate_activations,
                     )
 
-            log.debug("trying" + str(output) + "vs." + str(sai))
+            log.debug("trying output:" + str(output) + " vs. demo:" + str(sai))
             if output != sai:
                 # log.debug('failed!')
                 log.debug("failed!")
