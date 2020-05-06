@@ -17,6 +17,7 @@ from concept_formation.cobweb3 import Cobweb3Tree
 from concept_formation.trestle import TrestleTree
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.preprocessor import Flattener
+import learners.FoilClassifier as fc 
 
 # from ilp.foil_classifier import FoilClassifier
 
@@ -553,6 +554,54 @@ class MajorityClass(object):
 parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss': 'perceptron'}
 
+
+
+
+
+class FOIL(fc.FOILClassifier):
+    def __init__(self, feature = None, label = None, dictVect = None):
+        super().__init__(feature, label, dictVect)
+        self.state_format = "variablized_state"
+        
+
+    # This is actually fit()
+    def ifit(self, x, y):
+  
+        if not hasattr(self, 'X'):
+            self.X = []
+        if not hasattr(self, 'y'):
+            self.y = []
+
+        ft = Flattener()
+        tup = Tuplizer()
+
+
+        self.X.append(tup.undo_transform(ft.transform(x)))
+        self.y.append(int(y) if not isinstance(y, tuple) else y)
+
+        # Transform the dict list X to a 2D numpy array
+        X, dictVect = fc.convertX(self.X, "train")
+        return super(FOIL, self).fit(X, self.y, dictVect)
+       
+ 
+
+
+    def fit(self, X, y):
+        pass
+
+
+    def predict(self, X):
+        #print("Rules: ", self.rules)
+        ft = Flattener()
+        tup = Tuplizer()
+        X = [tup.undo_transform(ft.transform(x)) for x in X]
+
+        # Transform the dict list X to a 2D numpy array
+        Xc, dv = fc.convertX(X, "pred", self.dictVect) 
+        return super(FOIL, self).predictAll(Xc, fc.param.K)
+       
+
+
 # --------------------------------UTILITIES--------------------------------
 
 
@@ -572,6 +621,8 @@ WHEN_LEARNERS = {
     "cobweb": {"learner": "cobweb", "when_type": "one_learner_per_rhs",
                "state_format": "variablized_state"},
     "trestle": {"learner": "cobweb", "when_type": "one_learner_per_rhs",
+                "state_format": "variablized_state"},
+    "foil": {"learner": "foil", "when_type": "one_learner_per_rhs",
                 "state_format": "variablized_state"}
 }
 
@@ -587,7 +638,8 @@ WHEN_CLASSIFIERS = {
     'trestle': ScikitTrestle,
     'pyibl': DictVectWrapper(ScikitPyIBL),
     'majorityclass': MajorityClass,
-    'alwaystrue': AlwaysTrue
+    'alwaystrue': AlwaysTrue,
+    'foil': FOIL
 }
 
 # clf_class = Wrapper(GaussianNB)
