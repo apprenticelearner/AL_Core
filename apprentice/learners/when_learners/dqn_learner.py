@@ -13,8 +13,9 @@ from apprentice.learners.when_learners.replay_memory import Transition
 from apprentice.learners.when_learners.fractions_hasher import FractionsStateHasher
 from apprentice.learners.when_learners.fractions_hasher import FractionsActionHasher
 
-# from concept_formation.trestle import TrestleTree
-# from sklearn.feature_extraction import FeatureHasher
+from concept_formation.trestle import TrestleTree
+from sklearn.feature_extraction import FeatureHasher
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -36,14 +37,16 @@ class DQNLearner(WhenLearner):
         self.state_hidden_size = state_hidden_size
         self.action_hidden_size = action_hidden_size
 
-        # self.state_hasher = FeatureHasher(n_features=self.state_size,
-        #                                   alternate_sign=False)
-        # self.action_hasher = FeatureHasher(n_features=self.action_size,
-        #                                    alternate_sign=False)
+        self.state_hasher = FeatureHasher(n_features=self.state_size,
+                                          alternate_sign=False)
+        self.action_hasher = FeatureHasher(n_features=self.action_size,
+                                           alternate_sign=False)
 
         # special case to make things run faster and drop values
-        self.state_hasher = FractionsStateHasher()
-        self.action_hasher = FractionsActionHasher()
+        # self.state_hasher = FractionsStateHasher()
+        # self.action_hasher = FractionsActionHasher()
+        
+        # TODO potential special case to RumbleBlocks hashers to hard-code features
 
         self.value_net = ValueNet(
             self.state_size, self.state_hidden_size).to(self.device)
@@ -122,7 +125,8 @@ class DQNLearner(WhenLearner):
             state_val, state_hidden = self.value_net(state_x)
             action_val = self.action_net(action_x,
                                          state_hidden.expand(len(actions), -1))
-            return (state_val.expand(len(actions), -1) + action_val).squeeze(1).cpu().tolist()
+            # return (state_val.expand(len(actions), -1) + action_val).squeeze(1).cpu().tolist()
+            return action_val.T[0].cpu().tolist()
 
     def update(
         self,

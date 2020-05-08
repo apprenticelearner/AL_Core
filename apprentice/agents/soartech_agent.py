@@ -50,13 +50,31 @@ class SoarTechAgent(DiffBaseAgent):
             when = DQNLearner(gamma=gamma)
         if prior_skills is None:
             prior_skills = {
-                "click_done": True,
-                "check": True,
-                "equal": False,
-                "update_answer": True,
-                "update_convert": True,
-                "add": True,
-                "multiply": True,
+                #"click_done": True,
+                #"check": True,
+                #"equal": False,
+                #"update_answer": True,
+                #"update_convert": True,
+                #"add": True,
+		#"multiply": True,
+
+		# RumbleBlocks skills
+                "remove_from_inventory": True,
+                # "shift_left": True,
+                # "shift_right": True,
+                # "shift_up": True,
+                # "shift_down": True,
+                # "place_block": True,
+		"place_block_above": True,
+		#"place_block_below": True,
+		"place_block_left": True,
+		"place_block_right": True,
+		#"place_block_between": True,
+		"place_ufo_on_goal": True,
+		"place_block_on_checkpoint": True,
+		"place_block_between_checkpoints": True,
+		#"place_block_on_ground": True,
+		"rotate_block": True,
             }
 
         # Need a working memory class
@@ -138,9 +156,9 @@ class SoarTechAgent(DiffBaseAgent):
 
         activations.sort(reverse=True)
 
-        log.debug(
-            "LENGTH OF ACTIVATIONS " + str(len(activations)))
-        log.debug(str([(a[0], a[2].get_rule_name()) for a in activations]))
+        # log.debug(
+        #     "LENGTH OF ACTIVATIONS " + str(len(activations)))
+        # log.debug(str([(a[0], a[2].get_rule_name()) for a in activations]))
 
         expected_reward, _, best_activation = activations[0]
         return best_activation, expected_reward
@@ -240,7 +258,7 @@ class SoarTechAgent(DiffBaseAgent):
             return
 
         self.working_memory.update(state_diff)
-        # log.debug(pformat(self.working_memory.facts))
+        log.debug(pformat(self.working_memory.facts))
 
         # This should do essentially what `engine.run` is doing from
         # PyKnow. Pyknow currently uses salience to choose rule order, but

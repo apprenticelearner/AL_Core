@@ -109,3 +109,7 @@ ENV/
 
 # PyCharm config
 .idea/
+
+# Cayden additions
+*/.DS_Store
+src/experta
