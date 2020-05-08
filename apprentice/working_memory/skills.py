@@ -17,8 +17,9 @@ answer_field = ['JCommTable6.R0C0', 'JCommTable6.R1C0']
 
 # RumbleBlocks fields
 block_types = ["plat", "cube", "rect", "trap", "Checkpoint"]
+inventory_y  = 7.9 # Above this height, blocks are considered in inventory
 pos_epsilon  = 0.2
-pos_shift    = 0.1
+pos_shift    = 0.25
 rumble_print = True
 
 def is_numeric_str(x):
@@ -40,7 +41,7 @@ class FractionsEngine(KnowledgeEngine):
     @Rule(
         Fact(Curr_Level=MATCH.lvl),
         Fact(Name=MATCH.bn, Type=MATCH.bt, Level=MATCH.bl, 
-            In_Inventory=False),
+            In_Inventory=True),
         TEST(lambda bt: bt in block_types),
         TEST(lambda lvl, bl: lvl == bl)
     )
@@ -48,10 +49,11 @@ class FractionsEngine(KnowledgeEngine):
         if rumble_print:
             print("Removing " + str(bn) + " from inventory")
         return Sai(selection=bn,
-                   action="Object_From_Inventory",
+                   action="Object_Grabbed_From_Inventory",
                    inputs={"Object":
                        {"Name": bn,
                         "Source": "SoarTech",
+                        "Skill": "remove_from_inventory",
                         "Transform":
                             {"Position_X": 0.0,
                              "Position_Y": 0.0,
@@ -169,6 +171,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn,
                         "Source": "SoarTech",
+                        "Skill": "place_block",
                         "Transform":
                             {"Position_X": x,
                              "Position_Y": y,
@@ -184,6 +187,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(Name=MATCH.bn2, Type=MATCH.bt2, Level=MATCH.bl2,
             Position_X=MATCH.x2, Position_Y=MATCH.y2,
             Bounds_Y=MATCH.yb2, In_Inventory=False), # Block that is present
+        TEST(lambda y2: y2 < inventory_y), # Ensure this block is below inv
         TEST(lambda bt2: bt2 in block_types),
         TEST(lambda lvl, bl2: lvl == bl2),
         TEST(lambda bn1, bn2: bn1 != bn2)
@@ -203,6 +207,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn1,
                         "Source": "SoarTech",
+                        "Skill": "place_block_above",
                         "Transform":
                             {"Position_X": x2,
                              "Position_Y": y2 + ((yb1 + yb2) / 2.0),
@@ -218,6 +223,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(Name=MATCH.bn2, Type=MATCH.bt2, Level=MATCH.bl2,
             Position_X=MATCH.x2, Position_Y=MATCH.y2,
             Bounds_Y=MATCH.yb2, In_Inventory=False), # Block that is present
+        TEST(lambda y2: y2 < inventory_y), # Ensure block is below inv
         TEST(lambda bt2: bt2 in block_types),
         TEST(lambda lvl, bl2: lvl == bl2),
         TEST(lambda bn1, bn2: bn1 != bn2)
@@ -237,6 +243,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn1,
                         "Source": "SoarTech",
+                        "Skill": "place_block_below",
                         "Transform":
                             {"Position_X": x2,
                              "Position_Y": y2 - ((yb1 + yb2) / 2.0),
@@ -252,6 +259,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(Name=MATCH.bn2, Type=MATCH.bt2, Level=MATCH.bl2,
             Position_X=MATCH.x2, Position_Y=MATCH.y2,
             Bounds_X=MATCH.xb2, In_Inventory=False), # Block that is present
+        TEST(lambda y2: y2 < inventory_y), # Ensure block is below inv
         TEST(lambda bt2: bt2 in block_types),
         TEST(lambda lvl, bl2: lvl == bl2),
         TEST(lambda bn1, bn2: bn1 != bn2)
@@ -272,6 +280,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn1,
                         "Source": "SoarTech",
+                        "Skill": "place_block_left",
                         "Transform":
                             {"Position_X": x2 - ((xb1 + xb2) / 2.0),
                              "Position_Y": y2,
@@ -287,6 +296,7 @@ class FractionsEngine(KnowledgeEngine):
         Fact(Name=MATCH.bn2, Type=MATCH.bt2, Level=MATCH.bl2,
             Position_X=MATCH.x2, Position_Y=MATCH.y2,
             Bounds_X=MATCH.xb2, In_Inventory=False), # Block that is present
+        TEST(lambda y2: y2 < inventory_y), # Ensure block is below inv
         TEST(lambda bt2: bt2 in block_types),
         TEST(lambda lvl, bl2: lvl == bl2),
         TEST(lambda bn1, bn2: bn1 != bn2)
@@ -307,6 +317,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn1,
                         "Source": "SoarTech",
+                        "Skill": "place_block_right",
                         "Transform":
                             {"Position_X": x2 + ((xb1 + xb2) / 2.0),
                              "Position_Y": y2,
@@ -315,17 +326,20 @@ class FractionsEngine(KnowledgeEngine):
     @Rule(
         Fact(Curr_Level=MATCH.lvl),
         Fact(Name=MATCH.bn1, Type=MATCH.bt1, Level=MATCH.bl1,
-            Rotation=MATCH.rot, In_Inventory=False), # Block to be placed
+            Rotation=MATCH.rot, 
+            In_Inventory=False), # Block to be placed
         TEST(lambda bt1: bt1 in block_types),
         TEST(lambda lvl, bl1: lvl == bl1),
         Fact(Name=MATCH.bn2, Type=MATCH.bt2, Level=MATCH.bl2,
             Position_X=MATCH.x2, Position_Y=MATCH.y2,
             In_Inventory=False), # Block 1
+        TEST(lambda y2: y2 < inventory_y), # Ensure block is below inv
         TEST(lambda bt2: bt2 in block_types),
         TEST(lambda lvl, bl2: lvl == bl2),
         Fact(Name=MATCH.bn3, Type=MATCH.bt3, Level=MATCH.bl3,
             Position_X=MATCH.x3, Position_Y=MATCH.y3,
             In_Inventory=False), # Block 2
+        TEST(lambda y3: y3 < inventory_y), # Ensure block is below inv
         TEST(lambda bt3: bt3 in block_types),
         TEST(lambda lvl, bl3: lvl == bl3),
         TEST(lambda bn1, bn2, bn3: bn1 != bn2 and bn2 != bn3 and bn1 != bn3),
@@ -346,6 +360,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn1,
                         "Source": "SoarTech",
+                        "Skill": "place_block_between",
                         "Transform":
                             {"Position_X": (x2 + x3) / 2.0,
                              "Position_Y": y2,
@@ -367,6 +382,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": block_name,
                         "Source": "SoarTech",
+                        "Skill": "place_ufo_on_goal",
                         "Transform":
                             {"Position_X": xpos,
                              "Position_Y": ypos,
@@ -379,10 +395,10 @@ class FractionsEngine(KnowledgeEngine):
         TEST(lambda bt: bt in block_types),
         TEST(lambda lvl, bl: lvl == bl),
         Fact(Type="Checkpoint", Level=MATCH.cl,
-            Position_X=MATCH.xpos, Position_Y=MATCH.ypos),
+            Position_X=MATCH.x, Position_Y=MATCH.y),
         TEST(lambda lvl, cl: lvl == cl)
     )
-    def place_block_on_checkpoint(self, bn, xpos, ypos, rot):
+    def place_block_on_checkpoint(self, bn, x, y, rot):
         if rumble_print:
             print("Place block on checkpoint called on " + str(bn))
         return Sai(selection=bn,
@@ -390,9 +406,10 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn,
                         "Source": "SoarTech",
+                        "Skill": "place_block_on_checkpoint",
                         "Transform":
-                            {"Position_X": xpos,
-                             "Position_Y": ypos,
+                            {"Position_X": x,
+                             "Position_Y": y,
                              "Rotation": rot}}})
 
     @Rule(
@@ -407,7 +424,8 @@ class FractionsEngine(KnowledgeEngine):
             Position_X=MATCH.x2, Position_Y=MATCH.y2),  # Checkpoint 2
         TEST(lambda ck1, ck2: ck1 != ck2),
         TEST(lambda lvl, cl1, cl2: lvl == cl1 and lvl == cl2),
-        TEST(lambda y1, y2: abs(y1 - y2) <= pos_epsilon)
+        TEST(lambda y1, y2: abs(y1 - y2) <= pos_epsilon),
+        TEST(lambda y1, y2: y1 < inventory_y and y2 < inventory_y)
     )
     def place_block_between_checkpoints(self, bn, x1, y1, x2, rot):
         if rumble_print:
@@ -417,6 +435,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn,
                         "Source": "SoarTech",
+                        "Skill": "place_block_between_checkpoints",
                         "Transform":
                             {"Position_X": (x1 + x2) / 2.0,
                              "Position_Y": y1,
@@ -425,8 +444,8 @@ class FractionsEngine(KnowledgeEngine):
     @Rule(
         Fact(Curr_Level=MATCH.lvl),
         Fact(Name=MATCH.bn, Type=MATCH.bt, Level=MATCH.bl, 
-            In_Inventory=False,
-            Bounds_Y=MATCH.yb, Rotation=MATCH.rot),
+            Bounds_Y=MATCH.yb, Rotation=MATCH.rot,
+            In_Inventory=False),
         TEST(lambda bt: bt in block_types),
         TEST(lambda lvl, bl: lvl == bl),
         Fact(Name="ground", Position_Y=MATCH.ground_y, Level=MATCH.gl),
@@ -440,6 +459,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={"Object":
                        {"Name": bn,
                         "Source": "SoarTech",
+                        "Skill": "place_block_on_ground",
                         "Transform":
                             {"Position_X": 0.0,
                              "Position_Y": ground_y + (yb / 2.0),
@@ -452,6 +472,7 @@ class FractionsEngine(KnowledgeEngine):
             Position_X=MATCH.x, Position_Y=MATCH.y,
             Bounds_X=MATCH.xb, Bounds_Y=MATCH.yb,
             Rotation=MATCH.rot, On_Ground=MATCH.og),
+        TEST(lambda y: y < inventory_y), # Ensure block is below inv
         TEST(lambda bt: bt in block_types and bt != "cube"),
         TEST(lambda lvl, bl: lvl == bl)
     )
