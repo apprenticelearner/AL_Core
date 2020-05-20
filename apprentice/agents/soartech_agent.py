@@ -13,6 +13,7 @@ from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
 from apprentice.working_memory.skills import fraction_skill_set
+from apprentice.explain.explanation import Explanation
 from experta import KnowledgeEngine
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class SoarTechAgent(DiffBaseAgent):
             negative_actions: bool = False,
             skill_map: Dict[str, Skill] = fraction_skill_set,
             prior_skills=None,
+            chunking=False,
             **kwargs
     ):
         # Just track the state as a set of Facts?
@@ -282,6 +284,9 @@ class SoarTechAgent(DiffBaseAgent):
                 )
 
                 if isinstance(output, Sai):
+                    if self.chunking:
+                        ex = Explanation(output)
+                        self.working_memory.add_rule(ex.new_rule)
                     break
 
                 candidate_activations = [
