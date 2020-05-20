@@ -28,7 +28,6 @@ class Explanation:
                       self.tests]
         self.rules = self.rules[::-1]  # order rules logically
 
-        print("!!!EXPLANATION RULES ", self.rules)
         self.new_rule = self.compose()
 
     def compose(self):
