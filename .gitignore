@@ -1,3 +1,15 @@
+builds/
+codeclimate.json
+.tox
+output.xml
+.coverage
+.pytest_cache/
+htmlcov/
+*.pyc
+*.swp
+__pycache__/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -24,6 +36,8 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+AUTHORS
+ChangeLog
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -92,3 +106,6 @@ ENV/
 
 # Temporary vim files
 *.swp
+
+# PyCharm config
+.idea/

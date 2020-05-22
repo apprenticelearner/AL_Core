@@ -1,0 +1,147 @@
+image: "python:3.7"
+
+variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
+stages:
+  - lint
+  - test
+  - document
+  - deploy
+
+flake8:
+  stage: lint
+  allow_failure: true
+  script:
+    - pip install flake8 flake8-junit-report
+    - retval=0
+    - flake8 --output-file flake8.txt apprentice/ || retval=$?
+    - flake8_junit flake8.txt flake8_junit.xml
+    - cat flake8.txt
+    - exit "$retval"
+  artifacts:
+    when: always
+    reports:
+      junit: flake8_junit.xml
+  tags:
+    - base
+
+coverage:
+  stage: test
+  allow_failure: true
+  script:
+    - pip install -r requirements.txt --exists-action w
+    - pip install -r test-requirements.txt
+    - retval=0
+    - coverage run --source apprentice -m pytest || retval=$?
+    - coverage html -d coverage
+    - coverage report
+    - exit "$retval"
+  coverage: '/\d+\%\s*$/'
+  artifacts:
+    paths:
+      - coverage
+  tags:
+    - base
+
+pytest:
+  stage: test
+  allow_failure: false
+  script:
+    - pip install -r requirements.txt --exists-action w
+    - pip install -r test-requirements.txt
+    - python -m pytest
+  artifacts:
+    when: always
+    reports:
+      junit: output.xml
+  tags:
+    - base
+
+sphinx:
+  stage: document
+  dependencies:
+    - pytest
+  script:
+    - pip install -r requirements.txt --exists-action w
+    - pip install -r docs/doc-requirements.txt
+    - apt-get update
+    - apt-get install make
+    - cd docs
+    - make html
+    - mv _build/html/ ../sphinx
+  artifacts:
+    paths:
+      - sphinx
+  tags:
+    - base
+  only:
+    - master
+
+publish:
+  stage: deploy
+  dependencies:
+    - sphinx
+  script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - git config user.email "chris.maclellan@soartech.com"
+    - git config user.name "Chris MacLellan (automated triskele)"
+    - git remote rm public
+    - git remote add public git@github.com:apprenticelearner/AL_Core.git
+    - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+    - git push public HEAD:soartech-dev
+  tags:
+    - base
+  only:
+    - master
+
+pages:
+  stage: deploy
+  dependencies:
+    - sphinx
+    - coverage
+  script:
+    - mv sphinx public/
+    - mv coverage public/coverage
+  environment:
+    name: pages
+    url: https://hq-git.soartech.com/apprentice/apprentice
+  artifacts:
+    paths:
+      - public
+  tags:
+    - base
+  only:
+    - master
+    
+dockerize:
+  stage: deploy
+  script:
+    - docker build -t hq-git.soartech.com:4567/apprentice/apprentice .
+    - docker push hq-git.soartech.com:4567/apprentice/apprentice
+  tags:
+    - shell
+  only:
+    - master
+
+
+# pypi:
+#   stage: deploy
+#   dependencies:
+#     - pytest
+#   script:
+#     - pip install twine
+#     - python setup.py sdist bdist_wheel
+#     - twine upload --repository-url https://nexus.soartech.com:8443/nexus/repository/pypi-internal/ dist/*
+#   tags:
+#     - base
+#   only:
+#     - master
