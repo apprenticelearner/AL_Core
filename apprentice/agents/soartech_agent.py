@@ -85,6 +85,7 @@ class SoarTechAgent(DiffBaseAgent):
         self.action_penalty = action_penalty
         log.debug("action_penalty" + str(action_penalty))
         self.negative_actions = negative_actions
+        self.chunking = chunking
 
     # def __deepcopy__(self, memo):
     #     log.debug("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
