@@ -1050,7 +1050,7 @@ def __fill_partial_matches_at(partial_matches,i,pair_matches,pair_index_reg,
 def fill_pairs_at(partial_matches,i,pair_matches):
     pair_matches_i = pair_matches[i]
     # print("WHEEE")
-    # print(pair_matches)
+    # print(pair_matches_i)
     # print(partial_matches)
     # print("WHEEE")
     for j, pair_matches_ij in pair_matches_i.items():
@@ -1076,7 +1076,7 @@ def fill_pairs_at(partial_matches,i,pair_matches):
                     new_pm[i], new_pm[j] = e_i, e_j
                     new_pms.append(new_pm)
                     altered = True
-            if(not altered):
+            if(not altered and pm[i] != 0 and pm[j] != 0):
                 new_pms.append(pm)
         partial_matches = new_pms
     # print(new_pms)
@@ -1179,6 +1179,7 @@ def match_iterative(split_ps, concept_slices,
 
     for i in range(n_concepts):
         partial_matches = fill_pairs_at(partial_matches,i,pair_matches)
+        # print(partial_matches)
 
     for i in range(n_concepts):
         if(len(pair_matches[i]) == 0):
