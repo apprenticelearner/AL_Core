@@ -164,7 +164,7 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_
         ele = center_obj.get(d,None)
         # print("ele")
         # print(ele)
-        if(ele is None or ele is "" or
+        if(ele is None or ele == "" or
           (ele in dist_map and dist_map[ele] <= dist_map[center] + 1) or
            ele not in state):
             continue
@@ -307,6 +307,7 @@ def expression_matches(expression, state):
             fact_expr = {fact_expr: value}
 
         mapping = {}
+        print(fact_expr, expression, mapping)
         if(expr_comparitor(fact_expr, expression, mapping)):
             yield mapping
 
@@ -472,13 +473,14 @@ class ModularAgent(BaseAgent):
                     yield Explanation(rhs, m)
 
     def explanations_from_how_search(self, state, sai, foci_of_attention):  # -> return Iterator<Explanation>
-        sel_match = next(expression_matches(
-                         {('?sel_attr', '?sel'): sai.selection}, state), None)
-
-        if(sel_match is not None):
-            selection_rule = (sel_match['?sel_attr'], '?sel')
-        else:
-            selection_rule = sai.selection
+        # sel_match = next(expression_matches(
+        #                  {('?sel_attr', '?sel'): sai.selection}, state), None)
+        # print(sel_match, sai.selection)
+        # if(sel_match is not None):
+        #     selection_rule = (sel_match['?sel_attr'], '?sel')
+        # else:
+        # sel_match = {"?sel" : sai.selection}
+        # selection_rule = sai.selection
 
         itr = self.planner.how_search(state, sai,
                                       foci_of_attention=foci_of_attention)
@@ -486,12 +488,13 @@ class ModularAgent(BaseAgent):
             inp_vars = list(mapping.keys())
             varz = list(mapping.values())
 
-            rhs = RHS(selection_expr=selection_rule, action=sai.action,
+            rhs = RHS(selection_expr=sai.selection, action=sai.action,
                       input_rule=input_rule, selection_var="?sel",
                       input_vars=inp_vars, input_attrs=list(sai.inputs.keys()))
 
-            literals = [sel_match['?sel']] + varz
+            literals = [sai.selection] + varz
             ordered_mapping = {k: v for k, v in zip(rhs.all_vars, literals)}
+            print(ordered_mapping)
             yield Explanation(rhs, ordered_mapping)
 
     def add_rhs(self, rhs, skill_label="DEFAULT_SKILL"):  # -> return None
@@ -512,6 +515,7 @@ class ModularAgent(BaseAgent):
     def fit(self, explanations, state, reward):  # -> return None
         if(not isinstance(reward,list)): reward = [reward]*len(explanations)
         for exp,_reward in zip(explanations,reward):
+            print(exp, 'rew:', _reward)
             mapping = list(exp.mapping.values())
             self.when_learner.ifit(exp.rhs, state, mapping, _reward)
             self.which_learner.ifit(exp.rhs, state, _reward)
@@ -520,11 +524,13 @@ class ModularAgent(BaseAgent):
     def train(self, state:Dict, sai:Sai=None, reward:float=None,
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
+        # pprint(state)
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
         state_featurized = self.planner.apply_featureset(state)
 
-
+        
+        print(sai, foci_of_attention)
         ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
         _ = [x for x in self.applicable_explanations(state_featurized)]
         ############################################################
@@ -566,7 +572,7 @@ class ModularAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-
+        print("FIT_A")
         self.fit(explanations, state_featurized, reward)
         if(self.ret_train_expl):
             out = []
