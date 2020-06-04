@@ -467,7 +467,7 @@ class ModularAgent(BaseAgent):
                                               allow_copy=False)
             for input_rule, mapping in itr:
 
-                m = {"?sel": "?ele-" + sai.selection}
+                m = {"?sel": sai.selection}
                 m.update(mapping)
                 if(len(m)==len(set(m.values()))):
                     yield Explanation(rhs, m)

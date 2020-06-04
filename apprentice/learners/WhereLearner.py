@@ -1048,38 +1048,49 @@ def __fill_partial_matches_at(partial_matches,i,pair_matches,pair_index_reg,
 #                 # break
 @njit(nogil=False, parallel=False,fastmath=False,cache=True)
 def fill_pairs_at(partial_matches,i,pair_matches):
-    pair_matches_i = pair_matches[i]
-    # print("WHEEE")
-    # print(pair_matches_i)
-    # print(partial_matches)
-    # print("WHEEE")
-    for j, pair_matches_ij in pair_matches_i.items():
+    ''' 
+    Adds new bindings to each partial match in list partial_matches, by
+    trying to apply consistent pairs of elements associated with concept_i.
+
+    '''
+
+    #For every concept_j adjacent to concept_i
+    for j, pair_matches_ij in pair_matches[i].items():
         new_pms = List()
+        #Apply the following to each partial_match "pm" so far:
         for pm in partial_matches:
             altered = False
             
+            #For each consistent pair (e_i, e_j) of elements matching concepts
+            #   i and j respectively:
             for (k, e_i, e_j) in pair_matches_ij:
-                #Apply this pair to each partial match for which concept_i 
-                #   is unbound or is bound to the same element as this pair
-                #   and for which concept_j is unbound
+                
+                #Bind the pair to partial match "pm" if:
                 okay = True
                 for p in range(len(pm)):
+                    #concept_i is unbound or concept_i is bound to e_i
                     if(p == i):
                         if(not (pm[i] == 0 or pm[i] == e_i)): okay = False; break;
+                    #and concept_j is unbound
                     elif(p == j):
                         if(not (pm[j] == 0)): okay = False; break;
+                    #and e_i and e_j are not bound elsewhere in partial match "pm"
                     elif(pm[p] == e_i or pm[p] == e_j):
                         okay = False; break;
-                        
+                
+                #Then append the new partial match to the set of partial matches
                 if(okay):
                     new_pm = pm.copy()
                     new_pm[i], new_pm[j] = e_i, e_j
                     new_pms.append(new_pm)
                     altered = True
+
+            #If partial match "pm" hasn't picked up any new bindings to concepts i and j
+            #   but at least one was not yet bound, then no further binding can be found 
+            #   for "pm" and it is rejected. Otherwise keep pm for the next iteration.
             if(not altered and pm[i] != 0 and pm[j] != 0):
                 new_pms.append(pm)
         partial_matches = new_pms
-    # print(new_pms)
     return partial_matches
 
 @njit(nogil=False, parallel=False,fastmath=False,cache=True)
@@ -1098,7 +1109,38 @@ def fill_singles_at(partial_matches,i,cand_names):
     
 
 
-        
+@njit(nogil=False, parallel=False,fastmath=False,cache=True)
+def find_consistent_pairs(concepts, elems, candidates,
+                        elem_names, where_vars_to_inds):
+    '''
+    Builds the list "pair_matches" which holds a dictionary for each
+    concept_i with keys for the indicies of adjacent concepts_j and 
+    values are lists of pairs of elements which are mutually 
+    consistent candidates for concept_i and concept_j respectively.
+    '''
+    pair_matches = List()
+    for i,(concept_i, cands_inds_i) in enumerate(zip(concepts,candidates)):
+        pair_matches_i = Dict.empty(i8,list_of_u4_triple)
+        #Loop through every feature of concept_i
+        for k, f_k in enumerate(concept_i):
+
+            #If a reference to concept_j is present at feature k of concept_i
+            if(f_k in where_vars_to_inds):
+                j = where_vars_to_inds[f_k]
+                elem_names_j = elem_names[candidates[j]]
+                pair_matches_ij = List.empty_list(u4_triple)
+
+                #Find pairs of consistent candidates between the two concepts
+                for c1_ind in cands_inds_i:
+                    f_k_of_c1 = elems[c1_ind][k]
+                    for c2_val in elem_names_j:
+                        if(f_k_of_c1 == c2_val):
+                            #Add the triple (k, e_i,e_j) as a candidate pair
+                            pair_matches_ij.append((k,elem_names[c1_ind],c2_val))
+                pair_matches_i[j] = pair_matches_ij
+        pair_matches.append(pair_matches_i)
+    return pair_matches
+
 
 
 
@@ -1112,12 +1154,13 @@ def match_iterative(split_ps, concept_slices,
                     concept_cands,cand_slices,
                     elem_names,
                     where_part_vals):
-    
-    n_concepts = len(concept_slices)-1
+    '''
+    Produces every consistent matching of elems to concepts.
+    '''
+
 
     #----To be new inputs-----
     where_vars_to_inds = Dict.empty(u4,i8)
-    # print("WWW",where_part_vals,n_concepts)
     for j,v in enumerate(where_part_vals):
         where_vars_to_inds[v] = j
     concepts = List()
@@ -1130,70 +1173,20 @@ def match_iterative(split_ps, concept_slices,
     for i in range(len(cand_slices)-1):
         candidates.append(concept_cands[cand_slices[i]:cand_slices[i+1]])
     #----END new inputs-----
-    # print(len(concepts))
-    # print(len(elems))
-    # print(len(candidates))
-    # print(len(elem_names))
 
-    pair_matches = List()
-    # pair_index_reg = -np.ones((n_concepts,n_concepts,2),dtype=np.int16)
-    # pair_matches = List()
-    # single_matches = List()
-    for i,(concept_i, cands_inds_i) in enumerate(zip(concepts,candidates)):
-        pair_matches_i = Dict.empty(i8,list_of_u4_triple)
-        #Loop through every feature of concept_i
-        for k, f_k in enumerate(concept_i):
+    n_concepts = len(concepts)
+    pair_matches = find_consistent_pairs(concepts, elems, candidates,
+                        elem_names, where_vars_to_inds)
 
-            #If a reference to concept_j is present at feature k of concept_i
-            if(f_k in where_vars_to_inds):
-                j = where_vars_to_inds[f_k]
-                # print("--",i,":",k,j,"--")
-                elem_names_j = elem_names[candidates[j]]
-
-                pair_matches_ij = List.empty_list(u4_triple)
-
-                #Find pairs of consistent candidates between the two concepts
-                for c1_ind in cands_inds_i:
-                    f_k_of_c1 = elems[c1_ind][k]
-                    # print(elems[c1_ind], c1_ind)
-                    for c2_val in elem_names_j:
-                        # print(elem_names[c1_ind], c2_val, f_k_of_c1 == c2_val)
-                        if(f_k_of_c1 == c2_val):
-                            # print("PAIR", elem_names[c1_ind],c2_val)
-                            pair_matches_ij.append((k,elem_names[c1_ind],c2_val))
-                            # pair_match = np.empty(4,dtype=np.uint32)
-                            # # # pair_match2 = np.empty(4,dtype=np.uint16)
-                            # # print("inds_i[k]",inds_i[k])
-                            # pair_match[0] = i
-                            # pair_match[1] = j
-                            # pair_match[2] = elem_names[c1_ind]
-                            # pair_match[3] = c2_val
-
-                            # # print("pair_match",pair_match)
-                            # pair_matches.append(pair_match)
-                # pair_index_reg[i,j,1] = len(pair_matches)-pair_index_reg[i,j,0]
-                pair_matches_i[j] = pair_matches_ij
-        pair_matches.append(pair_matches_i)
     partial_matches = List()
     partial_matches.append(np.zeros((n_concepts,),dtype=np.uint32))
 
     for i in range(n_concepts):
         partial_matches = fill_pairs_at(partial_matches,i,pair_matches)
-        # print(partial_matches)
 
     for i in range(n_concepts):
         if(len(pair_matches[i]) == 0):
             partial_matches = fill_singles_at(partial_matches,i,[elem_names[c] for c in candidates[i]])
-    # partial_matches = fill_partial_matches_at(partial_matches,1,pair_matches)
-    # partial_matches = fill_partial_matches_at(partial_matches,2,pair_matches)
-    # for i in range(d):
-        # partial_matches = np.zeros((1,d),dtype=np.uint16)
-    # partial_matches = fill_partial_matches_at(partial_matches,0,pair_matches,pair_index_reg,single_matches)
-    # for j in range(n_concepts):
-    #     # partial_matches = np.zeros((1,d),dtype=np.uint16)
-    #     partial_matches = fill_partial_matches_at(partial_matches,j,pair_matches,pair_index_reg,single_matches)
-    #     # print("PMs",partial_matches)
-    #     # fill_partial_matches_around(partial_matches,i,pair_matches,pair_index_reg)
     # print("OUT",partial_matches)
     return partial_matches
 
