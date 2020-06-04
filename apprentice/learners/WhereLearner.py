@@ -768,292 +768,12 @@ def get_where_learner(name, **kwargs):
     return WhereLearner(name, **kwargs)
 
 
-
-
-
-# if __name__ == "__main__":
-
-    # ssw = RelationalLearner(args=('?foa0',),
-    #                         constraints=frozenset([('name', '?foa0',
-    #                                               '?foa0val')]))
-    # ssw = SpecificToGeneral(args=('?foa0',),
-    #                         constraints=frozenset([('name', '?foa0',
-    #                                               '?foa0val')]))
-
-    # ssw = MostSpecific(args=('?foa0',),
-    #                         constraints=frozenset([('name', '?foa0',
-    #                                               '?foa0val')]))
-    # p1 = {('on', '?o1'): '?o2',
-    #       ('name', '?o1'): "Block 1",
-    #       ('name', '?o2'): "Block 7",
-    #       ('valuea', '?o2'): 99}
-
-    # p2 = {('on', '?o3'): '?o4',
-    #       ('name', '?o3'): "Block 3",
-    #       ('name', '?o4'): "Block 4",
-    #       ('valuea', '?o4'): 2}
-
-    # n1 = {('on', '?o5'): '?o6',
-    #       ('on', '?o6'): '?o7',
-    #       ('name', '?o5'): "Block 5",
-    #       ('name', '?o6'): "Block 6",
-    #       ('name', '?o7'): "Block 7",
-    #       ('valuea', '?o7'): 100}
-
-    # ssw.ifit(['?o1'], p1, 1)
-    # ssw.ifit(['?o5'], n1, 0)
-    # ssw.ifit(['?o3'], p2, 1)
-
-    # test1 = {('on', '?o5'): '?o6',
-    #          ('on', '?o6'): '?o7',
-    #          ('name', '?o5'): "Block 1",
-    #          ('name', '?o6'): "Block 7",
-    #          ('name', '?o7'): "Block 5",
-    #          ('valuea', '?o6'): 3}
-
-    # print()
-    # print("FINAL HYPOTHESIS")
-    # print(ssw.learner.get_hset())
-
-    # ms = SpecificToGeneral(args=('foa0','foa1'))#,
-    #                         # constraints=frozenset([('name', '?foa0',
-    #                         #                       '?foa0val')]))
-
-    # state = {'columns' : { 
-    #             "0": {
-    #                 "0":{"?ele1": {"id": "ele1", "value":7}},
-    #                 "1":{"?ele2": {"id": "ele2", "value":8}}
-    #             },
-    #             "1": {
-    #                 "0":{"?ele3": {"id": "ele3", "value":7}},
-    #                 "1":{"?ele4": {"id": "ele4", "value":8}}
-    #             }
-    #         }
-    #      }
-    # from concept_formation.preprocessor import Flattener
-    # from pprint import pprint
-    # fl = Flattener()
-    # state = fl.transform(state)
-
-    # pprint(state)
-
-    # ms.ifit(['?ele1','?ele2'], state, 1)
-    # ms.ifit(['?ele3','?ele4'], state, 1)
-    # ms.ifit(['?ele1','?ele3'], state, 0)
-    # # ms.ifit(['?o3'], state, 1)
-
-    # for m in ms.get_matches(state):
-    #    print('OP MATCH', m)
-
-
-@njit(nogil=True, parallel=False,fastmath=True,cache=True)
-def compute_adjacencies(split_ps, concept_slices,
-                    where_part_vals):
-    d = len(concept_slices)-1
-    adjacencies = np.zeros((d,d),dtype=np.uint8)
-
-    for i in prange(d):
-        concept = split_ps[concept_slices[i]:concept_slices[i+1]]
-        # print("concept", concept,concept_slices[i],concept_slices[i+1])
-        for j in range(d):
-            for k in range(len(concept)):
-                if(concept[k] == where_part_vals[j]):
-                    adjacencies[i,j] = 1    
-                    break
-                
-    return adjacencies
-
-@njit(nogil=True, parallel=False,fastmath=True,cache=True)
-def gen_cand_slices(inds_j,
-                    elems,elems_slices,
-                    sel):
-    candidate_slices = np.empty((len(inds_j),len(sel)),dtype=np.uint8)
-    # print("BOOP",len(inds_j))
-    for k in prange(len(inds_j)):
-        ind = inds_j[k]
-        # print(elems[elems_slices[ind]:elems_slices[ind+1]],sel)
-        candidate_slices[k] = elems[elems_slices[ind]:elems_slices[ind+1]][sel]
-        # cands = 
-    return candidate_slices
-
-
-
-u4_array_list = ListType(u4[::1])
-u4_array = u4[::1]
-@njit(nogil=True, parallel=False,fastmath=True,cache=True)
-def __fill_partial_matches_at(partial_matches,i,pair_matches,pair_index_reg,
-                            single_matches):
-
-    '''
-    partial_matches: a set of match candidates 
-    '''
-    # print("i",i)
-    d = partial_matches.shape[1]
-    NEG = np.array(-1,dtype=partial_matches.dtype)
-    i_elms = Dict.empty(u4, u4_array_list)
-
-
-    #Fill i_elems wich is a dictionary of lists of triples ()
-    has_constraints = False
-    for j in range(d):
-        if(pair_index_reg[i][j][0] != -1):
-            s,l = pair_index_reg[i][j][0],pair_index_reg[i][j][1]
-            for k in range(l):
-                pm = pair_matches[s+k]
-                # print("MOOOOOP",pm_jk)
-                dat = np.empty(3,dtype=np.uint32)
-                dat[0] = s
-                dat[1] = l
-                dat[2] = k
-
-                if(not pm[2] in i_elms):
-                    lst = List.empty_list(u4_array)
-                    lst.append(dat)
-                    i_elms[pm[2]] = lst
-                else:
-                    i_elms[pm[2]].append(dat)
-                has_constraints = True
-
-    par_ms_list = List() 
-    if(has_constraints):
-        for elem in i_elms:
-            da = i_elms[elem]
-  
-            already_matches = np.empty(len(partial_matches),dtype=np.uint8)
-            for j in range(len(partial_matches)):
-                already_matches[j] = (partial_matches[j,:i] == elem).any() | (partial_matches[j,i+1:] == elem).any()
-            par_ms_sel = (((partial_matches[:,i] == 0) | (partial_matches[:,i] == elem)) & ~already_matches).nonzero()[0]
-            par_ms = partial_matches[par_ms_sel,:].copy()
-
-            par_ms[:,i] = elem
-
-            da_s = Dict()
-            for r in da:
-                if(not r[0] in da_s):
-                    lst2 = List()
-                    lst2.append(r)
-                    da_s[r[0]] = lst2
-                else:
-                    da_s[r[0]].append(r)
-            for s in da_s:
-                _da = da_s[s]
-                for r in _da:
-                    k = r[2]
-                    l = len(_da)
-                   
-                    if(l > 1):
-                        # print("THIS WOULD HAVE BEEN A VALUE ERROR", s, k, l)
-                        # raise ValueError()
-                        old = len(par_ms)
-                        new_partial_matches = np.empty((old*l,d),dtype=partial_matches.dtype)
-                        for k in range(l):
-                            pm = pair_matches[s+k]
-                            # print(par_ms[:,pm[1]])
-                            # print("here1k",pm[1], pm[3])
-                            # print(elm,"k")
-                            # partial_matches[:,pm[0]] = pm[2]
-                            par_ms[:,pm[1]] = np.where(par_ms[:,pm[1]] == 0, pm[3],par_ms[:,pm[1]])
-                            new_partial_matches[k*old:(k+1)*old] = par_ms
-                        par_ms = new_partial_matches
-                    elif(l != 0):
-                        pm = pair_matches[s+k]
-                        par_ms[:,pm[1]] = np.where((par_ms[:,pm[1]] == 0) | (par_ms[:,pm[1]] == pm[3]),
-                                                    pm[3],-1)
-                    
-            consistencies = np.empty(len(par_ms),dtype=np.uint8) 
-            for j in range(len(par_ms)):
-                consistencies[j] = ~(par_ms[j] == NEG).any()
-            par_ms = par_ms[consistencies.nonzero()[0]]
-        
-            par_ms_list.append(par_ms)
-    else:
-        elem_names_i = single_matches[i]
-        for elem in elem_names_i:
-            already_matches = np.empty(len(partial_matches),dtype=np.uint8)
-            for j in range(len(partial_matches)):
-               
-                already_matches[j] = (partial_matches[j,:i] == elem).any() | (partial_matches[j,i+1:] == elem).any()
-
-            par_ms_sel = (((partial_matches[:,i] == 0) | (partial_matches[:,i] == elem)) & ~already_matches).nonzero()[0]
-            par_ms = partial_matches[par_ms_sel,:].copy()
-        
-
-            par_ms[:,i] = elem
-            par_ms_list.append(par_ms)   
-
-        # print("not has_constraints")
-
-
-
-            # pm = pair_matches[s+k]
-
-            # print(pm)
-        
-        # elem = i_elms[k]
-        # partial_matches[:,i] = elem
-        # new_partial_matches[k*old:(k+1)*old] = partial_matches
-    # partial_matches = new_partial_matches
-    # np.array()
-    n = 0
-    for par_ms in par_ms_list:
-        n += len(par_ms)
-    # print(n)
-    # print(d)
-    # print((n,d))
-    new_partial_matches = np.empty((n,d),dtype=np.uint32)
-    k = 0
-    for par_ms in par_ms_list:
-        # print("P<S",par_ms)
-        new_partial_matches[k:k+len(par_ms),:] = par_ms
-        # for j in range(new_partial_matches.shape[-1]):
-            # new_partial_matches[k:k+len(par_ms),j] = par_ms[j]
-        k += len(par_ms)
-
-    # partial_matches = np.concatenate(tuple(*par_ms_list))
-    # print("OUT!")
-    # print(partial_matches)
-    return new_partial_matches
-
-# def fill_partial_matches_around(partial_matches,i,pair_matches,pair_index_reg):
-#     #just the index we start from
-#     # for i in range(d):
-#     print(i)
-#     print(partial_matches )
-#     # partial_matches = List()
-#     d = partial_matches.shape[1]
-
-#     for j in range(d):
-#         if(pair_index_reg[i][j][0] != -1):
-#             s,l = pair_index_reg[i][j][0],pair_index_reg[i][j][1]
-#             if(l > 1):
-#                 old = len(partial_matches)
-#                 new_partial_matches = np.empty((old*l,d))
-#                 for k in range(l):
-#                     pm = pair_matches[s+k]
-#                     print(pm,"k")
-#                     # partial_matches[:,pm[0]] = pm[2]
-#                     partial_matches[:,pm[1]] = pm[3]
-#                     new_partial_matches[k*old:(k+1)*old] = partial_matches
-#                 partial_matches = new_partial_matches
-#             elif(l != 0):
-#                 pm = pair_matches[s]
-#                 print(pm,"one",i)
-#                 # partial_matches[:,pm[0]] = pm[2]
-#                 partial_matches[:,pm[1]] = pm[3]
-
-#     print(partial_matches.shape)
-#     print(partial_matches )
-
-#     return partial_matches
-#                 # break
 @njit(nogil=False, parallel=False,fastmath=False,cache=True)
 def fill_pairs_at(partial_matches,i,pair_matches):
     ''' 
     Adds new bindings to each partial match in list partial_matches, by
     trying to apply consistent pairs of elements associated with concept_i.
-
     '''
-
     #For every concept_j adjacent to concept_i
     for j, pair_matches_ij in pair_matches[i].items():
         new_pms = List()
@@ -1095,6 +815,11 @@ def fill_pairs_at(partial_matches,i,pair_matches):
 
 @njit(nogil=False, parallel=False,fastmath=False,cache=True)
 def fill_singles_at(partial_matches,i,cand_names):
+    '''
+    For concept_i which is free floating and without a concept
+    tracked neighbor, bind the candidates for this concept
+    to every partial match in partial_matches. 
+    '''
     new_pms = List()
     for pm in partial_matches:
         if(pm[i] == 0):
@@ -1104,9 +829,6 @@ def fill_singles_at(partial_matches,i,cand_names):
                     new_pm[i] = cn
                     new_pms.append(new_pm)
     return new_pms
-    
-
-    
 
 
 @njit(nogil=False, parallel=False,fastmath=False,cache=True)
@@ -1142,10 +864,6 @@ def find_consistent_pairs(concepts, elems, candidates,
     return pair_matches
 
 
-
-
-
-
 u4_triple = UniTuple(u4,3)
 list_of_u4_triple = ListType(u4_triple)
 @njit(nogil=False, parallel=False,fastmath=False,cache=True)
@@ -1157,7 +875,6 @@ def match_iterative(split_ps, concept_slices,
     '''
     Produces every consistent matching of elems to concepts.
     '''
-
 
     #----To be new inputs-----
     where_vars_to_inds = Dict.empty(u4,i8)
@@ -1187,120 +904,6 @@ def match_iterative(split_ps, concept_slices,
     for i in range(n_concepts):
         if(len(pair_matches[i]) == 0):
             partial_matches = fill_singles_at(partial_matches,i,[elem_names[c] for c in candidates[i]])
-    # print("OUT",partial_matches)
-    return partial_matches
-
-
-@njit(nogil=True, parallel=False,fastmath=True,cache=True)
-def _match_iterative(split_ps, concept_slices,
-                    elems,elems_slices,
-                    concept_cands,cand_slices,
-                    elem_names,
-                    where_part_vals):
-    '''
-    split_ps: a flat array consisting of the values of the positive concepts 
-        from the version space 
-    concept_slices: slices into split_ps for each concept
-    elems: a flat array consisting of the enumerized state elements
-    elems_slices: slices into the flat "elems' array
-    concept_cands: a flat array of indicies of candidates for each positive version
-        space concept
-    concept_cands: slices into the concept candidates 
-    elem_names: a flat array of the ids of each element
-    where_part_vals: the enums of each where part variable string i.e. [?sel,?arg0,?arg1,...]
-
-
-
-    '''
-    d = len(concept_slices)-1
-    adjacencies = compute_adjacencies(split_ps, concept_slices,where_part_vals)
-    print("ADJ", adjacencies.shape,d)
-    # adjacencies_nz = adjacencies.nonzero()
-    pair_matches = List()
-    single_matches = List()
-    # print("SHEEEE::",len(pair_matches))
-    pair_index_reg = -np.ones((d,d,2),dtype=np.int16)
-    # for a in range(len(adjacencies_nz[0])):
-    # print("elems")
-    # print(elems)
-    for i in range(d):
-        inds_i = concept_cands[cand_slices[i]:cand_slices[i+1]]
-        ps_i = split_ps[concept_slices[i]:concept_slices[i+1]]
-        elem_names_i = elem_names[inds_i]
-        single_matches.append(elem_names_i)
-        # print(elem_names_i)
-        for j in range(d):
-            if(adjacencies[i][j] == 1):                
-                inds_j = concept_cands[cand_slices[j]:cand_slices[j+1]]
-                elem_names_j = elem_names[inds_j]
-                sel = (ps_i == where_part_vals[j]).nonzero()[0]
-                candidate_slices = gen_cand_slices(inds_i,elems,elems_slices,sel)
-                ps_i = split_ps[concept_slices[i]:concept_slices[i+1]]
-                pair_index_reg[i,j,0] = len(pair_matches)
-
-                for k in range(len(elem_names_i)):
-                    v = candidate_slices[k]
-                    # print("v",v,where_part_vals[j])
-                    for r in range(len(elem_names_j)):
-                        # print((candidate_slices[r], v))
-                        # print((candidate_slices[r] == v))
-                        # print(elem_names_j[r])
-                        con = (elem_names_j[r] == v).all()
-                        # consistencies[k][inds_j[r]] = con
-                        # print(elem_names_i[k],elem_names_j[r])
-                        # print("(",k,r,")", elem_names_j[r],v)
-                        if(con):
-                            # ok_k[r] = 1
-                            # ok_r[k] = 1
-                            pair_match = np.empty(4,dtype=np.uint32)
-                            # # pair_match2 = np.empty(4,dtype=np.uint16)
-                            # print("inds_i[k]",inds_i[k])
-                            pair_match[0] = i
-                            pair_match[1] = j
-                            pair_match[2] = elem_names_i[k]
-                            pair_match[3] = elem_names_j[r]
-
-                            # print("pair_match",pair_match)
-                            pair_matches.append(pair_match)
-
-                            
-
-                            # pair_match2[0] = elem_names_j[k]
-                            # pair_match2[1] = elem_names_i[r]
-
-                            # partial_match[i] = elem_names_i[r]
-                            # partial_match[j] = elem_names_j[k]
-                            # print(inds_i[r],inds_j[k])
-                            # print(partial_match)
-                            # if(not assigned):
-                # print(i,j)
-                # print(consistencies)
-
-                
-                # pair_matches.append(consistencies)
-                            # pair_matches.append(pair_match2)
-
-                pair_index_reg[i,j,1] = len(pair_matches)-pair_index_reg[i,j,0]
-                # pair_index_reg[j,i,1] = len(pair_matches)-pair_index_reg[j,i,0]
-
-            # for pm in consistencies.nonzero():
-        
-    # print(pair_index_reg[:,:,0])
-    # print(pair_index_reg[:,:,1])
-    # print("PAIRS")
-    # for p in pair_matches: 
-    #     print(p)
-
-    partial_matches = np.zeros((1,d),dtype=np.uint32)
-    # partial_matches = fill_partial_matches_at(partial_matches,0,pair_matches,pair_index_reg,single_matches)
-    # for i in range(d):
-        # partial_matches = np.zeros((1,d),dtype=np.uint16)
-    partial_matches = fill_partial_matches_at(partial_matches,0,pair_matches,pair_index_reg,single_matches)
-    for j in range(d):
-        # partial_matches = np.zeros((1,d),dtype=np.uint16)
-        partial_matches = fill_partial_matches_at(partial_matches,j,pair_matches,pair_index_reg,single_matches)
-        # print("PMs",partial_matches)
-        # fill_partial_matches_around(partial_matches,i,pair_matches,pair_index_reg)
     # print("OUT",partial_matches)
     return partial_matches
 
