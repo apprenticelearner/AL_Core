@@ -320,13 +320,15 @@ STATE_VARIABLIZATIONS = {"whereappend": variablize_by_where_append,
                          "metaskill" : variablize_state_metaskill}
 
 
+
 class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', explanation_choice='random',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
-                 numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[], **kwargs):
+                 numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
+                 constraint_set='ctat', **kwargs):
                 
                 
         # print(planner)
@@ -359,6 +361,9 @@ class ModularAgent(BaseAgent):
         self.ret_train_expl = ret_train_expl
         self.last_state = None
 
+        assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
+        self.constraint_generator = CONSTRAINT_SETS[constraint_set]
+
     # -----------------------------REQUEST------------------------------------
 
     def all_where_parts(self,state, rhs_list=None):
@@ -383,7 +388,7 @@ class ModularAgent(BaseAgent):
                 pred_state = state.get_view(("variablize", rhs, tuple(match)))
             else:
                 pred_state = state
-
+            print("MATCH", rhs,match)
             if(not skip_when):
                 p = self.when_learner.predict(rhs, pred_state)
                 
@@ -413,6 +418,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
+            print("explanation:",explanation)
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
@@ -424,7 +430,10 @@ class ModularAgent(BaseAgent):
         if(len(responses) == 0):
             return EMPTY_RESPONSE
         else:
+            print("responses:")
+            print(responses)
             response = responses[0].copy()
+            print("response:", response)
             if(n != 1):
                 response['responses'] = responses
             return response
@@ -506,7 +515,8 @@ class ModularAgent(BaseAgent):
         if(self.where_learner.get_strategy() == "first_order"):
             constraints = gen_html_constraints_fo(rhs)
         else:
-            constraints = gen_html_constraints_functional(rhs)
+            constraints = self.constraint_generator(rhs)
+            # constraints = gen_stylus_constraints_functional(rhs)
 
         self.where_learner.add_rhs(rhs, constraints)
         self.when_learner.add_rhs(rhs)
@@ -719,25 +729,60 @@ def gen_html_constraints_fo(rhs):
 
     # value constraints, don't select empty values
     for i, arg in enumerate(rhs.input_vars):
+        print("ARG", arg)
         constraints.add(('value', arg, '?arg%ival' % (i+1)))
         constraints.add((is_not_empty_string, '?arg%ival' % (i+1)))
 
     return frozenset(constraints)
 
 def gen_html_constraints_functional(rhs):
+    print("FUNCTIONAL")
     def selection_constraints(x):
+        print("SELc:", x)
         if(rhs.action == "ButtonPressed"):
             if(x["id"] != 'done'):
+                print("C!")
                 return False
         else:
             if("contentEditable" not in x or x["contentEditable"] != True):
+            # if("contentEditable" in x and x["contentEditable"] != True):
+                print("A!")
                 return False
         return True
 
     def arg_constraints(x):
+        print("Xc:", x)
         if("value" not in x or x["value"] == ""):
+            print("B!")
             return False
         return True
 
     return selection_constraints, arg_constraints
 
+def gen_stylus_constraints_functional(rhs):
+    print("FUNCTIONAL")
+    def selection_constraints(x):
+        print("SELc:", x)
+        if(rhs.action == "ButtonPressed"):
+            if(x["id"] != 'done'):
+                print("C!")
+                return False
+        else:
+            # if("contentEditable" not in x or x["contentEditable"] != True):
+            if("contentEditable" in x and x["contentEditable"] != True):
+                print("A!")
+                return False
+        return True
+
+    def arg_constraints(x):
+        print("Xc:", x)
+        if("value" not in x or x["value"] == ""):
+            print("B!")
+            return False
+        return True
+
+    return selection_constraints, arg_constraints
+
+
+CONSTRAINT_SETS = {"stylus" : gen_stylus_constraints_functional,
+                   "ctat" : gen_html_constraints_functional}
