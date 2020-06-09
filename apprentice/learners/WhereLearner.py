@@ -207,6 +207,7 @@ class FastMostSpecific(BaseILP):
 
         for t in self.tuples:
             if(self.check_constraints(t,x)):
+                print("T",t)
                 yield t
 
 
@@ -784,16 +785,15 @@ def fill_pairs_at(partial_matches,i,pair_matches):
             #For each consistent pair (e_i, e_j) of elements matching concepts
             #   i and j respectively:
             for (k, e_i, e_j) in pair_matches_ij:
-                
                 #Bind the pair to partial match "pm" if:
                 okay = True
                 for p in range(len(pm)):
                     #concept_i is unbound or concept_i is bound to e_i
                     if(p == i):
                         if(not (pm[i] == 0 or pm[i] == e_i)): okay = False; break;
-                    #and concept_j is unbound
+                    #and concept_j is unbound or concept_j is bound to e_j
                     elif(p == j):
-                        if(not (pm[j] == 0)): okay = False; break;
+                        if(not (pm[j] == 0 or pm[j] == e_j)): okay = False; break;
                     #and e_i and e_j are not bound elsewhere in partial match "pm"
                     elif(pm[p] == e_i or pm[p] == e_j):
                         okay = False; break;
@@ -904,7 +904,7 @@ def match_iterative(split_ps, concept_slices,
     for i in range(n_concepts):
         if(len(pair_matches[i]) == 0):
             partial_matches = fill_singles_at(partial_matches,i,[elem_names[c] for c in candidates[i]])
-    # print("OUT",partial_matches)
+    
     return partial_matches
 
 def flatten_n_slice(lst):
@@ -927,6 +927,7 @@ class VersionSpace(BaseILP):
     def __init__(self, args=None, constraints=None, use_neg=False, use_gen=False,
                        propose_gens=True, use_neighbor_concepts=True,
                        non_literal_attrs=["to_right","to_left","right","left","above","below","value","contentEditable"],
+                       remove_attrs=[],
                        null_types=[None,""]):
         self.pos_concepts = VersionSpaceILP(use_gen=use_gen)
         self.neg_concepts = VersionSpaceILP(use_gen=use_gen) if use_neg else None
@@ -943,13 +944,14 @@ class VersionSpace(BaseILP):
         self.use_gen = use_gen
         self.non_literal_attrs= non_literal_attrs
         self.null_types = null_types
+        self.remove_attrs = remove_attrs
 
     def initialize(self, n):
         assert n >= 1, "not enough elements"
         self.num_elems = n
         self.enumerizer = Enumerizer(start_num=0,
                                      force_add=["<#ANY>",None,'?sel'] + ['?arg%d' % i for i in range(n-1)],
-                                     remove_attrs=['value'])
+                                     remove_attrs=self.remove_attrs)
         self.initialized = True
 
     def remove_concepts(self,indicies):
@@ -991,8 +993,9 @@ class VersionSpace(BaseILP):
 
     def get_neighborized_vs_elems(self,t,x,gen_literals=False):
         rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
-        # print(self.expected_neighbors.keys())
+        # print(self.expected_neighbors)
         relation_map = self._resolve_neighbor_relations(t,x,itertools.chain(*self.expected_neighbors.values()))
+        # print(relation_map)
         neigh_rename_dict = {}
         for i,(k,v) in enumerate(self.expected_neighbors.items()):
             for v_i in v:
@@ -1014,11 +1017,14 @@ class VersionSpace(BaseILP):
         ##TODO: IMPURE
         
         # print("VS_TYPES", self.elem_types)
+        # pprint(rename_dict)
+        # pprint(neigh_rename_dict)
         rename_dict = {**rename_dict,**neigh_rename_dict}
-        instances = [rename_values(x[t_name],rename_dict) 
+        instances = [rename_values(x[t_name],rename_dict,exclude=[t_name]) 
                      for t_name in [*t,*neigh_rename_dict.keys()]]
 
-        # pprint(rename_dict)
+        
+        # pprint("instances")
         # pprint(instances)
         if(gen_literals):
             non_literals = set([*self.null_types,*rename_dict.values()])
@@ -1041,7 +1047,7 @@ class VersionSpace(BaseILP):
 
     def get_vs_elems(self,t,x,gen_literals=False):
         rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
-        instances = [rename_values(x[t_name],rename_dict) for t_name in t]
+        instances = [rename_values(x[t_name],rename_dict, exclude=[t_name]) for t_name in t]
         if(gen_literals):
             non_literals = set([*self.null_types,*rename_dict.values()])
             def genrl(k,v):
@@ -1071,19 +1077,20 @@ class VersionSpace(BaseILP):
             return None,None
 
     def fit_expected_neighbors(self,t,x,y):
+        # print(t)
         instances,vs_elems = self.get_vs_elems(t,x)
 
         neigh_relations = {}
         varz = ["?sel" if i == 0 else "?arg%d" % (i-1) for i in range(len(t))]
-        for inst,var in zip(instances,varz):
+        for inst,var, inst_id in zip(instances,varz, t):
             for k,v in inst.items():
+                # print(inst_id, v,k)
                 if(isinstance(v,list)):
                     for i,v_i in enumerate(v):
-                        if(v_i not in varz
-                            and v_i in x):
+                        if(v_i not in varz and v_i in x and v_i != inst_id):
                             neigh_relations[v_i] = neigh_relations.get(v_i,[])+[(var,k,i)]
-                elif(v in x):
-                    if(v not in varz):
+                else:
+                    if(v not in varz and v in x and v != inst_id):
                         neigh_relations[v] = neigh_relations.get(v,[])+[(var,k)]
                 # print("%s.%s"%(var,k),v)
         # print("neigh_relations")
@@ -1092,7 +1099,8 @@ class VersionSpace(BaseILP):
     # neigh_instances = [rename_values(x[n_name],t_neigh_relations) for n_name in neigh_relations.keys()]
     # neigh_elems = self.enumerizer.transform(neigh_instances)
 
-    
+        # print("neigh_relations")
+        # print(neigh_relations)
         if(self.expected_neighbors is None):
             self.elem_types = [x[t_name]["type"] for t_name in [*t,*neigh_relations.keys()]]
             self.expected_neighbors = {("?neigh%d"%i): vals for i,vals in enumerate(neigh_relations.values())}
@@ -1350,225 +1358,6 @@ class VersionSpace(BaseILP):
             return self.pos_concepts.check_match(vs_elems) > 0
 
 
-    def _match_iterative(self,split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems):
-        print("----------------")
-        print("split_ps")
-        pprint(split_ps)
-        # print(split_ns)
-        pprint("candidates_by_type:")
-        print(candidates_by_type)
-        pprint("concept_candidates:")
-        pprint(concept_candidates)
-        pprint([x.view(-1) for x in concept_cand_indicies])
-        print()
-        print(where_part_vals)
-        print()
-        pprint(elem_names)
-        pprint(consistencies)
-        pprint("elems")
-        pprint(elems)
-
-        print("concept_cand_indicies")
-        # pprint(concept_cand_indicies.size())
-        pprint([x.view(-1) for x  in concept_cand_indicies])
-
-        #adjacency matrix
-
-        adjacencies = torch.empty((len(split_ps),len(split_ps)))
-        for i,concept in enumerate(split_ps):
-            adjacencies[i,:] = (concept == where_part_vals.unsqueeze(-1)).any(dim=1)
-            # adj_deg = adj.sum()
-            # adjacencies.append((adj_deg,adj))
-            # print(adj)
-            # print(adj_deg)
-        # import numba
-        print(adjacencies)
-
-        for i,j in adjacencies.nonzero():
-            ps_i,ns_i = split_ps[i],split_ns[i]
-            ps_j,ns_j = split_ps[j],split_ns[j]
-            # _,elem_names_i = concept_candidates[i]
-            _,elem_names_j = concept_candidates[j]
-            # print(len(elem_names_i),len(elem_names_j))
-            sel = (ps_i.view(-1) == where_part_vals[j]).nonzero() 
-            cands = [x for i,x in enumerate(elems) if i in [x.item() for x in concept_cand_indicies[j]]]
-            print(cands)
-            # candidates_slice = cands[:,sel.view(-1)]
-            candidates_slice = candidates_by_type[self.elem_types[i]][:,sel.view(-1)]
-            # for u in elem_names_i:
-            print(sel,len(elem_names_j))
-            blehh = torch.empty(len(elem_names_j),len(candidates_slice),dtype=torch.uint8)
-            for k,v in enumerate(elem_names_j):
-                blehh[k] = (candidates_slice == v).all(dim=-1)
-
-            print("blehh")
-            print(blehh)
-
-
-
-            # all_consistencies[i] = blehh.any(dim=0)
-
-            # # partial_matches = torch.zeros(int(blehh.sum().item()),blehh.size()[1])
-            # partial_matches = []
-            # # print(partial_matches.size(),blehh.size())
-
-            # for k,pm in enumerate(blehh.nonzero()):
-            #     partial_match = torch.zeros(len(split_ps),dtype=torch.long)
-            #     partial_match[i] = pm[0]
-            #     partial_match[j] = pm[1]
-            #     partial_matches.append(partial_match)
-            #     # print("pm", pm)
-            #     # partial_matches[k,i] = pm[0]
-            #     # partial_matches[k,j] = pm[1]
-
-            # pprint(partial_matches)
-
-            # pprint(all_consistencies)
-            # pprint(elem_names)
-            # pprint(all_consistencies.size())
-            # pprint(elem_names.size())
-            
-
-            # print("repl",i,j,repl.size())
-            # print(repl)
-            # repl = repl.unsqueeze(-2)
-            # print(typ,j,repl.size())
-            # v_i = where_part_vals[j]
-            # print(v)
-
-            
-            # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
-            #   at element (r,e) if element e is consistent with concept set i given that 
-            #   where part j was assigned to element r.  
-            # consistent = ps_consistency = ( (ps_i == v)).unsqueeze(0)
-            # if(self.neg_ok):
-            #     ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
-            #     consistent = (ps_consistency & ns_consistency)
-            # print(consistent)
-
-            # # Element e is consistent with replacement r if the replacement changes the
-            # #   element so that all attributes for which the positive concept requires value v
-            # #   are replaced with value v, and no attributes are replaced with value v if it would
-            # #   make e match the negative concept.
-            # repl_consistency = ( ( (~ps_consistency) |  (repl & consistent) )).all(dim=-1).any(dim=-1)
-
-            # # If 'where' part j corresponds with concept i then we need to add the constraint that 
-            # #   our choice of the element for part j is the only possible consistent element with
-            # #   concept i. We can bitwise AND a diagonal matrix of shape (n_i,N_t) that has value 1 where the candidates
-            # #   for where part i align with the candidates from the original state to apply this constraint.
-            # if(i == j):
-            #     concept_diag = concept_cand_indicies[i].view(-1,1) == torch.arange(repl_consistency.size(-1)).view(1,-1)
-            #     repl_consistency = repl_consistency & concept_diag
-            # print(i,j)
-        # adjacencies = sorted(adjacencies,key=lambda x:x[0],reverse=True)
-        # pprint(adjacencies)
-
-
-        # replacements_by_type = {}
-        # for typ, cnd in candidates_by_type.items():
-        #     # print(cnd)
-        #     repls = []
-        #     for consistency, elem_names in concept_candidates:
-        #         repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1))
-        #         repls.append(repl)
-        #     replacements_by_type[typ] = repls
-
-        # print(replacements_by_type[typ])
-
-
-            # split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
-        return torch.zeros((0,len(self.elem_types)),dtype=torch.long)
-    def _match_naive(self,split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals):
-        # For each subset of the state of shape (N_t,d_t) consisting of all N_t, elements of type t
-        #   with shared shape d_t, create a mask tensor of shape (n_w,N_t,d_t) such that each mask
-        #   along its first dimension selects a different candidate assignment to 'where' part w.
-        # print()
-        replacements_by_type = {}
-        for typ, cnd in candidates_by_type.items():
-            # print(cnd)
-            repls = []
-            for consistency, elem_names in concept_candidates:
-                repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1))
-                repls.append(repl)
-            replacements_by_type[typ] = repls
-
-        # concept_repl_cons = []
-
-
-        # Here we loop over the concepts for every where part and try every possible replacement 
-        #   of element name enums with the enums for "?sel", "?arg0", "?arg1", etc to see if 
-        #   the replacement is consistent with that concept.
-        tot = None
-        for i, (typ, ps_i, ns_i) in enumerate(zip(self.elem_types, split_ps, split_ns)):
-            # cnd = candidates_by_type[typ]
-            # print(typ,replacements_by_type[typ].size())
-            repls = replacements_by_type[typ]
-
-            ps_i = ps_i.unsqueeze(0)
-            if(self.neg_ok):
-                ns_i = ns_i.unsqueeze(0)
-
-            ok_i = None
-
-            # concept_repl_cons.append([])
-
-            # For each where part j check all assignments among the candidate elements
-            #   for consistency with concept(i).   
-            for j, repl in enumerate(repls):
-                # print("repl",i,j,repl.size())
-                # print(repl)
-                repl = repl.unsqueeze(-2)
-                # print(typ,j,repl.size())
-                v = where_part_vals[j]
-
-                
-                # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
-                #   at element (r,e) if element e is consistent with concept set i given that 
-                #   where part j was assigned to element r.  
-                consistent = ps_consistency = ( (ps_i == v)).unsqueeze(0)
-                if(self.neg_ok):
-                    ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
-                    consistent = (ps_consistency & ns_consistency)
-
-                # Element e is consistent with replacement r if the replacement changes the
-                #   element so that all attributes for which the positive concept requires value v
-                #   are replaced with value v, and no attributes are replaced with value v if it would
-                #   make e match the negative concept.
-                repl_consistency = ( ( (~ps_consistency) |  (repl & consistent) )).all(dim=-1).any(dim=-1)
-
-                # If 'where' part j corresponds with concept i then we need to add the constraint that 
-                #   our choice of the element for part j is the only possible consistent element with
-                #   concept i. We can bitwise AND a diagonal matrix of shape (n_i,N_t) that has value 1 where the candidates
-                #   for where part i align with the candidates from the original state to apply this constraint.
-                if(i == j):
-                    concept_diag = concept_cand_indicies[i].view(-1,1) == torch.arange(repl_consistency.size(-1)).view(1,-1)
-                    repl_consistency = repl_consistency & concept_diag
-                    
-                # Broadcast repl_consistency and bitwise AND it with the repl_consistencies so far
-                #   to ultimately create a tensor ok_i of shape (n_w1,n_w2,n_w3, ..., N_t) that contains a mask of 
-                #   elements for each combination of where assignments which are mutually consistent 
-                #   with concept set i. 
-                # print(i,j)
-                # print(repl_consistency)
-                repl_consistency = repl_consistency.view(*([1]*j + [-1] + (len(self.elem_types)-(j+1))*[1] + [repl_consistency.size(-1)]))
-
-                ok_i = (ok_i & repl_consistency) if ok_i is not None else repl_consistency
-                # print(i)
-                # print(ok_i)
-                
-
-            ok_i = ok_i.any(dim=-1)
-
-            # Bitwise AND all possible 'where' assignments for each concept to get a tensor of shape 
-            #   (n_w1,n_w2,n_w3, ...,) that has value 1 only for 'where' assignments consistent with all concepts.
-            tot = (tot & ok_i) if tot is not None else ok_i
-
-        # Get the indicies of the consistent 'where' assignments 
-        matches = tot.nonzero()
-        return matches
-        # print(matches)
-
-
     def get_matches(self, x):
         # with torch.no_grad():
         if(not self.pos_ok):
@@ -1582,6 +1371,10 @@ class VersionSpace(BaseILP):
         if(self.elem_slices == None):
             return
         # print(self.pos_concepts.spec_concepts)
+
+        #Do this just so everything is in the map
+        self.enumerizer.transform({i:x for i,x in enumerate(state.keys())})
+        self.enumerizer.transform(list(state.values()))
 
         # Create a tensor which contains the enum values associated with the when parts
         #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
@@ -1770,15 +1563,18 @@ class VersionSpace(BaseILP):
         
         #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
         # print(elem_names_list)
+        pprint(self.skill_info())
         for out_names in translated:
             out = [self.enumerizer.back_maps[0][y] for i,y in enumerate(out_names) if i < self.num_elems]
             # out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
-            # print(out)
+            print(out)
             
             # print(out,self.check_constraints(out,state))
             # print([state[x].get('value',None) for x in out])
             if(self.check_constraints(out,state)):
                 yield out
+            else:
+                print("FAIL CONSTR", out)
 
     def skill_info(self):
         out = {}
@@ -1899,17 +1695,17 @@ class VersionSpaceILP(object):
         return out.item()
 
 
-def rename_values(x, mapping, rename_keys=False): 
+def rename_values(x, mapping, exclude=[],rename_keys=False): 
     if(isinstance(x, dict)):
         if(rename_keys):
-            return {rename_values(name, mapping): rename_values(val, mapping) for name, val in x.items()}
+            return {rename_values(name, mapping,exclude): rename_values(val, mapping, exclude) for name, val in x.items()}
         else:
-            return {name: rename_values(val, mapping) for name, val in x.items()}
+            return {name: rename_values(val, mapping,exclude) for name, val in x.items()}
     elif(isinstance(x, list)):
-        return [rename_values(val, mapping) for val in x]
+        return [rename_values(val, mapping,exclude) for val in x]
     elif(isinstance(x, tuple)):
-        return tuple([rename_values(val, mapping) for val in x])
-    elif(x in mapping):
+        return tuple([rename_values(val, mapping,exclude) for val in x])
+    elif(x in mapping and x not in exclude):
         return mapping[x]
     else:
         return x
@@ -1938,7 +1734,7 @@ class Enumerizer(Preprocessor):
     #TODO: MAKE IT ASSERT A FIXED REPRESENTATION SOMEHOW
     def transform(self, instances, force_map=None):
         """
-        Transforms an instance.
+        Transforms an list of instances.
         """
         if(isinstance(instances, dict)):
             instances = [instances]
