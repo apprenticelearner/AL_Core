@@ -781,22 +781,26 @@ def fill_pairs_at(partial_matches,i,pair_matches):
         #Apply the following to each partial_match "pm" so far:
         for pm in partial_matches:
             altered = False
+            already_consistent = False
             
             #For each consistent pair (e_i, e_j) of elements matching concepts
             #   i and j respectively:
             for (k, e_i, e_j) in pair_matches_ij:
-                #Bind the pair to partial match "pm" if:
                 okay = True
+                #Bind the pair to partial match "pm" if:                
+                #concept_i is unbound or concept_i is bound to e_i and concept_j is unbound
+                if(not (pm[i] == 0 or (pm[i] == e_i and pm[j] == 0))): okay = False
+                #and concept_j is unbound or concept_j is bound to e_j and concept_i is unbound
+                if(not (pm[j] == 0 or (pm[j] == e_j and pm[i] == 0))): okay = False
+                
+                #and e_i and e_j are not bound elsewhere in partial match "pm"
                 for p in range(len(pm)):
-                    #concept_i is unbound or concept_i is bound to e_i
-                    if(p == i):
-                        if(not (pm[i] == 0 or pm[i] == e_i)): okay = False; break;
-                    #and concept_j is unbound or concept_j is bound to e_j
-                    elif(p == j):
-                        if(not (pm[j] == 0 or pm[j] == e_j)): okay = False; break;
-                    #and e_i and e_j are not bound elsewhere in partial match "pm"
-                    elif(pm[p] == e_i or pm[p] == e_j):
+                    if(p != i and p != j and (pm[p] == e_i or pm[p] == e_j)):
                         okay = False; break;
+
+                #Mark the partial match as consistent for this iteration if it
+                #   is consistent with this pair.
+                if(pm[j] == e_j and pm[i] == e_i): already_consistent = True
                 
                 #Then append the new partial match to the set of partial matches
                 if(okay):
@@ -807,8 +811,9 @@ def fill_pairs_at(partial_matches,i,pair_matches):
 
             #If partial match "pm" hasn't picked up any new bindings to concepts i and j
             #   but at least one was not yet bound, then no further binding can be found 
-            #   for "pm" and it is rejected. Otherwise keep pm for the next iteration.
-            if(not altered and pm[i] != 0 and pm[j] != 0):
+            #   for "pm" and it is rejected. Otherwise as long as pm[i] is consistent 
+            #   with pm[j] keep pm for the next iteration.
+            if(not altered and pm[i] != 0 and pm[j] != 0 and already_consistent):
                 new_pms.append(pm)
         partial_matches = new_pms
     return partial_matches
@@ -828,6 +833,8 @@ def fill_singles_at(partial_matches,i,cand_names):
                     new_pm = pm.copy()
                     new_pm[i] = cn
                     new_pms.append(new_pm)
+        else:
+            new_pms.append(pm)
     return new_pms
 
 
@@ -900,11 +907,13 @@ def match_iterative(split_ps, concept_slices,
 
     for i in range(n_concepts):
         partial_matches = fill_pairs_at(partial_matches,i,pair_matches)
+        print(partial_matches)
 
     for i in range(n_concepts):
         if(len(pair_matches[i]) == 0):
+            print("MOO",i, [elem_names[c] for c in candidates[i]])
             partial_matches = fill_singles_at(partial_matches,i,[elem_names[c] for c in candidates[i]])
-    
+    print(partial_matches)    
     return partial_matches
 
 def flatten_n_slice(lst):
