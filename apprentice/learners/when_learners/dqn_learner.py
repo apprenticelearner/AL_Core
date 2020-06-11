@@ -26,7 +26,7 @@ class DQNLearner(WhenLearner):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else
                                    "cpu")
-        # self.device = "cpu" #TODO: make cuda not break elsewhere
+        self.device = "cpu" #TODO: make cuda not break elsewhere
         self.gamma = gamma
         self.lr = lr
         self.batch_size = batch_size
@@ -52,12 +52,12 @@ class DQNLearner(WhenLearner):
 
         # create separate target net for computing future value
         self.target_value_net = ValueNet(self.state_size,
-                                         self.state_hidden_size)
+                                         self.state_hidden_size).to(self.device)
         self.target_value_net.load_state_dict(self.value_net.state_dict())
         self.target_value_net.eval()
         self.target_action_net = ActionNet(self.action_size,
                                            self.state_hidden_size,
-                                           self.action_hidden_size)
+                                           self.action_hidden_size).to(self.device)
         self.target_action_net.load_state_dict(self.action_net.state_dict())
         self.target_action_net.eval()
 

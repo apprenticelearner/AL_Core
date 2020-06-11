@@ -30,8 +30,8 @@ RUN set -ex \
     && apt-get install -y --no-install-recommends $RUN_DEPS \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3.8 -m pip install --no-cache-dir torch
 RUN python3.8 -m pip install --upgrade pip setuptools wheel
+RUN python3.8 -m pip install --no-cache-dir torch
 
 RUN mkdir -p /usr/local/apprentice
 WORKDIR /usr/local/apprentice
@@ -51,6 +51,7 @@ RUN set -ex \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./ /usr/local/apprentice
+RUN chmod +x /usr/local/apprentice/start.sh
 
 RUN python3.8 -m pip install --no-cache-dir .
 RUN pytest tests
@@ -86,3 +87,6 @@ WORKDIR ./django
 
 # Start uWSGI
 #CMD ["uwsgi", "--show-config"]
+
+CMD ["/usr/local/apprentice/start.sh"]
+
