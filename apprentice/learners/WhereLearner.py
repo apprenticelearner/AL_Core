@@ -15,7 +15,8 @@ from apprentice.planners.fo_planner import build_index
 from apprentice.planners.fo_planner import subst
 import numpy as np
 import itertools
-from timeit import repeat
+# from timeit import repeat
+import timeit
 import numba
 from numba import types, njit,guvectorize,uint32,vectorize,prange
 from numba import void,b1,u1,u2,u4,u8,i1,i2,i4,i8,f4,f8,c8,c16
@@ -25,8 +26,8 @@ from numba.types import UniTuple, ListType
 global my_gensym_counter
 my_gensym_counter = 0
 
-import logging
-logging.disable(logging.CRITICAL)
+# import logging
+# logging.disable(logging.CRITICAL)
 
 def ground(arg):
     if isinstance(arg, tuple):
@@ -907,13 +908,13 @@ def match_iterative(split_ps, concept_slices,
 
     for i in range(n_concepts):
         partial_matches = fill_pairs_at(partial_matches,i,pair_matches)
-        print(partial_matches)
+        # print(partial_matches)
 
     for i in range(n_concepts):
         if(len(pair_matches[i]) == 0):
-            print("MOO",i, [elem_names[c] for c in candidates[i]])
+            # print("MOO",i, [elem_names[c] for c in candidates[i]])
             partial_matches = fill_singles_at(partial_matches,i,[elem_names[c] for c in candidates[i]])
-    print(partial_matches)    
+    # print(partial_matches)    
     return partial_matches
 
 def flatten_n_slice(lst):
@@ -931,6 +932,8 @@ except:
 def mask_select(x, m):
     return x[m.nonzero().view(-1)]
 
+
+import time
 
 class VersionSpace(BaseILP):
     def __init__(self, args=None, constraints=None, use_neg=False, use_gen=False,
@@ -1369,6 +1372,8 @@ class VersionSpace(BaseILP):
 
     def get_matches(self, x):
         # with torch.no_grad():
+
+        start_time = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         if(not self.pos_ok):
             return
 
@@ -1397,6 +1402,9 @@ class VersionSpace(BaseILP):
         elem_names_list = [key for key in state.keys()]
         elem_names = self.enumerizer.transform_values(elem_names_list)
         elem_names = np.array(elem_names,dtype=np.uint8)
+
+        time0 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        print("A' time %.4f ms" % (time0-start_time))
 
         # Make a list that has all of the enumerized elements/objects
         elems_list = [val for val in state.values()]
@@ -1438,6 +1446,9 @@ class VersionSpace(BaseILP):
         # all_consistencies = []
         # all_concepts
         
+        time1 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        print("A time %.4f ms" % (time1-time0))
+
         # Loop over the concepts for each where part and cull down the list of
         #   possible matches for them. This phase only filters out elements we can
         #   rule out without committing to any part of the where assignment. 
@@ -1509,7 +1520,8 @@ class VersionSpace(BaseILP):
             # concept_candidates.append( (consistency, torch.masked_select(elem_names_by_type[typ],consistency)) )
 
         # all_consistencies = torch.tensor(all_consistencies)
-
+        time2 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        print("B time %.4f ms" % (time2-time1))
 
         split_ps_flat, concept_slices = flatten_n_slice(split_ps)
         elems_flat, elems_slices = flatten_n_slice(elems)
@@ -1550,11 +1562,18 @@ class VersionSpace(BaseILP):
         #     print([self.enumerizer.back_maps[0][z] for z in nms])
         # print()
         # print("Before")
+
+        time3 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        print("C time %.4f ms" % (time3-time2))
+
         translated = match_iterative(split_ps_flat, concept_slices,
                             elems_flat,elems_slices,
                             concept_cands_flat,cand_slices,
                             elem_names,
                             where_part_vals)
+
+        time4 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        print("D time %.4f ms" % (time4-time3))
         # translated = np.array([])
         # matches = self._match_iterative(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems)
         # matches = self._match_naive(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
@@ -1572,11 +1591,11 @@ class VersionSpace(BaseILP):
         
         #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
         # print(elem_names_list)
-        pprint(self.skill_info())
+        # pprint(self.skill_info())
         for out_names in translated:
             out = [self.enumerizer.back_maps[0][y] for i,y in enumerate(out_names) if i < self.num_elems]
             # out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
-            print(out)
+            # print(out)
             
             # print(out,self.check_constraints(out,state))
             # print([state[x].get('value',None) for x in out])
@@ -1584,6 +1603,9 @@ class VersionSpace(BaseILP):
                 yield out
             else:
                 print("FAIL CONSTR", out)
+        time5 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        print("E time %.4f ms" % (time5-time4))
+        print("")
 
     def skill_info(self):
         out = {}
@@ -2063,21 +2085,28 @@ if __name__ == "__main__":
     pprint(vs.skill_info())
 
 
-    def timefunc(s, func, *args, **kwargs):
-        """
-        Benchmark *func* and print out its runtime.
-        """
-        print(s.ljust(20), end=" ")
+    N=100
+    def time_ms(f):
+        f() #warm start
+        return " %0.6f ms" % (1000.0*(timeit.timeit(f, number=N)/float(N)))
+
+
+    # def timefunc(s, func, *args, **kwargs):
+    #     """
+    #     Benchmark *func* and print out its runtime.
+    #     """
+    #     print(s.ljust(20), end=" ")
         
-        # time it
-        print('{:>5.0f} ms'.format(min(repeat(lambda: func(*args, **kwargs),
-                                              number=5, repeat=2)) * 1000))
-        # return res
+    #     # time it
+    #     print('{:>5.0f} ms'.format(min(repeat(lambda: func(*args, **kwargs),
+    #                                           number=5, repeat=2)) * 1000))
+    #     # return res
 
     def gen_test_get_matches(vs):
         def test_get_matches():
             l = [match for match in vs.get_matches(state)]
         return test_get_matches        
+
 
 
     
@@ -2112,7 +2141,7 @@ if __name__ == "__main__":
 
     # raise ValueError("")
     if(True):
-        timefunc("match-3", gen_test_get_matches(vs))
+        print("match-3", time_ms(gen_test_get_matches(vs)) )
         for match in vs.get_matches(state):
             print(match)
 
@@ -2124,14 +2153,16 @@ if __name__ == "__main__":
         # vs2.ifit(["C3","A3","A2","A3","C3"],state,0)
         for match in vs2.get_matches(state):
             print(match)
-        timefunc("match-5", gen_test_get_matches(vs2))
+        # timefunc("match-5", gen_test_get_matches(vs2))
+        print("match-5", time_ms(gen_test_get_matches(vs2)) )
 
         
         vs3 = VersionSpace(use_neg=True)
         vs3.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3",],state,1)
         for match in vs3.get_matches(state):
             print(match)
-        timefunc("match-9", gen_test_get_matches(vs3))
+        # timefunc("match-9", gen_test_get_matches(vs3))
+        print("match-9", time_ms(gen_test_get_matches(vs3)) )
 
 
 
@@ -2140,7 +2171,15 @@ if __name__ == "__main__":
         vs4.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3","A4","C4"],state,1)
         for match in vs4.get_matches(state):
             print(match)
-        timefunc("match-11", gen_test_get_matches(vs4))
+        # timefunc("match-11", gen_test_get_matches(vs4))
+        print("match-11", time_ms(gen_test_get_matches(vs4)) )
+
+
+        state_dict = state.get_view("object")
+        def enumerize_state():
+            vs4.enumerizer.transform(state_dict.values())
+
+        print("Enumerize:",time_ms(enumerize_state))
 
     # vs4 = VersionSpace(use_neg=True)
     # vs4.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3","A4","C4"],state,1)

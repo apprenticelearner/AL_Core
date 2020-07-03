@@ -677,7 +677,7 @@ class VectorizedPlanner(BasePlanner):
 				continue
 			# print(expr)
 			# print(expr,type(expr))
-			# print(mapping,type(mapping))
+			print("MAPPP:",mapping,type(mapping))
 			# print("From HOW:", search_depth)
 			# print(type(expr))
 			# print(expr,list(mapping.values()))

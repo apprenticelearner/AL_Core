@@ -14,6 +14,7 @@ from apprentice.learners.WhereLearner import get_where_learner
 from apprentice.learners.WhichLearner import get_which_learner
 from apprentice.planners.base_planner import get_planner_class
 from apprentice.planners.VectorizedPlanner import VectorizedPlanner
+from apprentice.planners.NumbaPlanner import NumbaPlanner
 from types import MethodType
 
 
@@ -33,6 +34,8 @@ import cProfile
 # pr.enable()
 
 import atexit
+
+
 
 # def cleanup(*args):
 #     print("DUMP STATS")
@@ -479,6 +482,9 @@ class ModularAgent(BaseAgent):
                 m = {"?sel": sai.selection}
                 m.update(mapping)
                 if(len(m)==len(set(m.values()))):
+                    print("GEEEZ")
+                    print(mapping)
+                    # print(input_rule.tup)
                     yield Explanation(rhs, m)
 
     def explanations_from_how_search(self, state, sai, foci_of_attention):  # -> return Iterator<Explanation>
@@ -503,7 +509,8 @@ class ModularAgent(BaseAgent):
 
             literals = [sai.selection] + varz
             ordered_mapping = {k: v for k, v in zip(rhs.all_vars, literals)}
-            print(ordered_mapping)
+            print("DERIVED EXPL")
+            print(input_rule,ordered_mapping)
             yield Explanation(rhs, ordered_mapping)
 
     def add_rhs(self, rhs, skill_label="DEFAULT_SKILL"):  # -> return None
