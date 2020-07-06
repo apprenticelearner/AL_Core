@@ -310,7 +310,7 @@ def expression_matches(expression, state):
             fact_expr = {fact_expr: value}
 
         mapping = {}
-        print(fact_expr, expression, mapping)
+        # print(fact_expr, expression, mapping)
         if(expr_comparitor(fact_expr, expression, mapping)):
             yield mapping
 
@@ -391,7 +391,7 @@ class ModularAgent(BaseAgent):
                 pred_state = state.get_view(("variablize", rhs, tuple(match)))
             else:
                 pred_state = state
-            print("MATCH", rhs,match)
+            # print("MATCH", rhs,match)
             if(not skip_when):
                 p = self.when_learner.predict(rhs, pred_state)
                 
@@ -433,10 +433,10 @@ class ModularAgent(BaseAgent):
         if(len(responses) == 0):
             return EMPTY_RESPONSE
         else:
-            print("responses:")
-            print(responses)
+            # print("responses:")
+            # print(responses)
             response = responses[0].copy()
-            print("response:", response)
+            # print("response:", response)
             if(n != 1):
                 response['responses'] = responses
             return response
@@ -471,6 +471,7 @@ class ModularAgent(BaseAgent):
                 else:
                     itr = []
             else:
+                print(rhs)
                 itr = self.planner.how_search(state, sai,
                                               operators=[rhs.input_rule],
                                               foci_of_attention=foci_of_attention,
@@ -478,13 +479,10 @@ class ModularAgent(BaseAgent):
                                               allow_bottomout=False,
                                               allow_copy=False)
             for input_rule, mapping in itr:
-
+                print("MAAAP", mapping)
                 m = {"?sel": sai.selection}
                 m.update(mapping)
                 if(len(m)==len(set(m.values()))):
-                    print("GEEEZ")
-                    print(mapping)
-                    # print(input_rule.tup)
                     yield Explanation(rhs, m)
 
     def explanations_from_how_search(self, state, sai, foci_of_attention):  # -> return Iterator<Explanation>
@@ -509,8 +507,6 @@ class ModularAgent(BaseAgent):
 
             literals = [sai.selection] + varz
             ordered_mapping = {k: v for k, v in zip(rhs.all_vars, literals)}
-            print("DERIVED EXPL")
-            print(input_rule,ordered_mapping)
             yield Explanation(rhs, ordered_mapping)
 
     def add_rhs(self, rhs, skill_label="DEFAULT_SKILL"):  # -> return None
@@ -579,6 +575,7 @@ class ModularAgent(BaseAgent):
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
+                        print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:
@@ -589,7 +586,7 @@ class ModularAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-        print("FIT_A")
+        # print("FIT_A")
         self.fit(explanations, state_featurized, reward)
         if(self.ret_train_expl):
             out = []

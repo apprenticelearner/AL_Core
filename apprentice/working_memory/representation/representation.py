@@ -259,8 +259,6 @@ class Explanation(object):
                "Mapping must be type dict got type %r" % type(mapping)
         self.rhs = rhs
         self.mapping = mapping
-        print(mapping,rhs.input_vars)
-        print(rhs.input_rule, rhs.input_rule.arg_types)
         self.selection_literal = mapping[rhs.selection_var]
         self.input_literals = [mapping[s] for s in rhs.input_vars]
 
