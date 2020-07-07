@@ -188,7 +188,9 @@ class FastMostSpecific(BaseILP):
         if(self.constraints is None):
             return True
         for i,part in enumerate(t):
+
             c = 0 if i == 0 else 1
+            # print(c,self.constraints[c],x[part])
             if(not self.constraints[c](x[part])):
                 return False
         return True
@@ -208,11 +210,12 @@ class FastMostSpecific(BaseILP):
 
         for t in self.tuples:
             if(self.check_constraints(t,x)):
-                print("T",t)
+                # print("T",t)
                 yield t
 
 
     def ifit(self, t, x, y):
+        # print("FIT",t)
         # t = tuple(ground(e) for e in t)
         if(y > 0):
             self.tuples.add(tuple(t))

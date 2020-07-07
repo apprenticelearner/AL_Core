@@ -259,7 +259,7 @@ def train(http_request, agent_id):
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(http_request.body.decode("utf-8"))
 
-        print(data)
+        # print(data)
 
         errs = []
 

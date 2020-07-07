@@ -421,7 +421,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
-            print("explanation:",explanation)
+            print("Skill Application:",explanation,explanation.rhs._id_num)
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
@@ -466,20 +466,25 @@ class ModularAgent(BaseAgent):
         for rhs in rhs_list:
             if(isinstance(rhs.input_rule, (int, float, str))):
                 # TODO: Hard attr assumption fix this.
-                if(sai.inputs["value"] == rhs.input_rule):
-                    itr = [(rhs.input_rule, {})]
-                else:
-                    itr = []
+                mappings = [{}] if sai.inputs["value"] == rhs.input_rule else []
+                # if(sai.inputs["value"] == rhs.input_rule):
+                #     itr = [(rhs.input_rule, {})]
+                # else:
+                #     itr = []
             else:
-                print(rhs)
-                itr = self.planner.how_search(state, sai,
-                                              operators=[rhs.input_rule],
-                                              foci_of_attention=foci_of_attention,
-                                              search_depth=1,
-                                              allow_bottomout=False,
-                                              allow_copy=False)
-            for input_rule, mapping in itr:
-                print("MAAAP", mapping)
+                print("Trying:", rhs)
+
+                mappings = self.planner.unify_op(state,rhs.input_rule, sai)
+
+                print( "Worked" if len(mappings) > 0 else "Nope" )
+                # itr = self.planner.how_search(state, sai,
+                #                               operators=[rhs.input_rule],
+                #                               foci_of_attention=foci_of_attention,
+                #                               search_depth=1,
+                #                               allow_bottomout=False,
+                #                               allow_copy=False)
+            for mapping in mappings:
+                # print("MAAAP", mapping)
                 m = {"?sel": sai.selection}
                 m.update(mapping)
                 if(len(m)==len(set(m.values()))):
@@ -526,10 +531,11 @@ class ModularAgent(BaseAgent):
         self.which_learner.add_rhs(rhs)
 
     def fit(self, explanations, state, reward):  # -> return None
+        print("FIT")
         if(not isinstance(reward,list)): reward = [reward]*len(explanations)
         for exp,_reward in zip(explanations,reward):
-            print(exp, 'rew:', _reward)
             mapping = list(exp.mapping.values())
+            print(exp, mapping, 'rew:', _reward)
             self.when_learner.ifit(exp.rhs, state, mapping, _reward)
             self.which_learner.ifit(exp.rhs, state, _reward)
             self.where_learner.ifit(exp.rhs, mapping, state, _reward)
@@ -740,9 +746,9 @@ def gen_html_constraints_fo(rhs):
     return frozenset(constraints)
 
 def gen_html_constraints_functional(rhs):
-    print("FUNCTIONAL")
+    # print("FUNCTIONAL")
     def selection_constraints(x):
-        print("SELc:", x)
+        # print("SELc:", x)
         if(rhs.action == "ButtonPressed"):
             if(x["id"] != 'done'):
                 print("C!")
@@ -750,23 +756,22 @@ def gen_html_constraints_functional(rhs):
         else:
             if("contentEditable" not in x or x["contentEditable"] != True):
             # if("contentEditable" in x and x["contentEditable"] != True):
-                print("A!")
+                # print("A!")
                 return False
         return True
 
     def arg_constraints(x):
-        print("Xc:", x)
         if("value" not in x or x["value"] == ""):
-            print("B!")
+            # print("B!")
             return False
         return True
 
     return selection_constraints, arg_constraints
 
 def gen_stylus_constraints_functional(rhs):
-    print("FUNCTIONAL")
+    # print("FUNCTIONAL")
     def selection_constraints(x):
-        print("SELc:", x)
+        # print("SELc:", x)
         if(rhs.action == "ButtonPressed"):
             if(x["id"] != 'done'):
                 print("C!")
@@ -779,9 +784,9 @@ def gen_stylus_constraints_functional(rhs):
         return True
 
     def arg_constraints(x):
-        print("Xc:", x)
+        # print("Xc:", x)
         if("value" not in x or x["value"] == ""):
-            print("B!")
+            # print("B!")
             return False
         return True
 

@@ -636,6 +636,7 @@ class FoPlannerModule(BasePlanner):
                     allow_copy=True,
                     epsilon=0.0):
 
+
         if(operators == None and sai.action == "ButtonPressed"):
             yield -1,{}
             return
