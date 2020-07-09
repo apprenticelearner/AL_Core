@@ -17,7 +17,7 @@ formatters:
 handlers:
   console:
     class: logging.StreamHandler
-    level: ERROR
+    level: ERROR #This seems to change the level globally, which is very annoying esp. w/ numba
     formatter: standard
     stream: ext://sys.stdout
 

@@ -24,4 +24,5 @@ multiprocess
 scikit-learn
 dill
 django-cors-headers
-numba>=0.45.0
+numba>=0.50.1
+-e git+https://github.com/DannyWeitekamp/numbert#egg=numbert

@@ -36,6 +36,20 @@ import cProfile
 import atexit
 
 
+def add_QMele_to_state(state):
+    ''' A function which adds ?ele- to state keys... this is necessary in order to use
+        the fo_planner pending its deprecation'''
+    obj_names = state.keys()
+    out = {}
+    for k,v in state.items():
+        k = "?ele-" + k if k[0] != "?" else k
+        v_new = {}
+        for _k,_v in v.items():
+            if(_k != "id" and _v in obj_names):
+                _v = "?ele-" + _v
+            v_new[_k] = _v
+        out[k] = v_new        
+    return out
 
 # def cleanup(*args):
 #     print("DUMP STATS")
@@ -343,13 +357,13 @@ class ModularAgent(BaseAgent):
                                                explanation_choice, **kwargs.get("which_args",{}))
 
         planner_class = get_planner_class(planner)
+
         self.feature_set = planner_class.resolve_operators(feature_set)
         self.function_set = planner_class.resolve_operators(function_set)
         self.planner = planner_class(search_depth=search_depth,
                                    function_set=self.function_set,
                                    feature_set=self.feature_set,
                                    **kwargs.get("planner_args",{}))
-
         sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]        
         self.strip_attrs = strip_attrs
         self.state_variablizer = MethodType(sv, self)
@@ -408,6 +422,7 @@ class ModularAgent(BaseAgent):
             yield explanation, skill_info
 
     def request(self, state: dict, add_skill_info=False,n=1,**kwargs):  # -> Returns sai
+        if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
         if(not isinstance(state,StateMultiView)):
             state = StateMultiView("object", state) 
         state.register_transform("*","variablize",self.state_variablizer)
@@ -421,7 +436,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
-            print("Skill Application:",explanation,explanation.rhs._id_num)
+            # print("Skill Application:",explanation,explanation.rhs._id_num)
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
@@ -472,11 +487,12 @@ class ModularAgent(BaseAgent):
                 # else:
                 #     itr = []
             else:
-                print("Trying:", rhs)
+                # print("Trying:", rhs)
+                # print(self.planner.unify_op.__code__.co_varnames)
+                mappings = self.planner.unify_op(state,rhs.input_rule, sai,
+                    foci_of_attention=foci_of_attention)
 
-                mappings = self.planner.unify_op(state,rhs.input_rule, sai)
-
-                print( "Worked" if len(mappings) > 0 else "Nope" )
+                # print( "Worked" if len(mappings) > 0 else "Nope" )
                 # itr = self.planner.how_search(state, sai,
                 #                               operators=[rhs.input_rule],
                 #                               foci_of_attention=foci_of_attention,
@@ -485,7 +501,10 @@ class ModularAgent(BaseAgent):
                 #                               allow_copy=False)
             for mapping in mappings:
                 # print("MAAAP", mapping)
-                m = {"?sel": sai.selection}
+                if(type(self.planner).__name__ == "FoPlannerModule"):
+                    m = {"?sel": "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection}
+                else:
+                    m = {"?sel": sai.selection}
                 m.update(mapping)
                 if(len(m)==len(set(m.values()))):
                     yield Explanation(rhs, m)
@@ -531,11 +550,10 @@ class ModularAgent(BaseAgent):
         self.which_learner.add_rhs(rhs)
 
     def fit(self, explanations, state, reward):  # -> return None
-        print("FIT")
         if(not isinstance(reward,list)): reward = [reward]*len(explanations)
         for exp,_reward in zip(explanations,reward):
             mapping = list(exp.mapping.values())
-            print(exp, mapping, 'rew:', _reward)
+            # print(exp, mapping, 'rew:', _reward)
             self.when_learner.ifit(exp.rhs, state, mapping, _reward)
             self.which_learner.ifit(exp.rhs, state, _reward)
             self.where_learner.ifit(exp.rhs, mapping, state, _reward)
@@ -544,12 +562,15 @@ class ModularAgent(BaseAgent):
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
         # pprint(state)
+        if(type(self.planner).__name__ == "FoPlannerModule"): 
+            state = add_QMele_to_state(state)
+            sai.selection = "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
         state_featurized = self.planner.apply_featureset(state)
 
         
-        print(sai, foci_of_attention)
+        # print(sai, foci_of_attention)
         ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
         _ = [x for x in self.applicable_explanations(state_featurized)]
         ############################################################
@@ -557,9 +578,9 @@ class ModularAgent(BaseAgent):
         #Either the explanation (i.e. prev application of skill) is provided
         #   or we must infer it from the skills that would have fired
         if(rhs_id is not None and mapping is not None):
-            print("Reward: ", reward)
+            # print("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
-            print("EX: ",str(explanations[0]))
+            # print("EX: ",str(explanations[0]))
         elif(sai is not None):
             explanations = self.explanations_from_skills(state_featurized, sai,
                                                          self.rhs_list,
@@ -581,7 +602,7 @@ class ModularAgent(BaseAgent):
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
-                        print("FOUND EX:", str(exp))
+                        # print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:
@@ -739,7 +760,6 @@ def gen_html_constraints_fo(rhs):
 
     # value constraints, don't select empty values
     for i, arg in enumerate(rhs.input_vars):
-        print("ARG", arg)
         constraints.add(('value', arg, '?arg%ival' % (i+1)))
         constraints.add((is_not_empty_string, '?arg%ival' % (i+1)))
 
@@ -751,7 +771,7 @@ def gen_html_constraints_functional(rhs):
         # print("SELc:", x)
         if(rhs.action == "ButtonPressed"):
             if(x["id"] != 'done'):
-                print("C!")
+                # print("C!")
                 return False
         else:
             if("contentEditable" not in x or x["contentEditable"] != True):
@@ -774,12 +794,12 @@ def gen_stylus_constraints_functional(rhs):
         # print("SELc:", x)
         if(rhs.action == "ButtonPressed"):
             if(x["id"] != 'done'):
-                print("C!")
+                # print("C!")
                 return False
         else:
             # if("contentEditable" not in x or x["contentEditable"] != True):
             if("contentEditable" in x and x["contentEditable"] != True):
-                print("A!")
+                # print("A!")
                 return False
         return True
 

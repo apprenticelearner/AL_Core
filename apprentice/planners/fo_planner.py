@@ -735,6 +735,17 @@ class FoPlannerModule(BasePlanner):
                 rg_exp.append(ele)
         return rg_exp
 
+    def unify_op(self,state,op,sai,foci_of_attention=None):
+        itr = self.how_search(state,sai,operators=[op],
+                                search_depth=1,
+                                foci_of_attention=foci_of_attention,
+                                allow_bottomout=False,
+                                allow_copy=False)
+        mappings = []
+        for _, mapping in itr:
+            mappings.append(mapping)
+        return mappings
+
 from apprentice.planners.base_planner import PLANNERS
 PLANNERS["foplanner"] = FoPlannerModule
 
@@ -959,6 +970,8 @@ class FoPlanner:
                                                    max_depth_limit=max_depth +
                                                    1):
             yield solution
+
+
 
 
 

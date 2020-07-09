@@ -700,6 +700,17 @@ class VectorizedPlanner(BasePlanner):
 		else:
 			return x
 
+	def unify_op(self,state,op,sai,foci_of_attention=None):
+		itr = self.how_search(state,sai,operators=[op],
+								search_depth=1,
+							 	foci_of_attention=foci_of_attention,
+							 	allow_bottomout=False,
+							 	allow_copy=False)
+		mappings = []
+		for _, mapping in itr:
+			mappings.append(mapping)
+		return mappings
+
 PLANNERS["vectorized"] = VectorizedPlanner
 
 if __name__ == "__main__":
