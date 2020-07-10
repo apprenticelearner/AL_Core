@@ -54,8 +54,29 @@ class NumbaPlanner(BasePlanner):
 		return out
 
 	def apply_featureset(self, state, operators=None):
-		pass
-		return state
+		if(operators == None): operators = self.feature_set
+		flat_state = state.get_view("flat_ungrounded")
+		kb, back_map = state_as_kb(flat_state)
+
+		applied_features = {}
+
+		kb.forward(operators)
+		for typ,hist in kb.hists.items():
+			if(len(hist) > 1):
+				for record in hist[1]:
+					op_uid, _hist, shape, arg_types, vmap = record
+					op_name = BaseOperator.operators_by_uid[op_uid].__name__
+					hist_reshaped = _hist.reshape(shape)
+					arg_sets = [kb.u_vs.get(t,[]) for t in arg_types]
+					for v,uid in vmap.items():
+						inds = np.stack(np.where(hist_reshaped == uid)).T
+						for ind in inds:
+							arg_set = [arg_sets[i][j] for i,j in enumerate(ind)]
+							for args in itertools.product(*[back_map[a] for a in arg_set]):
+								applied_features[(op_name,*args)] = v
+		flat_state.update(applied_features)
+		state.set_view("flat_ungrounded",flat_state)
+								
 
 
 	def how_search(self,state,
@@ -338,6 +359,13 @@ if __name__ == "__main__":
 	# assert len(depths) == 2
 	# assert 0 in depths and 2 in depths
 	# assert len(out) == 3
+	#Test Apply Featureset
+	planner.apply_featureset(state,[Equals])
+	print(state.get_view("flat_ungrounded"))
+	flat_state = state.get_view("flat_ungrounded")
+	assert flat_state[('Equals', ('value', 'B'), ('value', 'B'))] ==  1.0
+	assert flat_state[('Equals', ('value', 'A'), ('value', 'B'))] ==  0.0
+	assert flat_state[('Equals', ('value', 'B'), ('value', 'C'))] ==  1.0
 
 
 	# broadcast_forward_op_comp(kb,expr)
