@@ -83,6 +83,12 @@ class BaseILP(object):
         """
         pass
 
+    def score_match(self, t, x):
+        is_match = self.check_match( t, x)
+        return 1.0 if is_match else 0.0
+
+
+
 
 def value_gensym():
     """
@@ -142,6 +148,9 @@ class WhereLearner(object):
     def check_match(self, rhs, t, x):
         return self.learners[rhs].check_match(t, x)
 
+    def score_match(self, rhs, t, x):
+        return self.learners[rhs].score_match(t, x)
+
     def get_match(self, rhs, X):
         # args = [skill.selection_var] + skill.input_vars
         return self.learners[rhs].get_match(X)
@@ -162,6 +171,14 @@ class WhereLearner(object):
 
     def skill_info(self,rhs):
         return self.learners[rhs].skill_info()
+
+    def best_partial_matches(self,rhs, partial_matches,x):
+        lrnr = self.learners[rhs]
+        scores = [lrnr.score_match(partial_match,x) for partial_match in partial_matches]
+        inds = np.where(scores == np.max(scores))[0]
+        return [partial_matches[i] for i in inds]
+
+
 
 
 class FastMostSpecific(BaseILP):
@@ -1319,6 +1336,35 @@ class VersionSpace(BaseILP):
                 return False
         return True
 
+
+    def score_match(self, t, x):
+        '''Gives a number between 0.0 and 1.0 for how well t matches'''
+        if(not self.pos_ok):
+            return False
+        x = x.get_view("object")
+
+        if(not self.check_constraints(t,x)):
+            return False
+        
+        instances,vs_elems  = self.get_vs_elems(t,x)
+        flat_x = list(itertools.chain(*vs_elems)) if isinstance(vs_elems[0],list) else vs_elems
+        x = np.array(flat_x, dtype=np.uint32)
+
+        #Rip out neighbor concepts for scoring, is hard to partially assign neighbors
+        pos_specific = self.pos_concepts.spec_concepts.reshape((-1,))[:len(x)]
+        new_pos_specific = []
+        for v in pos_specific:
+            s = self.enumerizer.back_maps[0][v.item()]
+            if(isinstance(s,str) and "neigh" in s):
+                new_pos_specific.append(0)
+            else:
+                new_pos_specific.append(v)
+
+        pos_specific = np.array(new_pos_specific)
+        spec_consistency = ((pos_specific == self.pos_concepts.ZERO) | (pos_specific == x))
+        return np.average(spec_consistency)
+
+
     def check_match(self, t, x):
         # with torch.no_grad():
         if(not self.pos_ok):
@@ -1407,7 +1453,7 @@ class VersionSpace(BaseILP):
         elem_names = np.array(elem_names,dtype=np.uint8)
 
         time0 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        print("A' time %.4f ms" % (time0-start_time))
+        # print("A' time %.4f ms" % (time0-start_time))
 
         # Make a list that has all of the enumerized elements/objects
         elems_list = [val for val in state.values()]
@@ -1450,7 +1496,7 @@ class VersionSpace(BaseILP):
         # all_concepts
         
         time1 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        print("A time %.4f ms" % (time1-time0))
+        # print("A time %.4f ms" % (time1-time0))
 
         # Loop over the concepts for each where part and cull down the list of
         #   possible matches for them. This phase only filters out elements we can
@@ -1524,7 +1570,7 @@ class VersionSpace(BaseILP):
 
         # all_consistencies = torch.tensor(all_consistencies)
         time2 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        print("B time %.4f ms" % (time2-time1))
+        # print("B time %.4f ms" % (time2-time1))
 
         split_ps_flat, concept_slices = flatten_n_slice(split_ps)
         elems_flat, elems_slices = flatten_n_slice(elems)
@@ -1567,7 +1613,7 @@ class VersionSpace(BaseILP):
         # print("Before")
 
         time3 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        print("C time %.4f ms" % (time3-time2))
+        # print("C time %.4f ms" % (time3-time2))
 
         translated = match_iterative(split_ps_flat, concept_slices,
                             elems_flat,elems_slices,
@@ -1576,7 +1622,7 @@ class VersionSpace(BaseILP):
                             where_part_vals)
 
         time4 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        print("D time %.4f ms" % (time4-time3))
+        # print("D time %.4f ms" % (time4-time3))
         # translated = np.array([])
         # matches = self._match_iterative(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems)
         # matches = self._match_naive(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
@@ -1607,8 +1653,8 @@ class VersionSpace(BaseILP):
             else:
                 print("FAIL CONSTR", out)
         time5 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        print("E time %.4f ms" % (time5-time4))
-        print("")
+        # print("E time %.4f ms" % (time5-time4))
+        # print("")
 
     def skill_info(self):
         out = {}
@@ -2159,6 +2205,11 @@ if __name__ == "__main__":
         # timefunc("match-5", gen_test_get_matches(vs2))
         print("match-5", time_ms(gen_test_get_matches(vs2)) )
 
+        # print()
+        print(vs2.score_match(["C1","A1","B1","A2","C2"],state))
+        print(vs2.score_match(["C1","B1","A1","A2","C2"],state))
+        print(vs2.score_match(["B1","C1","A1","A2","C2"],state))
+        # raise ValueError("MOOP")
         
         vs3 = VersionSpace(use_neg=True)
         vs3.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3",],state,1)

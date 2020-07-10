@@ -2,6 +2,8 @@ from pprint import pprint
 # from random import random
 from random import choice
 from typing import Dict
+import numpy as np
+
 
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
@@ -461,12 +463,20 @@ class ModularAgent(BaseAgent):
 
     def where_matches(self, explanations, state):  # -> list<Explanation>, list<Explanation>
         matching_explanations, nonmatching_explanations = [], []
+        partial_scores = []
         for exp in explanations:
             if(self.where_learner.check_match(
                     exp.rhs, list(exp.mapping.values()), state)):
                 matching_explanations.append(exp)
             else:
+                partial_scores.append(
+                    self.where_learner.score_match(
+                    exp.rhs, list(exp.mapping.values()), state)
+                )
                 nonmatching_explanations.append(exp)
+        if(len(nonmatching_explanations) > 0):
+            non_m_inds = np.where(partial_scores == np.max(partial_scores))[0]
+            nonmatching_explanations = [nonmatching_explanations[i] for i in non_m_inds]
         return matching_explanations, nonmatching_explanations
 
     def _matches_from_foas(self, rhs, sai, foci_of_attention):
