@@ -88,7 +88,8 @@ class NumbaPlanner(BasePlanner):
 		kb, back_map = state_as_kb(state,foci_of_attention)
 		
 		#Try to find a solution by looking for a number, if that doesn't work treat as string				
-		operator_compositions = kb.how_search(operators,goal,search_depth=search_depth,max_solutions=10)
+		operator_compositions = kb.how_search(operators,goal,search_depth=search_depth,max_solutions=100)
+		print(operator_compositions)
 		if(len(operator_compositions) == 0 and isinstance(goal,(int,float,bool))):
 			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=10)
 		out = []
@@ -109,10 +110,10 @@ class NumbaPlanner(BasePlanner):
 			for args in arg_combinations:
 				
 				if(len(set(args)) != len(args)): continue
-				print("args1",args)
-				if(list(args) != sorted(args)): continue #Note to self... This is probably not robust
+				# print("args1",args)
+				# if(list(args) != sorted(args)): continue #Note to self... This is probably not robust
 				if(foci_of_attention != None and len(foci_of_attention) != len(args)): continue				
-				print("args",args)
+				# print("args",args)
 
 				mapping = {"?arg%s"%i:arg[1] for i,arg in enumerate(args)}
 				at_least_one = True
@@ -156,7 +157,7 @@ class NumbaPlanner(BasePlanner):
 			arg_combinations = itertools.product(*arg_sources)
 			for args in arg_combinations:
 				#Don't allow redundancy
-				if(list(args) != sorted(args)): continue #Note to self... This is probably not robust
+				# if(list(args) != sorted(args)): continue #Note to self... This is probably not robust
 				if(len(set(args)) != len(args)): continue				
 
 				mappings.append({"?arg%s"%i:arg[1] for i,arg in enumerate(args)})
@@ -174,6 +175,7 @@ if __name__ == "__main__":
 			 ('value','lobsterman2') : 3,
 			 ('value','whalefriend') : "WHALE!",
 			 ('value','merman') : "7",
+			 # ('value','solution') : "15",
 			 ('value','mermaid') : "",
 			 }
 	state = StateMultiView("flat_ungrounded", state)
@@ -186,11 +188,12 @@ if __name__ == "__main__":
 
 
 	# {'selection' : , 'action': 'befriend', 'inputs' : {'value': '12'}}
-	planner = NumbaPlanner(search_depth=1,function_set=[StrToFloat, Add,Subtract],feature_set=[Add,Subtract])
+	planner = NumbaPlanner(search_depth=2,function_set=[StrToFloat, Add,Subtract],feature_set=[Add,Subtract])
 	# print("BEFORE")
 	out = planner.how_search(state,sai)
+	# print(list(out))
 	for expr,mapping in out:
-		# print("EXPR",expr, expr.args, expr.out_type, expr.arg_types)
+		print("EXPR",expr, expr.args, expr.out_type, expr.arg_types, mapping.values())
 		evaled = planner.eval_expression(expr,mapping,state)
 		# print(mapping,evaled,type(evaled).__name__)
 		assert evaled == sai.inputs['value'], "%s != %s" % (evaled, sai.inputs['value'])
@@ -200,7 +203,7 @@ if __name__ == "__main__":
 		assert len(mappings) > 0
 		# print(v)
 	# print("OUT",out)
-
+	# raise ValueError()
 	# assert 
 
 
@@ -220,7 +223,7 @@ if __name__ == "__main__":
 	# print("BEFORE")
 	out = planner.how_search(state,sai)
 	for expr,mapping in out:
-		
+		print("EXPR",expr, expr.args, expr.out_type, expr.arg_types, mapping.values())
 		evaled = planner.eval_expression(expr,mapping,state)
 		# print(expr,mapping,evaled,type(evaled).__name__)
 		assert evaled == sai.inputs['value'], "%s != %s" % (evaled, sai.inputs['value'])
@@ -238,6 +241,7 @@ if __name__ == "__main__":
 	out = [x for x in planner.how_search(state,sai,operators=[expr],search_depth=1)]
 	assert len(out) > 0
 	for expr,mapping in out:
+		print("EXPR",expr, expr.args, expr.out_type, expr.arg_types, mapping.values())
 		evaled = planner.eval_expression(expr,mapping,state)
 		# print("OUT2",expr,mapping,evaled,type(evaled).__name__)
 		assert evaled == sai.inputs['value'], "%s != %s" % (evaled, sai.inputs['value'])
@@ -260,7 +264,7 @@ if __name__ == "__main__":
 		assert len(planner.unify_op(state,expr,sai)) > 0
 	assert len(out) == 3
 
-	#Text Bottomout
+	#Test Bottomout
 	sai = SAI()
 	sai.selection = 'empty_thing'
 	sai.action = 'something'
@@ -271,10 +275,73 @@ if __name__ == "__main__":
 	assert len(out) == 0
 
 
+	print("BRK")
+	#Test Solutions at Multiple Depths
+	state = {('value','thing') : 7,
+			 ('value','same_thing') : "7",
+			 ('value','same_thing2') : "7",
+			 ('value','empty_thing') : "",
+			 ('value','target_thing') : "21",
+			 }
+	state = StateMultiView("flat_ungrounded", state)
+	sai = SAI()
+	sai.selection = 'empty_thing'
+	sai.action = 'something'
+	sai.inputs = {'value': '21'}
+	planner = NumbaPlanner(search_depth=2,function_set=[Add],feature_set=[],)
+	out = [x for x in planner.how_search(state,sai)]
+	
+	depths = set()
+	for expr,mapping in out:
+		print("EXPR",expr, mapping)
+		# print("EXPR",expr, expr.args, expr.out_type, expr.arg_types, mapping.values())
+		evaled = planner.eval_expression(expr,mapping,state)
+		# print("Copy1",expr.tup,type(expr.tup),expr.template,mapping)
+		assert evaled == sai.inputs['value'], "%s != %s" % (evaled, sai.inputs['value'])
+		# assert expr.depth == 0
+		depths.add(expr.depth)
+		assert len(planner.unify_op(state,expr,sai)) > 0
+	assert len(depths) == 2
+	assert 0 in depths and 2 in depths
+	# assert len(out) == 3
+
+
+	shloop = OperatorComposition((Add3 ,Var(),(Div10,Var()),(Div10,Var())))
+	print(len(shloop.args))
+	shloop(1,2,3)
+
+
+	#Test Multi-Column
+	state = {('value','A') : "1",
+			 ('value','B') : "7",
+			 ('value','C') : "7",
+			 ('value','out') : "",
+			 }
+	state = StateMultiView("flat_ungrounded", state)
+	sai = SAI()
+	sai.selection = 'out'
+	sai.action = 'something'
+	sai.inputs = {'value': '1'}
+	planner = NumbaPlanner(search_depth=2,function_set=[Div10,Mod10,Add3,Add],feature_set=[])
+	out = [x for x in planner.how_search(state,sai,foci_of_attention=['A','B','C'])]
+	
+	depths = set()
+	for expr,mapping in out:
+		print("EXPR",expr, mapping)
+		# print("EXPR",expr, expr.args, expr.out_type, expr.arg_types, mapping.values())
+		evaled = planner.eval_expression(expr,mapping,state)
+		# print("Copy1",expr.tup,type(expr.tup),expr.template,mapping)
+		assert evaled == sai.inputs['value'], "%s != %s" % (evaled, sai.inputs['value'])
+		# assert expr.depth == 0
+		depths.add(expr.depth)
+		assert len(planner.unify_op(state,expr,sai)) > 0
+	# assert len(depths) == 2
+	# assert 0 in depths and 2 in depths
+	# assert len(out) == 3
 
 
 	# broadcast_forward_op_comp(kb,expr)
-	print("DONE")
+	print("ALL TESTS PASSED")
 
 PLANNERS["numbert"] = NumbaPlanner
 PLANNERS["numba"] = NumbaPlanner
