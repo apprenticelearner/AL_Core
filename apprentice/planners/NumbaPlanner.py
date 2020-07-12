@@ -1,5 +1,7 @@
 
-from numbert.core import * #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
+from numbert.knowledgebase import NBRT_KnowledgeBase #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
+from numbert.example_ops import * #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
+from numbert.operator import BaseOperator, OperatorComposition, str_preserve_ints, Var
 from apprentice.planners.base_planner import BasePlanner, PLANNERS
 from copy import deepcopy
 import itertools
