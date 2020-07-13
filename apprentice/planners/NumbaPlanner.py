@@ -1,4 +1,5 @@
 
+from numba.typed import Dict,List #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from numbert.knowledgebase import NBRT_KnowledgeBase #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from numbert.example_ops import * #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from numbert.operator import BaseOperator, OperatorComposition, str_preserve_ints, Var
@@ -16,6 +17,23 @@ def toFloatIfFloat(x):
 	except ValueError:
 		pass
 	return x
+
+@njit(cache=True)
+def get_nb_substate(state,ids):
+	out = Dict()
+	for k in ids:
+		out[k] = state[k]
+	return out
+
+def state_as_kb2(state,foci_of_attention=None):
+	nb_state = state.get_view('nb_object')
+	if(foci_of_attention is not None):
+		nb_foci = List(foci_of_attention)
+		nb_state = get_nb_substate(nb_state,nb_foci)
+	kb = NBRT_KnowledgeBase()
+	kb.declare(nb_state)
+	return kb
+
 
 def state_as_kb(state,foci_of_attention=None):
 
@@ -114,7 +132,7 @@ class NumbaPlanner(BasePlanner):
 		operator_compositions = kb.how_search(operators,goal,search_depth=search_depth,max_solutions=100)
 		print(operator_compositions)
 		if(len(operator_compositions) == 0 and isinstance(goal,(int,float,bool))):
-			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=10)
+			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=100)
 		out = []
 
 		at_least_one = False
@@ -186,13 +204,42 @@ class NumbaPlanner(BasePlanner):
 				mappings.append({"?arg%s"%i:arg[1] for i,arg in enumerate(args)})
 		return mappings
 
-
+def state_of_ies_from_dict(d):
+	out = {}
+	for k, v in d.items():
+		out[k] = {'type': "TextField", "id": k, "value": v}
+	return out
 
 
 #Putting these tests in main for now, because much of this class might be deprecated soon
 #	if I figure out using the planner with objects + backward chaining
 if __name__ == "__main__":
-	from apprentice.working_memory.representation.representation import StateMultiView
+	from apprentice.working_memory.representation.representation import StateMultiView, numbalizer
+
+
+	ie_spec = {
+		"id" : "string",
+		"value" : "string"
+	}
+
+	numbalizer.register_specification("TextField",ie_spec)
+
+	state = state_of_ies_from_dict(
+				{"crabman" : 5,
+				 "lobsterman" : 3,
+				 "lobsterman2" : 3,
+				 "whalefriend" : "WHALE!",
+				 "merman" : "7",
+				 "mermaid" : "",
+				})		
+
+	state = StateMultiView("object", state)
+	# nb_state = state.get_view("nb_object")
+	kb = state_as_kb2(state)
+
+	# print(nb_state)
+	raise ValueError("DONE")
+
 	state = {('value','crabman') : 5,
 			 ('value','lobsterman') : 3,
 			 ('value','lobsterman2') : 3,

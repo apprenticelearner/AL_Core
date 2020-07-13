@@ -200,6 +200,8 @@ def kb_to_flat_ungrounded(knowledge_base):
     return state
 
 
+from numbert.numbalizer import Numbalizer
+numbalizer = Numbalizer()
 
 class StateMultiView(object):
     def __init__(self, view, state):
@@ -207,6 +209,9 @@ class StateMultiView(object):
         self.set_view(view, state)
         self.transform_dict = {}
         self.register_transform("object", "flat_ungrounded", flatten_state)
+        self.register_transform("object", "nb_object", numbalizer.state_to_nb_objects)
+
+
         self.register_transform("flat_ungrounded", "key_vals_grounded",
                                 grounded_key_vals_state)
         self.register_transform("feat_knowledge_base", "flat_ungrounded",
