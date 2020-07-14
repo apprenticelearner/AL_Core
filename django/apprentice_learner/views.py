@@ -32,7 +32,6 @@ from apprentice.working_memory.representation import Sai
 
 log = logging.getLogger('al-django')
 
-
 active_agent = None
 active_agent_id = None
 dont_save = True
@@ -188,10 +187,9 @@ def request(http_request, agent_id):
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
-        log.error('ERROR IN REQUEST')
-        log.debug('POST data:')
-        log.debug(data)
-        traceback.print_exc()
+        log.exception('ERROR IN REQUEST')
+        log.error('POST data:')
+        log.error(data)
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
@@ -319,10 +317,11 @@ def train(http_request, agent_id):
             return HttpResponse("OK")
 
     except Exception as exp:
-        log.error('ERROR IN TRAIN')
-        log.debug('POST data:')
-        log.debug(data)
-        traceback.print_exc()
+        log.exception('ERROR IN TRAIN')
+        log.error('POST data:')
+        log.error(data)
+        # log.error(data)
+        # traceback.print_exc()
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
@@ -389,7 +388,9 @@ def check(http_request, agent_id):
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
-        traceback.print_exc()
+        log.exception('ERROR IN TRAIN')
+        log.error('POST data:')
+        log.error(data)
         return HttpResponseServerError(str(exp))
 
 
