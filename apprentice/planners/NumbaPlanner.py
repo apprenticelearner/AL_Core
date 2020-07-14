@@ -75,7 +75,8 @@ class NumbaPlanner(BasePlanner):
 							for args in itertools.product(*[back_map[a] for a in arg_set]):
 								applied_features[(op_name,*args)] = v
 		flat_state.update(applied_features)
-		state.set_view("flat_ungrounded",flat_state)
+		return flat_state
+		
 								
 
 

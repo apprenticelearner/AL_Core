@@ -428,7 +428,8 @@ class ModularAgent(BaseAgent):
         if(not isinstance(state,StateMultiView)):
             state = StateMultiView("object", state) 
         state.register_transform("*","variablize",self.state_variablizer)
-        state = self.planner.apply_featureset(state)
+        state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
+        # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
         explanations = self.applicable_explanations(
@@ -528,7 +529,7 @@ class ModularAgent(BaseAgent):
         # else:
         # sel_match = {"?sel" : sai.selection}
         # selection_rule = sai.selection
-
+        print(state)
         itr = self.planner.how_search(state, sai,
                                       foci_of_attention=foci_of_attention)
         for input_rule, mapping in itr:
@@ -577,12 +578,14 @@ class ModularAgent(BaseAgent):
             sai.selection = "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
-        state_featurized = self.planner.apply_featureset(state)
+        state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
+        # state_featurized = state.get_view("flat_ungrounded")
+        # state_featurized =
 
         
         # print(sai, foci_of_attention)
         ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
-        _ = [x for x in self.applicable_explanations(state_featurized)]
+        _ = [x for x in self.applicable_explanations(state)]
         ############################################################
 
         #Either the explanation (i.e. prev application of skill) is provided
@@ -592,22 +595,22 @@ class ModularAgent(BaseAgent):
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
             # print("EX: ",str(explanations[0]))
         elif(sai is not None):
-            explanations = self.explanations_from_skills(state_featurized, sai,
+            explanations = self.explanations_from_skills(state, sai,
                                                          self.rhs_list,
                                                          foci_of_attention)
 
             explanations, nonmatching_explanations = self.where_matches(
                                                  explanations,
-                                                 state_featurized)
+                                                 state)
             if(len(explanations) == 0):
 
                 if(len(nonmatching_explanations) > 0):
                     explanations = [choice(nonmatching_explanations)]
 
                 else:
+                    # print(state_featurized)
                     explanations = self.explanations_from_how_search(
-                                   state_featurized, sai, foci_of_attention)
-
+                                   state, sai, foci_of_attention)
                     explanations = self.which_learner.select_how(explanations)
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
@@ -624,7 +627,7 @@ class ModularAgent(BaseAgent):
 
         explanations = list(explanations)
         # print("FIT_A")
-        self.fit(explanations, state_featurized, reward)
+        self.fit(explanations, state, reward)
         if(self.ret_train_expl):
             out = []
             for exp in explanations:
