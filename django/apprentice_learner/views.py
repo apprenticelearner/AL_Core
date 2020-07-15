@@ -5,6 +5,7 @@ import json
 import traceback
 import logging
 from pprint import pprint
+import time
 
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_list_or_404
@@ -31,6 +32,7 @@ from apprentice.working_memory.representation import Sai
 # pr = cProfile.Profile()
 
 log = logging.getLogger('al-django')
+performance_logger = logging.getLogger('al-performance')
 
 
 active_agent = None
@@ -46,6 +48,8 @@ AGENTS = {
     "ModularAgent": ModularAgent,
     "SoartechAgent": SoarTechAgent,
 }
+
+last_call_time = time.time_ns()
 
 
 def get_agent_by_id(id):
@@ -146,6 +150,7 @@ def create(http_request):
             log.warning(warn)
         ret_data["warnings"] = warns
 
+    last_call_time = time.time_ns()
     return HttpResponse(json.dumps(ret_data))
 
 
@@ -157,6 +162,8 @@ def request(http_request, agent_id):
     a utf-8 btye string in the request body.
     That object should have the following fields:
     """
+    global last_call_time
+    performance_logger.info("Interface Feedback Time: {} ms".format((time.time_ns()-last_call_time)/1e6))
 
     # pr.enable()
     try:
@@ -170,7 +177,10 @@ def request(http_request, agent_id):
 
         agent = get_agent_by_id(agent_id)
         agent.inc_request()
+
+        start_t = time.time_ns()
         response = agent.instance.request(data["state"],**data.get('kwargs',{}))
+        performance_logger.info("Request Elapse Time: ", (time.time_ns()-start_t)/(1e6), "ms")
 
         global dont_save
         if not dont_save:
@@ -179,7 +189,7 @@ def request(http_request, agent_id):
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
-
+        last_call_time =  time.time_ns()
         if isinstance(response, Sai):
             return HttpResponse(json.dumps({'selection': response.selection,
                                             'action': response.action,
@@ -252,7 +262,8 @@ def train(http_request, agent_id):
     Trains the Agent with an state annotated with the SAI used / with
     feedback.
     """
-
+    global last_call_time
+    performance_logger.info("Interface Feedback Time: {} ms".format((time.time_ns()-last_call_time)/1e6))
     # pr.enable()
     try:
         if http_request.method != "POST":
@@ -303,7 +314,9 @@ def train(http_request, agent_id):
         del data['action']
         del data['inputs']
 
+        start_t = time.time_ns()
         response = agent.instance.train(**data)
+        performance_logger.info("Train Elapse Time: ", (time.time_ns()-start_t)/(1e6), "ms")
 
         global dont_save
         if not dont_save:
@@ -312,7 +325,7 @@ def train(http_request, agent_id):
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
-
+        last_call_time =  time.time_ns()
         if(response is not None):
              return HttpResponse(json.dumps(response))
         else:
