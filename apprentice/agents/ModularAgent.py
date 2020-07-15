@@ -36,6 +36,44 @@ import cProfile
 # pr.enable()
 
 import atexit
+import time
+import logging
+
+performance_logger = logging.getLogger('al-performance')
+
+
+#####DELETE ME #####
+from numbert.operator import BaseOperator
+class RipFloatValue(BaseOperator):
+    signature = 'float(TextField)'
+    template = "{}.v"
+    nopython=False
+    muted_exceptions = [ValueError]
+    def forward(x): 
+        return float(x.value)
+
+class Numerator_Multiply(BaseOperator):
+    signature = 'float(TextField,TextField)'
+    template = "Numerator_Multiply({}.v,{}.v)"
+    nopython=False
+    muted_exceptions = [ValueError]
+    def condition(x,y): 
+        return x.id.split(".R")[1] == y.id.split(".R")[1]
+    def forward(x,y): 
+        return float(x.value) * float(y.value)
+
+class Cross_Multiply(BaseOperator):
+    signature = 'float(TextField,TextField)'
+    template = "Cross_Multiply({}.v,{}.v)"
+    nopython=False
+    muted_exceptions = [ValueError]
+    def condition(x,y): 
+        return x.id.split(".R")[1] != y.id.split(".R")[1]
+    def forward(x,y): 
+        return float(x.value) * float(y.value)
+
+
+########################
 
 
 def add_QMele_to_state(state):
@@ -424,6 +462,7 @@ class ModularAgent(BaseAgent):
             yield explanation, skill_info
 
     def request(self, state: dict, add_skill_info=False,n=1,**kwargs):  # -> Returns sai
+
         if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
         if(not isinstance(state,StateMultiView)):
             state = StateMultiView("object", state) 
@@ -438,22 +477,23 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
-            # print("Skill Application:",explanation,explanation.rhs._id_num)
+            print("Skill Application:",explanation,explanation.rhs._id_num)
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
                     response.update(skill_info)
                     response["mapping"] = explanation.mapping
                 responses.append(response)
+        # print(responses)
 
-
+        
         if(len(responses) == 0):
             return EMPTY_RESPONSE
         else:
             # print("responses:")
             # print(responses)
             response = responses[0].copy()
-            # print("response:", response)
+            print("response:", response)
             if(n != 1):
                 response['responses'] = responses
             return response
@@ -572,6 +612,7 @@ class ModularAgent(BaseAgent):
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
         # pprint(state)
+
         if(type(self.planner).__name__ == "FoPlannerModule"): 
             state = add_QMele_to_state(state)
             sai.selection = "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection
@@ -631,6 +672,7 @@ class ModularAgent(BaseAgent):
                 resp = exp.to_response(state,self)
                 if(add_skill_info): resp.update(exp.get_skill_info(self))
                 out.append(resp)
+            
             return out
 
     # ------------------------------CHECK--------------------------------------
