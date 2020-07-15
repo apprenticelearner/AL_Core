@@ -12,8 +12,8 @@ from concept_formation.cobweb3 import Cobweb3Tree
 
 from apprentice.planners.fo_planner import FoPlanner
 from apprentice.planners.fo_planner import subst
-from apprentice.planners.rulesets import functionsets
-from apprentice.planners.rulesets import featuresets
+from apprentice.working_memory.fo_planner_operators import functionsets
+from apprentice.working_memory.fo_planner_operators import featuresets
 # from apprentice.planners.fo_planner import arith_rules
 from apprentice.agents.base import BaseAgent
 

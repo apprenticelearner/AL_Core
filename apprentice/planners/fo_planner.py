@@ -698,8 +698,8 @@ class FoPlannerModule(BasePlanner):
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
 
         state.set_view("feat_knowledge_base",knowledge_base)
-        state.compute_from("flat_ungrounded","feat_knowledge_base")
-        return state
+        return state.compute_from("flat_ungrounded","feat_knowledge_base")
+        # return state
 
 
     def eval_expression(self,x,mapping,state):
@@ -1097,7 +1097,7 @@ if __name__ == "__main__":
     import sys
     sys.path.insert(0, './')
 
-    from planners.rulesets import arith_rules
+    from apprentice.working_memory.fo_planner_rules import arith_rules
 
     facts = [(('value', 'ul'), '6'),
              (('value', 'ur'), '8'),
