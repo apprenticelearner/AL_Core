@@ -35,6 +35,7 @@ def state_as_kb2(state,foci_of_attention=None):
 			new_nb_state[typ] = get_nb_substate(nb_state[typ],nb_foci)
 		nb_state = new_nb_state
 	kb = NBRT_KnowledgeBase()
+	# print(nb_state)
 	kb.declare(nb_state)
 	return kb
 
@@ -156,12 +157,12 @@ class NumbaPlanner(BasePlanner):
 			if(out_type == 'str'):
 				op_comp.force_cast('string')
 			at_least_one = True
-			print(op_comp,args)
+			# print('HERE:',op_comp,args)
 			yield op_comp, mapping
 
 		if(not at_least_one and allow_bottomout and 
 			(foci_of_attention == None or len(foci_of_attention) == 0)):
-			
+			# print("Bottomout!!!!!!!!!!!!!!!!!!!!!!!")
 			yield goal, {}
 
 
@@ -173,13 +174,10 @@ class NumbaPlanner(BasePlanner):
 				return expr
 			state = state.get_view("nb_object")
 
-			literals = [state[typ][_id] for typ, _id in zip(expr.arg_types,mapping.values())]
-			# for arg_str,literal_src in mapping.items():
-			# 	if("sel" in arg_str):continue
-			# 	val = state[('value',literal_src)]
-					
-			# 	literals.append(toFloatIfFloat(val))
+			ids = [v for k,v in mapping.items() if k != "?sel"]
+			literals = [state[typ][_id] for typ, _id in zip(expr.arg_types,ids)]
 			return expr(*literals)
+			
 
 
 	def unify_op(self,state,op,sai,foci_of_attention=None):
