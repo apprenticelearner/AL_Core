@@ -1,12 +1,13 @@
+import logging
+logging.getLogger("numba.core.ssa").setLevel(logging.ERROR)
+logging.getLogger("numba.core.byteflow").setLevel(logging.ERROR)
+logging.getLogger("numba.core.interpreter").setLevel(logging.ERROR)
 
 from numbert.core import * #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from apprentice.planners.base_planner import BasePlanner, PLANNERS
 from copy import deepcopy
 import itertools
-import logging
-logging.getLogger("numba.core.ssa").setLevel(logging.ERROR)
-logging.getLogger("numba.core.byteflow").setLevel(logging.ERROR)
-logging.getLogger("numba.core.interpreter").setLevel(logging.ERROR)
+
 
 def toFloatIfFloat(x):
 	try:
