@@ -19,7 +19,7 @@ from django.http import HttpResponseNotAllowed
 
 from apprentice_learner.models import Agent
 
-from apprentice.agents.soartech_agent import SoarTechAgent
+from apprentice.agents.experta_agent import ExpertaAgent
 from apprentice.agents.Stub import Stub
 from apprentice.agents.Memo import Memo
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
@@ -43,7 +43,7 @@ AGENTS = {
     "RLAgent": RLAgent,
     "WhereWhenHowNoFoa": WhereWhenHowNoFoa,
     "ModularAgent": ModularAgent,
-    "SoartechAgent": SoarTechAgent,
+    "ExpertaAgent": ExpertaAgent,
 }
 
 
@@ -145,6 +145,8 @@ def create(http_request):
             log.warning(warn)
         ret_data["warnings"] = warns
 
+    # pprint(ret_data)
+
     return HttpResponse(json.dumps(ret_data))
 
 
@@ -178,6 +180,8 @@ def request(http_request, agent_id):
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
+
+        # pprint(response)
 
         if isinstance(response, Sai):
             return HttpResponse(json.dumps({'selection': response.selection,
@@ -310,6 +314,8 @@ def train(http_request, agent_id):
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
+
+        # pprint(response)
 
         if(response is not None):
              return HttpResponse(json.dumps(response))
