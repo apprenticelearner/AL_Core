@@ -69,7 +69,7 @@ class FractionsEngine(KnowledgeEngine):
         TEST(lambda value: value != "" and is_numeric_str(value)),
         Fact(id=MATCH.field_id, contentEditable=True, value=W()),
         TEST(lambda field_id: field_id != 'JCommTable8.R0C0' and field_id not
-                              in answer_field),
+             in answer_field),
     )
     def update_convert_field(self, field_id, value):
         # print('updating convert field', field_id, value)
@@ -160,16 +160,16 @@ class FractionsEngine(KnowledgeEngine):
                           depth=new_depth))
 
     @Rule(
-      AS.fact1 << Fact(id=MATCH.id1, contentEditable=False,
-                       value=MATCH.value1),
-      TEST(lambda fact1: 'depth' not in fact1 or fact1['depth'] < max_depth),
-      TEST(lambda value1: is_numeric_str(value1)),
-      AS.fact2 << Fact(id=MATCH.id2, contentEditable=False,
-                       value=MATCH.value2),
-      TEST(lambda id1, id2: id1 <= id2),
-      TEST(lambda fact2: 'depth' not in fact2 or fact2['depth'] < max_depth),
-      TEST(lambda value2: is_numeric_str(value2)),
-      NOT(Fact(operator='lcm', ele1=MATCH.id1, ele2=MATCH.id2))
+        AS.fact1 << Fact(id=MATCH.id1, contentEditable=False,
+                         value=MATCH.value1),
+        TEST(lambda fact1: 'depth' not in fact1 or fact1['depth'] < max_depth),
+        TEST(lambda value1: is_numeric_str(value1)),
+        AS.fact2 << Fact(id=MATCH.id2, contentEditable=False,
+                         value=MATCH.value2),
+        TEST(lambda id1, id2: id1 <= id2),
+        TEST(lambda fact2: 'depth' not in fact2 or fact2['depth'] < max_depth),
+        TEST(lambda value2: is_numeric_str(value2)),
+        NOT(Fact(operator='lcm', ele1=MATCH.id1, ele2=MATCH.id2))
     )
     def least_common_multiple(self, id1, value1, fact1, id2, value2, fact2):
         new_id = ' lcm({0}, {1})'.format(id1, id2)
@@ -395,59 +395,74 @@ class FractionsEngine(KnowledgeEngine):
 
 ke = FractionsEngine()
 skill_factory = ExpertaSkillFactory(ke)
-click_done_skill = skill_factory.from_ex_rule(ke.click_done)
-check_skill = skill_factory.from_ex_rule(ke.check)
-equal_skill = skill_factory.from_ex_rule(ke.equal)
-update_answer_field_skill = skill_factory.from_ex_rule(ke.update_answer_field)
-update_convert_field_skill = skill_factory.from_ex_rule(
-    ke.update_convert_field)
-add_skill = skill_factory.from_ex_rule(ke.add)
-multiply_skill = skill_factory.from_ex_rule(ke.multiply)
-least_common_multiple = skill_factory.from_ex_rule(ke.least_common_multiple)
 
-correct_multiply_num = skill_factory.from_ex_rule(ke.correct_multiply_num)
-correct_multiply_denom = skill_factory.from_ex_rule(ke.correct_multiply_denom)
+# for prop in dir(ke):
+#     attr = getattr(ke, prop, None)
+#     if not isinstance(attr, Rule):
+#         continue
+#     print(attr.__name__)
+fraction_skill_map = {getattr(ke, prop, None).__name__: skill_factory.from_ex_rule(getattr(ke, prop, None))
+                      for prop in dir(ke) if isinstance(getattr(ke, prop, None), Rule)}
 
-correct_add_same_num = skill_factory.from_ex_rule(ke.correct_add_same_num)
-correct_copy_same_denom = skill_factory.from_ex_rule(
-    ke.correct_copy_same_denom)
 
-correct_check = skill_factory.from_ex_rule(ke.correct_check)
-correct_convert_num1 = skill_factory.from_ex_rule(ke.correct_convert_num1)
-correct_convert_num2 = skill_factory.from_ex_rule(ke.correct_convert_num2)
-correct_convert_denom1 = skill_factory.from_ex_rule(ke.correct_convert_denom1)
-correct_convert_denom2 = skill_factory.from_ex_rule(ke.correct_convert_denom2)
-correct_add_convert_num = skill_factory.from_ex_rule(
-    ke.correct_add_convert_num)
-correct_copy_convert_denom = skill_factory.from_ex_rule(
-    ke.correct_copy_convert_denom)
+# click_done_skill = skill_factory.from_ex_rule(ke.click_done)
+# check_skill = skill_factory.from_ex_rule(ke.check)
+# equal_skill = skill_factory.from_ex_rule(ke.equal)
+# update_answer_field_skill = skill_factory.from_ex_rule(ke.update_answer_field)
+# update_convert_field_skill = skill_factory.from_ex_rule(
+#     ke.update_convert_field)
+# add_skill = skill_factory.from_ex_rule(ke.add)
+# multiply_skill = skill_factory.from_ex_rule(ke.multiply)
+# least_common_multiple = skill_factory.from_ex_rule(ke.least_common_multiple)
 
-correct_done = skill_factory.from_ex_rule(ke.correct_done)
+# correct_multiply_num = skill_factory.from_ex_rule(ke.correct_multiply_num)
+# correct_multiply_denom = skill_factory.from_ex_rule(ke.correct_multiply_denom)
 
-fraction_skill_set = {'click_done': click_done_skill, 'check': check_skill,
-                      'update_answer': update_answer_field_skill,
-                      'update_convert': update_convert_field_skill,
-                      'equal': equal_skill,
-                      'add': add_skill,
-                      'multiply': multiply_skill,
-                      'least_common_multiple': least_common_multiple,
+# correct_add_same_num = skill_factory.from_ex_rule(ke.correct_add_same_num)
+# correct_copy_same_denom = skill_factory.from_ex_rule(
+#     ke.correct_copy_same_denom)
 
-                      'correct_multiply_num': correct_multiply_num,
-                      'correct_multiply_denom': correct_multiply_denom,
-                      'correct_done': correct_done,
-                      'correct_add_same_num': correct_add_same_num,
-                      'correct_copy_same_denom': correct_copy_same_denom,
-                      'correct_check': correct_check,
-                      'correct_convert_num1': correct_convert_num1,
-                      'correct_convert_num2': correct_convert_num2,
-                      'correct_convert_denom1': correct_convert_denom1,
-                      'correct_convert_denom2': correct_convert_denom2,
-                      'correct_add_convert_num': correct_add_convert_num,
-                      'correct_copy_convert_denom': correct_copy_convert_denom
-                      }
+# correct_check = skill_factory.from_ex_rule(ke.correct_check)
+# correct_convert_num1 = skill_factory.from_ex_rule(ke.correct_convert_num1)
+# correct_convert_num2 = skill_factory.from_ex_rule(ke.correct_convert_num2)
+# correct_convert_denom1 = skill_factory.from_ex_rule(ke.correct_convert_denom1)
+# correct_convert_denom2 = skill_factory.from_ex_rule(ke.correct_convert_denom2)
+# correct_add_convert_num = skill_factory.from_ex_rule(
+#     ke.correct_add_convert_num)
+# correct_copy_convert_denom = skill_factory.from_ex_rule(
+#     ke.correct_copy_convert_denom)
+
+# correct_done = skill_factory.from_ex_rule(ke.correct_done)
+
+# fraction_skill_map = {'click_done': click_done_skill, 'check': check_skill,
+#                       'update_answer': update_answer_field_skill,
+#                       'update_convert': update_convert_field_skill,
+#                       'equal': equal_skill,
+#                       'add': add_skill,
+#                       'multiply': multiply_skill,
+#                       'least_common_multiple': least_common_multiple,
+
+#                       'correct_multiply_num': correct_multiply_num,
+#                       'correct_multiply_denom': correct_multiply_denom,
+#                       'correct_done': correct_done,
+#                       'correct_add_same_num': correct_add_same_num,
+#                       'correct_copy_same_denom': correct_copy_same_denom,
+#                       'correct_check': correct_check,
+#                       'correct_convert_num1': correct_convert_num1,
+#                       'correct_convert_num2': correct_convert_num2,
+#                       'correct_convert_denom1': correct_convert_denom1,
+#                       'correct_convert_denom2': correct_convert_denom2,
+#                       'correct_add_convert_num': correct_add_convert_num,
+#                       'correct_copy_convert_denom': correct_copy_convert_denom
+#                       }
+# from pprint import pprint
+
+# pprint(fraction_skill_map)
+# skill_set = { prop:skill_factory.from_ex_rule(getattr(ke,prop,None)) for prop in dir(ke)}
 
 
 class RandomFracEngine(KnowledgeEngine):
+
     @Rule(
         Fact(id=MATCH.id, contentEditable=True, value=W())
     )
@@ -475,9 +490,15 @@ def fact_from_dict(f):
 if __name__ == "__main__":
     from apprentice.working_memory import ExpertaWorkingMemory
     import copy
+    # from pprint import pprint
+    # for prop in dir(ke):
+    #     attr = getattr(ke, prop, None)
+    #     if not isinstance(attr, Rule):
+    #         continue
+    #     print(attr.__name__)
 
-    # c = copy.deepcopy(fraction_skill_set['click_done'])
-    prior_skills = [fraction_skill_set['click_done']]
+    # c = copy.deepcopy(fraction_skill_map['click_done'])
+    prior_skills = [fraction_skill_map['click_done']]
     prior_skills = None
     # wm = ExpertaWorkingMemory(ke=KnowledgeEngine())
     # wm.add_skills(prior_skills)
@@ -495,7 +516,7 @@ if __name__ == "__main__":
 
     wm = ExpertaWorkingMemory(ke=KnowledgeEngine())
 
-    skill_map = fraction_skill_set
+    skill_map = fraction_skill_map
     prior_skills = [
         skill_map[s]
         for s, active in prior_skills.items()
