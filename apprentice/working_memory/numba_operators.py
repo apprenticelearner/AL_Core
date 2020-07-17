@@ -1,6 +1,7 @@
+import math
+from numba import njit
 from numbert.core import BaseOperator
 
-from numba import njit
 
 @njit(cache=True)
 def is_prime(n):
