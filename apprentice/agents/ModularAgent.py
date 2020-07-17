@@ -40,6 +40,7 @@ import time
 import logging
 
 performance_logger = logging.getLogger('al-performance')
+agent_logger = logging.getLogger('al-agent')
 
 
 #####DELETE ME #####
@@ -477,23 +478,19 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
-            print("Skill Application:",explanation,explanation.rhs._id_num)
+            agent_logger.debug("Skill Application:",explanation,explanation.rhs._id_num)
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
                     response.update(skill_info)
                     response["mapping"] = explanation.mapping
                 responses.append(response)
-        # print(responses)
 
         
         if(len(responses) == 0):
             return EMPTY_RESPONSE
         else:
-            # print("responses:")
-            # print(responses)
             response = responses[0].copy()
-            print("response:", response)
             if(n != 1):
                 response['responses'] = responses
             return response
@@ -672,7 +669,7 @@ class ModularAgent(BaseAgent):
                 resp = exp.to_response(state,self)
                 if(add_skill_info): resp.update(exp.get_skill_info(self))
                 out.append(resp)
-            
+
             return out
 
     # ------------------------------CHECK--------------------------------------
