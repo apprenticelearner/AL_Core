@@ -13,7 +13,6 @@ pytz==2018.5
 six==1.11.0
 tabulate==0.8.2
 verlib==0.1
-torch>=1.0.0
 jsondiff
 -e git+https://gitlab+deploy-token-3:8vn5PzksGTAaw8v48oP-@hq-git.soartech.com/apprentice/experta.git#egg=experta
 nltk
@@ -24,4 +23,5 @@ multiprocess
 scikit-learn
 dill
 django-cors-headers
-numba>=0.45.0
+numba>=0.50.1
+-e git+https://github.com/DannyWeitekamp/numbert#egg=numbert

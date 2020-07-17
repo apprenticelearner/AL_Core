@@ -263,6 +263,7 @@ class Explanation(object):
         self.input_literals = [mapping[s] for s in rhs.input_vars]
 
     def compute(self, state, agent):
+        #Note: I have no recollection of why this passes a list
         v = agent.planner.eval_expression([self.rhs.input_rule],
                                           self.mapping, state)[0]
 

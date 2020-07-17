@@ -82,7 +82,7 @@ class ExpertaSkillFactory(Factory):
         return s
 
     def from_ex_rule(self, _rule: ex.Rule) -> Skill:
-        return self.build(_rule._args,
+        return self.build(_rule._wrapped_args,
                           _rule._wrapped,
                           _name=_rule._wrapped.__name__)
 

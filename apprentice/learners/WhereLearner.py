@@ -15,14 +15,19 @@ from apprentice.planners.fo_planner import build_index
 from apprentice.planners.fo_planner import subst
 import numpy as np
 import itertools
-from timeit import repeat
+# from timeit import repeat
+import timeit
 import numba
 from numba import types, njit,guvectorize,uint32,vectorize,prange
-from numba.typed import List
+from numba import void,b1,u1,u2,u4,u8,i1,i2,i4,i8,f4,f8,c8,c16
+from numba.typed import List, Dict
+from numba.types import UniTuple, ListType
 
 global my_gensym_counter
 my_gensym_counter = 0
 
+# import logging
+# logging.disable(logging.CRITICAL)
 
 def ground(arg):
     if isinstance(arg, tuple):
@@ -77,6 +82,12 @@ class BaseILP(object):
         positive or negative.
         """
         pass
+
+    def score_match(self, t, x):
+        is_match = self.check_match( t, x)
+        return 1.0 if is_match else 0.0
+
+
 
 
 def value_gensym():
@@ -137,6 +148,9 @@ class WhereLearner(object):
     def check_match(self, rhs, t, x):
         return self.learners[rhs].check_match(t, x)
 
+    def score_match(self, rhs, t, x):
+        return self.learners[rhs].score_match(t, x)
+
     def get_match(self, rhs, X):
         # args = [skill.selection_var] + skill.input_vars
         return self.learners[rhs].get_match(X)
@@ -157,6 +171,14 @@ class WhereLearner(object):
 
     def skill_info(self,rhs):
         return self.learners[rhs].skill_info()
+
+    def best_partial_matches(self,rhs, partial_matches,x):
+        lrnr = self.learners[rhs]
+        scores = [lrnr.score_match(partial_match,x) for partial_match in partial_matches]
+        inds = np.where(scores == np.max(scores))[0]
+        return [partial_matches[i] for i in inds]
+
+
 
 
 class FastMostSpecific(BaseILP):
@@ -183,7 +205,9 @@ class FastMostSpecific(BaseILP):
         if(self.constraints is None):
             return True
         for i,part in enumerate(t):
+
             c = 0 if i == 0 else 1
+            # print(c,self.constraints[c],x[part])
             if(not self.constraints[c](x[part])):
                 return False
         return True
@@ -203,10 +227,12 @@ class FastMostSpecific(BaseILP):
 
         for t in self.tuples:
             if(self.check_constraints(t,x)):
+                # print("T",t)
                 yield t
 
 
     def ifit(self, t, x, y):
+        # print("FIT",t)
         # t = tuple(ground(e) for e in t)
         if(y > 0):
             self.tuples.add(tuple(t))
@@ -764,470 +790,151 @@ def get_where_learner(name, **kwargs):
     return WhereLearner(name, **kwargs)
 
 
-
-
-
-# if __name__ == "__main__":
-
-    # ssw = RelationalLearner(args=('?foa0',),
-    #                         constraints=frozenset([('name', '?foa0',
-    #                                               '?foa0val')]))
-    # ssw = SpecificToGeneral(args=('?foa0',),
-    #                         constraints=frozenset([('name', '?foa0',
-    #                                               '?foa0val')]))
-
-    # ssw = MostSpecific(args=('?foa0',),
-    #                         constraints=frozenset([('name', '?foa0',
-    #                                               '?foa0val')]))
-    # p1 = {('on', '?o1'): '?o2',
-    #       ('name', '?o1'): "Block 1",
-    #       ('name', '?o2'): "Block 7",
-    #       ('valuea', '?o2'): 99}
-
-    # p2 = {('on', '?o3'): '?o4',
-    #       ('name', '?o3'): "Block 3",
-    #       ('name', '?o4'): "Block 4",
-    #       ('valuea', '?o4'): 2}
-
-    # n1 = {('on', '?o5'): '?o6',
-    #       ('on', '?o6'): '?o7',
-    #       ('name', '?o5'): "Block 5",
-    #       ('name', '?o6'): "Block 6",
-    #       ('name', '?o7'): "Block 7",
-    #       ('valuea', '?o7'): 100}
-
-    # ssw.ifit(['?o1'], p1, 1)
-    # ssw.ifit(['?o5'], n1, 0)
-    # ssw.ifit(['?o3'], p2, 1)
-
-    # test1 = {('on', '?o5'): '?o6',
-    #          ('on', '?o6'): '?o7',
-    #          ('name', '?o5'): "Block 1",
-    #          ('name', '?o6'): "Block 7",
-    #          ('name', '?o7'): "Block 5",
-    #          ('valuea', '?o6'): 3}
-
-    # print()
-    # print("FINAL HYPOTHESIS")
-    # print(ssw.learner.get_hset())
-
-    # ms = SpecificToGeneral(args=('foa0','foa1'))#,
-    #                         # constraints=frozenset([('name', '?foa0',
-    #                         #                       '?foa0val')]))
-
-    # state = {'columns' : { 
-    #             "0": {
-    #                 "0":{"?ele1": {"id": "ele1", "value":7}},
-    #                 "1":{"?ele2": {"id": "ele2", "value":8}}
-    #             },
-    #             "1": {
-    #                 "0":{"?ele3": {"id": "ele3", "value":7}},
-    #                 "1":{"?ele4": {"id": "ele4", "value":8}}
-    #             }
-    #         }
-    #      }
-    # from concept_formation.preprocessor import Flattener
-    # from pprint import pprint
-    # fl = Flattener()
-    # state = fl.transform(state)
-
-    # pprint(state)
-
-    # ms.ifit(['?ele1','?ele2'], state, 1)
-    # ms.ifit(['?ele3','?ele4'], state, 1)
-    # ms.ifit(['?ele1','?ele3'], state, 0)
-    # # ms.ifit(['?o3'], state, 1)
-
-    # for m in ms.get_matches(state):
-    #    print('OP MATCH', m)
-
-
-@njit(nogil=True, parallel=False,fastmath=True,cache=True)
-def compute_adjacencies(split_ps, concept_slices,
-                    where_part_vals):
-    d = len(concept_slices)-1
-    adjacencies = np.zeros((d,d),dtype=np.uint8)
-
-    for i in prange(d):
-        concept = split_ps[concept_slices[i]:concept_slices[i+1]]
-        # print("concept", concept,concept_slices[i],concept_slices[i+1])
-        for j in range(d):
-            for k in range(len(concept)):
-                if(concept[k] == where_part_vals[j]):
-                    adjacencies[i,j] = 1    
-                    break
+@njit(nogil=False, parallel=False,fastmath=False,cache=True)
+def fill_pairs_at(partial_matches,i,pair_matches):
+    ''' 
+    Adds new bindings to each partial match in list partial_matches, by
+    trying to apply consistent pairs of elements associated with concept_i.
+    '''
+    #For every concept_j adjacent to concept_i
+    for j, pair_matches_ij in pair_matches[i].items():
+        new_pms = List()
+        #Apply the following to each partial_match "pm" so far:
+        for pm in partial_matches:
+            altered = False
+            already_consistent = False
+            
+            #For each consistent pair (e_i, e_j) of elements matching concepts
+            #   i and j respectively:
+            for (k, e_i, e_j) in pair_matches_ij:
+                okay = True
+                #Bind the pair to partial match "pm" if:                
+                #concept_i is unbound or concept_i is bound to e_i and concept_j is unbound
+                if(not (pm[i] == 0 or (pm[i] == e_i and pm[j] == 0))): okay = False
+                #and concept_j is unbound or concept_j is bound to e_j and concept_i is unbound
+                if(not (pm[j] == 0 or (pm[j] == e_j and pm[i] == 0))): okay = False
                 
-    return adjacencies
+                #and e_i and e_j are not bound elsewhere in partial match "pm"
+                for p in range(len(pm)):
+                    if(p != i and p != j and (pm[p] == e_i or pm[p] == e_j)):
+                        okay = False; break;
 
-@njit(nogil=True, parallel=False,fastmath=True,cache=True)
-def gen_cand_slices(inds_j,
-                    elems,elems_slices,
-                    sel):
-    candidate_slices = np.empty((len(inds_j),len(sel)),dtype=np.uint8)
-    # print("BOOP",len(inds_j))
-    for k in prange(len(inds_j)):
-        ind = inds_j[k]
-        # print(elems[elems_slices[ind]:elems_slices[ind+1]],sel)
-        candidate_slices[k] = elems[elems_slices[ind]:elems_slices[ind+1]][sel]
-        # cands = 
-    return candidate_slices
-
-
-@njit(nogil=True, parallel=False,fastmath=True,cache=True)
-def fill_partial_matches_at(partial_matches,i,pair_matches,pair_index_reg,
-                            single_matches):
-    # print("i",i)
-    d = partial_matches.shape[1]
-    NEG = np.array(-1,dtype=partial_matches.dtype)
-    i_elms = dict()
-
-    has_constraints = False
-    for j in range(d):
-        if(pair_index_reg[i][j][0] != -1):
-            s,l = pair_index_reg[i][j][0],pair_index_reg[i][j][1]
-            for k in range(l):
-                pm = pair_matches[s+k]
-                dat = np.empty(3,dtype=np.uint32)
-                dat[0] = s
-                dat[1] = l
-                dat[2] = k
-
-                if(not pm[2] in i_elms):
-                    lst = List()
-                    lst.append(dat)
-                    i_elms[pm[2]] = lst
-                else:
-                    i_elms[pm[2]].append(dat)
-                has_constraints = True
-            # if(l > 1):
-            #     # old = len(partial_matches)
-            #     # new_partial_matches = np.empty((old*l,d))
+                #Mark the partial match as consistent for this iteration if it
+                #   is consistent with this pair.
+                if(pm[j] == e_j and pm[i] == e_i): already_consistent = True
                 
+                #Then append the new partial match to the set of partial matches
+                if(okay):
+                    new_pm = pm.copy()
+                    new_pm[i], new_pm[j] = e_i, e_j
+                    new_pms.append(new_pm)
+                    altered = True
 
-            #         # i_elms.add(pm[2])
-            #         # print(pm,"k")
-            #         # partial_matches[:,pm[0]] = pm[2]
-            #         # partial_matches[:,pm[1]] = pm[3]
-            #         # new_partial_matches[k*old:(k+1)*old] = partial_matches
-            #     # partial_matches = new_partial_matches
-            # elif(l != 0):
-            #     pm = pair_matches[s]
-            #     dat = np.empty(3,dtype=np.uint32)
-            #     dat[0] = s
-            #     dat[1] = l
-            #     dat[2] = 0
-
-            #     if(not pm[2] in i_elms):
-            #         lst = List()
-            #         lst.append(dat)
-            #         i_elms[pm[2]] = lst
-            #     else:
-            #         i_elms[pm[2]].append(dat)
-                # print(pm,"one",i)
-                # partial_matches[:,pm[0]] = pm[2]
-                # partial_matches[:,pm[1]] = pm[3]
-
-    par_ms_list = List() 
-    if(has_constraints):
-       
-
-    # old = len(partial_matches)
-    # new_partial_matches = np.empty((old*len(i_elms),d))
-    # i_elms = list(i_elms)
-    # print("elems_i",i_elms)
-        
-        for elem in i_elms:
-            da = i_elms[elem]
-            # print("dat",da)
-
-            
-            # print("elem:",elem)
-            # print()
-            # par_ms = partial_matches.copy()
-            # print(partial_matches)
-            already_matches = np.empty(len(partial_matches),dtype=np.uint8)
-            for j in range(len(partial_matches)):
-                already_matches[j] = (partial_matches[j,:i] == elem).any() | (partial_matches[j,i+1:] == elem).any()
-            # print(already_matches)
-            par_ms_sel = (((partial_matches[:,i] == 0) | (partial_matches[:,i] == elem)) & ~already_matches).nonzero()[0]
-            # print(par_ms_sel)
-            par_ms = partial_matches[par_ms_sel,:].copy()
-            
-
-            par_ms[:,i] = elem
-
-            # print("par_ms")
-            # print(par_ms)
-            
-            # print("elem: ",elem)
-            # print(par_ms)
-            
-            # for r in da:
-            da_s = dict()
-            for r in da:
-                if(not r[0] in da_s):
-                    lst2 = List()
-                    lst2.append(r)
-                    da_s[r[0]] = lst2
-                else:
-                    da_s[r[0]].append(r)
-            # print("da_s")                   
-            # print(da_s)                   
-
-            for s in da_s:
-                da = da_s[s]
-                for r in da:
-                    k = r[2]
-                    l = len(da)
-                    # print(pair_matches[s+k])
-                    # print("")
-                    # print(s,l,k)
-                    if(l > 1):
-                        raise ValueError()
-                        old = len(par_ms)
-                        new_partial_matches = np.empty((old*l,d),dtype=partial_matches.dtype)
-                        for k in range(l):
-                            pm = pair_matches[s+k]
-                            # print(par_ms[:,pm[1]])
-                            # print("here1k",pm[1], pm[3])
-                            # print(elm,"k")
-                            # partial_matches[:,pm[0]] = pm[2]
-                            par_ms[:,pm[1]] = np.where(par_ms[:,pm[1]] == 0, pm[3],par_ms[:,pm[1]])
-                            new_partial_matches[k*old:(k+1)*old] = par_ms
-                        par_ms = new_partial_matches
-                    elif(l != 0):
-                        pm = pair_matches[s+k]
-                        # print(par_ms[:,pm[1]])
-                        # print("here1",pm[1], pm[3])
-                        # print(pm,"one",i)
-                        # partial_matches[:,pm[0]] = pm[2]
-                        par_ms[:,pm[1]] = np.where((par_ms[:,pm[1]] == 0) | (par_ms[:,pm[1]] == pm[3]),
-                                                    pm[3],-1)
-                    # par_ms
-                    # print("r",r)
-            # print("^",par_ms)
-            
-            
-            consistencies = np.empty(len(par_ms),dtype=np.uint8) 
-            for j in range(len(par_ms)):
-                # print(par_ms[j] == NEG)
-                # print((~par_ms[j] == NEG).any())
-                consistencies[j] = ~(par_ms[j] == NEG).any()
-            par_ms = par_ms[consistencies.nonzero()[0]]
-            # print(consistencies.nonzero())
-            # print("par_ms")
-            # print(par_ms)
-            # print("--------------")
-            par_ms_list.append(par_ms)
-    else:
-        # print(partial_matches)
-        elem_names_i = single_matches[i]
-        # print(elem_names_i)
-        # print(partial_matches)
-        for elem in elem_names_i:
-            # print(elem)
-            already_matches = np.empty(len(partial_matches),dtype=np.uint8)
-            for j in range(len(partial_matches)):
-                # print("j",j,i)
-                # print(partial_matches[j,:i] == elem)
-                # print((partial_matches[j,:i] == elem).any())
-                # print((partial_matches[j,i+1:]),elem)
-                already_matches[j] = (partial_matches[j,:i] == elem).any() | (partial_matches[j,i+1:] == elem).any()
-            # print("already_matches")
-            # print(already_matches)
-            par_ms_sel = (((partial_matches[:,i] == 0) | (partial_matches[:,i] == elem)) & ~already_matches).nonzero()[0]
-            # print(par_ms_sel)
-            par_ms = partial_matches[par_ms_sel,:].copy()
-        
-
-            par_ms[:,i] = elem
-            par_ms_list.append(par_ms)   
-
-        # print("not has_constraints")
-
-
-
-            # pm = pair_matches[s+k]
-
-            # print(pm)
-        
-        # elem = i_elms[k]
-        # partial_matches[:,i] = elem
-        # new_partial_matches[k*old:(k+1)*old] = partial_matches
-    # partial_matches = new_partial_matches
-    # np.array()
-    n = 0
-    for par_ms in par_ms_list:
-        n += len(par_ms)
-    partial_matches = np.empty((n,d),dtype=partial_matches.dtype)
-    k = 0
-    for par_ms in par_ms_list:
-        # print(par_ms)
-        partial_matches[k:k+len(par_ms),:] = par_ms
-        k += len(par_ms)
-
-    # partial_matches = np.concatenate(tuple(*par_ms_list))
-    # print("OUT!")
-    # print(partial_matches)
+            #If partial match "pm" hasn't picked up any new bindings to concepts i and j
+            #   but at least one was not yet bound, then no further binding can be found 
+            #   for "pm" and it is rejected. Otherwise as long as pm[i] is consistent 
+            #   with pm[j] keep pm for the next iteration.
+            if(not altered and pm[i] != 0 and pm[j] != 0 and already_consistent):
+                new_pms.append(pm)
+        partial_matches = new_pms
     return partial_matches
 
-# def fill_partial_matches_around(partial_matches,i,pair_matches,pair_index_reg):
-#     #just the index we start from
-#     # for i in range(d):
-#     print(i)
-#     print(partial_matches )
-#     # partial_matches = List()
-#     d = partial_matches.shape[1]
+@njit(nogil=False, parallel=False,fastmath=False,cache=True)
+def fill_singles_at(partial_matches,i,cand_names):
+    '''
+    For concept_i which is free floating and without a concept
+    tracked neighbor, bind the candidates for this concept
+    to every partial match in partial_matches. 
+    '''
+    new_pms = List()
+    for pm in partial_matches:
+        if(pm[i] == 0):
+            for cn in cand_names:
+                if(not (cn == pm).any()):
+                    new_pm = pm.copy()
+                    new_pm[i] = cn
+                    new_pms.append(new_pm)
+        else:
+            new_pms.append(pm)
+    return new_pms
 
-#     for j in range(d):
-#         if(pair_index_reg[i][j][0] != -1):
-#             s,l = pair_index_reg[i][j][0],pair_index_reg[i][j][1]
-#             if(l > 1):
-#                 old = len(partial_matches)
-#                 new_partial_matches = np.empty((old*l,d))
-#                 for k in range(l):
-#                     pm = pair_matches[s+k]
-#                     print(pm,"k")
-#                     # partial_matches[:,pm[0]] = pm[2]
-#                     partial_matches[:,pm[1]] = pm[3]
-#                     new_partial_matches[k*old:(k+1)*old] = partial_matches
-#                 partial_matches = new_partial_matches
-#             elif(l != 0):
-#                 pm = pair_matches[s]
-#                 print(pm,"one",i)
-#                 # partial_matches[:,pm[0]] = pm[2]
-#                 partial_matches[:,pm[1]] = pm[3]
 
-#     print(partial_matches.shape)
-#     print(partial_matches )
+@njit(nogil=False, parallel=False,fastmath=False,cache=True)
+def find_consistent_pairs(concepts, elems, candidates,
+                        elem_names, where_vars_to_inds):
+    '''
+    Builds the list "pair_matches" which holds a dictionary for each
+    concept_i with keys for the indicies of adjacent concepts_j and 
+    values are lists of pairs of elements which are mutually 
+    consistent candidates for concept_i and concept_j respectively.
+    '''
+    pair_matches = List()
+    for i,(concept_i, cands_inds_i) in enumerate(zip(concepts,candidates)):
+        pair_matches_i = Dict.empty(i8,list_of_u4_triple)
+        #Loop through every feature of concept_i
+        for k, f_k in enumerate(concept_i):
 
-#     return partial_matches
-#                 # break
-    
+            #If a reference to concept_j is present at feature k of concept_i
+            if(f_k in where_vars_to_inds):
+                j = where_vars_to_inds[f_k]
+                elem_names_j = elem_names[candidates[j]]
+                pair_matches_ij = List.empty_list(u4_triple)
 
-@njit(nogil=True, parallel=False,fastmath=True,cache=True)
+                #Find pairs of consistent candidates between the two concepts
+                for c1_ind in cands_inds_i:
+                    f_k_of_c1 = elems[c1_ind][k]
+                    for c2_val in elem_names_j:
+                        if(f_k_of_c1 == c2_val):
+                            #Add the triple (k, e_i,e_j) as a candidate pair
+                            pair_matches_ij.append((k,elem_names[c1_ind],c2_val))
+                pair_matches_i[j] = pair_matches_ij
+        pair_matches.append(pair_matches_i)
+    return pair_matches
+
+
+u4_triple = UniTuple(u4,3)
+list_of_u4_triple = ListType(u4_triple)
+@njit(nogil=False, parallel=False,fastmath=False,cache=True)
 def match_iterative(split_ps, concept_slices,
-                    elems,elems_slices,
+                    _elems,elems_slices,
                     concept_cands,cand_slices,
                     elem_names,
                     where_part_vals):
-    d = len(concept_slices)-1
-    adjacencies = compute_adjacencies(split_ps, concept_slices,where_part_vals)
-    # print(adjacencies)
-    # adjacencies_nz = adjacencies.nonzero()
-    pair_matches = List()
-    single_matches = List()
-    # print("SHEEEE::",len(pair_matches))
-    pair_index_reg = -np.ones((d,d,2),dtype=np.int16)
-    # for a in range(len(adjacencies_nz[0])):
-    # print("elems")
-    # print(elems)
-    for i in range(d):
-        inds_i = concept_cands[cand_slices[i]:cand_slices[i+1]]
-        ps_i = split_ps[concept_slices[i]:concept_slices[i+1]]
-        elem_names_i = elem_names[inds_i]
-        single_matches.append(elem_names_i)
-        # print(elem_names_i)
-        for j in range(d):
-            # i,j = adjacencies_nz[0][a],adjacencies_nz[1][a]
+    '''
+    Produces every consistent matching of elems to concepts.
+    '''
 
-            if(adjacencies[i][j] == 1):
+    #----To be new inputs-----
+    where_vars_to_inds = Dict.empty(u4,i8)
+    for j,v in enumerate(where_part_vals):
+        where_vars_to_inds[v] = j
+    concepts = List()
+    elems = List()
+    candidates = List()
+    for i in range(len(concept_slices)-1):
+        concepts.append(split_ps[concept_slices[i]:concept_slices[i+1]])
+    for i in range(len(elems_slices)-1):
+        elems.append(_elems[elems_slices[i]:elems_slices[i+1]])
+    for i in range(len(cand_slices)-1):
+        candidates.append(concept_cands[cand_slices[i]:cand_slices[i+1]])
+    #----END new inputs-----
 
-                
-                inds_j = concept_cands[cand_slices[j]:cand_slices[j+1]]
-                
+    n_concepts = len(concepts)
+    pair_matches = find_consistent_pairs(concepts, elems, candidates,
+                        elem_names, where_vars_to_inds)
 
-                
-                elem_names_j = elem_names[inds_j]
+    partial_matches = List()
+    partial_matches.append(np.zeros((n_concepts,),dtype=np.uint32))
 
-                sel = (ps_i == where_part_vals[j]).nonzero()[0]
-                # print("inds_i")
-                # print(inds_i.shape)
-                # print(elems)
-                candidate_slices = gen_cand_slices(inds_i,elems,elems_slices,sel)
+    for i in range(n_concepts):
+        partial_matches = fill_pairs_at(partial_matches,i,pair_matches)
+        # print(partial_matches)
 
-                # print("candidate_slices")
-                # print(candidate_slices)
-                
-                # print("elem_names_i")
-                # print(elem_names_i)
-                # print("elem_names_j")
-                # print(elem_names_j)
-                # print(elems_i)
-
-                ps_i = split_ps[concept_slices[i]:concept_slices[i+1]]
-
-                # consistencies = np.zeros((len(candidate_slices),len(elems_slices)-1),dtype=np.uint8)
-                # ok_k = np.zeros(len(elem_names_i),dtype=np.uint8)
-                # ok_r = np.zeros(len(elem_names_j),dtype=np.uint8)
-                # assigned = False
-                # print("SHEEEE::",i,j,len(pair_matches))
-                pair_index_reg[i,j,0] = len(pair_matches)
-                # pair_index_reg[j,i,0] = len(pair_matches)
-
-                for k in range(len(elem_names_i)):
-                    v = candidate_slices[k]
-                    # print("v",v,where_part_vals[j])
-                    for r in range(len(elem_names_j)):
-                        # print((candidate_slices[r], v))
-                        # print((candidate_slices[r] == v))
-                        # print(elem_names_j[r])
-                        con = (elem_names_j[r] == v).all()
-                        # consistencies[k][inds_j[r]] = con
-                        # print(elem_names_i[k],elem_names_j[r])
-                        # print("(",k,r,")", elem_names_j[r],v)
-                        if(con):
-                            # ok_k[r] = 1
-                            # ok_r[k] = 1
-                            pair_match = np.empty(4,dtype=np.uint16)
-                            # # pair_match2 = np.empty(4,dtype=np.uint16)
-                            # print("inds_i[k]",inds_i[k])
-                            pair_match[0] = i
-                            pair_match[1] = j
-                            pair_match[2] = elem_names_i[k]
-                            pair_match[3] = elem_names_j[r]
-
-                            # print("pair_match",pair_match)
-                            pair_matches.append(pair_match)
-
-                            
-
-                            # pair_match2[0] = elem_names_j[k]
-                            # pair_match2[1] = elem_names_i[r]
-
-                            # partial_match[i] = elem_names_i[r]
-                            # partial_match[j] = elem_names_j[k]
-                            # print(inds_i[r],inds_j[k])
-                            # print(partial_match)
-                            # if(not assigned):
-                # print(i,j)
-                # print(consistencies)
-
-                
-                # pair_matches.append(consistencies)
-                            # pair_matches.append(pair_match2)
-
-                pair_index_reg[i,j,1] = len(pair_matches)-pair_index_reg[i,j,0]
-                # pair_index_reg[j,i,1] = len(pair_matches)-pair_index_reg[j,i,0]
-
-            # for pm in consistencies.nonzero():
-        
-    # print(pair_index_reg[:,:,0])
-    # print(pair_index_reg[:,:,1])
-    # print("PAIRS")
-    # for p in pair_matches: 
-    #     print(p)
-
-    # partial_matches = np.zeros((1,d),dtype=np.uint16)
-    for i in range(d):
-        partial_matches = np.zeros((1,d),dtype=np.uint16)
-        partial_matches = fill_partial_matches_at(partial_matches,i,pair_matches,pair_index_reg,single_matches)
-        for j in range(d):
-            # partial_matches = np.zeros((1,d),dtype=np.uint16)
-            partial_matches = fill_partial_matches_at(partial_matches,j,pair_matches,pair_index_reg,single_matches)
-        # print("PMs",partial_matches)
-        # fill_partial_matches_around(partial_matches,i,pair_matches,pair_index_reg)
-    # print("OUT",partial_matches)
+    for i in range(n_concepts):
+        if(len(pair_matches[i]) == 0):
+            # print("MOO",i, [elem_names[c] for c in candidates[i]])
+            partial_matches = fill_singles_at(partial_matches,i,[elem_names[c] for c in candidates[i]])
+    # print(partial_matches)    
     return partial_matches
 
 def flatten_n_slice(lst):
@@ -1246,10 +953,13 @@ def mask_select(x, m):
     return x[m.nonzero().view(-1)]
 
 
+import time
+
 class VersionSpace(BaseILP):
     def __init__(self, args=None, constraints=None, use_neg=False, use_gen=False,
                        propose_gens=True, use_neighbor_concepts=True,
                        non_literal_attrs=["to_right","to_left","right","left","above","below","value","contentEditable"],
+                       remove_attrs=[],
                        null_types=[None,""]):
         self.pos_concepts = VersionSpaceILP(use_gen=use_gen)
         self.neg_concepts = VersionSpaceILP(use_gen=use_gen) if use_neg else None
@@ -1266,13 +976,14 @@ class VersionSpace(BaseILP):
         self.use_gen = use_gen
         self.non_literal_attrs= non_literal_attrs
         self.null_types = null_types
+        self.remove_attrs = remove_attrs
 
     def initialize(self, n):
         assert n >= 1, "not enough elements"
         self.num_elems = n
         self.enumerizer = Enumerizer(start_num=0,
                                      force_add=["<#ANY>",None,'?sel'] + ['?arg%d' % i for i in range(n-1)],
-                                     remove_attrs=['value'])
+                                     remove_attrs=self.remove_attrs)
         self.initialized = True
 
     def remove_concepts(self,indicies):
@@ -1285,11 +996,11 @@ class VersionSpace(BaseILP):
             # print(i)
             ps = self.pos_concepts.spec_concepts
             # print(s[i],s[i+1])
-            self.pos_concepts.spec_concepts = torch.cat([ps[:,:s[i]],ps[:,s[i+1]:]],dim=1)
+            self.pos_concepts.spec_concepts = np.concatenate([ps[:,:s[i]],ps[:,s[i+1]:]],axis=1)
             # print("CONCEPT", self.pos_concepts.spec_concepts.size())
             if(self.neg_ok):
                 ns = self.neg_concepts.spec_concepts
-                self.neg_concepts.spec_concepts = torch.cat([ns[:,:s[i]],ns[:,s[i+1]:]],dim=1)
+                self.neg_concepts.spec_concepts = np.concatenate([ns[:,:s[i]],ns[:,s[i+1]:]],axis=1)
 
         sl = np.array(self.elem_slices)
         # print(indicies)
@@ -1314,8 +1025,9 @@ class VersionSpace(BaseILP):
 
     def get_neighborized_vs_elems(self,t,x,gen_literals=False):
         rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
-        # print(self.expected_neighbors.keys())
+        # print(self.expected_neighbors)
         relation_map = self._resolve_neighbor_relations(t,x,itertools.chain(*self.expected_neighbors.values()))
+        # print(relation_map)
         neigh_rename_dict = {}
         for i,(k,v) in enumerate(self.expected_neighbors.items()):
             for v_i in v:
@@ -1337,11 +1049,14 @@ class VersionSpace(BaseILP):
         ##TODO: IMPURE
         
         # print("VS_TYPES", self.elem_types)
+        # pprint(rename_dict)
+        # pprint(neigh_rename_dict)
         rename_dict = {**rename_dict,**neigh_rename_dict}
-        instances = [rename_values(x[t_name],rename_dict) 
+        instances = [rename_values(x[t_name],rename_dict,exclude=[t_name]) 
                      for t_name in [*t,*neigh_rename_dict.keys()]]
 
-        # pprint(rename_dict)
+        
+        # pprint("instances")
         # pprint(instances)
         if(gen_literals):
             non_literals = set([*self.null_types,*rename_dict.values()])
@@ -1364,7 +1079,7 @@ class VersionSpace(BaseILP):
 
     def get_vs_elems(self,t,x,gen_literals=False):
         rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
-        instances = [rename_values(x[t_name],rename_dict) for t_name in t]
+        instances = [rename_values(x[t_name],rename_dict, exclude=[t_name]) for t_name in t]
         if(gen_literals):
             non_literals = set([*self.null_types,*rename_dict.values()])
             def genrl(k,v):
@@ -1394,19 +1109,20 @@ class VersionSpace(BaseILP):
             return None,None
 
     def fit_expected_neighbors(self,t,x,y):
+        # print(t)
         instances,vs_elems = self.get_vs_elems(t,x)
 
         neigh_relations = {}
         varz = ["?sel" if i == 0 else "?arg%d" % (i-1) for i in range(len(t))]
-        for inst,var in zip(instances,varz):
+        for inst,var, inst_id in zip(instances,varz, t):
             for k,v in inst.items():
+                # print(inst_id, v,k)
                 if(isinstance(v,list)):
                     for i,v_i in enumerate(v):
-                        if(v_i not in varz
-                            and v_i in x):
+                        if(v_i not in varz and v_i in x and v_i != inst_id):
                             neigh_relations[v_i] = neigh_relations.get(v_i,[])+[(var,k,i)]
-                elif(v in x):
-                    if(v not in varz):
+                else:
+                    if(v not in varz and v in x and v != inst_id):
                         neigh_relations[v] = neigh_relations.get(v,[])+[(var,k)]
                 # print("%s.%s"%(var,k),v)
         # print("neigh_relations")
@@ -1415,7 +1131,8 @@ class VersionSpace(BaseILP):
     # neigh_instances = [rename_values(x[n_name],t_neigh_relations) for n_name in neigh_relations.keys()]
     # neigh_elems = self.enumerizer.transform(neigh_instances)
 
-    
+        # print("neigh_relations")
+        # print(neigh_relations)
         if(self.expected_neighbors is None):
             self.elem_types = [x[t_name]["type"] for t_name in [*t,*neigh_relations.keys()]]
             self.expected_neighbors = {("?neigh%d"%i): vals for i,vals in enumerate(neigh_relations.values())}
@@ -1503,97 +1220,99 @@ class VersionSpace(BaseILP):
 
 
     def ifit(self, t, x, y):
-        with torch.no_grad():
-            if(len(t) != len(set(t))):
-                return
-            # if(self.elem_types is not None):
-            #     print(len(self.elem_types),len(list(self.expected_neighbors.keys())))
+        print("FIT B", t,y)
+        # with torch.no_grad():
+        if(len(t) != len(set(t))):
+            raise ValueError("Where elements must be unique; recieved : %s" % t)
+            return
+        # if(self.elem_types is not None):
+        #     print(len(self.elem_types),len(list(self.expected_neighbors.keys())))
 
-            
-            # print("I AM VERSIONSPACE",y)
-            x = x.get_view("object")
-            # print([x[t_name] for t_name in t])
+        
+        # print("I AM VERSIONSPACE",y)
+        x = x.get_view("object")
+        # print([x[t_name] for t_name in t])
 
-            #Do this just so everything is in the map
-            
-            # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
-            assert False not in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
+        #Do this just so everything is in the map
+        
+        # x = rename_values(x,{ele:"sel" if i == 0 else ele:"arg%d" % i-1 for i,ele in enumerate(t)})
+        assert False not in ["type" in x[t_name] for t_name in t], "All interface elements must have a type and a static set of attributes."
 
-            if(not self.initialized):
-                self.initialize(len(t))
-                self.elem_types = [x[t_name]["type"] for t_name in t]
-            assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
+        if(not self.initialized):
+            self.initialize(len(t))
+            self.elem_types = [x[t_name]["type"] for t_name in t]
+        assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
 
-            if(self.use_neighbor_concepts):
-                assert self.elem_types is None or self.expected_neighbors is None or len(self.elem_types)==len(list(self.expected_neighbors.keys()))+len(t), "BUG!!"
-                self.fit_expected_neighbors(t,x,y)
-                instances, vs_elems = self.get_neighborized_vs_elems(t,x,gen_literals=True)
-            else:
-                instances, vs_elems = self.get_vs_elems(t,x,gen_literals=True)
+        if(self.use_neighbor_concepts):
+            assert self.elem_types is None or self.expected_neighbors is None or len(self.elem_types)==len(list(self.expected_neighbors.keys()))+len(t), "BUG!!"
+            self.fit_expected_neighbors(t,x,y)
+            instances, vs_elems = self.get_neighborized_vs_elems(t,x,gen_literals=True)
+        else:
+            instances, vs_elems = self.get_vs_elems(t,x,gen_literals=True)
 
-            if(vs_elems is None):
-                return
+        if(vs_elems is None):
+            return
 
-            # print(self.use_neighbor_concepts)
-            # print(vs_elems)
-                # self.elem_types = [x[t_name]["type"] for t_name in t]
+        # print(self.use_neighbor_concepts)
+        print("VS_ELMS",vs_elems)
+            # self.elem_types = [x[t_name]["type"] for t_name in t]
 
-                # inv_rename_dict = {v:k for k,v in rename_dict.items()}
-                # neigh_rename_dict = {}
-                # for k,v in self.expected_neighbors.items():
-                #     for v_i in v:
-                #         name = x[inv_rename_dict[v_i[0]]][v_i[1]]
-                #         if(isinstance(name,list)): name = name[v_i[2]]
-                #         neigh_rename_dict[name] = k 
-                    
-                # # pprint(rename_dict)
-                # pprint(instances)
-                # # pprint(neigh_rename_dict)
-
-                # instances = [rename_values(x[t_name],{**rename_dict,**neigh_rename_dict}) 
-                #              for t_name in [*t,*neigh_rename_dict.keys()]]
-                # vs_elems = self.enumerizer.transform(instances)
-            # neigh_elems = []
+            # inv_rename_dict = {v:k for k,v in rename_dict.items()}
+            # neigh_rename_dict = {}
+            # for k,v in self.expected_neighbors.items():
+            #     for v_i in v:
+            #         name = x[inv_rename_dict[v_i[0]]][v_i[1]]
+            #         if(isinstance(name,list)): name = name[v_i[2]]
+            #         neigh_rename_dict[name] = k 
+                
+            # # pprint(rename_dict)
             # pprint(instances)
-                    # print(" ",intersections)
-                    # intersections = neigh_relations.values()
-                    # print("expected_neighbors:",)
-                    # pprint(neigh_relations)
-                # removable_neighbors = [x for x in self.expected_neighbors if x not in neigh_relations.values()]
-                # pprint("remaining_neighbors",neigh_relations.values())
-                # pprint("removable_neighbors",removable_neighbors)
+            # # pprint(neigh_rename_dict)
 
-            # pprint(instances)
-            # pprint(neigh_instances)
-            # pprint(neigh_relations)
-            
-            
+            # instances = [rename_values(x[t_name],{**rename_dict,**neigh_rename_dict}) 
+            #              for t_name in [*t,*neigh_rename_dict.keys()]]
+            # vs_elems = self.enumerizer.transform(instances)
+        # neigh_elems = []
+        # pprint(instances)
+                # print(" ",intersections)
+                # intersections = neigh_relations.values()
+                # print("expected_neighbors:",)
+                # pprint(neigh_relations)
+            # removable_neighbors = [x for x in self.expected_neighbors if x not in neigh_relations.values()]
+            # pprint("remaining_neighbors",neigh_relations.values())
+            # pprint("removable_neighbors",removable_neighbors)
 
-            #Do this just so everything is in the map
-            self.enumerizer.transform({i:x for i,x in enumerate(x.keys())})
-            self.enumerizer.transform(list(x.values()))
+        # pprint(instances)
+        # pprint(neigh_instances)
+        # pprint(neigh_relations)
+        
+        
 
-            # print("VS")
-            # print(self.enumerizer.transform(list(x.values())))
+        #Do this just so everything is in the map
+        self.enumerizer.transform({i:x for i,x in enumerate(x.keys())})
+        self.enumerizer.transform(list(x.values()))
 
-            if(self.elem_slices == None):
-                self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
-                # self.elem_slices += 
-            # print(t)
-            # print(self.enumerizer.attr_maps[0])
-            # print(x.keys())
-            # print("vs_elems:")
-            # pprint(vs_elems)
-            # if(self.pos_concepts.spec_concepts is not None):
-                # pprint(self.skill_info())
-                # print("BEFORE: ",self.pos_concepts.spec_concepts.view(-1,5))
+        # print("VS")
+        # print(self.enumerizer.transform(list(x.values())))
 
-            flat_vs_elems = list(itertools.chain(*vs_elems))
-            self.pos_concepts.ifit(flat_vs_elems, y)
-            self.pos_ok = self.pos_ok or y > 0
-            if(self.use_neg):
-                self.neg_concepts.ifit(flat_vs_elems, 0 if y > 0 else 1)
-                self.neg_ok = self.neg_ok or y < 0
+        if(self.elem_slices == None):
+            self.elem_slices = [0] + np.cumsum([len(vs_elem) for vs_elem in vs_elems]).tolist()
+            # self.elem_slices += 
+        # print(t)
+        # print(self.enumerizer.attr_maps[0])
+        # print(x.keys())
+        # print("vs_elems:")
+        # pprint(vs_elems)
+        # if(self.pos_concepts.spec_concepts is not None):
+            # pprint(self.skill_info())
+            # print("BEFORE: ",self.pos_concepts.spec_concepts.view(-1,5))
+
+        flat_vs_elems = list(itertools.chain(*vs_elems))
+        self.pos_concepts.ifit(flat_vs_elems, y)
+        self.pos_ok = self.pos_ok or y > 0
+        if(self.use_neg):
+            self.neg_concepts.ifit(flat_vs_elems, 0 if y > 0 else 1)
+            self.neg_ok = self.neg_ok or y < 0
 
             # if(self.elem_types is not None):
             #     print(len(self.elem_types),len(list(self.expected_neighbors.keys())))
@@ -1617,473 +1336,325 @@ class VersionSpace(BaseILP):
                 return False
         return True
 
-    def check_match(self, t, x):
-        with torch.no_grad():
-            if(not self.pos_ok):
-                return False
 
-            x = x.get_view("object")
+    def score_match(self, t, x):
+        '''Gives a number between 0.0 and 1.0 for how well t matches'''
+        if(not self.pos_ok):
+            return False
+        x = x.get_view("object")
 
-            if(not self.check_constraints(t,x)):
-                return False
+        if(not self.check_constraints(t,x)):
+            return False
+        
+        instances,vs_elems  = self.get_vs_elems(t,x)
+        flat_x = list(itertools.chain(*vs_elems)) if isinstance(vs_elems[0],list) else vs_elems
+        x = np.array(flat_x, dtype=np.uint32)
 
-            # def _rename_values(x):
-            #     return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
-
-            # instances = [_rename_values(x[t_name],) for t_name in t]
-            if(self.use_neighbor_concepts):
-                instances,vs_elems  = self.get_neighborized_vs_elems(t,x)
-                if(vs_elems is None or len(instances) != len(self.elem_slices)-1):
-                    return False
-            else:  #self.enumerizer.transform(instances)
-                instances,vs_elems  = self.get_vs_elems(t,x)
-            # print(vs_elems,self.use_neighbor_concepts,self.expected_neighbors)
-            # print(torch.tensor(vs_elem).view(3, -1))
-            if(self.use_neg):
-                x = torch.tensor(vs_elems, dtype=torch.uint8).view(1, -1)
-                ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-                ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
-                ZERO = self.pos_concepts.ZERO
-                spec_consistency = (((ps == ZERO)) | (ps == x)).all(dim=-1)
-
-                out = spec_consistency.any()
-                if(self.use_gen):
-                    gen_consistency = (((pg == ZERO)) | (pg == x)).all(dim=-1)
-                    out = out & gen_consistency.all()
-
-                # print(self.enumerizer.attr_maps[0])
-                # print(self.enumerizer.back_maps[0])
-                # print(x)
-                # print(self.enumerizer.back_maps[0][x.view(-1).tolist()[0]], self.enumerizer.back_maps[0][5])
-                # print(ps)
-                # print((((ps == ZERO)) | (ps == x)))
-
-                if(self.neg_ok):
-                    neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(dim=-1)
-                    out = out & neg_spec_consistency.any()
-                    if(self.use_gen):
-                        neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(dim=-1)
-                        out = out & neg_gen_consistency.any()
-
-                
-                return out.item()
+        #Rip out neighbor concepts for scoring, is hard to partially assign neighbors
+        pos_specific = self.pos_concepts.spec_concepts.reshape((-1,))[:len(x)]
+        new_pos_specific = []
+        for v in pos_specific:
+            s = self.enumerizer.back_maps[0][v.item()]
+            if(isinstance(s,str) and "neigh" in s):
+                new_pos_specific.append(0)
             else:
-                return self.pos_concepts.check_match(vs_elems) > 0
+                new_pos_specific.append(v)
+
+        pos_specific = np.array(new_pos_specific)
+        spec_consistency = ((pos_specific == self.pos_concepts.ZERO) | (pos_specific == x))
+        return np.average(spec_consistency)
 
 
-    def _match_iterative(self,split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems):
-        print("----------------")
-        print("split_ps")
-        pprint(split_ps)
-        # print(split_ns)
-        pprint("candidates_by_type:")
-        print(candidates_by_type)
-        pprint("concept_candidates:")
-        pprint(concept_candidates)
-        pprint([x.view(-1) for x in concept_cand_indicies])
-        print()
-        print(where_part_vals)
-        print()
-        pprint(elem_names)
-        pprint(consistencies)
-        pprint("elems")
-        pprint(elems)
+    def check_match(self, t, x):
+        # with torch.no_grad():
+        if(not self.pos_ok):
+            return False
 
-        print("concept_cand_indicies")
-        # pprint(concept_cand_indicies.size())
-        pprint([x.view(-1) for x  in concept_cand_indicies])
+        x = x.get_view("object")
 
-        #adjacency matrix
+        if(not self.check_constraints(t,x)):
+            return False
 
-        adjacencies = torch.empty((len(split_ps),len(split_ps)))
-        for i,concept in enumerate(split_ps):
-            adjacencies[i,:] = (concept == where_part_vals.unsqueeze(-1)).any(dim=1)
-            # adj_deg = adj.sum()
-            # adjacencies.append((adj_deg,adj))
-            # print(adj)
-            # print(adj_deg)
-        # import numba
-        print(adjacencies)
+        # def _rename_values(x):
+        #     return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
 
-        for i,j in adjacencies.nonzero():
-            ps_i,ns_i = split_ps[i],split_ns[i]
-            ps_j,ns_j = split_ps[j],split_ns[j]
-            # _,elem_names_i = concept_candidates[i]
-            _,elem_names_j = concept_candidates[j]
-            # print(len(elem_names_i),len(elem_names_j))
-            sel = (ps_i.view(-1) == where_part_vals[j]).nonzero() 
-            cands = [x for i,x in enumerate(elems) if i in [x.item() for x in concept_cand_indicies[j]]]
-            print(cands)
-            # candidates_slice = cands[:,sel.view(-1)]
-            candidates_slice = candidates_by_type[self.elem_types[i]][:,sel.view(-1)]
-            # for u in elem_names_i:
-            print(sel,len(elem_names_j))
-            blehh = torch.empty(len(elem_names_j),len(candidates_slice),dtype=torch.uint8)
-            for k,v in enumerate(elem_names_j):
-                blehh[k] = (candidates_slice == v).all(dim=-1)
+        # instances = [_rename_values(x[t_name],) for t_name in t]
+        if(self.use_neighbor_concepts):
+            instances,vs_elems  = self.get_neighborized_vs_elems(t,x)
+            if(vs_elems is None or len(instances) != len(self.elem_slices)-1):
+                return False
+        else:  #self.enumerizer.transform(instances)
+            instances,vs_elems  = self.get_vs_elems(t,x)
+        # print(vs_elems,self.use_neighbor_concepts,self.expected_neighbors)
+        # print(torch.tensor(vs_elem).view(3, -1))
+        if(self.use_neg):
+            x = np.array(vs_elems, dtype=np.uint8).reshape((1, -1))
+            ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+            ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+            ZERO = self.pos_concepts.ZERO
+            spec_consistency = (((ps == ZERO)) | (ps == x)).all(axis=-1)
 
-            print("blehh")
-            print(blehh)
+            out = spec_consistency.any()
+            if(self.use_gen):
+                gen_consistency = (((pg == ZERO)) | (pg == x)).all(axis=-1)
+                out = out & gen_consistency.all()
 
+            # print(self.enumerizer.attr_maps[0])
+            # print(self.enumerizer.back_maps[0])
+            # print(x)
+            # print(self.enumerizer.back_maps[0][x.view(-1).tolist()[0]], self.enumerizer.back_maps[0][5])
+            # print(ps)
+            # print((((ps == ZERO)) | (ps == x)))
 
-
-            # all_consistencies[i] = blehh.any(dim=0)
-
-            # # partial_matches = torch.zeros(int(blehh.sum().item()),blehh.size()[1])
-            # partial_matches = []
-            # # print(partial_matches.size(),blehh.size())
-
-            # for k,pm in enumerate(blehh.nonzero()):
-            #     partial_match = torch.zeros(len(split_ps),dtype=torch.long)
-            #     partial_match[i] = pm[0]
-            #     partial_match[j] = pm[1]
-            #     partial_matches.append(partial_match)
-            #     # print("pm", pm)
-            #     # partial_matches[k,i] = pm[0]
-            #     # partial_matches[k,j] = pm[1]
-
-            # pprint(partial_matches)
-
-            # pprint(all_consistencies)
-            # pprint(elem_names)
-            # pprint(all_consistencies.size())
-            # pprint(elem_names.size())
-            
-
-            # print("repl",i,j,repl.size())
-            # print(repl)
-            # repl = repl.unsqueeze(-2)
-            # print(typ,j,repl.size())
-            # v_i = where_part_vals[j]
-            # print(v)
-
-            
-            # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
-            #   at element (r,e) if element e is consistent with concept set i given that 
-            #   where part j was assigned to element r.  
-            # consistent = ps_consistency = ( (ps_i == v)).unsqueeze(0)
-            # if(self.neg_ok):
-            #     ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
-            #     consistent = (ps_consistency & ns_consistency)
-            # print(consistent)
-
-            # # Element e is consistent with replacement r if the replacement changes the
-            # #   element so that all attributes for which the positive concept requires value v
-            # #   are replaced with value v, and no attributes are replaced with value v if it would
-            # #   make e match the negative concept.
-            # repl_consistency = ( ( (~ps_consistency) |  (repl & consistent) )).all(dim=-1).any(dim=-1)
-
-            # # If 'where' part j corresponds with concept i then we need to add the constraint that 
-            # #   our choice of the element for part j is the only possible consistent element with
-            # #   concept i. We can bitwise AND a diagonal matrix of shape (n_i,N_t) that has value 1 where the candidates
-            # #   for where part i align with the candidates from the original state to apply this constraint.
-            # if(i == j):
-            #     concept_diag = concept_cand_indicies[i].view(-1,1) == torch.arange(repl_consistency.size(-1)).view(1,-1)
-            #     repl_consistency = repl_consistency & concept_diag
-            # print(i,j)
-        # adjacencies = sorted(adjacencies,key=lambda x:x[0],reverse=True)
-        # pprint(adjacencies)
-
-
-        # replacements_by_type = {}
-        # for typ, cnd in candidates_by_type.items():
-        #     # print(cnd)
-        #     repls = []
-        #     for consistency, elem_names in concept_candidates:
-        #         repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1))
-        #         repls.append(repl)
-        #     replacements_by_type[typ] = repls
-
-        # print(replacements_by_type[typ])
-
-
-            # split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
-        return torch.zeros((0,len(self.elem_types)),dtype=torch.long)
-    def _match_naive(self,split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals):
-        # For each subset of the state of shape (N_t,d_t) consisting of all N_t, elements of type t
-        #   with shared shape d_t, create a mask tensor of shape (n_w,N_t,d_t) such that each mask
-        #   along its first dimension selects a different candidate assignment to 'where' part w.
-        # print()
-        replacements_by_type = {}
-        for typ, cnd in candidates_by_type.items():
-            # print(cnd)
-            repls = []
-            for consistency, elem_names in concept_candidates:
-                repl = (cnd.unsqueeze(0) == elem_names.view(-1,1,1))
-                repls.append(repl)
-            replacements_by_type[typ] = repls
-
-        # concept_repl_cons = []
-
-
-        # Here we loop over the concepts for every where part and try every possible replacement 
-        #   of element name enums with the enums for "?sel", "?arg0", "?arg1", etc to see if 
-        #   the replacement is consistent with that concept.
-        tot = None
-        for i, (typ, ps_i, ns_i) in enumerate(zip(self.elem_types, split_ps, split_ns)):
-            # cnd = candidates_by_type[typ]
-            # print(typ,replacements_by_type[typ].size())
-            repls = replacements_by_type[typ]
-
-            ps_i = ps_i.unsqueeze(0)
             if(self.neg_ok):
-                ns_i = ns_i.unsqueeze(0)
+                neg_spec_consistency = ((ns == ZERO) | (ns == ps) | (ns != x)).all(axis=-1)
+                out = out & neg_spec_consistency.any()
+                if(self.use_gen):
+                    neg_gen_consistency = ((ng == ZERO) | (ng == ps) | (ng != x)).all(axis=-1)
+                    out = out & neg_gen_consistency.any()
 
-            ok_i = None
-
-            # concept_repl_cons.append([])
-
-            # For each where part j check all assignments among the candidate elements
-            #   for consistency with concept(i).   
-            for j, repl in enumerate(repls):
-                # print("repl",i,j,repl.size())
-                # print(repl)
-                repl = repl.unsqueeze(-2)
-                # print(typ,j,repl.size())
-                v = where_part_vals[j]
-
-                
-                # Calculate the tensor repl_consistency of shape (n_w, N_t) which has value 1 
-                #   at element (r,e) if element e is consistent with concept set i given that 
-                #   where part j was assigned to element r.  
-                consistent = ps_consistency = ( (ps_i == v)).unsqueeze(0)
-                if(self.neg_ok):
-                    ns_consistency = ( (ns_i != v) | (ps_i == ns_i)).unsqueeze(0)
-                    consistent = (ps_consistency & ns_consistency)
-
-                # Element e is consistent with replacement r if the replacement changes the
-                #   element so that all attributes for which the positive concept requires value v
-                #   are replaced with value v, and no attributes are replaced with value v if it would
-                #   make e match the negative concept.
-                repl_consistency = ( ( (~ps_consistency) |  (repl & consistent) )).all(dim=-1).any(dim=-1)
-
-                # If 'where' part j corresponds with concept i then we need to add the constraint that 
-                #   our choice of the element for part j is the only possible consistent element with
-                #   concept i. We can bitwise AND a diagonal matrix of shape (n_i,N_t) that has value 1 where the candidates
-                #   for where part i align with the candidates from the original state to apply this constraint.
-                if(i == j):
-                    concept_diag = concept_cand_indicies[i].view(-1,1) == torch.arange(repl_consistency.size(-1)).view(1,-1)
-                    repl_consistency = repl_consistency & concept_diag
-                    
-                # Broadcast repl_consistency and bitwise AND it with the repl_consistencies so far
-                #   to ultimately create a tensor ok_i of shape (n_w1,n_w2,n_w3, ..., N_t) that contains a mask of 
-                #   elements for each combination of where assignments which are mutually consistent 
-                #   with concept set i. 
-                # print(i,j)
-                # print(repl_consistency)
-                repl_consistency = repl_consistency.view(*([1]*j + [-1] + (len(self.elem_types)-(j+1))*[1] + [repl_consistency.size(-1)]))
-
-                ok_i = (ok_i & repl_consistency) if ok_i is not None else repl_consistency
-                # print(i)
-                # print(ok_i)
-                
-
-            ok_i = ok_i.any(dim=-1)
-
-            # Bitwise AND all possible 'where' assignments for each concept to get a tensor of shape 
-            #   (n_w1,n_w2,n_w3, ...,) that has value 1 only for 'where' assignments consistent with all concepts.
-            tot = (tot & ok_i) if tot is not None else ok_i
-
-        # Get the indicies of the consistent 'where' assignments 
-        matches = tot.nonzero()
-        return matches
-        # print(matches)
+            
+            return out.item()
+        else:
+            return self.pos_concepts.check_match(vs_elems) > 0
 
 
     def get_matches(self, x):
-        with torch.no_grad():
-            if(not self.pos_ok):
-                return
+        # with torch.no_grad():
 
-            state = x.get_view("object")
-            # assert False not in [for x in range(self.num_elems), \
-            # "It is not the case that the enum for argX == X+2"
-            # print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
+        start_time = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        if(not self.pos_ok):
+            return
 
-            if(self.elem_slices == None):
-                return
-            # print(self.pos_concepts.spec_concepts)
+        state = x.get_view("object")
+        # assert False not in [for x in range(self.num_elems), \
+        # "It is not the case that the enum for argX == X+2"
+        # print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
 
-            # Create a tensor which contains the enum values associated with the when parts
-            #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
-            where_part_vars = ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)]
-            if(self.use_neighbor_concepts): where_part_vars += list(self.expected_neighbors.keys())
-            where_part_vals = self.enumerizer.transform_values(where_part_vars)
-            where_part_vals = np.array(where_part_vals,dtype=np.uint8)
+        if(self.elem_slices == None):
+            return
+        # print(self.pos_concepts.spec_concepts)
 
-            # Make a tensor that has all of the enum values for the names of the elements/objects
-            #  in the state in order that they appear
-            elem_names_list = [key for key in state.keys()]
-            elem_names = self.enumerizer.transform_values(elem_names_list)
-            elem_names = np.array(elem_names,dtype=np.uint8)
+        #Do this just so everything is in the map
+        self.enumerizer.transform({i:x for i,x in enumerate(state.keys())})
+        self.enumerizer.transform(list(state.values()))
 
-            # Make a list that has all of the enumerized elements/objects
-            elems_list = [val for val in state.values()]
-            elems = self.enumerizer.transform(elems_list)
-            # pprint(elems_list)
+        # Create a tensor which contains the enum values associated with the when parts
+        #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
+        where_part_vars = ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)]
+        if(self.use_neighbor_concepts): where_part_vars += list(self.expected_neighbors.keys())
+        where_part_vals = self.enumerizer.transform_values(where_part_vars)
+        where_part_vals = np.array(where_part_vals,dtype=np.uint8)
 
-            # Make a list that has all of the enumerized elements/objects, but zeros in
-            #  all of the slot for attributes which have elements names as values. 
-            #  Only make this replacement if the element is of a type that we match to
-            zero_map = {ele_name: 0 for ele_name,ele in state.items() 
-                        if 'type' in ele and ele['type'] in self.elem_types}
-            elems_scrubbed = self.enumerizer.transform(elems_list, zero_map)
-            # print(elems_scrubbed)
-            
-            # Split up the concepts by the where parts that each slice selects on
-            ps, pg = self.pos_concepts.spec_concepts.numpy(), self.pos_concepts.gen_concepts.numpy()
-            
-            s = self.elem_slices
-            split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-            # pprint(split_ps)
-            if(self.neg_ok):
-                ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
-                split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-            else:
-                split_ns = [None] * len(split_ps)
+        # Make a tensor that has all of the enum values for the names of the elements/objects
+        #  in the state in order that they appear
+        elem_names_list = [key for key in state.keys()]
+        elem_names = self.enumerizer.transform_values(elem_names_list)
+        elem_names = np.array(elem_names,dtype=np.uint8)
 
-            # Initialize a bunch of containers that we will fill
-            inds_by_type = {}
-            candidates_by_type = {}
-            scrubbed_by_type = {}
-            elem_names_by_type = {}
-            consistencies = []
-            concept_cand_indicies = []
-            concept_candidates = []
-            # concept_cand_replacements = []
-            
+        time0 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # print("A' time %.4f ms" % (time0-start_time))
 
-            ZERO = self.pos_concepts.ZERO.numpy()
-            # all_consistencies = []
-            # all_concepts
-            
-            # Loop over the concepts for each where part and cull down the list of
-            #   possible matches for them. This phase only filters out elements we can
-            #   rule out without committing to any part of the where assignment. 
-            for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
+        # Make a list that has all of the enumerized elements/objects
+        elems_list = [val for val in state.values()]
+        elems = self.enumerizer.transform(elems_list)
+        # pprint(elems_list)
 
+        # Make a list that has all of the enumerized elements/objects, but zeros in
+        #  all of the slot for attributes which have elements names as values. 
+        #  Only make this replacement if the element is of a type that we match to
+        zero_map = {ele_name: 0 for ele_name,ele in state.items() 
+                    if 'type' in ele and ele['type'] in self.elem_types}
+        elems_scrubbed = self.enumerizer.transform(elems_list, zero_map)
+        # print(elems_scrubbed)
+        
+        # Split up the concepts by the where parts that each slice selects on
+        ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+        
+        s = self.elem_slices
+        split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        # pprint(split_ps)
+        if(self.neg_ok):
+            ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
+            split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        else:
+            split_ns = [None] * len(split_ps)
 
-                # If the type for this concept is new then populate the list of candidates in various formats
-                if(typ not in inds_by_type):
-                    candidate_indices = [i for i, e in enumerate(elem_names_list) if state[e]["type"] == typ]
-                    
-                    cnd = np.array([elems[i] for i in candidate_indices], dtype=np.uint8)
-                    candidates_by_type[typ] = cnd
+        # Initialize a bunch of containers that we will fill
+        inds_by_type = {}
+        candidates_by_type = {}
+        scrubbed_by_type = {}
+        elem_names_by_type = {}
+        consistencies = []
+        concept_cand_indicies = []
+        concept_candidates = []
+        # concept_cand_replacements = []
+        
 
-                    cnd_s = np.array([elems_scrubbed[i] for i in candidate_indices], dtype=np.uint8)
-                    cnd_s = cnd_s.reshape(len(candidate_indices), 1, ps_i.shape[-1])
-                    scrubbed_by_type[typ] = cnd_s
+        ZERO = self.pos_concepts.ZERO
+        # all_consistencies = []
+        # all_concepts
+        
+        time1 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # print("A time %.4f ms" % (time1-time0))
 
-                    inds_by_type[typ] = np.array(candidate_indices,dtype=np.long)
-                    elem_names_by_type[typ] = elem_names[inds_by_type[typ]]
-                    
-                else:
-                    candidate_indices = inds_by_type[typ]
-                    cnd_s = scrubbed_by_type[typ]
-
-                # Check the consistency of each scrubbed candidate with the positive and negative
-                #   concepts. This is a normal concept comparison except that any attribute slot where  
-                #   the scrubbed candidate has a zero is always considered consistent. 
-                ps_i = np.expand_dims(ps_i,axis=0)
-                if(self.neg_ok):
-                    ns_i = np.expand_dims(ns_i,axis=0)
-                # ZERO = ZERO.numpy()
-                # pss = torch.tensor([[0 if (x in elem_names or x in where_part_vals) else x for x in ps_i.view(-1) ]],dtype=torch.uint8)
-                # print(pss)
-                # print(cnd_s)
-                # print(ps_i)
-                # consistency = ((pss == ZERO) | (pss == cnd_s)).all(dim=-1).any(dim=-1)
-                consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(axis=-1).any(axis=-1)
-                if(self.neg_ok):
-                    nss = torch.tensor([[0 if (x in elem_names or x in where_part_vals) else x for x in ns_i.view(-1) ]],dtype=torch.uint8)
-                    # ns_consistency = ((nss == ZERO) | (nss != cnd_s) | (ps_i == nss)).all(dim=-1).any(dim=-1)
-                    ns_consistency = ((nss == ZERO) | (nss != cnd_s) | (ps_i == nss)).all(axis=-1).any(axis=-1)
-                    consistency = consistency & ns_consistency
-
-                #Store our culled down set of candidates in various formats
-                consistencies.append(consistency)
-                # scooby_doo = np.zeros(len(elem_names))
-                # torch.gather(scooby_doo, 1, torch.tensor([[0,0],[1,0]]))
-                # print(inds_by_type[typ])
-                # print(consistency)
-                # scooby_doo[inds_by_type[typ]] = consistency.numpy()
-                # print("scooby_doo")
-                # print(scooby_doo)
-                # all_consistencies.append(scooby_doo)
-                # print(ps_i)
-                # print(consistency)
-                # print(consistency)
-                # print(self.enumerizer.back_maps[0])
-                # print(ps_i)
-                # print(((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)))
-                # print(consistency.nonzero().tolist())
-
-                # print([elem_names_list[j] for j in inds_by_type[typ].view(-1).tolist()])
-                # print([self.enumerizer.back_maps[0][j] for j in elem_names_by_type[typ].view(-1).tolist()])
-                # print()
-                # print([elem_names_list[j] for j in torch.masked_select(inds_by_type[typ],consistency).tolist()])
-                # concept_cand_indicies.append(torch.ones_like(consistency).nonzero())
-                # print(candidate_indices)
-                concept_cand_indicies.append([x for i,x in enumerate(candidate_indices) if consistency[i] == 1])
-                # concept_candidates.append( (consistency, torch.masked_select(elem_names_by_type[typ],consistency)) )
-
-            # all_consistencies = torch.tensor(all_consistencies)
+        # Loop over the concepts for each where part and cull down the list of
+        #   possible matches for them. This phase only filters out elements we can
+        #   rule out without committing to any part of the where assignment. 
+        for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
 
 
-            split_ps_flat, concept_slices = flatten_n_slice(split_ps)
-            elems_flat, elems_slices = flatten_n_slice(elems)
-            concept_cands_flat, cand_slices = flatten_n_slice(concept_cand_indicies)
-
-
-
-            # print(type(split_ps_flat), type(concept_slices))
-            # print(type(elems_flat), type(elems_slices))
-            # print(type(concept_cands_flat), type(cand_slices))
-            # timefunc("match_iterative",match_iterative,
-            #                     split_ps, concept_slices,
-            #                     elems,elems_slices,
-            #                     concept_cands,cand_slices,
-            #                     elem_names,
-            #                     where_part_vals)
-            # timefunc("numpy_mi",numpy_mi,og_split_ps,elems,elem_names,concept_cand_indicies,where_part_vals)
-            # translated = np.array([[]])
-            # print(concept_cand_indicies)
-            # for c in concept_cand_indicies:
-            #     nms = elem_names.numpy()[np.array(c)]
-            #     print([self.enumerizer.back_maps[0][z] for z in nms])
-            # print()
-            # print("Before")
-            translated = match_iterative(split_ps_flat, concept_slices,
-                                elems_flat,elems_slices,
-                                concept_cands_flat,cand_slices,
-                                elem_names,
-                                where_part_vals)
-            # translated = np.array([])
-            # matches = self._match_iterative(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems)
-            # matches = self._match_naive(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
-
-            # Translate these indicies so that they select from the original state
-            # translated = []
-            # for i,(typ,indicies) in enumerate(zip(self.elem_types,concept_cand_indicies)):
-            #     rel_to_type = torch.index_select(indicies,0,matches[:,i])
-            #     # print(rel_to_type)
-            #     # print(inds_by_type[typ])
-            #     # print(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)))
-            #     translated.append(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)).view(-1,1))
-            # translated = torch.cat(translated,dim=1)
-            # print(translated)
-            
-            #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
-            # print(elem_names_list)
-            for out_names in translated.tolist():
-                out = [self.enumerizer.back_maps[0][y] for i,y in enumerate(out_names) if i < self.num_elems]
-                # out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
-                # print(out)
+            # If the type for this concept is new then populate the list of candidates in various formats
+            if(typ not in inds_by_type):
+                candidate_indices = [i for i, e in enumerate(elem_names_list) if state[e]["type"] == typ]
                 
-                # print(out,self.check_constraints(out,state))
-                # print([state[x].get('value',None) for x in out])
-                if(self.check_constraints(out,state)):
-                    yield out
+                cnd = np.array([elems[i] for i in candidate_indices], dtype=np.uint8)
+                candidates_by_type[typ] = cnd
+
+                cnd_s = np.array([elems_scrubbed[i] for i in candidate_indices], dtype=np.uint8)
+                cnd_s = cnd_s.reshape(len(candidate_indices), 1, ps_i.shape[-1])
+                scrubbed_by_type[typ] = cnd_s
+
+                inds_by_type[typ] = np.array(candidate_indices,dtype=np.long)
+                elem_names_by_type[typ] = elem_names[inds_by_type[typ]]
+                
+            else:
+                candidate_indices = inds_by_type[typ]
+                cnd_s = scrubbed_by_type[typ]
+
+            # Check the consistency of each scrubbed candidate with the positive and negative
+            #   concepts. This is a normal concept comparison except that any attribute slot where  
+            #   the scrubbed candidate has a zero is always considered consistent. 
+            ps_i = np.expand_dims(ps_i,axis=0)
+            if(self.neg_ok):
+                ns_i = np.expand_dims(ns_i,axis=0)
+            # ZERO = ZERO.numpy()
+            # pss = torch.tensor([[0 if (x in elem_names or x in where_part_vals) else x for x in ps_i.view(-1) ]],dtype=torch.uint8)
+            # print(pss)
+            # print(cnd_s)
+            # print(ps_i)
+            # consistency = ((pss == ZERO) | (pss == cnd_s)).all(dim=-1).any(dim=-1)
+            consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(axis=-1).any(axis=-1)
+            if(self.neg_ok):
+                nss = torch.tensor([[0 if (x in elem_names or x in where_part_vals) else x for x in ns_i.view(-1) ]],dtype=torch.uint8)
+                # ns_consistency = ((nss == ZERO) | (nss != cnd_s) | (ps_i == nss)).all(dim=-1).any(dim=-1)
+                ns_consistency = ((nss == ZERO) | (nss != cnd_s) | (ps_i == nss)).all(axis=-1).any(axis=-1)
+                consistency = consistency & ns_consistency
+
+            #Store our culled down set of candidates in various formats
+            consistencies.append(consistency)
+            # scooby_doo = np.zeros(len(elem_names))
+            # torch.gather(scooby_doo, 1, torch.tensor([[0,0],[1,0]]))
+            # print(inds_by_type[typ])
+            # print(consistency)
+            # scooby_doo[inds_by_type[typ]] = consistency.numpy()
+            # print("scooby_doo")
+            # print(scooby_doo)
+            # all_consistencies.append(scooby_doo)
+            # print(ps_i)
+            # print(consistency)
+            # print(consistency)
+            # print(self.enumerizer.back_maps[0])
+            # print(ps_i)
+            # print(((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)))
+            # print(consistency.nonzero().tolist())
+
+            # print([elem_names_list[j] for j in inds_by_type[typ].view(-1).tolist()])
+            # print([self.enumerizer.back_maps[0][j] for j in elem_names_by_type[typ].view(-1).tolist()])
+            # print()
+            # print([elem_names_list[j] for j in torch.masked_select(inds_by_type[typ],consistency).tolist()])
+            # concept_cand_indicies.append(torch.ones_like(consistency).nonzero())
+            # print(candidate_indices)
+            concept_cand_indicies.append([x for i,x in enumerate(candidate_indices) if consistency[i] == 1])
+            # concept_candidates.append( (consistency, torch.masked_select(elem_names_by_type[typ],consistency)) )
+
+        # all_consistencies = torch.tensor(all_consistencies)
+        time2 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # print("B time %.4f ms" % (time2-time1))
+
+        split_ps_flat, concept_slices = flatten_n_slice(split_ps)
+        elems_flat, elems_slices = flatten_n_slice(elems)
+        concept_cands_flat, cand_slices = flatten_n_slice(concept_cand_indicies)
+
+        # print("split_ps")
+        # print(split_ps_flat)
+        # print("concept_slices")
+        # print(concept_slices)
+        # print("elems_flat")
+        # print(elems_flat)
+        # print("elems_slices")
+        # print(elems_slices)
+        # print("concept_cands_flat")
+        # print(concept_cands_flat)
+        # print("cand_slices")
+        # print(cand_slices)
+        # print("elem_names")
+        # print(elem_names)
+        # print("where_part_vals")
+        # print(where_part_vals)
+
+
+        # print(type(split_ps_flat), type(concept_slices))
+        # print(type(elems_flat), type(elems_slices))
+        # print(type(concept_cands_flat), type(cand_slices))
+        # timefunc("match_iterative",match_iterative,
+        #                     split_ps, concept_slices,
+        #                     elems,elems_slices,
+        #                     concept_cands,cand_slices,
+        #                     elem_names,
+        #                     where_part_vals)
+        # timefunc("numpy_mi",numpy_mi,og_split_ps,elems,elem_names,concept_cand_indicies,where_part_vals)
+        # translated = np.array([[]])
+        # print(concept_cand_indicies)
+        # for c in concept_cand_indicies:
+        #     nms = elem_names.numpy()[np.array(c)]
+        #     print([self.enumerizer.back_maps[0][z] for z in nms])
+        # print()
+        # print("Before")
+
+        time3 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # print("C time %.4f ms" % (time3-time2))
+
+        translated = match_iterative(split_ps_flat, concept_slices,
+                            elems_flat,elems_slices,
+                            concept_cands_flat,cand_slices,
+                            elem_names,
+                            where_part_vals)
+
+        time4 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # print("D time %.4f ms" % (time4-time3))
+        # translated = np.array([])
+        # matches = self._match_iterative(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems)
+        # matches = self._match_naive(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
+
+        # Translate these indicies so that they select from the original state
+        # translated = []
+        # for i,(typ,indicies) in enumerate(zip(self.elem_types,concept_cand_indicies)):
+        #     rel_to_type = torch.index_select(indicies,0,matches[:,i])
+        #     # print(rel_to_type)
+        #     # print(inds_by_type[typ])
+        #     # print(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)))
+        #     translated.append(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)).view(-1,1))
+        # translated = torch.cat(translated,dim=1)
+        # print(translated)
+        
+        #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
+        # print(elem_names_list)
+        # pprint(self.skill_info())
+        for out_names in translated:
+            out = [self.enumerizer.back_maps[0][y] for i,y in enumerate(out_names) if i < self.num_elems]
+            # out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
+            # print(out)
+            
+            # print(out,self.check_constraints(out,state))
+            # print([state[x].get('value',None) for x in out])
+            if(self.check_constraints(out,state)):
+                yield out
+            else:
+                print("FAIL CONSTR", out)
+        time5 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # print("E time %.4f ms" % (time5-time4))
+        # print("")
 
     def skill_info(self):
         out = {}
@@ -2118,29 +1689,30 @@ class VersionSpaceILP(object):
         self.use_gen = use_gen
 
     def ifit(self, x, y):
-        # print(x)
+        # print("MOO",x,y)
         # print(x)
         # print(torch.tensor(x, dtype=torch.uint8))
-        x = torch.tensor(x, dtype=torch.uint8).view(1, -1)
+        # x = torch.tensor(x, dtype=torch.uint8).view(1, -1)
+        x = np.array(x, dtype=np.uint8).reshape((1, -1))
         # print("x", y)
         # print(x)
         clen = self.clen = x.shape[-1]
         if(y > 0):
             if(isinstance(self.spec_concepts, type(None))):
                 self.spec_concepts = x
-                self.gen_concepts = torch.zeros(x.shape, dtype=torch.uint8)
-                self.ZERO = torch.tensor(0, dtype=torch.uint8)
+                self.gen_concepts = np.zeros(x.shape, dtype=np.uint8)
+                self.ZERO = 0
                 for _x, _y in self.unused_concepts:
                     self.ifit(_x, _y)
                 self.unused_concepts = None
             else:
                 # Generalize the specific concepts to incorperate the positive example
-                self.spec_concepts = torch.where(x != self.spec_concepts, self.ZERO, self.spec_concepts)
+                self.spec_concepts[np.where(x != self.spec_concepts)] = self.ZERO
 
                 if(self.use_gen):
                     # Prune the general concepts that are inconsistent with the positive example
                     gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
-                    self.gen_concepts = mask_select(self.gen_concepts, gen_consistency.all(dim=1))
+                    self.gen_concepts = self.gen_concepts[gen_consistency.all(axis=1)]
 
         else:
             if(isinstance(self.spec_concepts, type(None))):
@@ -2152,9 +1724,9 @@ class VersionSpaceILP(object):
                 gen_consistency = (self.gen_concepts == self.ZERO) | (self.gen_concepts == x)
 
                 # The set of general concepts which are contain the negative example and must be specialized 
-                to_specilz_concepts = mask_select(self.gen_concepts, gen_consistency.all(dim=1))
+                to_specilz_concepts = self.gen_concepts[gen_consistency.all(axis=1)]
                 # The set of general concepts which do not contain the negative example an so we leave alone
-                to_keep_concepts = mask_select(self.gen_concepts, (~gen_consistency).any(dim=1))
+                to_keep_concepts = self.gen_concepts[(~gen_consistency).any(axis=1)]
 
                 # The set of concepts with only one specific element which are present in
                 # the most specific concept but not this negative example.
@@ -2194,26 +1766,26 @@ class VersionSpaceILP(object):
         # print(self.spec_concepts.size())
         # print(torch.tensor(x, dtype=torch.uint8))
         flat_x = list(itertools.chain(*x)) if isinstance(x[0],list) else x
-        x = torch.tensor(flat_x, dtype=torch.uint8).view(1, -1)
-        spec_consistency = ((self.spec_concepts == self.ZERO) | (self.spec_concepts == x)).all(dim=-1)
+        x = np.array(flat_x, dtype=np.uint8).reshape((1, -1))
+        spec_consistency = ((self.spec_concepts == self.ZERO) | (self.spec_concepts == x)).all(axis=-1)
         out = spec_consistency.any()
         if(self.use_gen):
-            gen_consistency = ((self.gen_concepts == self.ZERO) | (self.gen_concepts == x)).all(dim=-1)
+            gen_consistency = ((self.gen_concepts == self.ZERO) | (self.gen_concepts == x)).all(axis=-1)
             out = out & gen_consistency.all()
         return out.item()
 
 
-def rename_values(x, mapping, rename_keys=False): 
+def rename_values(x, mapping, exclude=[],rename_keys=False): 
     if(isinstance(x, dict)):
         if(rename_keys):
-            return {rename_values(name, mapping): rename_values(val, mapping) for name, val in x.items()}
+            return {rename_values(name, mapping,exclude): rename_values(val, mapping, exclude) for name, val in x.items()}
         else:
-            return {name: rename_values(val, mapping) for name, val in x.items()}
+            return {name: rename_values(val, mapping,exclude) for name, val in x.items()}
     elif(isinstance(x, list)):
-        return [rename_values(val, mapping) for val in x]
+        return [rename_values(val, mapping,exclude) for val in x]
     elif(isinstance(x, tuple)):
-        return tuple([rename_values(val, mapping) for val in x])
-    elif(x in mapping):
+        return tuple([rename_values(val, mapping,exclude) for val in x])
+    elif(x in mapping and x not in exclude):
         return mapping[x]
     else:
         return x
@@ -2242,7 +1814,7 @@ class Enumerizer(Preprocessor):
     #TODO: MAKE IT ASSERT A FIXED REPRESENTATION SOMEHOW
     def transform(self, instances, force_map=None):
         """
-        Transforms an instance.
+        Transforms an list of instances.
         """
         if(isinstance(instances, dict)):
             instances = [instances]
@@ -2529,6 +2101,7 @@ if __name__ == "__main__":
     print("HERE0")
     for match in vs.get_matches(state):
         print(match)
+    
     print("END0")
     # raise ValueError("END0")
     # vs.ifit(["C2","A2","B2"],state,1)
@@ -2561,21 +2134,28 @@ if __name__ == "__main__":
     pprint(vs.skill_info())
 
 
-    def timefunc(s, func, *args, **kwargs):
-        """
-        Benchmark *func* and print out its runtime.
-        """
-        print(s.ljust(20), end=" ")
+    N=100
+    def time_ms(f):
+        f() #warm start
+        return " %0.6f ms" % (1000.0*(timeit.timeit(f, number=N)/float(N)))
+
+
+    # def timefunc(s, func, *args, **kwargs):
+    #     """
+    #     Benchmark *func* and print out its runtime.
+    #     """
+    #     print(s.ljust(20), end=" ")
         
-        # time it
-        print('{:>5.0f} ms'.format(min(repeat(lambda: func(*args, **kwargs),
-                                              number=5, repeat=2)) * 1000))
-        # return res
+    #     # time it
+    #     print('{:>5.0f} ms'.format(min(repeat(lambda: func(*args, **kwargs),
+    #                                           number=5, repeat=2)) * 1000))
+    #     # return res
 
     def gen_test_get_matches(vs):
         def test_get_matches():
             l = [match for match in vs.get_matches(state)]
         return test_get_matches        
+
 
 
     
@@ -2595,7 +2175,7 @@ if __name__ == "__main__":
     pprint(vs_tricky.skill_info())
     for match in vs_tricky.get_matches(state_l1):
         print("match",match)
-
+    # raise ValueError("END")
 
     vs_tricky = VersionSpace(use_neg=False,use_neighbor_concepts=False)
     vs_tricky.ifit(["C2","A1"],state_l1,1)
@@ -2608,9 +2188,9 @@ if __name__ == "__main__":
     for match in vs_tricky.get_matches(state_l1):
         print("match",match)
 
-
+    # raise ValueError("")
     if(True):
-        timefunc("match-3", gen_test_get_matches(vs))
+        print("match-3", time_ms(gen_test_get_matches(vs)) )
         for match in vs.get_matches(state):
             print(match)
 
@@ -2619,17 +2199,24 @@ if __name__ == "__main__":
         vs2.ifit(["C1","B1","A1","A2","C2"],state,0)
         vs2.ifit(["C2","A2","B2","A3","C3"],state,1)
         vs2.ifit(["C1","B2","A2","A3","C3"],state,0)
-        vs2.ifit(["C3","A3","A2","A3","C3"],state,0)
+        # vs2.ifit(["C3","A3","A2","A3","C3"],state,0)
         for match in vs2.get_matches(state):
             print(match)
-        timefunc("match-5", gen_test_get_matches(vs2))
+        # timefunc("match-5", gen_test_get_matches(vs2))
+        print("match-5", time_ms(gen_test_get_matches(vs2)) )
 
+        # print()
+        print(vs2.score_match(["C1","A1","B1","A2","C2"],state))
+        print(vs2.score_match(["C1","B1","A1","A2","C2"],state))
+        print(vs2.score_match(["B1","C1","A1","A2","C2"],state))
+        # raise ValueError("MOOP")
         
         vs3 = VersionSpace(use_neg=True)
         vs3.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3",],state,1)
         for match in vs3.get_matches(state):
             print(match)
-        timefunc("match-9", gen_test_get_matches(vs3))
+        # timefunc("match-9", gen_test_get_matches(vs3))
+        print("match-9", time_ms(gen_test_get_matches(vs3)) )
 
 
 
@@ -2638,7 +2225,15 @@ if __name__ == "__main__":
         vs4.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3","A4","C4"],state,1)
         for match in vs4.get_matches(state):
             print(match)
-        timefunc("match-11", gen_test_get_matches(vs4))
+        # timefunc("match-11", gen_test_get_matches(vs4))
+        print("match-11", time_ms(gen_test_get_matches(vs4)) )
+
+
+        state_dict = state.get_view("object")
+        def enumerize_state():
+            vs4.enumerizer.transform(state_dict.values())
+
+        print("Enumerize:",time_ms(enumerize_state))
 
     # vs4 = VersionSpace(use_neg=True)
     # vs4.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3","A4","C4"],state,1)

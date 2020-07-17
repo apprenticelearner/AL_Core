@@ -677,7 +677,7 @@ class VectorizedPlanner(BasePlanner):
 				continue
 			# print(expr)
 			# print(expr,type(expr))
-			# print(mapping,type(mapping))
+			print("MAPPP:",mapping,type(mapping))
 			# print("From HOW:", search_depth)
 			# print(type(expr))
 			# print(expr,list(mapping.values()))
@@ -699,6 +699,17 @@ class VectorizedPlanner(BasePlanner):
 				return (front,*rest)
 		else:
 			return x
+
+	def unify_op(self,state,op,sai,foci_of_attention=None):
+		itr = self.how_search(state,sai,operators=[op],
+								search_depth=1,
+							 	foci_of_attention=foci_of_attention,
+							 	allow_bottomout=False,
+							 	allow_copy=False)
+		mappings = []
+		for _, mapping in itr:
+			mappings.append(mapping)
+		return mappings
 
 PLANNERS["vectorized"] = VectorizedPlanner
 

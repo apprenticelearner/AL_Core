@@ -19,7 +19,7 @@ from django.http import HttpResponseNotAllowed
 
 from apprentice_learner.models import Agent
 
-from apprentice.agents.soartech_agent import SoarTechAgent
+from apprentice.agents.experta_agent import ExpertaAgent
 from apprentice.agents.Stub import Stub
 from apprentice.agents.Memo import Memo
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
@@ -30,8 +30,7 @@ from apprentice.working_memory.representation import Sai
 # import cProfile
 # pr = cProfile.Profile()
 
-log = logging.getLogger(__name__)
-
+log = logging.getLogger('al-django')
 
 active_agent = None
 active_agent_id = None
@@ -44,7 +43,7 @@ AGENTS = {
     "RLAgent": RLAgent,
     "WhereWhenHowNoFoa": WhereWhenHowNoFoa,
     "ModularAgent": ModularAgent,
-    "SoartechAgent": SoarTechAgent,
+    "ExpertaAgent": ExpertaAgent,
 }
 
 
@@ -146,6 +145,8 @@ def create(http_request):
             log.warning(warn)
         ret_data["warnings"] = warns
 
+    # pprint(ret_data)
+
     return HttpResponse(json.dumps(ret_data))
 
 
@@ -180,6 +181,8 @@ def request(http_request, agent_id):
         # pr.disable()
         # pr.dump_stats("al.cprof")
 
+        # pprint(response)
+
         if isinstance(response, Sai):
             return HttpResponse(json.dumps({'selection': response.selection,
                                             'action': response.action,
@@ -188,10 +191,9 @@ def request(http_request, agent_id):
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
-        log.error('ERROR IN REQUEST')
-        log.debug('POST data:')
-        log.debug(data)
-        traceback.print_exc()
+        log.exception('ERROR IN REQUEST')
+        log.error('POST data:')
+        log.error(data)
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
@@ -313,16 +315,19 @@ def train(http_request, agent_id):
         # pr.disable()
         # pr.dump_stats("al.cprof")
 
+        # pprint(response)
+
         if(response is not None):
              return HttpResponse(json.dumps(response))
         else:
             return HttpResponse("OK")
 
     except Exception as exp:
-        log.error('ERROR IN TRAIN')
-        log.debug('POST data:')
-        log.debug(data)
-        traceback.print_exc()
+        log.exception('ERROR IN TRAIN')
+        log.error('POST data:')
+        log.error(data)
+        # log.error(data)
+        # traceback.print_exc()
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
@@ -389,7 +394,9 @@ def check(http_request, agent_id):
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
-        traceback.print_exc()
+        log.exception('ERROR IN TRAIN')
+        log.error('POST data:')
+        log.error(data)
         return HttpResponseServerError(str(exp))
 
 

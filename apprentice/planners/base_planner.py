@@ -10,6 +10,8 @@ class BasePlanner(object):
 		raise NotImplementedError()
 	def resolve_operators(operators):
 		raise NotImplementedError()
+	def unify_op(self,state,op,sai,foci_of_attention=None):
+		raise NotImplementedError()
 
 
 def get_planner_class(name):

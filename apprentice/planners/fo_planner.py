@@ -636,6 +636,7 @@ class FoPlannerModule(BasePlanner):
                     allow_copy=True,
                     epsilon=0.0):
 
+
         if(operators == None and sai.action == "ButtonPressed"):
             yield -1,{}
             return
@@ -697,8 +698,8 @@ class FoPlannerModule(BasePlanner):
         knowledge_base.fc_infer(depth=1, epsilon=self.epsilon)
 
         state.set_view("feat_knowledge_base",knowledge_base)
-        state.compute_from("flat_ungrounded","feat_knowledge_base")
-        return state
+        return state.compute_from("flat_ungrounded","feat_knowledge_base")
+        # return state
 
 
     def eval_expression(self,x,mapping,state):
@@ -733,6 +734,17 @@ class FoPlannerModule(BasePlanner):
             else:
                 rg_exp.append(ele)
         return rg_exp
+
+    def unify_op(self,state,op,sai,foci_of_attention=None):
+        itr = self.how_search(state,sai,operators=[op],
+                                search_depth=1,
+                                foci_of_attention=foci_of_attention,
+                                allow_bottomout=False,
+                                allow_copy=False)
+        mappings = []
+        for _, mapping in itr:
+            mappings.append(mapping)
+        return mappings
 
 from apprentice.planners.base_planner import PLANNERS
 PLANNERS["foplanner"] = FoPlannerModule
@@ -961,6 +973,8 @@ class FoPlanner:
 
 
 
+
+
 class Operator:
     registered_operators = {}
 
@@ -1083,7 +1097,7 @@ if __name__ == "__main__":
     import sys
     sys.path.insert(0, './')
 
-    from planners.rulesets import arith_rules
+    from apprentice.working_memory.fo_planner_rules import arith_rules
 
     facts = [(('value', 'ul'), '6'),
              (('value', 'ur'), '8'),

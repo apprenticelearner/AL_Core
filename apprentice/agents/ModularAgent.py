@@ -2,6 +2,8 @@ from pprint import pprint
 # from random import random
 from random import choice
 from typing import Dict
+import numpy as np
+
 
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Tuplizer
@@ -14,6 +16,7 @@ from apprentice.learners.WhereLearner import get_where_learner
 from apprentice.learners.WhichLearner import get_which_learner
 from apprentice.planners.base_planner import get_planner_class
 from apprentice.planners.VectorizedPlanner import VectorizedPlanner
+from apprentice.planners.NumbaPlanner import NumbaPlanner
 from types import MethodType
 
 
@@ -33,6 +36,22 @@ import cProfile
 # pr.enable()
 
 import atexit
+
+
+def add_QMele_to_state(state):
+    ''' A function which adds ?ele- to state keys... this is necessary in order to use
+        the fo_planner pending its deprecation'''
+    obj_names = state.keys()
+    out = {}
+    for k,v in state.items():
+        k = "?ele-" + k if k[0] != "?" else k
+        v_new = {}
+        for _k,_v in v.items():
+            if(_k != "id" and _v in obj_names):
+                _v = "?ele-" + _v
+            v_new[_k] = _v
+        out[k] = v_new        
+    return out
 
 # def cleanup(*args):
 #     print("DUMP STATS")
@@ -164,7 +183,7 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_
         ele = center_obj.get(d,None)
         # print("ele")
         # print(ele)
-        if(ele is None or ele is "" or
+        if(ele is None or ele == "" or
           (ele in dist_map and dist_map[ele] <= dist_map[center] + 1) or
            ele not in state):
             continue
@@ -307,6 +326,7 @@ def expression_matches(expression, state):
             fact_expr = {fact_expr: value}
 
         mapping = {}
+        # print(fact_expr, expression, mapping)
         if(expr_comparitor(fact_expr, expression, mapping)):
             yield mapping
 
@@ -319,13 +339,15 @@ STATE_VARIABLIZATIONS = {"whereappend": variablize_by_where_append,
                          "metaskill" : variablize_state_metaskill}
 
 
+
 class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', explanation_choice='random',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
-                 numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[], **kwargs):
+                 numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
+                 constraint_set='ctat', **kwargs):
                 
                 
         # print(planner)
@@ -337,13 +359,13 @@ class ModularAgent(BaseAgent):
                                                explanation_choice, **kwargs.get("which_args",{}))
 
         planner_class = get_planner_class(planner)
+
         self.feature_set = planner_class.resolve_operators(feature_set)
         self.function_set = planner_class.resolve_operators(function_set)
         self.planner = planner_class(search_depth=search_depth,
                                    function_set=self.function_set,
                                    feature_set=self.feature_set,
                                    **kwargs.get("planner_args",{}))
-
         sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]        
         self.strip_attrs = strip_attrs
         self.state_variablizer = MethodType(sv, self)
@@ -357,6 +379,9 @@ class ModularAgent(BaseAgent):
         self.rhs_counter = 0
         self.ret_train_expl = ret_train_expl
         self.last_state = None
+
+        assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
+        self.constraint_generator = CONSTRAINT_SETS[constraint_set]
 
     # -----------------------------REQUEST------------------------------------
 
@@ -382,7 +407,7 @@ class ModularAgent(BaseAgent):
                 pred_state = state.get_view(("variablize", rhs, tuple(match)))
             else:
                 pred_state = state
-
+            # print("MATCH", rhs,match)
             if(not skip_when):
                 p = self.when_learner.predict(rhs, pred_state)
                 
@@ -399,10 +424,12 @@ class ModularAgent(BaseAgent):
             yield explanation, skill_info
 
     def request(self, state: dict, add_skill_info=False,n=1,**kwargs):  # -> Returns sai
+        if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
         if(not isinstance(state,StateMultiView)):
             state = StateMultiView("object", state) 
         state.register_transform("*","variablize",self.state_variablizer)
-        state = self.planner.apply_featureset(state)
+        state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
+        # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
         explanations = self.applicable_explanations(
@@ -412,6 +439,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
+            # print("Skill Application:",explanation,explanation.rhs._id_num)
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
@@ -423,7 +451,10 @@ class ModularAgent(BaseAgent):
         if(len(responses) == 0):
             return EMPTY_RESPONSE
         else:
+            # print("responses:")
+            # print(responses)
             response = responses[0].copy()
+            # print("response:", response)
             if(n != 1):
                 response['responses'] = responses
             return response
@@ -433,12 +464,20 @@ class ModularAgent(BaseAgent):
 
     def where_matches(self, explanations, state):  # -> list<Explanation>, list<Explanation>
         matching_explanations, nonmatching_explanations = [], []
+        partial_scores = []
         for exp in explanations:
             if(self.where_learner.check_match(
                     exp.rhs, list(exp.mapping.values()), state)):
                 matching_explanations.append(exp)
             else:
+                partial_scores.append(
+                    self.where_learner.score_match(
+                    exp.rhs, list(exp.mapping.values()), state)
+                )
                 nonmatching_explanations.append(exp)
+        if(len(nonmatching_explanations) > 0):
+            non_m_inds = np.where(partial_scores == np.max(partial_scores))[0]
+            nonmatching_explanations = [nonmatching_explanations[i] for i in non_m_inds]
         return matching_explanations, nonmatching_explanations
 
     def _matches_from_foas(self, rhs, sai, foci_of_attention):
@@ -453,44 +492,55 @@ class ModularAgent(BaseAgent):
         for rhs in rhs_list:
             if(isinstance(rhs.input_rule, (int, float, str))):
                 # TODO: Hard attr assumption fix this.
-                if(sai.inputs["value"] == rhs.input_rule):
-                    itr = [(rhs.input_rule, {})]
-                else:
-                    itr = []
+                mappings = [{}] if sai.inputs["value"] == rhs.input_rule else []
+                # if(sai.inputs["value"] == rhs.input_rule):
+                #     itr = [(rhs.input_rule, {})]
+                # else:
+                #     itr = []
             else:
-                itr = self.planner.how_search(state, sai,
-                                              operators=[rhs.input_rule],
-                                              foci_of_attention=foci_of_attention,
-                                              search_depth=1,
-                                              allow_bottomout=False,
-                                              allow_copy=False)
-            for input_rule, mapping in itr:
+                # print("Trying:", rhs)
+                # print(self.planner.unify_op.__code__.co_varnames)
+                mappings = self.planner.unify_op(state,rhs.input_rule, sai,
+                    foci_of_attention=foci_of_attention)
 
-                m = {"?sel": "?ele-" + sai.selection}
+                # print( "Worked" if len(mappings) > 0 else "Nope" )
+                # itr = self.planner.how_search(state, sai,
+                #                               operators=[rhs.input_rule],
+                #                               foci_of_attention=foci_of_attention,
+                #                               search_depth=1,
+                #                               allow_bottomout=False,
+                #                               allow_copy=False)
+            for mapping in mappings:
+                # print("MAAAP", mapping)
+                if(type(self.planner).__name__ == "FoPlannerModule"):
+                    m = {"?sel": "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection}
+                else:
+                    m = {"?sel": sai.selection}
                 m.update(mapping)
                 if(len(m)==len(set(m.values()))):
                     yield Explanation(rhs, m)
 
     def explanations_from_how_search(self, state, sai, foci_of_attention):  # -> return Iterator<Explanation>
-        sel_match = next(expression_matches(
-                         {('?sel_attr', '?sel'): sai.selection}, state), None)
-
-        if(sel_match is not None):
-            selection_rule = (sel_match['?sel_attr'], '?sel')
-        else:
-            selection_rule = sai.selection
-
+        # sel_match = next(expression_matches(
+        #                  {('?sel_attr', '?sel'): sai.selection}, state), None)
+        # print(sel_match, sai.selection)
+        # if(sel_match is not None):
+        #     selection_rule = (sel_match['?sel_attr'], '?sel')
+        # else:
+        # sel_match = {"?sel" : sai.selection}
+        # selection_rule = sai.selection
+        print(state)
         itr = self.planner.how_search(state, sai,
                                       foci_of_attention=foci_of_attention)
         for input_rule, mapping in itr:
             inp_vars = list(mapping.keys())
             varz = list(mapping.values())
 
-            rhs = RHS(selection_expr=selection_rule, action=sai.action,
+            rhs = RHS(selection_expr=sai.selection, action=sai.action,
                       input_rule=input_rule, selection_var="?sel",
                       input_vars=inp_vars, input_attrs=list(sai.inputs.keys()))
 
-            literals = [sel_match['?sel']] + varz
+            literals = [sai.selection] + varz
             ordered_mapping = {k: v for k, v in zip(rhs.all_vars, literals)}
             yield Explanation(rhs, ordered_mapping)
 
@@ -503,7 +553,8 @@ class ModularAgent(BaseAgent):
         if(self.where_learner.get_strategy() == "first_order"):
             constraints = gen_html_constraints_fo(rhs)
         else:
-            constraints = gen_html_constraints_functional(rhs)
+            constraints = self.constraint_generator(rhs)
+            # constraints = gen_stylus_constraints_functional(rhs)
 
         self.where_learner.add_rhs(rhs, constraints)
         self.when_learner.add_rhs(rhs)
@@ -513,6 +564,7 @@ class ModularAgent(BaseAgent):
         if(not isinstance(reward,list)): reward = [reward]*len(explanations)
         for exp,_reward in zip(explanations,reward):
             mapping = list(exp.mapping.values())
+            # print(exp, mapping, 'rew:', _reward)
             self.when_learner.ifit(exp.rhs, state, mapping, _reward)
             self.which_learner.ifit(exp.rhs, state, _reward)
             self.where_learner.ifit(exp.rhs, mapping, state, _reward)
@@ -520,42 +572,50 @@ class ModularAgent(BaseAgent):
     def train(self, state:Dict, sai:Sai=None, reward:float=None,
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
+        # pprint(state)
+        if(type(self.planner).__name__ == "FoPlannerModule"): 
+            state = add_QMele_to_state(state)
+            sai.selection = "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
-        state_featurized = self.planner.apply_featureset(state)
+        state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
+        # state_featurized = state.get_view("flat_ungrounded")
+        # state_featurized =
 
-
+        
+        # print(sai, foci_of_attention)
         ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
-        _ = [x for x in self.applicable_explanations(state_featurized)]
+        _ = [x for x in self.applicable_explanations(state)]
         ############################################################
 
         #Either the explanation (i.e. prev application of skill) is provided
         #   or we must infer it from the skills that would have fired
         if(rhs_id is not None and mapping is not None):
-            print("Reward: ", reward)
+            # print("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
-            print("EX: ",str(explanations[0]))
+            # print("EX: ",str(explanations[0]))
         elif(sai is not None):
-            explanations = self.explanations_from_skills(state_featurized, sai,
+            explanations = self.explanations_from_skills(state, sai,
                                                          self.rhs_list,
                                                          foci_of_attention)
 
             explanations, nonmatching_explanations = self.where_matches(
                                                  explanations,
-                                                 state_featurized)
+                                                 state)
             if(len(explanations) == 0):
 
                 if(len(nonmatching_explanations) > 0):
                     explanations = [choice(nonmatching_explanations)]
 
                 else:
+                    # print(state_featurized)
                     explanations = self.explanations_from_how_search(
-                                   state_featurized, sai, foci_of_attention)
-
+                                   state, sai, foci_of_attention)
                     explanations = self.which_learner.select_how(explanations)
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
+                        # print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:
@@ -566,8 +626,8 @@ class ModularAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-
-        self.fit(explanations, state_featurized, reward)
+        # print("FIT_A")
+        self.fit(explanations, state, reward)
         if(self.ret_train_expl):
             out = []
             for exp in explanations:
@@ -719,19 +779,52 @@ def gen_html_constraints_fo(rhs):
     return frozenset(constraints)
 
 def gen_html_constraints_functional(rhs):
+    # print("FUNCTIONAL")
     def selection_constraints(x):
+        # print("SELc:", x)
         if(rhs.action == "ButtonPressed"):
             if(x["id"] != 'done'):
+                # print("C!")
                 return False
         else:
             if("contentEditable" not in x or x["contentEditable"] != True):
+            # if("contentEditable" in x and x["contentEditable"] != True):
+                # print("A!")
                 return False
         return True
 
     def arg_constraints(x):
         if("value" not in x or x["value"] == ""):
+            # print("B!")
             return False
         return True
 
     return selection_constraints, arg_constraints
 
+def gen_stylus_constraints_functional(rhs):
+    # print("FUNCTIONAL")
+    def selection_constraints(x):
+        # print("SELc:", x)
+        if(rhs.action == "ButtonPressed"):
+            if(x["id"] != 'done'):
+                # print("C!")
+                return False
+        else:
+            # if("contentEditable" not in x or x["contentEditable"] != True):
+            if("contentEditable" in x and x["contentEditable"] != True):
+                # print("A!")
+                return False
+        return True
+
+    def arg_constraints(x):
+        # print("Xc:", x)
+        if("value" not in x or x["value"] == ""):
+            # print("B!")
+            return False
+        return True
+
+    return selection_constraints, arg_constraints
+
+
+CONSTRAINT_SETS = {"stylus" : gen_stylus_constraints_functional,
+                   "ctat" : gen_html_constraints_functional}

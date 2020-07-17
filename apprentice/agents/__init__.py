@@ -1,1 +1,1 @@
-from .soartech_agent import SoarTechAgent
+from .experta_agent import ExpertaAgent
