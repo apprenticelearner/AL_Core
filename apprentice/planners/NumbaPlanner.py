@@ -5,6 +5,7 @@ logging.getLogger("numba.core.interpreter").setLevel(logging.ERROR)
 
 from numbert.core import * #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from apprentice.planners.base_planner import BasePlanner, PLANNERS
+import apprentice.working_memory.numba_operators
 from copy import deepcopy
 import itertools
 
