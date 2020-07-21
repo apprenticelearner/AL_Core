@@ -1,4 +1,3 @@
-numbert @ git+https://github.com/DannyWeitekamp/numbert.git
 colorama==0.4.3
 concept-formation==0.3.4
 Django==2.1.11
@@ -25,3 +24,4 @@ scikit-learn
 dill
 django-cors-headers
 numba>=0.50.1
+numbert @ git+https://github.com/DannyWeitekamp/numbert.git
