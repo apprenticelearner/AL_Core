@@ -181,7 +181,7 @@ def request(http_request, agent_id):
 
         start_t = time.time_ns()
         response = agent.instance.request(data["state"],**data.get('kwargs',{}))
-        performance_logger.info("Request Elapse Time: ", (time.time_ns()-start_t)/(1e6), "ms")
+        performance_logger.info("Request Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
 
         global dont_save
         if not dont_save:
@@ -317,7 +317,7 @@ def train(http_request, agent_id):
 
         start_t = time.time_ns()
         response = agent.instance.train(**data)
-        performance_logger.info("Train Elapse Time: ", (time.time_ns()-start_t)/(1e6), "ms")
+        performance_logger.info("Train Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
 
         global dont_save
         if not dont_save:
