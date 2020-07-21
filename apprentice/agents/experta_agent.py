@@ -13,6 +13,7 @@ from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
 from apprentice.working_memory.skills import fraction_skill_map
+from apprentice.explain.explanation import Explanation
 from experta import KnowledgeEngine
 import colorama
 
@@ -39,6 +40,7 @@ class ExpertaAgent(DiffBaseAgent):
             negative_actions: bool = False,
             skill_map: Dict[str, Skill] = fraction_skill_map,
             prior_skills=None,
+            chunking=False,
             **kwargs
     ):
         # Just track the state as a set of Facts?
@@ -88,6 +90,7 @@ class ExpertaAgent(DiffBaseAgent):
         self.action_penalty = action_penalty
         log.debug("action_penalty" + str(action_penalty))
         self.negative_actions = negative_actions
+        self.chunking = chunking
 
     # def __deepcopy__(self, memo):
     #     log.debug("DEEP COPY NOT IMPLEMENTED -- RETURNING NONE!")
@@ -288,6 +291,9 @@ class ExpertaAgent(DiffBaseAgent):
                 )
 
                 if isinstance(output, Sai):
+                    if self.chunking:
+                        ex = Explanation(output)
+                        self.working_memory.add_rule(ex.new_rule)
                     break
 
                 candidate_activations = [
