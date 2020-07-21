@@ -447,7 +447,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
-            agent_logger.debug("Skill Application:",explanation,explanation.rhs._id_num)
+            agent_logger.debug("Skill Application: {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
