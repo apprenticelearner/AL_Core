@@ -3,14 +3,16 @@ logging.getLogger("numba.core.ssa").setLevel(logging.ERROR)
 logging.getLogger("numba.core.byteflow").setLevel(logging.ERROR)
 logging.getLogger("numba.core.interpreter").setLevel(logging.ERROR)
 
+from numba import njit #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from numba.typed import Dict,List #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from numbert.knowledgebase import NBRT_KnowledgeBase #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
-from numbert.example_ops import * #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from numbert.operator import BaseOperator, OperatorComposition, str_preserve_ints, Var
 from apprentice.planners.base_planner import BasePlanner, PLANNERS
 import apprentice.working_memory.numba_operators
 from copy import deepcopy
 import itertools
+import math
+import numpy as np
 
 
 def toFloatIfFloat(x):

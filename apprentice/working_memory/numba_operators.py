@@ -1,4 +1,4 @@
-from numbert.core import BaseOperator
+from numbert.operator import BaseOperator
 
 from numba import njit
 
