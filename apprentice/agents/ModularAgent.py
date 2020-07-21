@@ -599,7 +599,7 @@ class ModularAgent(BaseAgent):
         if(rhs_id is not None and mapping is not None):
             # print("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
-            # print("EX: ",str(explanations[0]))
+            print("EX: ",str(explanations[0]))
         elif(sai is not None):
             explanations = self.explanations_from_skills(state, sai,
                                                          self.rhs_list,

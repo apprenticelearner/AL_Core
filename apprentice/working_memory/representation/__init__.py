@@ -1,1 +1,1 @@
-from .representation import Skill, Activation, Sai, RHS, StateMultiView, Explanation
+from .representation import Skill, Activation, Sai, RHS, StateMultiView, Explanation, numbalizer

@@ -1,7 +1,7 @@
 from numbert.operator import BaseOperator
 
 from numba import njit
-from apprentice.working_memory.representation import numbalizer
+from .representation import numbalizer
 
 textfield = {
     "id" : "string",
@@ -34,10 +34,15 @@ symbol = {
     "to_left" : "string",
 }
 
+overlay_button = {
+    "id" : "string",
+}
+
 
 numbalizer.register_specification("TextField",textfield)
 numbalizer.register_specification("Component",component)
 numbalizer.register_specification("Symbol",symbol)
+numbalizer.register_specification("OverlayButton",overlay_button)
 
 
 @njit(cache=True)
@@ -163,7 +168,7 @@ class FloatToStr(BaseOperator):
 
     def forward(x):
         # if(int(x) == x):
-        # 	return str(int(x))
+        #   return str(int(x))
         return str(x)
 
 class RipFloatValue(BaseOperator):
