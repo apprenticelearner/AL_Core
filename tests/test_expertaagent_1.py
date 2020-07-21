@@ -1,4 +1,4 @@
-from apprentice.agents.soartech_agent import SoarTechAgent
+from apprentice.agents.experta_agent import ExpertaAgent
 
 def test_request_diff():
     pass
