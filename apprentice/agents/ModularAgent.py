@@ -43,38 +43,6 @@ performance_logger = logging.getLogger('al-performance')
 agent_logger = logging.getLogger('al-agent')
 
 
-#####DELETE ME #####
-from numbert.operator import BaseOperator
-class RipFloatValue(BaseOperator):
-    signature = 'float(TextField)'
-    template = "{}.v"
-    nopython=False
-    muted_exceptions = [ValueError]
-    def forward(x): 
-        return float(x.value)
-
-class Numerator_Multiply(BaseOperator):
-    signature = 'float(TextField,TextField)'
-    template = "Numerator_Multiply({}.v,{}.v)"
-    nopython=False
-    muted_exceptions = [ValueError]
-    def condition(x,y): 
-        return x.id.split(".R")[1] == y.id.split(".R")[1]
-    def forward(x,y): 
-        return float(x.value) * float(y.value)
-
-class Cross_Multiply(BaseOperator):
-    signature = 'float(TextField,TextField)'
-    template = "Cross_Multiply({}.v,{}.v)"
-    nopython=False
-    muted_exceptions = [ValueError]
-    def condition(x,y): 
-        return x.id.split(".R")[1] != y.id.split(".R")[1]
-    def forward(x,y): 
-        return float(x.value) * float(y.value)
-
-
-########################
 
 
 def add_QMele_to_state(state):

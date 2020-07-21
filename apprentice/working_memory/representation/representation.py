@@ -204,31 +204,7 @@ from numbert.numbalizer import Numbalizer
 numbalizer = Numbalizer()
 
 
-textfield = {
-    "id" : "string",
-    "dom_class" : "string",
-    "offsetParent" : "string",
-    "value" : "string",
-    "contentEditable" : "number",
-    "above" : "string",
-    "below" : "string",
-    "to_right" : "string",
-    "to_left" : "string",
-}
-component = {
-    "id" : "string",
-    "dom_class" : "string",
-    "offsetParent" : "string",
-    "above" : "string",
-    "below" : "string",
-    "to_right" : "string",
-    "to_left" : "string",
-}
 
-
-numbalizer.register_specification("TextField",textfield)
-# numbalizer.register_specification("Button",button)
-numbalizer.register_specification("Component",component)
 # numbalizer.register_specification("CTATTable--cell",ctattextinput)
 # numbalizer.register_specification("CTATHintWindow",ctathintwindow)
 # numbalizer.register_specification("CTATHintButton",ctathintwindow)
