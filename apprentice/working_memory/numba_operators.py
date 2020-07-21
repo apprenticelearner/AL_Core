@@ -1,6 +1,7 @@
 from numbert.operator import BaseOperator
 
 from numba import njit
+from apprentice.working_memory.representation import numbalizer
 
 textfield = {
     "id" : "string",
