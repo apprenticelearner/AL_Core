@@ -36,6 +36,13 @@ import cProfile
 # pr.enable()
 
 import atexit
+import time
+import logging
+
+performance_logger = logging.getLogger('al-performance')
+agent_logger = logging.getLogger('al-agent')
+
+
 
 
 def add_QMele_to_state(state):
@@ -424,6 +431,7 @@ class ModularAgent(BaseAgent):
             yield explanation, skill_info
 
     def request(self, state: dict, add_skill_info=False,n=1,**kwargs):  # -> Returns sai
+
         if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
         if(not isinstance(state,StateMultiView)):
             state = StateMultiView("object", state) 
@@ -439,7 +447,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
-            # print("Skill Application:",explanation,explanation.rhs._id_num)
+            agent_logger.debug("Skill Application:",explanation,explanation.rhs._id_num)
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
@@ -447,14 +455,11 @@ class ModularAgent(BaseAgent):
                     response["mapping"] = explanation.mapping
                 responses.append(response)
 
-
+        
         if(len(responses) == 0):
             return EMPTY_RESPONSE
         else:
-            # print("responses:")
-            # print(responses)
             response = responses[0].copy()
-            # print("response:", response)
             if(n != 1):
                 response['responses'] = responses
             return response
@@ -573,6 +578,7 @@ class ModularAgent(BaseAgent):
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
         # pprint(state)
+
         if(type(self.planner).__name__ == "FoPlannerModule"): 
             state = add_QMele_to_state(state)
             sai.selection = "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection
@@ -593,7 +599,7 @@ class ModularAgent(BaseAgent):
         if(rhs_id is not None and mapping is not None):
             # print("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
-            # print("EX: ",str(explanations[0]))
+            print("EX: ",str(explanations[0]))
         elif(sai is not None):
             explanations = self.explanations_from_skills(state, sai,
                                                          self.rhs_list,
@@ -634,6 +640,7 @@ class ModularAgent(BaseAgent):
                 resp = exp.to_response(state,self)
                 if(add_skill_info): resp.update(exp.get_skill_info(self))
                 out.append(resp)
+
             return out
 
     # ------------------------------CHECK--------------------------------------
