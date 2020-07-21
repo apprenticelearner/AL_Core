@@ -1422,7 +1422,7 @@ class VersionSpace(BaseILP):
     def get_matches(self, x):
         # with torch.no_grad():
 
-        start_time = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # start_time = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         if(not self.pos_ok):
             return
 
@@ -1452,7 +1452,7 @@ class VersionSpace(BaseILP):
         elem_names = self.enumerizer.transform_values(elem_names_list)
         elem_names = np.array(elem_names,dtype=np.uint8)
 
-        time0 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # time0 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("A' time %.4f ms" % (time0-start_time))
 
         # Make a list that has all of the enumerized elements/objects
@@ -1495,7 +1495,7 @@ class VersionSpace(BaseILP):
         # all_consistencies = []
         # all_concepts
         
-        time1 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # time1 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("A time %.4f ms" % (time1-time0))
 
         # Loop over the concepts for each where part and cull down the list of
@@ -1569,7 +1569,7 @@ class VersionSpace(BaseILP):
             # concept_candidates.append( (consistency, torch.masked_select(elem_names_by_type[typ],consistency)) )
 
         # all_consistencies = torch.tensor(all_consistencies)
-        time2 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # time2 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("B time %.4f ms" % (time2-time1))
 
         split_ps_flat, concept_slices = flatten_n_slice(split_ps)
@@ -1612,7 +1612,7 @@ class VersionSpace(BaseILP):
         # print()
         # print("Before")
 
-        time3 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # time3 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("C time %.4f ms" % (time3-time2))
 
         translated = match_iterative(split_ps_flat, concept_slices,
@@ -1621,7 +1621,7 @@ class VersionSpace(BaseILP):
                             elem_names,
                             where_part_vals)
 
-        time4 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # time4 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("D time %.4f ms" % (time4-time3))
         # translated = np.array([])
         # matches = self._match_iterative(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems)
@@ -1652,7 +1652,7 @@ class VersionSpace(BaseILP):
                 yield out
             else:
                 print("FAIL CONSTR", out)
-        time5 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
+        # time5 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("E time %.4f ms" % (time5-time4))
         # print("")
 
