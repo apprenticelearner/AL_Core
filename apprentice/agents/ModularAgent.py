@@ -447,7 +447,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
-            agent_logger.debug("Skill Application: {}".format(explanation,explanation.rhs._id_num))
+            agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
@@ -534,7 +534,7 @@ class ModularAgent(BaseAgent):
         # else:
         # sel_match = {"?sel" : sai.selection}
         # selection_rule = sai.selection
-        print(state)
+        # print(state)
         itr = self.planner.how_search(state, sai,
                                       foci_of_attention=foci_of_attention)
         for input_rule, mapping in itr:
