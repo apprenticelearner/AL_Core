@@ -95,7 +95,7 @@ publish:
     - chmod 700 ~/.ssh
     - git config user.email "robert.sheline@soartech.com"
     - git config user.name "rob (automated triskele)"
-    - git remote set-url public git@github.com:apprenticelearner/AL_Core.git
+    - git remote add public git@github.com:apprenticelearner/AL_Core.git
     - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
     - git push public HEAD:soartech-dev
   tags:
