@@ -28,7 +28,6 @@ class Explanation:
                       self.tests]
         self.rules = self.rules[::-1]  # order rules logically
 
-        print("!!!EXPLANATION RULES ", self.rules)
         self.new_rule = self.compose()
 
     def compose(self):
@@ -39,8 +38,10 @@ class Explanation:
             return None  # exlanation comes from one rule
 
         asts, globs = [], {}
-        for r in rules:
-            p = parse(r)
+        for i, r in enumerate(rules):
+            #drop_declare = i < len(rules) #don't drop last declare
+            p = parse(r, drop_declare=True)
+
             if p is not None:
                 asts.append(p[0])
                 globs.update(p[1])

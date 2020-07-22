@@ -31,8 +31,7 @@ class FractionsEngine(KnowledgeEngine):
         print('clicking done')
         return Sai(selection='done',
                    action='ButtonPressed',
-                   input={'value': -1})
-        # input={'value': '-1'})
+                   inputs={'value': -1})
 
     @Rule(
         Fact(id="JCommTable8.R0C0", contentEditable=True, value="")
@@ -41,7 +40,7 @@ class FractionsEngine(KnowledgeEngine):
         print('checking box')
         return Sai(selection="JCommTable8.R0C0",
                    action='UpdateTextArea',
-                   input={'value': "x"})
+                   inputs={'value': "x"})
 
     @Rule(
         Fact(id=MATCH.id1, contentEditable=False, value=MATCH.value1),
@@ -74,7 +73,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection=field_id,
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': value})
+                   inputs={'value': value})
 
     @Rule(
         Fact(id=W(), contentEditable=False, value=MATCH.value),
@@ -88,7 +87,7 @@ class FractionsEngine(KnowledgeEngine):
         return Sai(selection=field_id,
                    # action='UpdateTextField',
                    action='UpdateTextArea',
-                   input={'value': value})
+                   inputs={'value': value})
 
     @Rule(
         AS.fact1 << Fact(id=MATCH.id1, contentEditable=False,
@@ -183,14 +182,14 @@ class RandomFracEngine(KnowledgeEngine):
     )
     def input_random(self, id):
         return Sai(selection=id, action='UpdateTextArea',
-                   input={'value': str(randint(0, 100))})
+                   inputs={'value': str(randint(0, 100))})
 
     @Rule(
         Fact(id='done')
     )
     def click_done(self):
         return Sai(selection='done', action='ButtonPressed',
-                   input={'value': -1})
+                   inputs={'value': -1})
 
 
 def fact_from_dict(f):
@@ -214,8 +213,7 @@ class AdditionEngine(KnowledgeEngine):
         print("FIRED CLICK DONE")
         x = Sai(selection='done',
                    action='ButtonPressed',
-                   # input={'value': -1})
-                   input={'value': '-1'})
+                   inputs={'value': '-1'})
         self.sais.append(x)
         return x
 
@@ -226,7 +224,7 @@ class AdditionEngine(KnowledgeEngine):
         print("FIRED CHECK")
         return Sai(selection=field_id,
                    action='UpdateTextArea',
-                   input={'value': "x"})
+                   inputs={'value': "x"})
 
     @Rule(
         Fact(id=W(), contentEditable=False, value=MATCH.value),
@@ -237,7 +235,7 @@ class AdditionEngine(KnowledgeEngine):
         s = Sai(selection=field_id,
                 action='UpdateTextField',
                 # action='UpdateTextArea',
-                input={'value': value})
+                inputs={'value': value})
         if int(value) == 3:
             self.sais.append(s)
         return s
