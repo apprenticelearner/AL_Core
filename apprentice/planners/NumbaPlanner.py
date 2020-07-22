@@ -133,6 +133,8 @@ class NumbaPlanner(BasePlanner):
 
 		if(search_depth == None): search_depth = self.search_depth
 		if(operators == None): operators = self.function_set
+		if(isinstance(foci_of_attention,list) and len(foci_of_attention) == 0):
+			foci_of_attention = None
 
 		kb = state_as_kb2(state,foci_of_attention)
 		
