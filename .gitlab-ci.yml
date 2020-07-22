@@ -93,10 +93,9 @@ publish:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - git config user.email "chris.maclellan@soartech.com"
-    - git config user.name "Chris MacLellan (automated triskele)"
-    - git remote rm public
-    - git remote add public git@github.com:apprenticelearner/AL_Core.git
+    - git config user.email "robert.sheline@soartech.com"
+    - git config user.name "rob (automated triskele)"
+    - git remote set-url public git@github.com:apprenticelearner/AL_Core.git
     - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
     - git push public HEAD:soartech-dev
   tags:
