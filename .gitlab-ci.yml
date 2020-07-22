@@ -97,7 +97,7 @@ publish:
     - git config user.name "rob (automated triskele)"
     - git remote add public git@github.com:apprenticelearner/AL_Core.git
     - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-    - git push public HEAD:soartech-dev
+    - git push -f public HEAD:soartech-dev
   tags:
     - base
   only:
