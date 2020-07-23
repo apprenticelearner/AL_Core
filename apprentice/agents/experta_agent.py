@@ -12,7 +12,7 @@ from apprentice.learners.when_learners.dqn_learner import DQNLearner
 from apprentice.working_memory import ExpertaWorkingMemory
 from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
-from apprentice.working_memory.skills import fraction_skill_map
+from apprentice.working_memory.experta_skills import experta_skill_map
 from apprentice.explain.explanation import Explanation
 from experta import KnowledgeEngine
 import colorama
@@ -38,7 +38,7 @@ class ExpertaAgent(DiffBaseAgent):
             action_penalty: float = -0.05,
             gamma: float = 0.7,
             negative_actions: bool = False,
-            skill_map: Dict[str, Skill] = fraction_skill_map,
+            skill_map: Dict[str, Skill] = experta_skill_map,
             prior_skills=None,
             chunking=False,
             **kwargs

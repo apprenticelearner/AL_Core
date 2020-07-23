@@ -24,7 +24,7 @@ def is_numeric_str(x):
         return False
 
 
-class FractionsEngine(KnowledgeEngine):
+class CoreKnowledgeEngine(KnowledgeEngine):
 
     @Rule(
         Fact(id='done')
@@ -393,7 +393,7 @@ class FractionsEngine(KnowledgeEngine):
                    inputs={'value': value3})
 
 
-ke = FractionsEngine()
+ke = CoreKnowledgeEngine()
 skill_factory = ExpertaSkillFactory(ke)
 
 # for prop in dir(ke):
@@ -401,7 +401,7 @@ skill_factory = ExpertaSkillFactory(ke)
 #     if not isinstance(attr, Rule):
 #         continue
 #     print(attr.__name__)
-fraction_skill_map = {getattr(ke, prop, None).__name__: skill_factory.from_ex_rule(getattr(ke, prop, None))
+experta_skill_map = {getattr(ke, prop, None).__name__: skill_factory.from_ex_rule(getattr(ke, prop, None))
                       for prop in dir(ke) if isinstance(getattr(ke, prop, None), Rule)}
 
 
@@ -434,7 +434,7 @@ fraction_skill_map = {getattr(ke, prop, None).__name__: skill_factory.from_ex_ru
 
 # correct_done = skill_factory.from_ex_rule(ke.correct_done)
 
-# fraction_skill_map = {'click_done': click_done_skill, 'check': check_skill,
+# experta_skill_map = {'click_done': click_done_skill, 'check': check_skill,
 #                       'update_answer': update_answer_field_skill,
 #                       'update_convert': update_convert_field_skill,
 #                       'equal': equal_skill,
@@ -457,7 +457,7 @@ fraction_skill_map = {getattr(ke, prop, None).__name__: skill_factory.from_ex_ru
 #                       }
 # from pprint import pprint
 
-# pprint(fraction_skill_map)
+# pprint(experta_skill_map)
 # skill_set = { prop:skill_factory.from_ex_rule(getattr(ke,prop,None)) for prop in dir(ke)}
 
 
@@ -497,8 +497,8 @@ if __name__ == "__main__":
     #         continue
     #     print(attr.__name__)
 
-    # c = copy.deepcopy(fraction_skill_map['click_done'])
-    prior_skills = [fraction_skill_map['click_done']]
+    # c = copy.deepcopy(experta_skill_map['click_done'])
+    prior_skills = [experta_skill_map['click_done']]
     prior_skills = None
     # wm = ExpertaWorkingMemory(ke=KnowledgeEngine())
     # wm.add_skills(prior_skills)
@@ -516,7 +516,7 @@ if __name__ == "__main__":
 
     wm = ExpertaWorkingMemory(ke=KnowledgeEngine())
 
-    skill_map = fraction_skill_map
+    skill_map = experta_skill_map
     prior_skills = [
         skill_map[s]
         for s, active in prior_skills.items()
