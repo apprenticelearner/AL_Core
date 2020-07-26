@@ -34,7 +34,15 @@ class CoreKnowledgeEngine(KnowledgeEngine):
         return Sai(selection='done',
                    action='ButtonPressed',
                    inputs={'value': -1})
-        # inputs={'value': '-1'})
+
+    @Rule(
+        Fact(id='done')
+    )
+    def done(self):
+        # print('clicking done')
+        return Sai(selection='done',
+                   action='ButtonPressed',
+                   inputs={'value': '-1'})
 
     @Rule(
         Fact(id="JCommTable8.R0C0", contentEditable=True, value="")
@@ -90,6 +98,17 @@ class CoreKnowledgeEngine(KnowledgeEngine):
         return Sai(selection=field_id,
                    # action='UpdateTextField',
                    action='UpdateTextArea',
+                   inputs={'value': value})
+
+    @Rule(
+        Fact(id=W(), contentEditable=False, value=MATCH.value),
+        TEST(lambda value: value != ""),
+        Fact(id=MATCH.field_id, contentEditable=True, value="")
+    )
+    def update_field(self, field_id, value):
+        # print('updating answer field', field_id, value)
+        return Sai(selection=field_id,
+                   action='UpdateTextField',
                    inputs={'value': value})
 
     @Rule(
@@ -191,6 +210,59 @@ class CoreKnowledgeEngine(KnowledgeEngine):
                           contentEditable=False,
                           value=new_value,
                           depth=new_depth))
+
+    @Rule(
+        AS.fact1 << Fact(id=MATCH.id1, type='TextField', value=MATCH.value1),
+        TEST(lambda value1: value1 != ""),
+        TEST(lambda value1: len(value1) > 1),
+    )
+    def div10(self, id1, value1):
+        new_id = 'div10({0})'.format(id1)
+
+        new_value = float(value1) // 10
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        self.declare(Fact(id=new_id,
+                          operator='div10',
+                          depth=1,
+                          ele1=id1,
+                          contentEditable=False,
+                          value=new_value))
+
+    @Rule(
+        AS.fact1 << Fact(id=MATCH.id1, type='TextField', value=MATCH.value1),
+        TEST(lambda value1: value1 != "")
+    )
+    def addOne(self, id1, value1):
+        new_id = 'addOne({0})'.format(id1)
+
+        new_value = float(value1) + 1
+        if new_value.is_integer():
+            new_value = int(new_value)
+        new_value = str(new_value)
+
+        self.declare(Fact(id=new_id,
+                          operator='addOne',
+                          depth=1,
+                          ele1=id1,
+                          contentEditable=False,
+                          value=new_value))
+
+    @Rule(
+        AS.fact1 << Fact(id=MATCH.id1, type='TextField', value=MATCH.value1),
+        TEST(lambda value1: value1 != "")
+    )
+    def append25(self, id1, value1):
+        new_id = 'append25({0})'.format(id1)
+        new_value = value1 + "25"
+        self.declare(Fact(id=new_id,
+                          operator='append25',
+                          depth=1,
+                          ele1=id1,
+                          contentEditable=False,
+                          value=new_value))
 
     @Rule(
         Fact(id='JCommTable.R0C0', contentEditable=False, value=MATCH.value1),

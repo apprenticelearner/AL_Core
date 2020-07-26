@@ -193,9 +193,21 @@ def request(http_request, agent_id):
         last_call_time =  time.time_ns()
 
         if isinstance(response, Sai):
-            return HttpResponse(json.dumps({'selection': response.selection,
-                                            'action': response.action,
-                                            'inputs': response.inputs}))
+            temp = {'selection': response.selection,
+                    'action': response.action,
+                    'inputs': response.inputs,
+                    'mapping': {"?sel": response.selection},
+                    'how': "n/a",
+                    'skill_label': 'n/a'}
+            
+            return HttpResponse(
+                    json.dumps({'selection': response.selection,
+                        'action': response.action,
+                        'inputs': response.inputs,
+                        'mapping': {"?sel": response.selection},
+                        'responses': [temp]
+                    }
+            ))
 
         return HttpResponse(json.dumps(response))
 

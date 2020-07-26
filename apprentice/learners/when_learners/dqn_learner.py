@@ -14,14 +14,16 @@ from apprentice.learners.when_learners.fractions_hasher import FractionsStateHas
 from apprentice.learners.when_learners.fractions_hasher import FractionsActionHasher
 
 # from concept_formation.trestle import TrestleTree
-# from sklearn.feature_extraction import FeatureHasher
+from sklearn.feature_extraction import FeatureHasher
+
 import logging
 log = logging.getLogger(__name__)
 
 
 class DQNLearner(WhenLearner):
     def __init__(self, gamma=0.7, lr=3e-5, batch_size=64, mem_capacity=10000,
-                 state_size=394, action_size=257, state_hidden_size=197,
+                 # state_size=394, action_size=257, state_hidden_size=197,
+                 state_size=50, action_size=50, state_hidden_size=30,
                  action_hidden_size=122):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else
@@ -36,14 +38,14 @@ class DQNLearner(WhenLearner):
         self.state_hidden_size = state_hidden_size
         self.action_hidden_size = action_hidden_size
 
-        # self.state_hasher = FeatureHasher(n_features=self.state_size,
-        #                                   alternate_sign=False)
-        # self.action_hasher = FeatureHasher(n_features=self.action_size,
-        #                                    alternate_sign=False)
+        self.state_hasher = FeatureHasher(n_features=self.state_size,
+                                          alternate_sign=False)
+        self.action_hasher = FeatureHasher(n_features=self.action_size,
+                                           alternate_sign=False)
 
         # special case to make things run faster and drop values
-        self.state_hasher = FractionsStateHasher()
-        self.action_hasher = FractionsActionHasher()
+        # self.state_hasher = FractionsStateHasher()
+        # self.action_hasher = FractionsActionHasher()
 
         self.value_net = ValueNet(
             self.state_size, self.state_hidden_size).to(self.device)

@@ -267,6 +267,21 @@ def int3_float_add_then_tens(x, y, w):
         z = int(z)
     return str(z)
 
+div10 = Operator(('div10', '?x'),
+                    [(('value', '?x'), '?xv')],
+                    [(('value', ('div10', '?x')),
+                      (lambda x: str(int(x) // 10), '?xv'))])
+
+addOne = Operator(('addOne', '?x'),
+                     [(('value', '?x'), '?xv')],
+                       [(('value', ('addOne', '?x')),
+                        (lambda x: str(int(x) + 1), '?xv'))])
+
+append25 = Operator(('append25', '?x'),
+                       [(('value', '?x'), '?xv')],
+                       [(('value', ('append25', '?x')),
+                         (lambda x: str(x) + "25", '?xv'))])
+
 
 add_rule = Operator(('Add', '?x', '?y'),
                     [(('value', '?x'), '?xv'),

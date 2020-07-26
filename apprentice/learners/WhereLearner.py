@@ -238,7 +238,7 @@ class FastMostSpecific(BaseILP):
             self.tuples.add(tuple(t))
 
     def skill_info(self):
-        return self.tuples
+        return list(self.tuples)
 
 class MostSpecific(BaseILP):
     """

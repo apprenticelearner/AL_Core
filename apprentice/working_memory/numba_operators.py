@@ -6,7 +6,7 @@ from .representation import numbalizer
 textfield = {
     "id" : "string",
     "dom_class" : "string",
-    "offsetParent" : "string",
+    # "offsetParent" : "string",
     "value" : "string",
     "contentEditable" : "number",
     "above" : "string",
@@ -17,7 +17,7 @@ textfield = {
 component = {
     "id" : "string",
     "dom_class" : "string",
-    "offsetParent" : "string",
+    # "offsetParent" : "string",
     "above" : "string",
     "below" : "string",
     "to_right" : "string",
@@ -86,6 +86,14 @@ class Add(BaseOperator):
         return x + y
 
 
+class AddOne(BaseOperator):
+    commutes = True
+    signature = 'float(float)'
+
+    def forward(x):
+        return x + 1
+
+
 class Subtract(BaseOperator):
     commutes = False
     signature = 'float(float,float)'
@@ -151,6 +159,12 @@ class Concatenate(BaseOperator):
     def forward(x, y):
         return x + y
 
+class Append25(BaseOperator):
+    signature = 'string(string)'
+
+    def forward(x):
+        return x + "25"
+
 
 class StrToFloat(BaseOperator):
     signature = 'float(string)'
@@ -170,6 +184,13 @@ class FloatToStr(BaseOperator):
         # if(int(x) == x):
         #   return str(int(x))
         return str(x)
+
+class RipStrValue(BaseOperator):
+    signature = 'string(TextField)'
+    template = "{}.v"
+    nopython=False
+    def forward(x):
+        return str(x.value)
 
 class RipFloatValue(BaseOperator):
     signature = 'float(TextField)'
