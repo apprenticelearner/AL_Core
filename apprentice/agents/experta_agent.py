@@ -75,8 +75,9 @@ class ExpertaAgent(DiffBaseAgent):
         prior_skills = [
             skill_map[s]
             for s, active in prior_skills.items()
-            if active and s in skill_map
+            if active
         ]
+
         self.working_memory.add_skills(prior_skills)
 
         # will take a activation and facts and return reward
