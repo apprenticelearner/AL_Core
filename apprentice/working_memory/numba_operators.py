@@ -189,6 +189,7 @@ class RipStrValue(BaseOperator):
     signature = 'string(TextField)'
     template = "{}.v"
     nopython=False
+    muted_exceptions = [ValueError]
     def forward(x):
         return str(x.value)
 
