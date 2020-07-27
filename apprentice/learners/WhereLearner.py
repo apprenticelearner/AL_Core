@@ -1220,7 +1220,7 @@ class VersionSpace(BaseILP):
 
 
     def ifit(self, t, x, y):
-        print("FIT B", t,y)
+        # print("FIT B", t,y)
         # with torch.no_grad():
         if(len(t) != len(set(t))):
             raise ValueError("Where elements must be unique; recieved : %s" % t)
@@ -1254,7 +1254,7 @@ class VersionSpace(BaseILP):
             return
 
         # print(self.use_neighbor_concepts)
-        print("VS_ELMS",vs_elems)
+        # print("VS_ELMS",vs_elems)
             # self.elem_types = [x[t_name]["type"] for t_name in t]
 
             # inv_rename_dict = {v:k for k,v in rename_dict.items()}
@@ -1651,7 +1651,8 @@ class VersionSpace(BaseILP):
             if(self.check_constraints(out,state)):
                 yield out
             else:
-                print("FAIL CONSTR", out)
+                pass
+                # print("FAIL CONSTR", out)
         # time5 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("E time %.4f ms" % (time5-time4))
         # print("")

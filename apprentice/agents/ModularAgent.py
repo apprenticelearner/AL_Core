@@ -41,6 +41,8 @@ import logging
 
 performance_logger = logging.getLogger('al-performance')
 agent_logger = logging.getLogger('al-agent')
+agent_logger.setLevel("ERROR")
+performance_logger.setLevel("ERROR")
 
 
 
@@ -140,6 +142,7 @@ def variablize_by_where_swap(self,state,rhs,  match):
     #         r_state[k] = v
     #     except Exception as e:
     #         pass
+    # pprint("r_state")
     # pprint(r_state)
     return r_state
 
@@ -154,17 +157,18 @@ def variablize_by_where_append(self,state,rhs,match):
     if(self.strip_attrs and len(self.strip_attrs) > 0):
         r_state = {key:val for key,val in r_state.items() if key[0] not in self.strip_attrs}
 
-    del_list = []
-    for k,v in r_state.items():
-        try:
-            if(not isinstance(v,bool)):
-                v = float(v)
-                del_list.append(k)
-        except Exception as e:
-            pass
-    for k in del_list:
-        del r_state[k]
-    # pprint(r_state)
+    # del_list = []
+    # for k,v in r_state.items():
+    #     try:
+    #         if(not isinstance(v,bool)):
+    #             v = float(v)
+    #             del_list.append(k)
+    #     except Exception as e:
+    #         pass
+    # for k in del_list:
+    #     del r_state[k]
+    # pprint("r_state")
+    # pprint([v for k,v in r_state.items() if k[0] =='value'])
     return r_state
 
 
@@ -357,7 +361,6 @@ class ModularAgent(BaseAgent):
                  constraint_set='ctat', **kwargs):
                 
                 
-        # print(planner)
         self.where_learner = get_where_learner(where_learner,
                                             **kwargs.get("where_args",{}))
         self.when_learner = get_when_learner(when_learner,
@@ -437,6 +440,7 @@ class ModularAgent(BaseAgent):
             state = StateMultiView("object", state) 
         state.register_transform("*","variablize",self.state_variablizer)
         state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
+        # pprint(state.get_view("flat_ungrounded"))
         # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
@@ -599,11 +603,16 @@ class ModularAgent(BaseAgent):
         if(rhs_id is not None and mapping is not None):
             # print("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
-            print("EX: ",str(explanations[0]))
+            # print("EX: ",str(explanations[0]))
         elif(sai is not None):
+            # pprint(state.get_view("object"))
+            # print("TO HOW")
+            t_s = time.time_ns()
             explanations = self.explanations_from_skills(state, sai,
                                                          self.rhs_list,
                                                          foci_of_attention)
+            explanations = list(explanations)
+            performance_logger.info("explanations_from_skills {} ms".format((time.time_ns()-t_s)/(1e6)))
 
             explanations, nonmatching_explanations = self.where_matches(
                                                  explanations,
@@ -615,8 +624,11 @@ class ModularAgent(BaseAgent):
 
                 else:
                     # print(state_featurized)
+                    t_s = time.time_ns()
                     explanations = self.explanations_from_how_search(
                                    state, sai, foci_of_attention)
+                    performance_logger.info("explanations_from_how_search {} ms".format((time.time_ns()-t_s)/(1e6)))
+
                     explanations = self.which_learner.select_how(explanations)
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
@@ -652,7 +664,7 @@ class ModularAgent(BaseAgent):
         if("responses" in resp):
             responses = resp['responses']
             for resp in responses:
-                print(resp['selection'],resp['action'],resp['inputs'], _inputs_equal(resp['inputs'],inputs))
+                # print(resp['selection'],resp['action'],resp['inputs'], _inputs_equal(resp['inputs'],inputs))
                 if(resp['selection'] == selection and 
                    resp['action'] == action and 
                    _inputs_equal(resp['inputs'],inputs)):

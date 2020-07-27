@@ -166,7 +166,7 @@ class NumbaPlanner(BasePlanner):
 
 		if(not at_least_one and allow_bottomout and 
 			(foci_of_attention == None or len(foci_of_attention) == 0)):
-			# print("Bottomout!!!!!!!!!!!!!!!!!!!!!!!")
+			print("Bottomout:", goal)
 			yield goal, {}
 
 
