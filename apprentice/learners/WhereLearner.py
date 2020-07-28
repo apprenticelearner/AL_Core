@@ -941,7 +941,7 @@ def flatten_n_slice(lst):
     flat = [x if isinstance(x,list) else np.array(x).reshape(-1) for x in lst]
     lens = [0] + [len(x)  for x in flat]
     slices = np.cumsum(lens)
-    out = np.array([x for x in itertools.chain(*flat)])
+    out = np.array([x for x in itertools.chain(*flat)],dtype=np.int32)
     return out,slices
 
 try:
