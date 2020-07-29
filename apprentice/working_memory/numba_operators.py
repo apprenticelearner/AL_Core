@@ -14,6 +14,29 @@ textfield = {
     "to_right" : "string",
     "to_left" : "string",
 }
+
+button = {
+    "id": "string",
+    "dom_class":"string",
+    "label":"string",
+    "above" : "string",
+    "below" : "string",
+    "to_right" : "string",
+    "to_left" : "string",
+}
+
+checkbox = {
+    "id": "string",
+    "dom_class":"string",
+    "label":"string",
+    "above" : "string",
+    "below" : "string",
+    "to_right" : "string",
+    "to_left" : "string",
+    "groupName":"string",  
+}
+
+
 component = {
     "id" : "string",
     "dom_class" : "string",
@@ -40,6 +63,10 @@ overlay_button = {
 
 
 numbalizer.register_specification("TextField",textfield)
+numbalizer.register_specification("TextArea",textfield)
+numbalizer.register_specification("Button", button)
+numbalizer.register_specification("Checkbox", checkbox)
+numbalizer.register_specification("RadioButton", checkbox)
 numbalizer.register_specification("Component",component)
 numbalizer.register_specification("Symbol",symbol)
 numbalizer.register_specification("OverlayButton",overlay_button)
