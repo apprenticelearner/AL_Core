@@ -180,7 +180,10 @@ class NumbaPlanner(BasePlanner):
 
 			ids = [v for k,v in mapping.items() if k != "?sel"]
 			literals = [state[typ][_id] for typ, _id in zip(expr.arg_types,ids)]
-			return expr(*literals)
+			try:
+				return expr(*literals)
+			except:
+				return None
 			
 
 
