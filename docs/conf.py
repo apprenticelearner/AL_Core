@@ -24,9 +24,9 @@ copyright = '2019, Chris MacLellan'
 author = 'Chris MacLellan'
 
 # The short X.Y version
-version = '0.1'
+version = ''
 # The full version, including alpha/beta/rc tags
-release = '0.1.1'
+release = ''
 
 
 # -- General configuration ---------------------------------------------------
@@ -40,7 +40,7 @@ release = '0.1.1'
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx_autodoc_typehints'
+#     'sphinx_autodoc_typehints'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
