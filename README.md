@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/apprenticelearner/AL_Core.svg?branch=master)](https://travis-ci.org/apprenticelearner/AL_Core)
 
-Documentation: https://apprentice.hq-git.soartech.com/apprentice
+[![Documentation Status](https://readthedocs.org/projects/al-core/badge/?version=latest)](https://al-core.readthedocs.io/en/latest/?badge=latest)
 
 The Apprentice Learner API, this library implement a general interface for
 training agents via demonstration and feedback.
