@@ -1,10 +1,6 @@
 # Apprentice / AL_Core
 
-[![Pipeline
-Status](https://hq-git.soartech.com/apprentice/apprentice/badges/master/pipeline.svg)](https://hq-git.soartech.com/apprentice/apprentice/commits/master)
-
-[![Coverage
-Report](https://hq-git.soartech.com/apprentice/apprentice/badges/master/coverage.svg)](https://apprentice.hq-git.soartech.com/apprentice/coverage/)
+[![Build Status](https://travis-ci.org/apprenticelearner/AL_Core.svg?branch=master)](https://travis-ci.org/apprenticelearner/AL_Core)
 
 Documentation: https://apprentice.hq-git.soartech.com/apprentice
 
