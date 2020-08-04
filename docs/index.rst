@@ -5,9 +5,10 @@
    :caption: Contents:
 
    agents.rst
-   working_memory.rst
    learners.rst
    planners.rst
+   working_memory.rst
+   
 
 
 Indices and tables

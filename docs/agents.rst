@@ -1,7 +1,7 @@
 Agents
 ======
 
-BaseAgent
+Base Agents
 ---------
 
 .. automodule:: apprentice.agents.base
@@ -9,10 +9,16 @@ BaseAgent
    :undoc-members:
    :show-inheritance:
 
-SoarTechAgent
+.. automodule:: apprentice.agents.diff_base
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+ExpertaAgent
 -------------
 
-.. automodule:: apprentice.agents.soartech_agent
+.. automodule:: apprentice.agents.experta_agent
    :members:
    :undoc-members:
    :show-inheritance:
@@ -25,7 +31,7 @@ ModularAgent
    :undoc-members:
    :show-inheritance:
 
-RLAgent
+Other Agents
 -------
 
 .. automodule:: apprentice.agents.RLAgent

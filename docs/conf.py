@@ -20,8 +20,8 @@ sys.path.insert(0, os.path.abspath('../'))
 # -- Project information -----------------------------------------------------
 
 project = 'Apprentice'
-copyright = '2019, Chris MacLellan'
-author = 'Chris MacLellan'
+copyright = '2019, Chris MacLellan, Erik Harpstead, and Daniel Weitekamp'
+author = 'Chris MacLellan, Erik Harpstead, and Daniel Weitekamp'
 
 # The short X.Y version
 version = ''
@@ -131,7 +131,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'ApprenticePython.tex', 'Apprentice Python Documentation',
-     'Chris MacLellan', 'manual'),
+     'Chris MacLellan \\and Erik Harpstead \\and Daniel Weitekamp', 'manual'),
 ]
 
 
