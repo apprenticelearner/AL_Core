@@ -24,9 +24,9 @@ copyright = '2019, Chris MacLellan'
 author = 'Chris MacLellan'
 
 # The short X.Y version
-version = ''
+version = '0.1'
 # The full version, including alpha/beta/rc tags
-release = ''
+release = '0.1.1'
 
 
 # -- General configuration ---------------------------------------------------
