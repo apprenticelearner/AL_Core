@@ -55,7 +55,6 @@ Bibtex entry:
 @inproceedings{MacLellan2016a,
 author = {MacLellan, Christopher J and Harpstead, Erik and Patel, Rony and Koedinger, Kenneth R},
 booktitle = {Proceedings of the 9th International Conference on Educational Data Mining - EDM '16},
-file = {:C$\backslash$:/Users/eharpste/Documents/Articles/MacLellan et al. - 2016 - The Apprentice Learner Architecture Closing the loop between learning theory and educational data.pdf:pdf},
 pages = {151--158},
 title = {{The Apprentice Learner Architecture: Closing the loop between learning theory and educational data}},
 url = {http://www.educationaldatamining.org/EDM2016/proceedings/paper{\_}118.pdf},
