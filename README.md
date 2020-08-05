@@ -12,7 +12,7 @@ The Apprentice Learner Architecture provides a framework for modeling and simula
 
 # Installation
 
-To install the AL_Core library, [clone both respositories](https://help.github.com/en/articles/cloning-a-repository) to your machine using the GitHub deskptop application or by running the following commands in a terminal / command line:
+To install the AL_Core library, [clone the respository](https://help.github.com/en/articles/cloning-a-repository) to your machine using the GitHub deskptop application or by running the following command in a terminal / command line:
 
 ```bash
 git clone https://github.com/apprenticelearner/AL_Core 
