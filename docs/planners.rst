@@ -1,6 +1,30 @@
 Planners
 ========
 
+Base Planner
+------------
+
+.. automodule:: apprentice.planners.base_planner
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Numbert Planner
+---------------
+
+.. automodule:: apprentice.planners.NumbaPlanner
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+FO Planner
+----------
+
+.. automodule:: apprentice.planners.fo_planner
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 VectorizedPlanner
 -----------------
 
@@ -13,22 +37,6 @@ Action Planner
 --------------
 
 .. automodule:: apprentice.planners.action_planner
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Base Planner
--------------
-
-.. automodule:: apprentice.planners.base_planner
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-FO Planner
-----------
-
-.. automodule:: apprentice.planners.fo_planner
    :members:
    :undoc-members:
    :show-inheritance:
