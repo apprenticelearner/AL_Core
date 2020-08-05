@@ -3,7 +3,7 @@ Apprentice Learner Architecture
 *******************************
 
 .. image:: https://travis-ci.org/apprenticelearner/AL_Core.svg?branch=master
-    :target: https://travis-ci.org/apprenticelearner/AL_Core
+	:target: https://travis-ci.org/apprenticelearner/AL_Core
 
 .. image:: https://coveralls.io/repos/github/apprenticelearner/AL_Core/badge.svg?branch=master
 	:target: https://coveralls.io/github/apprenticelearner/AL_Core?branch=master
@@ -21,7 +21,7 @@ The Apprentice Learner Architecture provides a framework for modeling and simula
 Installation
 ============
 
-To install the AL_Core library, `clone the respository <https://help.github.com/en/articles/cloning-a-repository>` to your machine using the GitHub deskptop application or by running the following command in a terminal / command line:
+To install the AL_Core library, `clone the respository <https://help.github.com/en/articles/cloning-a-repository>`_ to your machine using the GitHub deskptop application or by running the following command in a terminal / command line:
 
 .. code-block:: bash
 	git clone https://github.com/apprenticelearner/AL_Core 
@@ -33,7 +33,7 @@ Navigate to the directory where you cloned AL_Core in a terminal / command line 
 	python -m pip install -e .
 
 
-Next, go to the `pytorch setup guide <https://pytorch.org/get-started/locally/>` and follow the steps specified for your operating system and environment to install pytorch.
+Next, go to the `pytorch setup guide <https://pytorch.org/get-started/locally/>`_ and follow the steps specified for your operating system and environment to install pytorch.
 
 Finally, change directory to AL_Core/django and run the migrations for the django configuration:
 
@@ -53,7 +53,7 @@ Important Links
 Examples
 ========
 
-We have created a number of examples to demonstrate basic usage of the Appentice Learner that make use of this repository as well as `AL_Train <https://github.com/apprenticelearner/AL_Core). These can be found on the [examples page](https://github.com/apprenticelearner/AL_Core/wiki/Examples>` of the wiki.
+We have created a number of examples to demonstrate basic usage of the Appentice Learner that make use of this repository as well as `AL_Train <https://github.com/apprenticelearner/AL_Core>`_. These can be found on the `examples page <https://github.com/apprenticelearner/AL_Core/wiki/Examples>`_ of the wiki.
 
 Citing this Software
 ====================
