@@ -1,6 +1,8 @@
 # Apprentice / AL_Core
 
-[![Build Status](https://travis-ci.org/apprenticelearner/AL_Core.svg?branch=master)](https://travis-ci.org/apprenticelearner/AL_Core) [![Documentation Status](https://readthedocs.org/projects/al-core/badge/?version=latest)](https://al-core.readthedocs.io/en/latest/?badge=latest)
+[![Build Status](https://travis-ci.org/apprenticelearner/AL_Core.svg?branch=master)](https://travis-ci.org/apprenticelearner/AL_Core) 
+[![Coverage Status](https://coveralls.io/repos/github/apprenticelearner/AL_Core/badge.svg?branch=master)](https://coveralls.io/github/apprenticelearner/AL_Core?branch=master)
+[![Documentation Status](https://readthedocs.org/projects/al-core/badge/?version=latest)](https://al-core.readthedocs.io/en/latest/?badge=latest)
 
 The Apprentice Learner API, this library implement a general interface for
 training agents via demonstration and feedback.
