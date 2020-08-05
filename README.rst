@@ -24,20 +24,22 @@ Installation
 To install the AL_Core library, `clone the respository <https://help.github.com/en/articles/cloning-a-repository>`_ to your machine using the GitHub deskptop application or by running the following command in a terminal / command line:
 
 .. code-block:: bash
+
 	git clone https://github.com/apprenticelearner/AL_Core 
 
 
 Navigate to the directory where you cloned AL_Core in a terminal / command line and run:
 
 .. code-block:: bash
-	python -m pip install -e .
 
+	python -m pip install -e .
 
 Next, go to the `pytorch setup guide <https://pytorch.org/get-started/locally/>`_ and follow the steps specified for your operating system and environment to install pytorch.
 
 Finally, change directory to AL_Core/django and run the migrations for the django configuration:
 
 .. code-block:: bash
+
 	cd AL_Core/django/
 	python manage.py migrate
 
