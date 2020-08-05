@@ -24,7 +24,7 @@ Navigate to the directory where you cloned AL_Core in a terminal / command line 
 python -m pip install -e .
 ```
 
-Next, go to the [pytorch setup guide](https://pytorch.org/get-started/locally/) and follow the sets specified for your operating system and environment to install a final depending.
+Next, go to the [pytorch setup guide](https://pytorch.org/get-started/locally/) and follow the steps specified for your operating system and environment to install pytorch.
 
 Finally, change directory to AL_Core/django and run the migrations for the django configuration:
 
