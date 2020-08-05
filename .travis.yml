@@ -5,11 +5,12 @@ python:
 install:
   - pip install .
   - pip install torch
-  - pip install coveralls
 
+before_script:
+  - pip install -r test-requirements.txt
+  - coverage run -m pytest
 script:
   - pytest
-  - tox
 after_success:
   - coveralls
 
