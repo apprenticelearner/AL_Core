@@ -9,7 +9,6 @@ install:
 
 script:
   - pytest
-  - tox
 after_success:
   - coveralls
 
