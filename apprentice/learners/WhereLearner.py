@@ -900,6 +900,8 @@ def get_enumerized_elems_and_candidates(enumerized_state, pos_spec_concepts, ele
             cands[i] = c
         candidates.append(cands)
 
+    # print(candidates)
+
     return elems, elem_names, candidates
 
 
@@ -1018,7 +1020,7 @@ def match_iterative(concepts,elems,candidates,elem_names, where_vars_to_inds):
     n_concepts = len(concepts)
     pair_matches = find_consistent_pairs(concepts, elems, candidates,
                         elem_names, where_vars_to_inds)
-
+    print(pair_matches)
     partial_matches = List()
     partial_matches.append(np.zeros((n_concepts,),dtype=np.uint32))
 
@@ -1053,9 +1055,12 @@ def get_matches(enumerized_state, pos_spec_concepts, concept_names, elem_types, 
         enumerized_matches = match_iterative(pos_spec_concepts,elems,candidates,elem_names, concept_names_to_inds)
         # print("enumerized_matches")
         # print(enumerized_matches)
-        out = List()
-        for e_match in enumerized_matches:
-            out.append(List([string_backmap[name] for name in e_match]))
+        out = np.empty((len(enumerized_matches),len(elem_types)), dtype=elem_types.dtype)
+        for i,e_match in enumerate(enumerized_matches):
+            for j,name in enumerate(e_match):
+            # for j in range(len(elem_types)):
+                out[i][j] = string_backmap[name]
+                # out.append(List([string_backmap[name] for name in e_match]))
         return out
 
 
@@ -1201,14 +1206,14 @@ class VersionSpace(BaseILP):
 
         if(gen_literals): instances = self._generalize_literals(instances,rename_dict)
 
-        print(instances)
+        # print(instances)
         if((not self.initialized or len(t) == self.num_elems) and (self.elem_types is None
             or all([instance['type'] == elm_t for instance,elm_t in zip(instances,self.elem_types)] ))):
             # vs_elems = self.enumerizer.transform(instances)
             # numbalizer.nb_objects_to_enumerized(numbalizer.state_to_nb_objects({k:inst for k,inst in zip(rename_dict.values(),instances)}))
             vs_elems = self._enumerize_instances(rename_dict.values(), instances)
-            print("vs_elems")
-            print(vs_elems)
+            # print("vs_elems")
+            # print(vs_elems)
             return instances,vs_elems
         else:
             return None,None
@@ -1325,20 +1330,29 @@ class VersionSpace(BaseILP):
             return False
         
         instances,vs_elems  = self.get_vs_elems(t,x)
-        flat_x = list(itertools.chain(*vs_elems)) if isinstance(vs_elems[0],list) else vs_elems
+        flat_x = list(itertools.chain(*vs_elems)) if isinstance(vs_elems[0],(list,np.ndarray)) else vs_elems
         x = np.array(flat_x, dtype=np.uint32)
+        # print("flatx")
+        # print(x)
 
         #Rip out neighbor concepts for scoring, is hard to partially assign neighbors
-        pos_specific = self.pos_concepts.spec_concepts.reshape((-1,))[:len(x)]
+        ps = self.pos_concepts.spec_concepts#.reshape((-1,))[:len(x)]
         new_pos_specific = []
-        for v in pos_specific:
-            s = self.enumerizer.back_maps[0][v.item()]
-            if(isinstance(s,str) and "neigh" in s):
-                new_pos_specific.append(0)
-            else:
-                new_pos_specific.append(v)
+        s = self.elem_slices
+        split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
+        for i,(typ,ps_i) in enumerate(zip(self.elem_types,split_ps)):
+            # print(ps_i)
+            for j,attr_type in enumerate(numbalizer.registered_specs[typ]):
+                v = ps_i[0][j]
+                s = numbalizer.unenumerize_value(v,typ)
+                if(isinstance(s,str) and "neigh" in s):
+                    new_pos_specific.append(0)
+                else:
+                    new_pos_specific.append(v)
 
-        pos_specific = np.array(new_pos_specific)
+        pos_specific = np.array(new_pos_specific)[:len(x)]
+        # print(x)
+        # print(new_pos_specific)
         spec_consistency = ((pos_specific == self.pos_concepts.ZERO) | (pos_specific == x))
         return np.average(spec_consistency)
 
@@ -1400,23 +1414,16 @@ class VersionSpace(BaseILP):
 
     def get_matches(self, x):
         t0 = time.time_ns()
-        # with torch.no_grad():
 
-        # start_time = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         if(not self.pos_ok):
             return
 
         if(self.elem_slices == None):
             return
-        # raise ValueError()
-        # assert False not in [for x in range(self.num_elems), \
-        # "It is not the case that the enum for argX == X+2"
-        # print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
 
         _ = x.get_view("nb_object")
         enumerized_state = x.get_view("nb_enumerized")
-        # pprint(object_state)
-        # print(x)
+
         ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
         s = self.elem_slices
         pos_spec_concepts = List([ps[:, s[i]:s[i+1]][0] for i in range(len(self.elem_slices)-1)])
@@ -1426,100 +1433,20 @@ class VersionSpace(BaseILP):
         numbalizer.enumerize(concept_names)
         concept_names = np.array(concept_names,dtype='U10')
 
-        t1 = time.time_ns()
-        print("Prep time %.4f ms" % ((t1-t0)/1e6))
-        # enumerized_state, pos_spec_concepts, concept_names, elem_types, string_enums, string_backmap
-
-        
-        
-        matches = get_matches(enumerized_state, pos_spec_concepts, concept_names,
-                 self.elem_types, numbalizer.string_enums, numbalizer.string_backmap)
-        t2 = time.time_ns()
-        print("Match time %.4f ms" % ((t2-t1)/1e6))
-
-        matches = get_matches(enumerized_state, pos_spec_concepts, concept_names,
-                 self.elem_types, numbalizer.string_enums, numbalizer.string_backmap)
-        t3 = time.time_ns()
-        print("Match time %.4f ms" % ((t3-t2)/1e6))
-        # print("matches")
-        # print(matches)
-
-        
-        # print("enumerized_state")
-        # print(enumerized_state)
-        # print(type(enumerized_state))
-
-
-        # # t1 = time.time_ns()
+        # t1 = time.time_ns()
         # print("Prep time %.4f ms" % ((t1-t0)/1e6))
-        # where_vars_to_inds = gen_where_vars_to_inds(
-        #         self.num_elems-1,
-        #         len(self.expected_neighbors) if(self.use_neighbor_concepts) else 0,
-        #         numbalizer.string_enums)
-        # print("where_vars_to_inds")
-        # print(where_vars_to_inds)
-        # # for j,v in enumerate(where_part_vals):
-        # #     where_vars_to_inds[v] = j
-        # concepts = List()
-        # # elems = List()
-        # # candidates = List()
-        # # for i in range(len(concept_slices)-1):
-        # #     concepts.append(split_ps_flat[concept_slices[i]:concept_slices[i+1]])
-        # # for i in range(len(elems_slices)-1):
-        # #     elems.append(elems_flat[elems_slices[i]:elems_slices[i+1]])
-        # # for i in range(len(cand_slices)-1):
-        # #     candidates.append(concept_cands_flat[cand_slices[i]:cand_slices[i+1]])
         
-        # t2 = time.time_ns()        
-        # print("Pack time %.4f ms" % ((t2-t1)/1e6))
-        # # translated = match_iterative(split_ps_flat, concept_slices,
-        # #                     elems_flat,elems_slices,
-        # #                     concept_cands_flat,cand_slices,
-        # #                     elem_names,
-        # #                     where_part_vals)
-        
-        # translated = match_iterative(pos_spec_concepts,elems,candidates,elem_names, where_vars_to_inds)
-        # t3 = time.time_ns()        
-        # print("Match time %.4f ms" % ((t3-t2)/1e6))
-        # print("")
-        # print(translated)
-        # time4 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        # print("D time %.4f ms" % (time4-time3))
-        # translated = np.array([])
-        # matches = self._match_iterative(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals,elem_names,consistencies,all_consistencies,elems)
-        # matches = self._match_naive(split_ps,split_ns,candidates_by_type,concept_candidates,concept_cand_indicies,where_part_vals)
+        matches = get_matches(enumerized_state, pos_spec_concepts, concept_names,
+                 self.elem_types, numbalizer.string_enums, numbalizer.string_backmap)
+        # t2 = time.time_ns()
+        # print("Match time %.4f ms" % ((t2-t1)/1e6))
 
-        # Translate these indicies so that they select from the original state
-        # translated = []
-        # for i,(typ,indicies) in enumerate(zip(self.elem_types,concept_cand_indicies)):
-        #     rel_to_type = torch.index_select(indicies,0,matches[:,i])
-        #     # print(rel_to_type)
-        #     # print(inds_by_type[typ])
-        #     # print(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)))
-        #     translated.append(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)).view(-1,1))
-        # translated = torch.cat(translated,dim=1)
-        # print(translated)
-        
-        #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
-        # print(elem_names_list)
-        # pprint(self.skill_info())
-        for out_names in translated:
-
-            out = [numbalizer.string_backmap[y] for i,y in enumerate(out_names) if i < self.num_elems]
-            # out = [self.enumerizer.back_maps[0][y] for i,y in enumerate(out_names) if i < self.num_elems]
-            # out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
-            # print(out)
-            
-            # print(out,self.check_constraints(out,state))
-            # print([state[x].get('value',None) for x in out])
+        for out in matches:
+            out = out[:self.num_elems]
             if(self.check_constraints(out,state)):
                 yield out
             else:
                 pass
-                # print("FAIL CONSTR", out)
-        # time5 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        # print("E time %.4f ms" % (time5-time4))
-        # print("")
 
     def skill_info(self):
         out = {}
@@ -1533,12 +1460,14 @@ class VersionSpace(BaseILP):
             split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
 
         for i, t in enumerate(self.elem_types):
+            # print(split_ps)
             # print(i,i-self.num_elems,len(self.elem_types),list(self.expected_neighbors))
             key = "?sel" if i==0 else ("?arg%d" % (i-1) if i < self.num_elems else list(self.expected_neighbors)[i-self.num_elems]) 
+            attrs = numbalizer.registered_specs[t].keys()
             out[key] = {}
-            out[key]["pos"] = self.enumerizer.undo_transform(split_ps[i].tolist()[0],t)
+            out[key]["pos"] = {attr :numbalizer.unenumerize_value(split_ps[i][0][k],t) for k,attr in enumerate(attrs)}
             if(self.neg_ok):
-                out[key]["neg"] = self.enumerizer.undo_transform(split_ns[i].tolist()[0],t)
+                out[key]["neg"] = {attr :numbalizer.unenumerize_value(split_ps[i][0][k],t) for k,attr in enumerate(attrs)}
 
         return out
             
@@ -2047,7 +1976,7 @@ if __name__ == "__main__":
 
     # raise ValueError("")
     if(True):
-        print("match-3", time_ms(gen_test_get_matches(vs)) )
+        # print("match-3", time_ms(gen_test_get_matches(vs)) )
         for match in vs.get_matches(state):
             print(match)
 
@@ -2060,7 +1989,7 @@ if __name__ == "__main__":
         for match in vs2.get_matches(state):
             print(match)
         # timefunc("match-5", gen_test_get_matches(vs2))
-        print("match-5", time_ms(gen_test_get_matches(vs2)) )
+        # print("match-5", time_ms(gen_test_get_matches(vs2)) )
 
         # print()
         print(vs2.score_match(["C1","A1","B1","A2","C2"],state))
@@ -2073,7 +2002,7 @@ if __name__ == "__main__":
         for match in vs3.get_matches(state):
             print(match)
         # timefunc("match-9", gen_test_get_matches(vs3))
-        print("match-9", time_ms(gen_test_get_matches(vs3)) )
+        # print("match-9", time_ms(gen_test_get_matches(vs3)) )
 
 
 
@@ -2083,14 +2012,14 @@ if __name__ == "__main__":
         for match in vs4.get_matches(state):
             print(match)
         # timefunc("match-11", gen_test_get_matches(vs4))
-        print("match-11", time_ms(gen_test_get_matches(vs4)) )
+        # print("match-11", time_ms(gen_test_get_matches(vs4)) )
 
 
         state_dict = state.get_view("object")
         def enumerize_state():
             vs4.enumerizer.transform(state_dict.values())
 
-        print("Enumerize:",time_ms(enumerize_state))
+        # print("Enumerize:",time_ms(enumerize_state))
 
     # vs4 = VersionSpace(use_neg=True)
     # vs4.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3","A4","C4"],state,1)
