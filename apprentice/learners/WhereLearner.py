@@ -1425,7 +1425,7 @@ class VersionSpace(BaseILP):
         print(type(enumerized_state))
 
         elems = List()
-        candidates = List.empty_list(ListType(i8))
+        candidate_lists = List.empty_list(ListType(i8))
         # elem_names = List.empty_list(i8)
 
         elem_name_dict = Dict.empty(i8,u1)
@@ -1439,7 +1439,7 @@ class VersionSpace(BaseILP):
         elm_count = 0
         
         for _ in range(len(self.elem_types)):
-            candidates.append(List.empty_list(i8))
+            candidate_lists.append(List.empty_list(i8))
         for typ, objs in enumerized_state.items():
             applicable_concepts = np.where(self.elem_types==typ)[0]
             # print("applicable_concepts")
@@ -1457,8 +1457,16 @@ class VersionSpace(BaseILP):
 
                     # print(ps_i, cnd_s)
                     concept_applies = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(axis=-1)
-                    if(concept_applies): candidates[i].append(elm_count)
+                    if(concept_applies): candidate_lists[i].append(elm_count)
                 elm_count += 1
+
+        #Copy into numpy arrays
+        candidates = List.empty_list(u4[:])
+        for cand_list in candidate_lists:
+            cands = np.empty((len(cand_list,))
+            for i,c in enumerate(cand_list):
+                cands[i] = c
+            candidates.append(cands)
 
         print("candidates")
         print(candidates)
