@@ -217,6 +217,7 @@ class StateMultiView(object):
         self.transform_dict = {}
         self.register_transform("object", "flat_ungrounded", flatten_state)
         self.register_transform("object", "nb_object", numbalizer.state_to_nb_objects)
+        self.register_transform("nb_object", "nb_enumerized", numbalizer.nb_objects_to_enumerized)
 
 
         self.register_transform("flat_ungrounded", "key_vals_grounded",
