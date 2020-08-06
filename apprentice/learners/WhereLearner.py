@@ -22,7 +22,7 @@ import numba
 from numba import types, njit,guvectorize,uint32,vectorize,prange
 from numba import void,b1,u1,u2,u4,u8,i1,i2,i4,i8,f4,f8,c8,c16
 from numba.typed import List, Dict
-from numba.types import UniTuple, ListType, unicode_type
+from numba.types import UniTuple, ListType, unicode_type, UnicodeCharSeq
 
 global my_gensym_counter
 my_gensym_counter = 0
@@ -825,71 +825,82 @@ def get_where_sublearner(name, **learner_kwargs):
 def get_where_learner(name, **kwargs):
     return WhereLearner(name, **kwargs)
 
+# @njit(cache=True)
+# def scrub_enumerized(enumerized_state ,to_scrub):
+#     scrub_dict = Dict()
+#     for k in to_scrub:
+#         scrub_dict[k] = 0
+#     out = Dict()
+#     for typ, objs in enumerized_state.items():
+#         out_objs = out[typ] = Dict()
+#         for name, enums in objs.items():
+#             out_enum = out_objs[name] = np.zeros_like(enums)
+#             for i, enum in enumerate(enums):
+#                 if(enum not in scrub_dict):
+#                     out_enum[i] = enum
+#     return out
+
+
+
+
+i8_list_type = ListType(i8)
+u4_array = u4[:]
+i8_array = i8[:]
 @njit(cache=True)
-def scrub_enumerized(enumerized_state ,to_scrub):
-    scrub_dict = Dict()
-    for k in to_scrub:
-        scrub_dict[k] = 0
-    out = Dict()
+def get_enumerized_elems_and_candidates(enumerized_state, pos_spec_concepts, elem_types, string_enums):
+    n_elems = 0
+    for typ,enum_dicts in enumerized_state.items():
+        n_elems += len(enum_dicts)
+
+    elem_names = np.empty((n_elems,),dtype=np.int64)
+    elem_name_dict = Dict.empty(i8,u1)
+    i = 0
+    for typ,enum_dicts in enumerized_state.items():
+        for name in enum_dicts.keys():
+            v = string_enums[name]
+            elem_names[i] = v
+            elem_name_dict[v] = 0
+            i += 1
+
+   
+    elems = List.empty_list(i8_array)
+    candidate_lists = List.empty_list(i8_list_type)
+    
+    #Prefill candiditate lists
+    for _ in range(len(elem_types)):
+        candidate_lists.append(List.empty_list(i8))
+    # print(elem_types)
+    #Go through enumerized state and fill candidates 
+    elm_count = 0
     for typ, objs in enumerized_state.items():
-        out_objs = out[typ] = Dict()
+        # print(elem_types,typ)
+        applicable_concepts = np.where(np.array([et == typ for et in elem_types],dtype=np.int64))[0]
         for name, enums in objs.items():
-            out_enum = out_objs[name] = np.zeros_like(enums)
+            #Add the enumerized elements into a flat list of all of them
+            elems.append(enums)
+
+            #Make a copy of enumerized element but with any reference to other elements zeroed-out 
+            cnd_s = np.copy(enums)
+            
             for i, enum in enumerate(enums):
-                if(enum not in scrub_dict):
-                    out_enum[i] = enum
-    return out
+                if(enum in elem_name_dict):
+                    cnd_s[i] = 0
+            #For any concept that matches the nonzeroed (i.e. literal) constraints add this elem as a candidate
+            for i in applicable_concepts:
+                ps_i = pos_spec_concepts[i]
+                concept_applies = ((ps_i == 0) | (ps_i == cnd_s) | (cnd_s == 0)).all()
+                if(concept_applies): candidate_lists[i].append(elm_count)
+            elm_count += 1
 
+    #Pack candidates into numpy arrays
+    candidates = List.empty_list(u4_array)
+    for cand_list in candidate_lists:
+        cands = np.empty((len(cand_list),),dtype=np.uint32)
+        for i,c in enumerate(cand_list):
+            cands[i] = c
+        candidates.append(cands)
 
-
-
-
-@njit
-def get_match_candidates(elem_slices,ps,ns=None):
-    s = elem_slices
-    split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(elem_slices)-1)]
-    # pprint(split_ps)
-    if(neg_ok):
-        split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-    else:
-        split_ns = [None] * len(split_ps)
-
-    for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
-
-
-            # If the type for this concept is new then populate the list of candidates in various formats
-            if(typ not in inds_by_type):
-                candidate_indices = [i for i, e in enumerate(elem_names_list) if state[e]["type"] == typ]
-                
-                cnd = np.array([elems[i] for i in candidate_indices], dtype=np.uint8)
-                candidates_by_type[typ] = cnd
-
-                cnd_s = np.array([elems_scrubbed[i] for i in candidate_indices], dtype=np.uint8)
-                cnd_s = cnd_s.reshape(len(candidate_indices), 1, ps_i.shape[-1])
-                scrubbed_by_type[typ] = cnd_s
-
-                inds_by_type[typ] = np.array(candidate_indices,dtype=np.long)
-                elem_names_by_type[typ] = elem_names[inds_by_type[typ]]
-                
-            else:
-                candidate_indices = inds_by_type[typ]
-                cnd_s = scrubbed_by_type[typ]
-
-            # Check the consistency of each scrubbed candidate with the positive and negative
-            #   concepts. This is a normal concept comparison except that any attribute slot where  
-            #   the scrubbed candidate has a zero is always considered consistent. 
-            ps_i = np.expand_dims(ps_i,axis=0)
-            if(neg_ok):
-                ns_i = np.expand_dims(ns_i,axis=0)
-            consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(axis=-1).any(axis=-1)
-            if(neg_ok):
-                nss = torch.tensor([[0 if (x in elem_names or x in where_part_vals) else x for x in ns_i.view(-1) ]],dtype=torch.uint8)
-                ns_consistency = ((nss == ZERO) | (nss != cnd_s) | (ps_i == nss)).all(axis=-1).any(axis=-1)
-                consistency = consistency & ns_consistency
-
-            #Store our culled down set of candidates in various formats
-            consistencies.append(consistency)
-            concept_cand_indicies.append([x for i,x in enumerate(candidate_indices) if consistency[i] == 1])
+    return elems, elem_names, candidates
 
 
 
@@ -996,7 +1007,7 @@ def find_consistent_pairs(concepts, elems, candidates,
         pair_matches.append(pair_matches_i)
     return pair_matches
 
-
+# pos_spec_concepts,elems,candidates,elem_names, concept_names_to_inds)
 u4_triple = UniTuple(u4,3)
 list_of_u4_triple = ListType(u4_triple)
 @njit(nogil=False, parallel=False,fastmath=False,cache=True)
@@ -1004,22 +1015,6 @@ def match_iterative(concepts,elems,candidates,elem_names, where_vars_to_inds):
     '''
     Produces every consistent matching of elems to concepts.
     '''
-
-    #----To be new inputs-----
-    # where_vars_to_inds = Dict.empty(u4,i8)
-    # for j,v in enumerate(where_part_vals):
-    #     where_vars_to_inds[v] = j
-    # concepts = List()
-    # elems = List()
-    # candidates = List()
-    # for i in range(len(concept_slices)-1):
-    #     concepts.append(split_ps[concept_slices[i]:concept_slices[i+1]])
-    # for i in range(len(elems_slices)-1):
-    #     elems.append(_elems[elems_slices[i]:elems_slices[i+1]])
-    # for i in range(len(cand_slices)-1):
-    #     candidates.append(concept_cands[cand_slices[i]:cand_slices[i+1]])
-    #----END new inputs-----
-
     n_concepts = len(concepts)
     pair_matches = find_consistent_pairs(concepts, elems, candidates,
                         elem_names, where_vars_to_inds)
@@ -1029,7 +1024,6 @@ def match_iterative(concepts,elems,candidates,elem_names, where_vars_to_inds):
 
     for i in range(n_concepts):
         partial_matches = fill_pairs_at(partial_matches,i,pair_matches)
-        # print(partial_matches)
 
     for i in range(n_concepts):
         if(len(pair_matches[i]) == 0):
@@ -1037,6 +1031,35 @@ def match_iterative(concepts,elems,candidates,elem_names, where_vars_to_inds):
             partial_matches = fill_singles_at(partial_matches,i,[elem_names[c] for c in candidates[i]])
     # print(partial_matches)    
     return partial_matches
+
+@njit(cache=True)
+def get_matches(enumerized_state, pos_spec_concepts, concept_names, elem_types, string_enums, string_backmap):
+        # print("pos_spec_concepts")
+        # print(pos_spec_concepts)
+        elems, elem_names, candidates = get_enumerized_elems_and_candidates(enumerized_state,
+                                         pos_spec_concepts, elem_types, string_enums)
+        # print("candidates")
+        # print(candidates)
+        # print("elem_names")
+        # print(elem_names)
+        # print("elems")
+        # print(elems)
+        concept_names_to_inds = Dict.empty(u4,i8)
+        for i,name in enumerate(concept_names):
+            concept_names_to_inds[string_enums[str(name)]] = i
+
+        # print("concept_names_to_inds")
+        # print(concept_names_to_inds)
+        enumerized_matches = match_iterative(pos_spec_concepts,elems,candidates,elem_names, concept_names_to_inds)
+        # print("enumerized_matches")
+        # print(enumerized_matches)
+        out = List()
+        for e_match in enumerized_matches:
+            out.append(List([string_backmap[name] for name in e_match]))
+        return out
+
+
+
 
 def flatten_n_slice(lst):
     flat = [x if isinstance(x,list) else np.array(x).reshape(-1) for x in lst]
@@ -1206,7 +1229,7 @@ class VersionSpace(BaseILP):
                         neigh_relations[v] = neigh_relations.get(v,[])+[(var,k)]
 
         if(self.expected_neighbors is None):
-            self.elem_types = np.array([x[t_name]["type"] for t_name in [*t,*neigh_relations.keys()]],dtype="U")
+            self.elem_types = np.array([x[t_name]["type"] for t_name in [*t,*neigh_relations.keys()]],dtype="U50")
             self.expected_neighbors = {("?neigh%d"%i): vals for i,vals in enumerate(neigh_relations.values())}
 
         elif(y > 0):
@@ -1240,7 +1263,7 @@ class VersionSpace(BaseILP):
             if(len(to_remove) > 0): self.remove_concepts(sorted(to_remove))
 
             neigh_literals = [elm for _,elm,_,_ in assignments ]
-            self.elem_types = np.array([x[t_name]["type"] for t_name in [*t,*neigh_literals]],dtype="U")
+            self.elem_types = np.array([x[t_name]["type"] for t_name in [*t,*neigh_literals]],dtype="U50")
             self.expected_neighbors = new_expected_neighbors
 
     def ifit(self, t, x, y):
@@ -1254,7 +1277,7 @@ class VersionSpace(BaseILP):
 
         if(not self.initialized):
             self.initialize(len(t))
-            self.elem_types = np.array([x[t_name]["type"] for t_name in t],dtype="U")
+            self.elem_types = np.array([x[t_name]["type"] for t_name in t],dtype="U50")
         assert len(t) == self.num_elems, "incorrect number of arguments for this rhs"
 
         if(self.use_neighbor_concepts):
@@ -1326,7 +1349,7 @@ class VersionSpace(BaseILP):
             return False
 
         x = x.get_view("object")
-
+       
 
         if(not self.check_constraints(t,x)):
             return False
@@ -1383,244 +1406,83 @@ class VersionSpace(BaseILP):
         if(not self.pos_ok):
             return
 
-        object_state = x.get_view("nb_object")
-        enumerized_state = x.get_view("nb_enumerized")
-        pprint(object_state)
-        print(x)
-        ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-        s = self.elem_slices
-        split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-
-        print(split_ps)
+        if(self.elem_slices == None):
+            return
         # raise ValueError()
         # assert False not in [for x in range(self.num_elems), \
         # "It is not the case that the enum for argX == X+2"
         # print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
 
-        if(self.elem_slices == None):
-            return
-        # print(self.pos_concepts.spec_concepts)
+        _ = x.get_view("nb_object")
+        enumerized_state = x.get_view("nb_enumerized")
+        # pprint(object_state)
+        # print(x)
+        ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
+        s = self.elem_slices
+        pos_spec_concepts = List([ps[:, s[i]:s[i+1]][0] for i in range(len(self.elem_slices)-1)])
 
-        #Do this just so everything is in the map
-        # self.enumerizer.transform({i:x for i,x in enumerate(state.keys())})
-        # self.enumerizer.transform(list(state.values()))
-
-        # Create a tensor which contains the enum values associated with the when parts
-        #  i.e. "?sel", "?arg0", "?arg1" would probably map to 2, 3, 4
-        # where_part_vars = ["?sel"] + ['?arg%d' % i for i in range(self.num_elems-1)]
-        # if(self.use_neighbor_concepts): where_part_vars += list(self.expected_neighbors.keys())
-        # where_part_vals = self.enumerizer.transform_values(where_part_vars)
-        # where_part_vals = np.array(where_part_vals,dtype=np.uint8)
-
-        # Make a tensor that has all of the enum values for the names of the elements/objects
-        #  in the state in order that they appear
-
-        elem_names_list = list(itertools.chain(*[objs.keys() for typ,objs in object_state.items()]))
-        print(elem_names_list)
-        elem_names = numbalizer.enumerize(elem_names_list)
-        elem_names = np.array(elem_names,dtype=np.uint8)
-        
-        print("enumerized_state")
-        print(enumerized_state)
-        print(type(enumerized_state))
-
-        elems = List()
-        candidate_lists = List.empty_list(ListType(i8))
-        # elem_names = List.empty_list(i8)
-
-        elem_name_dict = Dict.empty(i8,u1)
-        for typ, objs in enumerized_state.items():
-            for name, enums in objs.items():
-                v = numbalizer.string_enums[name]
-                elem_name_dict[v] = 0
-                # elem_names.append(v)
-        
-        ZERO = self.pos_concepts.ZERO
-        elm_count = 0
-        
-        for _ in range(len(self.elem_types)):
-            candidate_lists.append(List.empty_list(i8))
-        for typ, objs in enumerized_state.items():
-            applicable_concepts = np.where(self.elem_types==typ)[0]
-            # print("applicable_concepts")
-            # print(applicable_concepts)
-            for name, enums in objs.items():
-                #Make a copy but zero-out anything referencing a name
-                elems.append(enums)
-                cnd_s = np.zeros_like(enums)
-                for i, enum in enumerate(enums):
-                    if(enum not in elem_name_dict):
-                        cnd_s[i] = enum
-
-                for i in applicable_concepts:
-                    ps_i = split_ps[i]
-
-                    # print(ps_i, cnd_s)
-                    concept_applies = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(axis=-1)
-                    if(concept_applies): candidate_lists[i].append(elm_count)
-                elm_count += 1
-
-        #Copy into numpy arrays
-        candidates = List.empty_list(u4[:])
-        for cand_list in candidate_lists:
-            cands = np.empty((len(cand_list,))
-            for i,c in enumerate(cand_list):
-                cands[i] = c
-            candidates.append(cands)
-
-        print("candidates")
-        print(candidates)
-        print("elem_names")
-        print(elem_names)
-
-        # scrubbed_state = scrub_enumerized(enumerized_state,elem_names)
-        # print("scrubbed_state")
-        # print(scrubbed_state)
-
-        # elems_scrubbed = 
-
-        # time0 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
-        # print("A' time %.4f ms" % (time0-start_time))
-
-        # Make a list that has all of the enumerized elements/objects
-        # elems_list = [val for val in state.values()]
-        # elems = self.enumerizer.transform(elems_list)
-        # pprint(elems_list)
-
-        # Make a list that has all of the enumerized elements/objects, but zeros in
-        #  all of the slot for attributes which have elements names as values. 
-        #  Only make this replacement if the element is of a type that we match to
-        # zero_map = {ele_name: 0 for ele_name,ele in object_state.items() 
-        #             if 'type' in ele and ele['type'] in self.elem_types}
-
-        # elems_scrubbed = self.enumerizer.transform(elems_list, zero_map)
-        # print(elems_scrubbed)
-        
-        # Split up the concepts by the where parts that each slice selects on
-        # ps, pg = self.pos_concepts.spec_concepts, self.pos_concepts.gen_concepts
-
-        # # print("----PS-----")
-        # # pprint(ps)
-        # # print("--END PS---")
-        
-        # s = self.elem_slices
-        # split_ps = [ps[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-        # # pprint(split_ps)
-        # if(self.neg_ok):
-        #     ns, ng = self.neg_concepts.spec_concepts, self.neg_concepts.gen_concepts
-        #     split_ns = [ns[:, s[i]:s[i+1]] for i in range(len(self.elem_slices)-1)]
-        # else:
-        #     split_ns = [None] * len(split_ps)
-
-        # # Initialize a bunch of containers that we will fill
-        # inds_by_type = {}
-        # candidates_by_type = {}
-        # scrubbed_by_type = {}
-        # elem_names_by_type = {}
-        # consistencies = []
-        # concept_cand_indicies = []
-        # concept_candidates = []
-        
-
-        # ZERO = self.pos_concepts.ZERO
-
-        t01 = time.time_ns()
-
-        print("\t part 1 %.4f ms" % ((t01-t0)/1e6))
-
-        inds_by_type = Dict()
-        for i,typ in enumerate(self.elem_types):
-            if(typ not in inds_by_type):
-                inds_by_type[typ] = List.empty_list(i8)    
-            inds_by_type[typ].append(i)
-
-
-
-
-        # # Loop over the concepts for each where part and cull down the list of
-        # #   possible matches for them. This phase only filters out elements we can
-        # #   rule out without committing to any part of the where assignment. 
-        # for typ, ps_i, ns_i in zip(self.elem_types, split_ps, split_ns):
-
-
-        #     # If the type for this concept is new then populate the list of candidates in various formats
-        #     if(typ not in inds_by_type):
-        #         candidate_indices = [i for i, e in enumerate(elem_names_list) if state[e]["type"] == typ]
-                
-        #         # cnd = np.array([elems[i] for i in candidate_indices], dtype=np.uint8)
-        #         # candidates_by_type[typ] = cnd
-
-        #         cnd_s = np.array([elems_scrubbed[i] for i in candidate_indices], dtype=np.uint8)
-        #         cnd_s = cnd_s.reshape(len(candidate_indices), 1, ps_i.shape[-1])
-        #         scrubbed_by_type[typ] = cnd_s
-
-        #         inds_by_type[typ] = np.array(candidate_indices,dtype=np.long)
-        #         elem_names_by_type[typ] = elem_names[inds_by_type[typ]]
-                
-        #     else:
-        #         candidate_indices = inds_by_type[typ]
-        #         cnd_s = scrubbed_by_type[typ]
-
-        #     # Check the consistency of each scrubbed candidate with the positive and negative
-        #     #   concepts. This is a normal concept comparison except that any attribute slot where  
-        #     #   the scrubbed candidate has a zero is always considered consistent. 
-        #     ps_i = np.expand_dims(ps_i,axis=0)
-        #     if(self.neg_ok):
-        #         ns_i = np.expand_dims(ns_i,axis=0)
-
-        #     consistency = ((ps_i == ZERO) | (ps_i == cnd_s) | (cnd_s == ZERO)).all(axis=-1).any(axis=-1)
-        #     if(self.neg_ok):
-        #         nss = torch.tensor([[0 if (x in elem_names or x in where_part_vals) else x for x in ns_i.view(-1) ]],dtype=torch.uint8)
-        #         # ns_consistency = ((nss == ZERO) | (nss != cnd_s) | (ps_i == nss)).all(dim=-1).any(dim=-1)
-        #         ns_consistency = ((nss == ZERO) | (nss != cnd_s) | (ps_i == nss)).all(axis=-1).any(axis=-1)
-        #         consistency = consistency & ns_consistency
-
-        #     #Store our culled down set of candidates in various formats
-        #     consistencies.append(consistency)
-        #     concept_cand_indicies.append([x for i,x in enumerate(candidate_indices) if consistency[i] == 1])
-
-        t02 = time.time_ns()
-        print("\t part 2 %.4f ms" % ((t02-t01)/1e6))
-
-        split_ps_flat, concept_slices = flatten_n_slice(split_ps)
-        # elems_flat, elems_slices = flatten_n_slice(elems)
-        # concept_cands_flat, cand_slices = flatten_n_slice(concept_cand_indicies)
-
-
-        t03 = time.time_ns()
-        print("\t part 3 %.4f ms" % ((t03-t02)/1e6))
+        concept_names = ["?sel"] + ["?arg" + str(i) for i in range(self.num_elems-1)]
+        if(self.use_neighbor_concepts): concept_names += list(self.expected_neighbors.keys())
+        numbalizer.enumerize(concept_names)
+        concept_names = np.array(concept_names,dtype='U10')
 
         t1 = time.time_ns()
         print("Prep time %.4f ms" % ((t1-t0)/1e6))
-        where_vars_to_inds = gen_where_vars_to_inds(
-                self.num_elems-1,
-                len(self.expected_neighbors) if(self.use_neighbor_concepts) else 0,
-                numbalizer.string_enums)
-        # for j,v in enumerate(where_part_vals):
-        #     where_vars_to_inds[v] = j
-        concepts = List()
-        # elems = List()
-        # candidates = List()
-        for i in range(len(concept_slices)-1):
-            concepts.append(split_ps_flat[concept_slices[i]:concept_slices[i+1]])
-        # for i in range(len(elems_slices)-1):
-        #     elems.append(elems_flat[elems_slices[i]:elems_slices[i+1]])
-        # for i in range(len(cand_slices)-1):
-        #     candidates.append(concept_cands_flat[cand_slices[i]:cand_slices[i+1]])
-        
-        t2 = time.time_ns()        
-        print("Pack time %.4f ms" % ((t2-t1)/1e6))
-        # translated = match_iterative(split_ps_flat, concept_slices,
-        #                     elems_flat,elems_slices,
-        #                     concept_cands_flat,cand_slices,
-        #                     elem_names,
-        #                     where_part_vals)
-        
-        translated = match_iterative(concepts,elems,candidates,elem_names, where_vars_to_inds)
-        t3 = time.time_ns()        
-        print("Match time %.4f ms" % ((t3-t2)/1e6))
-        print("")
+        # enumerized_state, pos_spec_concepts, concept_names, elem_types, string_enums, string_backmap
 
+        
+        
+        matches = get_matches(enumerized_state, pos_spec_concepts, concept_names,
+                 self.elem_types, numbalizer.string_enums, numbalizer.string_backmap)
+        t2 = time.time_ns()
+        print("Match time %.4f ms" % ((t2-t1)/1e6))
+
+        matches = get_matches(enumerized_state, pos_spec_concepts, concept_names,
+                 self.elem_types, numbalizer.string_enums, numbalizer.string_backmap)
+        t3 = time.time_ns()
+        print("Match time %.4f ms" % ((t3-t2)/1e6))
+        # print("matches")
+        # print(matches)
+
+        
+        # print("enumerized_state")
+        # print(enumerized_state)
+        # print(type(enumerized_state))
+
+
+        # # t1 = time.time_ns()
+        # print("Prep time %.4f ms" % ((t1-t0)/1e6))
+        # where_vars_to_inds = gen_where_vars_to_inds(
+        #         self.num_elems-1,
+        #         len(self.expected_neighbors) if(self.use_neighbor_concepts) else 0,
+        #         numbalizer.string_enums)
+        # print("where_vars_to_inds")
+        # print(where_vars_to_inds)
+        # # for j,v in enumerate(where_part_vals):
+        # #     where_vars_to_inds[v] = j
+        # concepts = List()
+        # # elems = List()
+        # # candidates = List()
+        # # for i in range(len(concept_slices)-1):
+        # #     concepts.append(split_ps_flat[concept_slices[i]:concept_slices[i+1]])
+        # # for i in range(len(elems_slices)-1):
+        # #     elems.append(elems_flat[elems_slices[i]:elems_slices[i+1]])
+        # # for i in range(len(cand_slices)-1):
+        # #     candidates.append(concept_cands_flat[cand_slices[i]:cand_slices[i+1]])
+        
+        # t2 = time.time_ns()        
+        # print("Pack time %.4f ms" % ((t2-t1)/1e6))
+        # # translated = match_iterative(split_ps_flat, concept_slices,
+        # #                     elems_flat,elems_slices,
+        # #                     concept_cands_flat,cand_slices,
+        # #                     elem_names,
+        # #                     where_part_vals)
+        
+        # translated = match_iterative(pos_spec_concepts,elems,candidates,elem_names, where_vars_to_inds)
+        # t3 = time.time_ns()        
+        # print("Match time %.4f ms" % ((t3-t2)/1e6))
+        # print("")
+        # print(translated)
         # time4 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("D time %.4f ms" % (time4-time3))
         # translated = np.array([])
@@ -1642,7 +1504,9 @@ class VersionSpace(BaseILP):
         # print(elem_names_list)
         # pprint(self.skill_info())
         for out_names in translated:
-            out = [self.enumerizer.back_maps[0][y] for i,y in enumerate(out_names) if i < self.num_elems]
+
+            out = [numbalizer.string_backmap[y] for i,y in enumerate(out_names) if i < self.num_elems]
+            # out = [self.enumerizer.back_maps[0][y] for i,y in enumerate(out_names) if i < self.num_elems]
             # out = [elem_names_list[y] for i,y in enumerate(out_inds) if i < self.num_elems]
             # print(out)
             
