@@ -901,6 +901,7 @@ def get_enumerized_elems_and_candidates(enumerized_state, pos_spec_concepts, ele
         candidates.append(cands)
 
     # print(candidates)
+    # print(candidates)
 
     return elems, elem_names, candidates
 
@@ -1017,10 +1018,18 @@ def match_iterative(concepts,elems,candidates,elem_names, where_vars_to_inds):
     '''
     Produces every consistent matching of elems to concepts.
     '''
+    # print('concepts')
+    # print(concepts)
+    # print('elems')
+    # print(elems)
+    # print("candidates")
+    # print(candidates)
+
+
     n_concepts = len(concepts)
     pair_matches = find_consistent_pairs(concepts, elems, candidates,
                         elem_names, where_vars_to_inds)
-    print(pair_matches)
+    # print(pair_matches)
     partial_matches = List()
     partial_matches.append(np.zeros((n_concepts,),dtype=np.uint32))
 
@@ -1087,7 +1096,7 @@ import time
 class VersionSpace(BaseILP):
     def __init__(self, args=None, constraints=None, use_neg=False, use_gen=False,
                        propose_gens=True, use_neighbor_concepts=True,
-                       non_literal_attrs=["to_right","to_left","right","left","above","below","value","contentEditable"],
+                       non_literal_attrs=["to_right","to_left","to_right","left","above","below","value","contentEditable"],
                        remove_attrs=[],
                        null_types=[None,""]):
         self.pos_concepts = VersionSpaceILP(use_gen=use_gen)
@@ -1769,88 +1778,88 @@ if __name__ == "__main__":
             "value": 1,
             "above": None,
             "below": "B1",
-            "left" : "A2",
-            "right": None,
+            "to_left" : "A2",
+            "to_right": None,
         },
         "A2": {
             "type" : "TextField",
             "value": 2,
             "above": None,
             "below": "B2",
-            "left" : "A3",
-            "right": "A1",
+            "to_left" : "A3",
+            "to_right": "A1",
         },
         "A3": {
             "type" : "TextField",
             "value": 3,
             "above": None,
             "below": "B3",
-            "left" : "A4",
-            "right": "A2",
+            "to_left" : "A4",
+            "to_right": "A2",
         },
         "A4": {
             "type" : "TextField",
             "value": 3,
             "above": None,
             "below": "C4",
-            "left" : None,
-            "right": "A3",
+            "to_left" : None,
+            "to_right": "A3",
         },
         "B1": {
             "type" : "TextField",
             "value": 4,
             "above": "A1",
             "below": "C1",
-            "left" : "B2",
-            "right": None,
+            "to_left" : "B2",
+            "to_right": None,
         },
         "B2": {
             "type" : "TextField",
             "value": 5,
             "above": "A2",
             "below": "C2",
-            "left" : "B3",
-            "right": "B1",
+            "to_left" : "B3",
+            "to_right": "B1",
         },
         "B3": {
             "type" : "TextField",
             "value": 6,
             "above": "A3",
             "below": "C3",
-            "left" : None,
-            "right": "B2",
+            "to_left" : None,
+            "to_right": "B2",
         },
         "C1": {
             "type" : "TextField",
             "value": 7,
             "above": "B1",
             "below": None,
-            "left" : "C2",
-            "right": None,
+            "to_left" : "C2",
+            "to_right": None,
         },
         "C2": {
             "type" : "TextField",
             "value": 8,
             "above": "B2",
             "below": None,
-            "left" : "C3",
-            "right": "C1",
+            "to_left" : "C3",
+            "to_right": "C1",
         },
         "C3": {
             "type" : "TextField",
             "value": 9,
             "above": "B3",
             "below": None,
-            "left" : "C4",
-            "right": "C2",
+            "to_left" : "C4",
+            "to_right": "C2",
         },
         "C4": {
             "type" : "TextField",
             "value": 9,
             "above": "A4",
             "below": None,
-            "left" : None,
-            "right": "C3",
+            "to_left" : None,
+            "to_right": "C3",
         }
         
     }
@@ -1884,11 +1893,11 @@ if __name__ == "__main__":
     print(vs.check_match(["C3","A3","B3"],state), 1)
     
     vs.ifit(["C1","B1","A1"],state,0)
-    print("HERE0")
+    # print("HERE0")
     for match in vs.get_matches(state):
         print(match)
     
-    print("END0")
+    # print("END0")
     # raise ValueError("END0")
     # vs.ifit(["C2","A2","B2"],state,1)
     # for match in vs.get_matches(state):
@@ -1918,7 +1927,7 @@ if __name__ == "__main__":
 
     # pprint._
     pprint(vs.skill_info())
-
+    # raise ValueError()
 
     N=100
     def time_ms(f):
@@ -1976,7 +1985,7 @@ if __name__ == "__main__":
 
     # raise ValueError("")
     if(True):
-        # print("match-3", time_ms(gen_test_get_matches(vs)) )
+        print("match-3", time_ms(gen_test_get_matches(vs)) )
         for match in vs.get_matches(state):
             print(match)
 
@@ -1989,7 +1998,7 @@ if __name__ == "__main__":
         for match in vs2.get_matches(state):
             print(match)
         # timefunc("match-5", gen_test_get_matches(vs2))
-        # print("match-5", time_ms(gen_test_get_matches(vs2)) )
+        print("match-5", time_ms(gen_test_get_matches(vs2)) )
 
         # print()
         print(vs2.score_match(["C1","A1","B1","A2","C2"],state))
@@ -2002,7 +2011,7 @@ if __name__ == "__main__":
         for match in vs3.get_matches(state):
             print(match)
         # timefunc("match-9", gen_test_get_matches(vs3))
-        # print("match-9", time_ms(gen_test_get_matches(vs3)) )
+        print("match-9", time_ms(gen_test_get_matches(vs3)) )
 
 
 
@@ -2012,14 +2021,14 @@ if __name__ == "__main__":
         for match in vs4.get_matches(state):
             print(match)
         # timefunc("match-11", gen_test_get_matches(vs4))
-        # print("match-11", time_ms(gen_test_get_matches(vs4)) )
+        print("match-11", time_ms(gen_test_get_matches(vs4)) )
 
 
         state_dict = state.get_view("object")
         def enumerize_state():
             vs4.enumerizer.transform(state_dict.values())
 
-        # print("Enumerize:",time_ms(enumerize_state))
+        print("Enumerize:",time_ms(enumerize_state))
 
     # vs4 = VersionSpace(use_neg=True)
     # vs4.ifit(["A1","B1","C1","A2","B2","C2","A3","B3","C3","A4","C4"],state,1)
