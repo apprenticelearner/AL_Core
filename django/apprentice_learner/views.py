@@ -25,6 +25,7 @@ from apprentice.agents.Stub import Stub
 from apprentice.agents.Memo import Memo
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from apprentice.agents.ModularAgent import ModularAgent
+from apprentice.agents.MemoryAgent import MemoryAgent
 from apprentice.agents.RLAgent import RLAgent
 from apprentice.working_memory.representation import Sai
 
@@ -45,6 +46,7 @@ AGENTS = {
     "RLAgent": RLAgent,
     "WhereWhenHowNoFoa": WhereWhenHowNoFoa,
     "ModularAgent": ModularAgent,
+    "MemoryAgent": MemoryAgent,
     "ExpertaAgent": ExpertaAgent,
 }
 
