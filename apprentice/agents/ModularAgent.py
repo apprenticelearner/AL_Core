@@ -440,7 +440,8 @@ class ModularAgent(BaseAgent):
             state = StateMultiView("object", state) 
         state.register_transform("*","variablize",self.state_variablizer)
         state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
-        # pprint(state.get_view("flat_ungrounded"))
+        print("REQUEST")
+        pprint({(k,v['value'],v['contentEditable']) for k,v in state.get_view("object").items() if 'value' in v and 'contentEditable' in v})
         # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
@@ -459,7 +460,8 @@ class ModularAgent(BaseAgent):
                     response["mapping"] = explanation.mapping
                 responses.append(response)
 
-        
+        pprint(responses)
+        print("---------------")
         if(len(responses) == 0):
             return EMPTY_RESPONSE
         else:
@@ -582,6 +584,7 @@ class ModularAgent(BaseAgent):
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
         # pprint(state)
+
 
         if(type(self.planner).__name__ == "FoPlannerModule"): 
             state = add_QMele_to_state(state)

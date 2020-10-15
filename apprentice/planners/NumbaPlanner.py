@@ -8,7 +8,7 @@ from numba.typed import Dict,List #NBRT_KnowledgeBase, BaseOperator, Add, Subtra
 from numbert.knowledgebase import NBRT_KnowledgeBase #NBRT_KnowledgeBase, BaseOperator, Add, Subtract, 
 from numbert.operator import BaseOperator, OperatorComposition, str_preserve_ints, Var
 from apprentice.planners.base_planner import BasePlanner, PLANNERS
-import apprentice.working_memory.numba_operators
+from apprentice.working_memory.numba_operators import Add, Add3, Subtract, Multiply, Divide, Equals, Div10, Mod10
 from copy import deepcopy
 import itertools
 import math
@@ -59,6 +59,9 @@ def state_as_kb(state,foci_of_attention=None):
 			arr.append(key)
 			kb.declare(val)
 	return kb, back_map
+
+import time
+start_time = time.time()
 
 class NumbaPlanner(BasePlanner):
 	def __init__(self,search_depth,function_set,feature_set,**kwargs):
@@ -114,7 +117,8 @@ class NumbaPlanner(BasePlanner):
 					search_depth=None,
 					allow_bottomout=True,
 					allow_copy=True,
-					epsilon=0.0):
+					epsilon=0.0,
+					max_solutions=100):
 		# print("HOW_SEARCH D=", search_depth, "N_ops=",len(operators) if operators is not None else -1)
 		assert "value" in sai.inputs, "For now NumbaPlanner only searches for exaplantions of SAIs with inputs['value'] set."
 
@@ -136,13 +140,15 @@ class NumbaPlanner(BasePlanner):
 		if(isinstance(foci_of_attention,list) and len(foci_of_attention) == 0):
 			foci_of_attention = None
 
+		print("%.02f"%(time.time()-start_time),"BEEP1")
 		kb = state_as_kb2(state,foci_of_attention)
-		
+		print("%.02f"%(time.time()-start_time),"BEEP2")
 		#Try to find a solution by looking for a number, if that doesn't work treat as string				
-		operator_compositions = kb.how_search(operators,goal,search_depth=search_depth,max_solutions=100)
+		operator_compositions = kb.how_search(operators,goal,search_depth=search_depth,max_solutions=max_solutions)
+		print("%.02f"%(time.time()-start_time),"BEEP3")
 		# print(operator_compositions)
 		if(len(operator_compositions) == 0 and isinstance(goal,(int,float,bool))):
-			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=100)
+			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=max_solutions)
 		out = []
 
 		at_least_one = False
@@ -213,7 +219,7 @@ class NumbaPlanner(BasePlanner):
 def state_of_ies_from_dict(d):
 	out = {}
 	for k, v in d.items():
-		out[k] = {'type': "TextField", "id": k, "value": v}
+		out[k] = {'type': "TF", "id": k, "value": v}
 	return out
 
 
@@ -230,10 +236,10 @@ if __name__ == "__main__":
 		"value" : "string"
 	}
 
-	numbalizer.register_specification("TextField",ie_spec)
+	numbalizer.register_specification("TF",ie_spec)
 
-	class RipFloatValue(BaseOperator):
-		signature = 'float(TextField)'
+	class RipFV(BaseOperator):
+		signature = 'float(TF)'
 		template = "{}.v"
 		nopython=False
 		muted_exceptions = [ValueError]
@@ -248,10 +254,10 @@ if __name__ == "__main__":
 				 "merman" : "7",
 				 "mermaid" : "",
 				})		
-
+	print("HERE1\n")
 	state = StateMultiView("object", state)
-	planner = NumbaPlanner(search_depth=3,function_set=[RipFloatValue, Add,Subtract],feature_set=[])
-	
+	planner = NumbaPlanner(search_depth=3,function_set=[RipFV, Add,Subtract],feature_set=[])
+	print("HERE2\n")
 	
 	sai = SAI()
 	sai.selection = 'mermaid'
@@ -259,6 +265,7 @@ if __name__ == "__main__":
 	sai.inputs = {'value': '15'}
 
 	out = planner.how_search(state,sai)
+	print("HERE3\n")
 	for expr,mapping in out:
 		print("EXPR",expr, expr.args, expr.out_type, expr.arg_types, mapping.values())
 		evaled = planner.eval_expression(expr,mapping,state)
@@ -270,7 +277,65 @@ if __name__ == "__main__":
 		# print("SHEEE",mappings)
 		assert len(mappings) > 0
 		# print(expr, mapping)
+	print("HERE4\n")
+	print("-------")
+	state = state_of_ies_from_dict(
+				{"A" : 2,
+				 "B" : 7,
+				 "C" : 3,
+				 "D" : 5,
+				 "E" : "",
+				})		
 
+	state = StateMultiView("object", state)
+	planner = NumbaPlanner(search_depth=3,function_set=[RipFV, Add, Add3, Subtract,Multiply,Divide,Div10, Mod10],feature_set=[])
+	
+	
+	sai = SAI()
+	sai.selection = 'E'
+	sai.action = 'befriend'
+	sai.inputs = {'value': 2}
+
+	out = planner.how_search(state,sai, max_solutions=100000000)
+	out = [x for x in out]
+	hypothesis_set1 = []
+	mapping_set1 = set()
+	for expr,mapping in out:
+		print("EXPR",expr, mapping.values())
+		mapping_set1.add(tuple([x for x in mapping.values()]))
+		hypothesis_set1.append("%s %s"%(expr, mapping.values()))
+	print(len(out),len(mapping_set1))
+
+	print("-------\n")
+
+	state = state_of_ies_from_dict(
+				{"A" : 1,
+				 "B" : 7,
+				 "C" : 9,
+				 "D" : 6,
+				 "E" : "",
+				})		
+
+	state = StateMultiView("object", state)
+	planner = NumbaPlanner(search_depth=3,function_set=[RipFV, Add, Add3, Subtract, Multiply,Divide,Div10, Mod10],feature_set=[])
+	
+	
+	sai = SAI()
+	sai.selection = 'E'
+	sai.action = 'befriend'
+	sai.inputs = {'value': 3}
+
+	out = planner.how_search(state,sai, max_solutions=100000000)
+	out = [x for x in out]
+	hypothesis_set2 = []
+	mapping_set2 = set()
+	for expr,mapping in out:
+		print("EXPR",expr, mapping.values())
+		mapping_set2.add(tuple([x for x in mapping.values()]))
+		hypothesis_set2.append("%s %s"%(expr, mapping.values()))
+	print(len(hypothesis_set2),len(mapping_set2))
+	print("intersection", set(hypothesis_set1).intersection(set(hypothesis_set2)))
+	print("-------\n")
 
 	state = state_of_ies_from_dict(
 				{"thing" : 7,
@@ -286,7 +351,7 @@ if __name__ == "__main__":
 	sai.inputs = {'value': '14'}
 
 	#Test Search
-	planner = NumbaPlanner(search_depth=2,function_set=[RipFloatValue, Add,Subtract],feature_set=[Add,Subtract])
+	planner = NumbaPlanner(search_depth=2,function_set=[RipFV, Add,Subtract],feature_set=[Add,Subtract])
 	# print("BEFORE")
 	out = planner.how_search(state,sai)
 	for expr,mapping in out:
@@ -318,7 +383,7 @@ if __name__ == "__main__":
 	sai.selection = 'empty_thing'
 	sai.action = 'something'
 	sai.inputs = {'value': 7}
-	planner = NumbaPlanner(search_depth=1,function_set=[RipFloatValue],feature_set=[])
+	planner = NumbaPlanner(search_depth=1,function_set=[RipFV],feature_set=[])
 	out = [x for x in planner.how_search(state,sai)]
 	print(out)
 	for expr,mapping in out:
@@ -356,7 +421,7 @@ if __name__ == "__main__":
 	sai.selection = 'empty_thing'
 	sai.action = 'something'
 	sai.inputs = {'value': '21'}
-	planner = NumbaPlanner(search_depth=3,function_set=[RipFloatValue, Add],feature_set=[],)
+	planner = NumbaPlanner(search_depth=3,function_set=[RipFV, Add],feature_set=[],)
 	out = [x for x in planner.how_search(state,sai)]
 	
 	depths = set()
@@ -391,7 +456,7 @@ if __name__ == "__main__":
 	sai.selection = 'out'
 	sai.action = 'something'
 	sai.inputs = {'value': '1'}
-	planner = NumbaPlanner(search_depth=3,function_set=[RipFloatValue,Div10,Mod10,Add3,Add],feature_set=[])
+	planner = NumbaPlanner(search_depth=3,function_set=[RipFV,Div10,Mod10,Add3,Add],feature_set=[])
 	out = [x for x in planner.how_search(state,sai,foci_of_attention=['A','B','C'])]
 	
 	depths = set()

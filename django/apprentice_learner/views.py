@@ -327,6 +327,8 @@ def train(http_request, agent_id):
         del data['action']
         del data['inputs']
 
+        print({k:v for k,v in data.items() if k not in ["state","next_state"]})
+
         start_t = time.time_ns()
         response = agent.instance.train(**data)
         performance_logger.info("Train Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
