@@ -149,7 +149,7 @@ class NumbaPlanner(BasePlanner):
 		# print(operator_compositions)
 		if(len(operator_compositions) == 0 and isinstance(goal,(int,float,bool))):
 			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=max_solutions)
-		out = []
+		# out = []
 
 		at_least_one = False
 		for op_comp in operator_compositions:
@@ -172,6 +172,7 @@ class NumbaPlanner(BasePlanner):
 
 		if(not at_least_one and allow_bottomout and 
 			(foci_of_attention == None or len(foci_of_attention) == 0)):
+			#No solution could be found so bottomout 
 			print("Bottomout:", goal)
 			yield goal, {}
 
