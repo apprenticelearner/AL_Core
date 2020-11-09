@@ -32,6 +32,7 @@ def get_nb_substate(state,ids):
 
 def state_as_kb2(state,foci_of_attention=None):
 	nb_state = state.get_view('nb_object')
+	print(nb_state)
 	if(foci_of_attention is not None):
 		nb_foci = List(foci_of_attention)
 		new_nb_state = {}
@@ -93,13 +94,16 @@ class NumbaPlanner(BasePlanner):
 		applied_features = {}
 
 		kb.forward(operators)
-		for typ,hist in kb.hists.items():
-			if(len(hist) > 1):
-				for record in hist[1]:
+		for typ,hist in kb.inf_histories.items():
+			
+			records = hist.history[-1]
+			print(records)
+			if(len(records) > 1):
+				for record in records[1]:
 					op_uid, _hist, shape, arg_types, vmap = record
 					op_name = BaseOperator.operators_by_uid[op_uid].__name__
 					hist_reshaped = _hist.reshape(shape)
-					arg_sets = [kb.u_vs.get(t,[]) for t in arg_types]
+					arg_sets = [kb.get_inf_history(t).u_vs if t in kb.inf_histories else []  for t in arg_types]
 					for v,uid in vmap.items():
 						inds = np.stack(np.where(hist_reshaped == uid)).T
 						for ind in inds:
@@ -287,7 +291,7 @@ if __name__ == "__main__":
 				 "D" : 5,
 				 "E" : "",
 				})		
-
+	print(state)
 	state = StateMultiView("object", state)
 	planner = NumbaPlanner(search_depth=3,function_set=[RipFV, Add, Add3, Subtract,Multiply,Divide,Div10, Mod10],feature_set=[])
 	
@@ -297,7 +301,7 @@ if __name__ == "__main__":
 	sai.action = 'befriend'
 	sai.inputs = {'value': 2}
 
-	out = planner.how_search(state,sai, max_solutions=100000000)
+	out = planner.how_search(state,sai, max_solutions=100)
 	out = [x for x in out]
 	hypothesis_set1 = []
 	mapping_set1 = set()
