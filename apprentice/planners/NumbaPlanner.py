@@ -97,7 +97,7 @@ class NumbaPlanner(BasePlanner):
 		for typ,hist in kb.inf_histories.items():
 			
 			records = hist.history[-1]
-			print(records)
+			# print(records)
 			if(len(records) > 1):
 				for record in records[1]:
 					op_uid, _hist, shape, arg_types, vmap = record

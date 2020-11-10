@@ -238,6 +238,7 @@ class FastMostSpecific(BaseILP):
         return str(self.tuples)
 
     def check_constraints(self,t,x):
+        x = x.get_view("object")
         if(self.constraints is None):
             return True
         for i,part in enumerate(t):
@@ -1170,12 +1171,24 @@ class VersionSpace(BaseILP):
         else:
             return v
 
-    def _generalize_literals(self,instances, rename_dict):
-        non_literals = set([*self.null_types,*rename_dict.values()])
+    def _generalize_literals(self,instances, vs_elems, rename_dict):
+        non_literals = rename_dict.values()
+        # non_literals = set([*self.null_types,*rename_dict.values()])
+
+
         
+        enum_nonliterals = np.array(numbalizer.enumerize(list(non_literals)),np.uint32).reshape(1,-1)
+        # print(vs_elems)
+        for x in vs_elems:
+            x[np.where(np.any(enum_nonliterals != x.reshape(-1,1),axis=1))[0]] = 0
+        # vs_elems = [ for x in vs_elems]
+        # print(vs_elems)
+        # print('------?',non_literals,enum_nonliterals)
+        
+
         instances = [{k:self._genrl(k,v,non_literals) for k,v in inst.items()} 
                       for inst in instances]
-        return instances
+        return instances, vs_elems
 
     def _enumerize_instances(self,names, instances):
         objs = {name:inst for name,inst in zip(names,instances)}
@@ -1203,17 +1216,19 @@ class VersionSpace(BaseILP):
         instances = [rename_values(x[t_name],rename_dict,exclude=[t_name]) 
                      for t_name in [*t,*neigh_rename_dict.keys()]]
         
-        if(gen_literals): instances = self._generalize_literals(instances,rename_dict)
+        
             
         # vs_elems = self.enumerizer.transform(instances)
+        print(instances)
         vs_elems = self._enumerize_instances(rename_dict.values(), instances)
+        if(gen_literals): instances, vs_elems = self._generalize_literals(instances, vs_elems, rename_dict)
         return instances,vs_elems
 
     def get_vs_elems(self,t,x,gen_literals=False):
         rename_dict = {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)}
         instances = [rename_values(x[t_name],rename_dict, exclude=[t_name]) for t_name in t]
 
-        if(gen_literals): instances = self._generalize_literals(instances,rename_dict)
+        
 
         # print(instances)
         if((not self.initialized or len(t) == self.num_elems) and (self.elem_types is None
@@ -1221,6 +1236,7 @@ class VersionSpace(BaseILP):
             # vs_elems = self.enumerizer.transform(instances)
             # numbalizer.nb_objects_to_enumerized(numbalizer.state_to_nb_objects({k:inst for k,inst in zip(rename_dict.values(),instances)}))
             vs_elems = self._enumerize_instances(rename_dict.values(), instances)
+            if(gen_literals): instances, vs_elems = self._generalize_literals(instances,vs_elems,rename_dict)
             # print("vs_elems")
             # print(vs_elems)
             return instances,vs_elems
@@ -1297,9 +1313,9 @@ class VersionSpace(BaseILP):
         if(self.use_neighbor_concepts):
             assert self.elem_types is None or self.expected_neighbors is None or len(self.elem_types)==len(list(self.expected_neighbors.keys()))+len(t), "BUG!!"
             self.fit_expected_neighbors(t,x,y)
-            instances, vs_elems = self.get_neighborized_vs_elems(t,x,gen_literals=True)
+            instances, vs_elems = self.get_neighborized_vs_elems(t,x,gen_literals=False)
         else:
-            instances, vs_elems = self.get_vs_elems(t,x,gen_literals=True)
+            instances, vs_elems = self.get_vs_elems(t,x,gen_literals=False)
 
         if(vs_elems is None):
             return
@@ -1320,6 +1336,7 @@ class VersionSpace(BaseILP):
 
 
     def check_constraints(self,t,x):
+        x = x.get_view("object")
         if(self.constraints is None):
             return True
         for i,part in enumerate(t):
@@ -1333,11 +1350,13 @@ class VersionSpace(BaseILP):
         '''Gives a number between 0.0 and 1.0 for how well t matches'''
         if(not self.pos_ok):
             return False
-        x = x.get_view("object")
+        
 
         if(not self.check_constraints(t,x)):
             return False
         
+        x = x.get_view("object")
+
         instances,vs_elems  = self.get_vs_elems(t,x)
         flat_x = list(itertools.chain(*vs_elems)) if isinstance(vs_elems[0],(list,np.ndarray)) else vs_elems
         x = np.array(flat_x, dtype=np.uint32)
@@ -1371,11 +1390,13 @@ class VersionSpace(BaseILP):
         if(not self.pos_ok):
             return False
 
-        x = x.get_view("object")
+        
        
 
         if(not self.check_constraints(t,x)):
             return False
+
+        x = x.get_view("object")
 
         # def _rename_values(x):
         #     return rename_values(x, {ele: "?sel" if i == 0 else "?arg%d" % (i-1) for i, ele in enumerate(t)})
@@ -1449,10 +1470,10 @@ class VersionSpace(BaseILP):
                  self.elem_types, numbalizer.string_enums, numbalizer.string_backmap)
         # t2 = time.time_ns()
         # print("Match time %.4f ms" % ((t2-t1)/1e6))
-
+        print(matches)
         for out in matches:
             out = out[:self.num_elems]
-            if(self.check_constraints(out,state)):
+            if(self.check_constraints(out,x)):
                 yield out
             else:
                 pass
@@ -1563,12 +1584,12 @@ class VersionSpaceILP(object):
 
     def check_match(self, x):
         '''Returns true if x is consistent with all general concepts and any specific concept'''
-        # print(x)
+        print("----!?",x)
         # print([len(z) for z in x])
         # print(len())
         # print(self.spec_concepts.size())
         # print(torch.tensor(x, dtype=torch.uint8))
-        flat_x = list(itertools.chain(*x)) if isinstance(x[0],list) else x
+        flat_x = list(itertools.chain(*x)) if isinstance(x[0],(list,np.ndarray)) else x
         x = np.array(flat_x, dtype=np.uint8).reshape((1, -1))
         spec_consistency = ((self.spec_concepts == self.ZERO) | (self.spec_concepts == x)).all(axis=-1)
         out = spec_consistency.any()
