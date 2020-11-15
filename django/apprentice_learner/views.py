@@ -28,6 +28,8 @@ from apprentice.agents.ModularAgent import ModularAgent
 from apprentice.agents.RLAgent import RLAgent
 from apprentice.working_memory.representation import Sai
 
+
+
 # import cProfile
 # pr = cProfile.Profile()
 
@@ -327,7 +329,7 @@ def train(http_request, agent_id):
         del data['action']
         del data['inputs']
 
-        print({k:v for k,v in data.items() if k not in ["state","next_state"]})
+        # print({k:v for k,v in data.items() if k not in ["state","next_state"]})
 
         start_t = time.time_ns()
         response = agent.instance.train(**data)

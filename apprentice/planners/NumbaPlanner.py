@@ -32,7 +32,7 @@ def get_nb_substate(state,ids):
 
 def state_as_kb2(state,foci_of_attention=None):
 	nb_state = state.get_view('nb_object')
-	print(nb_state)
+	# print(nb_state)
 	if(foci_of_attention is not None):
 		nb_foci = List(foci_of_attention)
 		new_nb_state = {}
@@ -144,12 +144,12 @@ class NumbaPlanner(BasePlanner):
 		if(isinstance(foci_of_attention,list) and len(foci_of_attention) == 0):
 			foci_of_attention = None
 
-		print("%.02f"%(time.time()-start_time),"BEEP1")
+		# print("%.02f"%(time.time()-start_time),"BEEP1")
 		kb = state_as_kb2(state,foci_of_attention)
-		print("%.02f"%(time.time()-start_time),"BEEP2")
+		# print("%.02f"%(time.time()-start_time),"BEEP2")
 		#Try to find a solution by looking for a number, if that doesn't work treat as string				
 		operator_compositions = kb.how_search(operators,goal,search_depth=search_depth,max_solutions=max_solutions)
-		print("%.02f"%(time.time()-start_time),"BEEP3")
+		# print("%.02f"%(time.time()-start_time),"BEEP3")
 		# print(operator_compositions)
 		if(len(operator_compositions) == 0 and isinstance(goal,(int,float,bool))):
 			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=max_solutions)

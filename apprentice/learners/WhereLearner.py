@@ -1172,19 +1172,13 @@ class VersionSpace(BaseILP):
             return v
 
     def _generalize_literals(self,instances, vs_elems, rename_dict):
+        #NOTE: I HAVE NO RECOLLECTION OF WHY THIS IS OUGHT TO BE AN OPTION
         non_literals = rename_dict.values()
         # non_literals = set([*self.null_types,*rename_dict.values()])
 
-
-        
         enum_nonliterals = np.array(numbalizer.enumerize(list(non_literals)),np.uint32).reshape(1,-1)
-        # print(vs_elems)
         for x in vs_elems:
             x[np.where(np.any(enum_nonliterals != x.reshape(-1,1),axis=1))[0]] = 0
-        # vs_elems = [ for x in vs_elems]
-        # print(vs_elems)
-        # print('------?',non_literals,enum_nonliterals)
-        
 
         instances = [{k:self._genrl(k,v,non_literals) for k,v in inst.items()} 
                       for inst in instances]
@@ -1215,11 +1209,9 @@ class VersionSpace(BaseILP):
         rename_dict = {**rename_dict,**neigh_rename_dict}
         instances = [rename_values(x[t_name],rename_dict,exclude=[t_name]) 
                      for t_name in [*t,*neigh_rename_dict.keys()]]
-        
-        
             
         # vs_elems = self.enumerizer.transform(instances)
-        print(instances)
+        # print(instances)
         vs_elems = self._enumerize_instances(rename_dict.values(), instances)
         if(gen_literals): instances, vs_elems = self._generalize_literals(instances, vs_elems, rename_dict)
         return instances,vs_elems
@@ -1470,7 +1462,7 @@ class VersionSpace(BaseILP):
                  self.elem_types, numbalizer.string_enums, numbalizer.string_backmap)
         # t2 = time.time_ns()
         # print("Match time %.4f ms" % ((t2-t1)/1e6))
-        print(matches)
+        # print(matches)
         for out in matches:
             out = out[:self.num_elems]
             if(self.check_constraints(out,x)):
@@ -1584,7 +1576,7 @@ class VersionSpaceILP(object):
 
     def check_match(self, x):
         '''Returns true if x is consistent with all general concepts and any specific concept'''
-        print("----!?",x)
+        # print("----!?",x)
         # print([len(z) for z in x])
         # print(len())
         # print(self.spec_concepts.size())

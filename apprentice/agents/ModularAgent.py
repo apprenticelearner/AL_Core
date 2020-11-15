@@ -440,8 +440,8 @@ class ModularAgent(BaseAgent):
             state = StateMultiView("object", state) 
         state.register_transform("*","variablize",self.state_variablizer)
         state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
-        print("REQUEST")
-        pprint({(k,v['value'],v['contentEditable']) for k,v in state.get_view("object").items() if 'value' in v and 'contentEditable' in v})
+        # print("REQUEST")
+        # pprint({(k,v['value'],v['contentEditable']) for k,v in state.get_view("object").items() if 'value' in v and 'contentEditable' in v})
         # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
@@ -452,6 +452,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
+            print("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
                 response = explanation.to_response(state, self)
@@ -460,8 +461,8 @@ class ModularAgent(BaseAgent):
                     response["mapping"] = explanation.mapping
                 responses.append(response)
 
-        pprint(responses)
-        print("---------------")
+        # pprint(responses)
+        # print("---------------")
         if(len(responses) == 0):
             return EMPTY_RESPONSE
         else:
