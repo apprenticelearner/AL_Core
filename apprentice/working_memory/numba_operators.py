@@ -257,4 +257,38 @@ class Cross_Multiply(BaseOperator):
     def forward(x,y): 
         return float(x.value) * float(y.value)
 
+class Diamond(BaseOperator):
+    signature = 'float(float,float)'
+    template = "Diamond({}.v,{}.v)"
+    nopython=False
+    muted_exceptions = [ValueError, OverflowError]
+    def condition(base, exp):
+        return base ** exp < 10000
+    def forward(base, exp):
+        return int(str(int(base ** exp))[::-1].lstrip("0"))
 
+class Sun(BaseOperator):
+    signature = 'float(float,float,float,float)'
+    template = "Sun({}.v,{}.v,{}.v,{}.v)"
+    nopython=False
+    muted_exceptions = [ValueError]
+    def condition(a, b, c, d):
+        return b != 0 and d != 0
+    def forward(a, b, c, d):
+        l = int(a) // int(b)
+        r = int(c) // int(d)
+        if r == 0:
+            return -1
+        return l // r
+
+class Command(BaseOperator):
+    signature = 'float(float,float,float)'
+    template = "Diamond({}.v,{}.v,{}.v)"
+    nopython=False
+    muted_exceptions = [ValueError]
+    def forward(a, b, c):
+        l = int(a)
+        r = int(b) * int(c)
+        if r == 0:
+            return -1
+        return l // r
