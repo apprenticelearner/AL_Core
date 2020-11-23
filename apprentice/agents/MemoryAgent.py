@@ -377,7 +377,7 @@ def update_activation(explanations, activations, question_type, exp_beta, defaul
         decay = compute_decay(activations[str_exp], exp_inds[str_exp] - exp_inds[str_exp][0], c, alpha)
         activations[str_exp] = np.append(activations[str_exp], compute_activation_recursive(t - exp_inds[str_exp], decay, beta))
 
-def write_activation(explanations, activations, id, t, problem_name, activation_path):
+def write_activation(activations, id, t, problem_name, activation_path):
     with open(activation_path, "a") as outfile:
         for a in activations:
             outfile.write(id + "\t" + problem_name + "\t" + a + "\t" + str(t) + "\t" + str(activations[a][-1])+"\n")
@@ -409,7 +409,7 @@ class MemoryAgent(BaseAgent):
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
                  constraint_set='ctat', use_memory=True,
-                 c=0.277, alpha=0.177, tau=-0.7, exp_beta=4, default_beta=0, activation_path="", **kwargs):
+                 c=0.277, alpha=0.177, tau=-0.7, exp_beta=4, default_beta=0, activation_path=None, **kwargs):
                 
                 
         self.where_learner = get_where_learner(where_learner,
@@ -457,7 +457,7 @@ class MemoryAgent(BaseAgent):
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
 
-        if self.activation_path != "" and not path.exists(self.activation_path):
+        if self.activation_path and not path.exists(self.activation_path):
             with open(self.activation_path, "a") as outfile:
                 outfile.write("id\tquestion\tskill\ttime\tactivation\n")
 
@@ -504,7 +504,7 @@ class MemoryAgent(BaseAgent):
                 skill_info = None
             yield explanation, skill_info
 
-    def request(self, state: dict, add_skill_info=False,n=1,**kwargs):  # -> Returns sai
+    def request(self, state: dict, add_skill_info=False,n=1,instruction_type=None,**kwargs):  # -> Returns sai
 
         if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
         if(not isinstance(state,StateMultiView)):
@@ -514,21 +514,32 @@ class MemoryAgent(BaseAgent):
         # pprint(state.get_view("flat_ungrounded"))
         # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
+        if "?ele-problem_name" in state:
+            problem_name = state["?ele-problem_name"]["value"]
+
+        # instruction_type should be example or feedback
+        if instruction_type is None:
+            if "?ele-practice_type" in state:
+                instruction_type = state["?ele-practice_type"]["value"].lower()
+            else:
+                instruction_type = "practice"
 
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
-
+        retrieved_explanations = []
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
-                if self.use_memory and compute_retrieval(self.activations[str(explanation)], self.tau, 1):
+                # is there a reason for this?
+                if self.use_memory and str(explanation) != "-1:()->done" and compute_retrieval(self.activations[str(explanation)], self.tau, 1):
                     response = explanation.to_response(state, self)
                     if(add_skill_info):
                         response.update(skill_info)
                         response["mapping"] = explanation.mapping
+                    retrieved_explanations.append(explanation)
                     responses.append(response)
                 else:
                     response = explanation.to_response(state, self)
@@ -538,12 +549,26 @@ class MemoryAgent(BaseAgent):
                     responses.append(response)
         
         if(len(responses) == 0):
-            return EMPTY_RESPONSE
+            if self.use_memory:
+                # decay activation if no explanation
+                update_activation([], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                self.t += 1
+            response = EMPTY_RESPONSE
         else:
+            # update first retrieved skill, decay others
+            if str(retrieved_explanations[0]) != "-1:()->done":
+                self.exp_inds[retrieved_explanations[0]] = np.append(self.exp_inds[retrieved_explanations[0]], self.t)
+                update_activation([retrieved_explanations[0]], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                self.t += 1
             response = responses[0].copy()
             if(n != 1):
                 response['responses'] = responses
-            return response
+        # write activations/steps if done not selected
+        if self.activation_path and str(response) != "{'skill_label': None, 'selection': 'done', 'action': 'ButtonPressed', 'inputs': {'value': -1}}":
+            exp = None if not retrieved_explanations else retrieved_explanations[0]
+            write_activation(self.activations, self.id, self.t-1, problem_name, self.activation_path)
+            write_steps(exp, self.id, self.t, problem_name, response, self.activation_path)
+        return response
             
 
     # ------------------------------TRAIN----------------------------------------
@@ -747,10 +772,12 @@ class MemoryAgent(BaseAgent):
                         self.exp_inds[str_exp] = np.array([self.t])
                     else:
                         self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
-                    if self.activation_path != "":
+                    if self.activation_path:
                         write_steps(exp, self.id, self.t, problem_name, exp.to_response(state, self), self.activation_path)
             # COMPUTE ACTIVATION HERE #
-            update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+            if self.activation_path and not skip:
+                update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                write_activation(self.activations, self.id, self.t, problem_name, self.activation_path)
         # print("FIT_A")
         self.fit(explanations, state, reward)
         if not skip:
