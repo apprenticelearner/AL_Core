@@ -377,20 +377,20 @@ def update_activation(explanations, activations, question_type, exp_beta, defaul
         decay = compute_decay(activations[str_exp], exp_inds[str_exp] - exp_inds[str_exp][0], c, alpha)
         activations[str_exp] = np.append(activations[str_exp], compute_activation_recursive(t - exp_inds[str_exp], decay, beta))
 
-def write_activation(activations, id, t, problem_name, activation_path):
+def write_activation(activations, agent_id, t, problem_name, activation_path):
     with open(activation_path, "a") as outfile:
         for a in activations:
-            outfile.write(id + "\t" + problem_name + "\t" + a + "\t" + str(t) + "\t" + str(activations[a][-1])+"\n")
+            outfile.write(agent_id + "\t" + problem_name + "\t" + a + "\t" + str(t) + "\t" + str(activations[a][-1])+"\n")
 
-def write_steps(explanation, id, t, problem_name, response, activation_path):
+def write_steps(explanation, agent_id, t, problem_name, response, activation_path):
     with open(activation_path[:-4] + "_responses.txt", "a") as outfile:
         if bool(response):
             selection = response["selection"]
             action = response["action"]
-            input = str(response["inputs"]["value"])
-            outfile.write(id + "\t" + problem_name + "\t" + str(explanation) + "\t" + selection + "\t" + action + "\t" + input + "\t" + str(t) + "\n")
+            i = str(response["inputs"]["value"])
+            outfile.write(agent_id + "\t" + problem_name + "\t" + str(explanation) + "\t" + selection + "\t" + action + "\t" + i + "\t" + str(t) + "\n")
         else:
-            outfile.write(id + "\t" + problem_name + "\t" + str(explanation) + "\t" + str(response) + "\t" + str(response) + "\t" + str(response) + "\t" + str(t) + "\n")
+            outfile.write(agent_id + "\t" + problem_name + "\t" + str(explanation) + "\t" + str(response) + "\t" + str(response) + "\t" + str(response) + "\t" + str(t) + "\n")
 
 EMPTY_RESPONSE = {}
 
@@ -408,8 +408,8 @@ class MemoryAgent(BaseAgent):
                  heuristic_learner='proportion_correct', explanation_choice='random',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
-                 constraint_set='ctat', use_memory=True, agent_id='',
-                 c=0.277, alpha=0.177, tau=-0.7, exp_beta=4, default_beta=0, activation_path=None, **kwargs):
+                 constraint_set='ctat', use_memory=True,
+                 c=0.277, alpha=0.177, tau=-0.7, exp_beta=4, default_beta=0, agent_id=None, activation_path=None, **kwargs):
                 
                 
         self.where_learner = get_where_learner(where_learner,
@@ -452,7 +452,7 @@ class MemoryAgent(BaseAgent):
         self.default_beta = default_beta
         self.exp_inds = {}
         self.activation_path = activation_path
-        self.id = agent_id
+        self.agent_id = agent_id
 
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
@@ -507,17 +507,15 @@ class MemoryAgent(BaseAgent):
     def request(self, state: dict, add_skill_info=False,n=1,instruction_type=None,**kwargs):  # -> Returns sai
 
         if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
-        if "?ele-problem_name" in state:
-            problem_name = state["?ele-problem_name"]["value"]
-        else:
+        if "problem_name" in state:
             problem_name = state["problem_name"]["value"]
 
         # instruction_type should be example or feedback
         if instruction_type is None:
-            if "?ele-practice_type" in state:
-                instruction_type = state["?ele-practice_type"]["value"].lower()
-            else:
+            if "practice_type" in state:
                 instruction_type = state["practice_type"]["value"].lower()
+            else:
+                instruction_type = "practice"
 
         if(not isinstance(state,StateMultiView)):
             state = StateMultiView("object", state) 
@@ -526,6 +524,7 @@ class MemoryAgent(BaseAgent):
         # pprint(state.get_view("flat_ungrounded"))
         # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
+
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
@@ -558,18 +557,27 @@ class MemoryAgent(BaseAgent):
             response = EMPTY_RESPONSE
         else:
             # update first retrieved skill, decay others
-            if str(retrieved_explanations[0]) != "-1:()->done":
-                self.exp_inds[str(retrieved_explanations[0])] = np.append(self.exp_inds[str(retrieved_explanations[0])], self.t)
-                update_activation([retrieved_explanations[0]], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+            if retrieved_explanations and str(retrieved_explanations[0]) != "-1:()->done":
+                str_exp = str(retrieved_explanations[0])
+                print("selected explanation:", str_exp)
+                if str_exp not in self.exp_inds:
+                    self.exp_inds[str_exp] = np.array([self.t])
+                else:    
+                    self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
+                update_activation([str_exp], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
                 self.t += 1
             response = responses[0].copy()
             if(n != 1):
                 response['responses'] = responses
         # write activations/steps if done not selected
-        if self.activation_path and str(response) != "{'skill_label': None, 'selection': 'done', 'action': 'ButtonPressed', 'inputs': {'value': -1}}":
-            exp = None if not retrieved_explanations else retrieved_explanations[0]
-            write_activation(self.activations, self.id, self.t-1, problem_name, self.activation_path)
-            write_steps(exp, self.id, self.t, problem_name, response, self.activation_path)
+        exp = None if not retrieved_explanations else str_exp
+        # note: have to use Done response instead of explanaion format since we don't save it otherwise
+        if self.activation_path and str(response) != "{'skill_label': None, 'selection': 'done', 'action': 'ButtonPressed', 'inputs': {'value': -1}, 'rhs_id': 1}":
+            print("response:", str(response))
+            print("writing request activation at time", self.t-1)
+            write_activation(self.activations, self.agent_id, self.t-1, problem_name, self.activation_path)
+            print("writing request steps at time", self.t-1)
+            write_steps(exp, self.agent_id, self.t-1, problem_name, response, self.activation_path)
         return response
             
 
@@ -687,17 +695,15 @@ class MemoryAgent(BaseAgent):
               ret_train_expl=False, add_skill_info=False,instruction_type=None,**kwargs):  # -> return None
         # pprint(state)
 
-        if "?ele-problem_name" in state:
-            problem_name = state["?ele-problem_name"]["value"]
-        else:
+        if "problem_name" in state:
             problem_name = state["problem_name"]["value"]
 
         # instruction_type should be example or feedback
         if instruction_type is None:
-            if "?ele-practice_type" in state:
-                instruction_type = state["?ele-practice_type"]["value"].lower()
-            else:
+            if "practice_type" in state:
                 instruction_type = state["practice_type"]["value"].lower()
+            else:
+                instruction_type = "practice"
 
         c = self.c
         alpha = self.alpha
@@ -752,7 +758,7 @@ class MemoryAgent(BaseAgent):
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
-                        # print("FOUND EX:", str(exp))
+                        print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:
@@ -777,11 +783,13 @@ class MemoryAgent(BaseAgent):
                     else:
                         self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
                     if self.activation_path:
-                        write_steps(exp, self.id, self.t, problem_name, exp.to_response(state, self), self.activation_path)
+                        print("writing training steps at time", self.t)
+                        write_steps(exp, self.agent_id, self.t, problem_name, exp.to_response(state, self), self.activation_path)
             # COMPUTE ACTIVATION HERE #
             if self.activation_path and not skip:
+                print("writing training activation at time", self.t)
                 update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
-                write_activation(self.activations, self.id, self.t, problem_name, self.activation_path)
+                write_activation(self.activations, self.agent_id, self.t, problem_name, self.activation_path)
         # print("FIT_A")
         self.fit(explanations, state, reward)
         if not skip:

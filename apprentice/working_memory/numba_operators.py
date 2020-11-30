@@ -259,7 +259,6 @@ class Cross_Multiply(BaseOperator):
 
 class Diamond(BaseOperator):
     signature = 'float(float,float)'
-    template = "Diamond({}.v,{}.v)"
     nopython=False
     muted_exceptions = [ValueError, OverflowError]
     def condition(base, exp):
@@ -269,7 +268,6 @@ class Diamond(BaseOperator):
 
 class Sun(BaseOperator):
     signature = 'float(float,float,float,float)'
-    template = "Sun({}.v,{}.v,{}.v,{}.v)"
     nopython=False
     muted_exceptions = [ValueError]
     def condition(a, b, c, d):
@@ -283,7 +281,6 @@ class Sun(BaseOperator):
 
 class Command(BaseOperator):
     signature = 'float(float,float,float)'
-    template = "Diamond({}.v,{}.v,{}.v)"
     nopython=False
     muted_exceptions = [ValueError]
     def forward(a, b, c):
@@ -292,3 +289,12 @@ class Command(BaseOperator):
         if r == 0:
             return -1
         return l // r
+
+class Bullseye(BaseOperator):
+    signature = 'float(float,float)'
+    nopython=False
+    muted_exceptions = [ValueError]
+    def forward(a, b):
+        l = int(b.value) // int(a.value)
+        r = int(b.value) ** int(a.value)
+        return l + r
