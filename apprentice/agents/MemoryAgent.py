@@ -408,7 +408,7 @@ class MemoryAgent(BaseAgent):
                  heuristic_learner='proportion_correct', explanation_choice='random',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
-                 constraint_set='ctat', use_memory=True,
+                 constraint_set='ctat', use_memory=True, agent_id='',
                  c=0.277, alpha=0.177, tau=-0.7, exp_beta=4, default_beta=0, activation_path=None, **kwargs):
                 
                 
@@ -452,7 +452,7 @@ class MemoryAgent(BaseAgent):
         self.default_beta = default_beta
         self.exp_inds = {}
         self.activation_path = activation_path
-        self.id = id
+        self.id = agent_id
 
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
@@ -507,6 +507,18 @@ class MemoryAgent(BaseAgent):
     def request(self, state: dict, add_skill_info=False,n=1,instruction_type=None,**kwargs):  # -> Returns sai
 
         if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
+        if "?ele-problem_name" in state:
+            problem_name = state["?ele-problem_name"]["value"]
+        else:
+            problem_name = state["problem_name"]["value"]
+
+        # instruction_type should be example or feedback
+        if instruction_type is None:
+            if "?ele-practice_type" in state:
+                instruction_type = state["?ele-practice_type"]["value"].lower()
+            else:
+                instruction_type = state["practice_type"]["value"].lower()
+
         if(not isinstance(state,StateMultiView)):
             state = StateMultiView("object", state) 
         state.register_transform("*","variablize",self.state_variablizer)
@@ -514,16 +526,6 @@ class MemoryAgent(BaseAgent):
         # pprint(state.get_view("flat_ungrounded"))
         # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
-        if "?ele-problem_name" in state:
-            problem_name = state["?ele-problem_name"]["value"]
-
-        # instruction_type should be example or feedback
-        if instruction_type is None:
-            if "?ele-practice_type" in state:
-                instruction_type = state["?ele-practice_type"]["value"].lower()
-            else:
-                instruction_type = "practice"
-
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
@@ -557,7 +559,7 @@ class MemoryAgent(BaseAgent):
         else:
             # update first retrieved skill, decay others
             if str(retrieved_explanations[0]) != "-1:()->done":
-                self.exp_inds[retrieved_explanations[0]] = np.append(self.exp_inds[retrieved_explanations[0]], self.t)
+                self.exp_inds[str(retrieved_explanations[0])] = np.append(self.exp_inds[str(retrieved_explanations[0])], self.t)
                 update_activation([retrieved_explanations[0]], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
                 self.t += 1
             response = responses[0].copy()
@@ -687,13 +689,15 @@ class MemoryAgent(BaseAgent):
 
         if "?ele-problem_name" in state:
             problem_name = state["?ele-problem_name"]["value"]
+        else:
+            problem_name = state["problem_name"]["value"]
 
         # instruction_type should be example or feedback
         if instruction_type is None:
             if "?ele-practice_type" in state:
                 instruction_type = state["?ele-practice_type"]["value"].lower()
             else:
-                instruction_type = "practice"
+                instruction_type = state["practice_type"]["value"].lower()
 
         c = self.c
         alpha = self.alpha
