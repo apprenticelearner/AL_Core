@@ -535,7 +535,7 @@ class MemoryAgent(BaseAgent):
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
                 # is there a reason for this?
-                if self.use_memory and str(explanation) != "-1:()->done" and compute_retrieval(self.activations[str(explanation)], self.tau, 1):
+                if self.use_memory and explanation.selection_literal != "done" and compute_retrieval(self.activations[str(explanation)], self.tau, 1):
                     response = explanation.to_response(state, self)
                     if(add_skill_info):
                         response.update(skill_info)
@@ -557,7 +557,7 @@ class MemoryAgent(BaseAgent):
             response = EMPTY_RESPONSE
         else:
             # update first retrieved skill, decay others
-            if retrieved_explanations and str(retrieved_explanations[0]) != "-1:()->done":
+            if retrieved_explanations and retrieved_explanations[0].selection_literal != "done":
                 str_exp = str(retrieved_explanations[0])
                 print("selected explanation:", str_exp)
                 if str_exp not in self.exp_inds:
@@ -572,7 +572,8 @@ class MemoryAgent(BaseAgent):
         # write activations/steps if done not selected
         exp = None if not retrieved_explanations else str_exp
         # note: have to use Done response instead of explanaion format since we don't save it otherwise
-        if self.activation_path and str(response) != "{'skill_label': None, 'selection': 'done', 'action': 'ButtonPressed', 'inputs': {'value': -1}, 'rhs_id': 1}":
+        if self.activation_path and response.get("selection") != "done":
+            # print("explanation:", exp)
             print("response:", str(response))
             print("writing request activation at time", self.t-1)
             write_activation(self.activations, self.agent_id, self.t-1, problem_name, self.activation_path)
@@ -619,7 +620,7 @@ class MemoryAgent(BaseAgent):
                 # else:
                 #     itr = []
             else:
-                # print("Trying:", rhs)
+                print("Trying:", rhs)
                 # print(self.planner.unify_op.__code__.co_varnames)
                 mappings = self.planner.unify_op(state,rhs.input_rule, sai,
                     foci_of_attention=foci_of_attention)
@@ -718,7 +719,7 @@ class MemoryAgent(BaseAgent):
         # state_featurized =
 
         
-        # print(sai, foci_of_attention)
+        print(sai, foci_of_attention)
         ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
         _ = [x for x in self.applicable_explanations(state)]
         ############################################################
@@ -769,12 +770,11 @@ class MemoryAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-
         if self.use_memory:
             skip = True # skip activation of done skill
             for exp in explanations:
                 str_exp = str(exp)
-                if str_exp != "-1:()->done":
+                if exp.selection_literal != "done":
                     skip = False
                     self.explanations_list = np.append(self.explanations_list, str_exp)
                     if str_exp not in self.activations:
