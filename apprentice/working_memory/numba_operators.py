@@ -261,18 +261,18 @@ class Diamond(BaseOperator):
     signature = 'float(float,float)'
     nopython=False
     muted_exceptions = [ValueError, OverflowError]
-    def condition(base, exp):
-        return base ** exp < 10000
     def forward(base, exp):
+        if not(0 <= exp <= 5 and 0 <= base <= 25):
+            return -1
         return int(str(int(base ** exp))[::-1].lstrip("0"))
 
 class Sun(BaseOperator):
     signature = 'float(float,float,float,float)'
     nopython=False
     muted_exceptions = [ValueError]
-    def condition(a, b, c, d):
-        return b != 0 and d != 0
     def forward(a, b, c, d):
+        if b == 0 or d == 0:
+            return -1
         l = int(a) // int(b)
         r = int(c) // int(d)
         if r == 0:
@@ -295,6 +295,8 @@ class Bullseye(BaseOperator):
     nopython=False
     muted_exceptions = [ValueError]
     def forward(a, b):
-        l = int(b.value) // int(a.value)
-        r = int(b.value) ** int(a.value)
+        if not(abs(int(a) - a) < 1e-6 and abs(int(b) - b) < 1e-6 and 0 < a < 6):
+            return -1
+        l = int(b) // int(a)
+        r = int(b) ** int(a)
         return l + r
