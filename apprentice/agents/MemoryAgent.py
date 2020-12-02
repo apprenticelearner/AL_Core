@@ -535,13 +535,16 @@ class MemoryAgent(BaseAgent):
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
                 # is there a reason for this?
-                if self.use_memory and explanation.selection_literal != "done" and compute_retrieval(self.activations[str(explanation)], self.tau, 1):
-                    response = explanation.to_response(state, self)
-                    if(add_skill_info):
-                        response.update(skill_info)
-                        response["mapping"] = explanation.mapping
-                    retrieved_explanations.append(explanation)
-                    responses.append(response)
+                if self.use_memory and explanation.selection_literal != "done":
+                    if compute_retrieval(self.activations[str(explanation)], self.tau, 1):
+                        response = explanation.to_response(state, self)
+                        if(add_skill_info):
+                            response.update(skill_info)
+                            response["mapping"] = explanation.mapping
+                        retrieved_explanations.append(explanation)
+                        responses.append(response)
+                    else:
+                        continue
                 else:
                     response = explanation.to_response(state, self)
                     if(add_skill_info):
