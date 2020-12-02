@@ -559,10 +559,13 @@ stoichiometry_rules = [sig_fig_rule, div_rule, mult_rule]
 # arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule,
 #                done_rule]
 # arith_rules = [add_rule, mult_rule, update_rule, done_rule]
+fraction_fun = [add_rule, mult_rule]
+fraction_feat = [equal_rule, editable_rule]
 
 functionsets = {'tutor knowledge': arith_rules,
                 'stoichiometry': stoichiometry_rules,
-                'rumbleblocks': rb_rules, 'article selection': []}
+                'rumbleblocks': rb_rules, 'article selection': [],
+                'fraction arith': fraction_fun}
 
 featuresets = {'tutor knowledge': [equal_rule,
                                    grammar_parser_rule,
@@ -571,7 +574,9 @@ featuresets = {'tutor knowledge': [equal_rule,
                'rumbleblocks': [], 'article selection': [unigram_rule,
                                                          bigram_rule,
                                                          equal_rule,
-                                                         editable_rule]}
+                                                         editable_rule],
+               'fraction arith': fraction_feat}
+
 
 if __name__ == "__main__":
 
