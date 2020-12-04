@@ -417,7 +417,7 @@ class DecisionTree(DecisionTreeClassifier):
     def fit(self,X,y):
         
         # print("X",len(X[0]))
-        pprint(X)
+        # pprint(X)
         # pprint(y)
         # print("y",len(y))
         # pprint(y)
