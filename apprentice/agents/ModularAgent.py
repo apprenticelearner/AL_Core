@@ -355,7 +355,7 @@ class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
-                 heuristic_learner='proportion_correct', explanation_choice='random',
+                 heuristic_learner='proportion_correct', explanation_choice='most_parsimonious',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
                  constraint_set='ctat', **kwargs):
@@ -632,12 +632,15 @@ class ModularAgent(BaseAgent):
                     explanations = self.explanations_from_how_search(
                                    state, sai, foci_of_attention)
                     performance_logger.info("explanations_from_how_search {} ms".format((time.time_ns()-t_s)/(1e6)))
+                    explanations = [x for x in explanations]
+                    for exp in explanations:
+                        print(str(exp))
 
                     explanations = self.which_learner.select_how(explanations)
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
-                        # print("FOUND EX:", str(exp))
+                        print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:
@@ -648,6 +651,8 @@ class ModularAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
+        for exp in explanations:
+            print("Updating skill ->:", str(exp))
         # print("FIT_A")
         self.fit(explanations, state, reward)
         if(self.ret_train_expl):

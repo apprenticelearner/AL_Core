@@ -156,7 +156,7 @@ class NumbaPlanner(BasePlanner):
 		# out = []
 
 		at_least_one = False
-		for op_comp in operator_compositions:
+		for op_comp in reversed(operator_compositions): #Note this is a kludge
 			if(not allow_copy and op_comp.depth == 0 and min([op.depth for op in operators]) > 0):
 				continue	
 
