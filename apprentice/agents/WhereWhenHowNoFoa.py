@@ -7,13 +7,15 @@ from concept_formation.preprocessor import Tuplizer
 from concept_formation.structure_mapper import rename_flat
 
 from apprentice.agents.base import BaseAgent
-from apprentice.learners.WhenLearner import get_when_learner
-from apprentice.learners.WhereLearner import get_where_learner
+# from apprentice.learners.WhenLearner import get_when_learner
+from apprentice.learners.WhenLearner import WHEN_CLASSIFIERS
+# from apprentice.learners.WhereLearner import get_where_learner
+from apprentice.learners.WhereLearner import MostSpecific
 from apprentice.planners.fo_planner import FoPlanner, execute_functions, unify, subst
 # from ilp.fo_planner import Operator
 
-# from planners.rulesets import function_sets
-# from planners.rulesets import feature_sets
+from apprentice.working_memory.fo_planner_operators import functionsets
+from apprentice.working_memory.fo_planner_operators import featuresets
 
 # search_depth = 1
 # epsilon = .9
@@ -166,14 +168,15 @@ class WhereWhenHowNoFoa(BaseAgent):
     This is the basis for the 2 mechanism model.
     """
     def __init__(self, feature_set, function_set, 
-                 when_learner='trestle', where_learner='MostSpecific',
+                 when_learner='decisiontree', # where_learner='MostSpecific',
                  search_depth=1, numerical_epsilon=0.0):
-        self.where = get_where_learner(where_learner)
-        self.when = get_when_learner(when_learner)
+        self.where = MostSpecific
+        # self.when = get_when_learner(when_learner)
+        self.when = WHEN_CLASSIFIERS[when_learner]
         self.skills = {}
         self.examples = {}
-        self.feature_set = feature_set
-        self.function_set = function_set
+        self.feature_set = featuresets[feature_set]
+        self.function_set = functionsets[function_set]
         self.search_depth = search_depth
         self.epsilon = numerical_epsilon
 
@@ -452,8 +455,8 @@ class WhereWhenHowNoFoa(BaseAgent):
         return explanations
 
 
-    def train(self, state, selection, action, inputs, reward, skill_label,
-              foci_of_attention):
+    def train(self, state, sai, reward,
+            skill_label, foci_of_attention, **kw):
         """
         Doc String
         """
@@ -471,6 +474,11 @@ class WhereWhenHowNoFoa(BaseAgent):
         # label = 'math'
 
         # create example dict
+
+        selection = sai.selection
+        action = sai.action
+        inputs = sai.inputs
+
         example = {}
         example['state'] = state
         example['skill_label'] = skill_label

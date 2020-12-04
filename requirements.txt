@@ -14,7 +14,7 @@ six==1.11.0
 tabulate==0.8.2
 verlib==0.1
 jsondiff
-experta @ git+https://gitlab+deploy-token-3:8vn5PzksGTAaw8v48oP-@hq-git.soartech.com/apprentice/experta.git
+experta @ git+https://github.com/cmaclell/experta.git
 nltk
 coloredlogs
 PyYAML
