@@ -15,6 +15,8 @@ import math
 import numpy as np
 
 
+logger = logging.getLogger(__name__)
+
 def toFloatIfFloat(x):
 	try:
 		x = float(x)
@@ -166,7 +168,7 @@ class NumbaPlanner(BasePlanner):
 
 		if(not at_least_one and allow_bottomout and 
 			(foci_of_attention == None or len(foci_of_attention) == 0)):
-			print("Bottomout:", goal)
+			logger.info("Bottomout: {}".format(goal))
 			yield goal, {}
 
 
