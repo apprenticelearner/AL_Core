@@ -687,7 +687,7 @@ class SpecificToGeneral(BaseILP):
         sm = StructureMapper(self.concept)
         x = sm.transform(ns.transform(x))
 
-        pprint(x)
+        # pprint(x)
         # pprint(x)
         self.concept.increment_counts(x)
 
@@ -696,7 +696,7 @@ class SpecificToGeneral(BaseILP):
         else:
             self.neg_concept.increment_counts(x)
 
-        print(self.pos_concept)
+        # print(self.pos_concept)
 
         # print()
         # print('POSITIVE')
@@ -723,10 +723,10 @@ class SpecificToGeneral(BaseILP):
                     args.append(val_gensym)
                     pos_instance[attr] = val_gensym
 
-        pprint(pos_instance)
-        pprint(pos_args)
-        print("av_counts")
-        pprint(self.pos_concept.av_counts)
+        # pprint(pos_instance)
+        # pprint(pos_args)
+        # print("av_counts")
+        # pprint(self.pos_concept.av_counts)
 
         # if len(self.pos_concept.av_counts[attr]) == 1:
         #     for val in self.pos_concept.av_counts[attr]:
@@ -758,7 +758,7 @@ class SpecificToGeneral(BaseILP):
         conditions = ([(a, pos_instance[a]) for a in pos_instance] +
                       [('not', (a, neg_instance[a])) for a in neg_instance])
 
-        print(conditions)
+        # print(conditions)
 
         # print("========CONDITIONS======")
         # pprint(conditions)
@@ -767,7 +767,7 @@ class SpecificToGeneral(BaseILP):
         self.target_types = ['?foa%s' % i for i in range(len(t))]
         self.operator = Operator(tuple(['Rule'] + self.target_types),
                                  conditions, [])
-        print("_-----------------------------------")
+        # print("_-----------------------------------")
 
     def fit(self, T, X, y):
         self.count = len(X)
