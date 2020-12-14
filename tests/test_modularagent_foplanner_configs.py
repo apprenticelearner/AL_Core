@@ -8,6 +8,7 @@ import logging
 import pytest
 from apprentice.agents.ModularAgent import ModularAgent
 from apprentice.working_memory.representation import Sai
+from apprentice.working_memory.fo_planner_operators import add_rule, sub_rule, mult_rule, div_rule, equal_rule
 
 logging.disable()
 
@@ -29,7 +30,7 @@ def train_A_req_A(agent):
 
         agent.train(**data)
 
-    return agent.request(add_set[-1]['state'])
+    return agent.request(add_set[-1]['state']), add_set[-1]
 
 
 def req_A(agent):
@@ -41,14 +42,14 @@ def req_A(agent):
 @pytest.mark.parametrize("where", ['version_space',
                                    'fastmostspecific',
                                    'mostspecific',
-                                   'stateresponselearner',
-                                   'relationallearner',
+                                   # 'stateresponselearner',
+                                   # 'relationallearner',
                                    'specifictogeneral'])
 @pytest.mark.parametrize("which", ['proportioncorrect', 'totalcorrect'])
 @pytest.mark.parametrize("choice", ['first', 'mostparsimonious', 'all', 'random'])
 def test_fo_planner_configs(when, where, which, choice):
-    function_set = ["add", "subtract", "multiply", "divide"]
-    feature_set = ["equals"]
+    function_set = [add_rule, sub_rule, mult_rule, div_rule]
+    feature_set = [equal_rule]
     agent = ModularAgent(feature_set, function_set,
                          when_learner=when,
                          where_learner=where,
@@ -58,7 +59,7 @@ def test_fo_planner_configs(when, where, which, choice):
     resp = req_A(agent)
     assert resp == {}
 
-    resp = train_A_req_A(agent)
-    assert resp['selection'] == 'answer'
-    assert resp['action'] == 'UpdateTextField'
-    assert resp['inputs']['value'] == 8.0
+    resp, ans = train_A_req_A(agent)
+    assert resp['selection'] == ans['selection']
+    assert resp['action'] == ans['action']
+    assert resp['inputs']['value'] == ans['inputs']['value']

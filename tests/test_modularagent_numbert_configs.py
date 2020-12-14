@@ -29,7 +29,7 @@ def train_A_req_A(agent):
 
         agent.train(**data)
 
-    return agent.request(add_set[-1]['state'])
+    return agent.request(add_set[-1]['state']), add_set[-1]
 
 
 def req_A(agent):
@@ -41,8 +41,8 @@ def req_A(agent):
 @pytest.mark.parametrize("where", ['version_space',
                                    'fastmostspecific',
                                    'mostspecific',
-                                   'stateresponselearner',
-                                   'relationallearner',
+                                   # 'stateresponselearner',
+                                   # 'relationallearner',
                                    'specifictogeneral'])
 @pytest.mark.parametrize("which", ['proportioncorrect', 'totalcorrect'])
 @pytest.mark.parametrize("choice", ['first', 'mostparsimonious', 'all', 'random'])
@@ -54,11 +54,12 @@ def test_numbert_configs(when, where, which, choice):
                          where_learner=where,
                          planner='numbert',
                          heuristic_learner=which,
-                         explanation_choice=choice)
+                         explanation_choice=choice,
+                         search_depth=2)
     resp = req_A(agent)
     assert resp == {}
 
-    resp = train_A_req_A(agent)
-    assert resp['selection'] == 'answer'
-    assert resp['action'] == 'UpdateTextField'
-    assert resp['inputs']['value'] == 8.0
+    resp, ans = train_A_req_A(agent)
+    assert resp['selection'] == ans['selection']
+    assert resp['action'] == ans['action']
+    assert str(int(resp['inputs']['value'])) == ans['inputs']['value']
