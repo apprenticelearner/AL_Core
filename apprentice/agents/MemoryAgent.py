@@ -365,7 +365,7 @@ def compute_retrieval(activation, tau, s):
     # return random() < (1/(1+math.exp((tau - activation) / s)))
     return random() < (1/(1+math.exp((tau - activation[-1]) / s)))
 
-def update_activation(explanations, activations, question_type, exp_beta, default_beta, exp_inds, c, alpha, t):
+def update_activation(explanations, base_activations, acc_activations, activations, question_type, exp_beta, default_beta, exp_inds, c, alpha, t, gamma, decay_acc, noise_mu, noise_sigma, operators):
     for str_exp in activations:
         if str_exp in [str(exp) for exp in explanations]:
             if question_type in ["worked_example", "example"]: # hacky check to see WE vs RP (will prob not work now? need to change brds again)
@@ -374,8 +374,43 @@ def update_activation(explanations, activations, question_type, exp_beta, defaul
                 beta = default_beta
         else:
             beta = default_beta
+
         decay = compute_decay(activations[str_exp], exp_inds[str_exp] - exp_inds[str_exp][0], c, alpha)
-        activations[str_exp] = np.append(activations[str_exp], compute_activation_recursive(t - exp_inds[str_exp], decay, beta))
+        # activations[str_exp] = np.append(activations[str_exp],
+        #                                  compute_activation_recursive(t - exp_inds[str_exp], decay, beta))
+        base_activation = compute_activation_recursive(t - exp_inds[str_exp], decay, beta)
+        evidence = compute_evidence(str_exp, base_activations, operators)
+        base_activations[str_exp] = np.append(base_activations[str_exp], base_activation)
+        acc_activation = acc_activations[str_exp][-1] + np.exp(gamma * evidence - 1) - decay_acc * np.log(t + 1)
+        acc_activations[str_exp] = np.append(acc_activations[str_exp], acc_activation)
+        activation = base_activation + acc_activation + np.random.normal(noise_mu, noise_sigma)
+        activations[str_exp] = np.append(activations[str_exp], activation)
+
+def compute_similarity(operators, operator1, arguments1, operator2, arguments2):
+    # compute overlap similarity
+    setA = set(operators.get(operator1, {'done'}))
+    for argument in arguments1:
+        setA = setA.union(set(list(str(argument))))
+
+    setB = set(operators.get(operator2, {'done'}))
+    for argument in arguments2:
+        setB = setB.union(set(list(str(argument))))
+
+    return len(setA.union(setB)) / (min(len(setA), len(setB)))
+
+def compute_evidence(str_exp, activations, operators):
+    evidence = 0
+    operator = str_exp[:str_exp.find('(')]
+    arguments = str_exp[str_exp.find(':') + 2:str_exp.find('->') - 1].split(',')
+    for other_exp_str, values in activations.items():
+        other_operator = other_exp_str[:other_exp_str.find('(')]
+        other_arguments = other_exp_str[other_exp_str.find(':') + 2:other_exp_str.find('->') - 1].split(',')
+        if operator == other_operator:
+            evidence -= np.exp(values[-1])*compute_similarity(operators, operator, arguments, other_operator, other_arguments)
+        else:
+            evidence += np.exp(values[-1])*compute_similarity(operators, operator, arguments, other_operator, other_arguments)
+
+    return evidence
 
 def write_activation(activations, agent_id, t, problem_name, activation_path):
     with open(activation_path, "a") as outfile:
@@ -443,6 +478,8 @@ class MemoryAgent(BaseAgent):
 
         self.explanations_list = np.empty(shape=[0, 1])
         self.activations = {}
+        self.base_activations = {}
+        self.acc_activations = {}
         self.use_memory = use_memory
         self.t = 0
         self.c = c
@@ -450,6 +487,19 @@ class MemoryAgent(BaseAgent):
         self.tau = tau
         self.exp_beta = exp_beta
         self.default_beta = default_beta
+
+        # TODO: make these configurable by json
+        self.noise_mu = 0
+        self.noise_sigma = 1
+        self.decay_acc = 0.001
+        self.gamma = 0.01
+        self.operators = {
+            'Sun': ['spiky', 'roundish', 'unfilled', 'multi'],
+            'Diamond': ['spiky', 'filled', 'squarish', 'single'],
+            'Command': ['roundish', 'squarish', 'unfilled', 'single'],
+            'Bullseye': ['roundish', 'unfilled', 'multi']
+        }
+
         self.exp_inds = {}
         self.activation_path = activation_path
         self.agent_id = agent_id
@@ -555,7 +605,9 @@ class MemoryAgent(BaseAgent):
         if(len(responses) == 0):
             if self.use_memory and instruction_type != 'worked_example':
                 # decay activation if no explanation
-                update_activation([], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                update_activation([], self.base_activations, self.acc_activations, self.activations, instruction_type, self.exp_beta,
+                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
+                # update_activation([], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
                 self.t += 1
             response = EMPTY_RESPONSE
         else:
@@ -567,7 +619,9 @@ class MemoryAgent(BaseAgent):
                     self.exp_inds[str_exp] = np.array([self.t])
                 else:    
                     self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
-                update_activation([str_exp], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                # update_activation([str_exp], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                update_activation([str_exp], self.base_activations, self.acc_activations, self.activations, instruction_type, self.exp_beta,
+                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
                 self.t += 1
             response = responses[0].copy()
             if(n != 1):
@@ -782,6 +836,8 @@ class MemoryAgent(BaseAgent):
                     self.explanations_list = np.append(self.explanations_list, str_exp)
                     if str_exp not in self.activations:
                         self.activations[str_exp] = np.array([-np.inf])
+                        self.base_activations[str_exp] = np.array([-np.inf])
+                        self.acc_activations[str_exp] = np.array([0])
                         self.exp_inds[str_exp] = np.array([self.t])
                     else:
                         self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
@@ -791,7 +847,9 @@ class MemoryAgent(BaseAgent):
             # COMPUTE ACTIVATION HERE #
             if self.activation_path and not skip:
                 print("writing training activation at time", self.t)
-                update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                # update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                update_activation(explanations, self.base_activations, self.acc_activations, self.activations, instruction_type, self.exp_beta,
+                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
                 write_activation(self.activations, self.agent_id, self.t, problem_name, self.activation_path)
         # print("FIT_A")
         self.fit(explanations, state, reward)
