@@ -64,6 +64,19 @@ class ProportionCorrect(TotalCorrect):
         s = p + n
         return (p / s if s > 0 else 0,  s)
 
+class WeightedProportionCorrect(TotalCorrect):
+    def heuristic(self,state,w=2.0):
+        p,n = self.num_correct, w*self.num_incorrect
+        s = p + n
+        return (p / s if s > 0 else 0,  s)
+
+class NonLinearProportionCorrect(TotalCorrect):
+    def heuristic(self,state,a=1.0,b=1.0):
+        p,n = self.num_correct, self.num_incorrect
+        n = a*n + b*(n*n)
+        s = p + n
+        return (p / s if s > 0 else 0,  s)
+
 ####---------------HOW CULL RULE------------########
 
 def first(expl_iter):
@@ -71,6 +84,18 @@ def first(expl_iter):
 
 def most_parsimonious(expl_iter):
     l = sorted(expl_iter,key=lambda x:x.get_how_depth())
+    return l[:1]
+
+def least_depth(expl_iter):
+    expl_iter = list(expl_iter)
+    shuffle(expl_iter)
+    l = sorted(expl_iter,key=lambda x: getattr(x.rhs.input_rule,'depth',0))
+    return l[:1]
+
+def least_operations(expl_iter):
+    expl_iter = list(expl_iter)
+    shuffle(expl_iter)
+    l = sorted(expl_iter,key=lambda x: getattr(x.rhs.input_rule,'num_ops',0))
     return l[:1]
 
 def return_all(expl_iter):
@@ -125,11 +150,15 @@ def get_which_learner(heuristic_learner,explanation_choice,**kwargs):
 WHICH_HEURISTIC_AGENTS = {
     'proportioncorrect': ProportionCorrect,
     'totalcorrect': TotalCorrect,   
+    'weightedproportioncorrect': WeightedProportionCorrect,   
+    'nonlinearproportioncorrect': NonLinearProportionCorrect
 }
 
 CULL_HOW_RULES = {
     'first': first,
-    'mostparsimonious': most_parsimonious,   
+    'mostparsimonious': most_parsimonious, #probably need to depricate
+    'leastdepth': least_depth,   
+    'leastoperations': least_operations,   
     'all': return_all,  
     'random' : random,
     # 'closest': closest,   
