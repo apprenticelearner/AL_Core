@@ -6,15 +6,18 @@ be a break glass sanity check, note to test behavior.
 import json
 import logging
 import pytest
+from os.path import dirname
+from os.path import join
 from apprentice.agents.ModularAgent import ModularAgent
 from apprentice.working_memory.representation import Sai
 from apprentice.working_memory.fo_planner_operators import add_rule, sub_rule, mult_rule, div_rule, equal_rule
 
 logging.disable()
+module_path = dirname(__file__)
 
 
 def train_A_req_A(agent):
-    add_set = json.load(open('data_for_test.json', 'r'))['addition']
+    add_set = json.load(open(join(module_path, 'data_for_test.json'), 'r'))['addition']
 
     for data in add_set[:-1]:
         sai = Sai(
@@ -34,7 +37,7 @@ def train_A_req_A(agent):
 
 
 def req_A(agent):
-    add_set = json.load(open('data_for_test.json', 'r'))['addition']
+    add_set = json.load(open(join(module_path, 'data_for_test.json'), 'r'))['addition']
     return agent.request(add_set[-1]['state'])
 
 
