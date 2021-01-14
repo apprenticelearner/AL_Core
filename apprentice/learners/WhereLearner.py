@@ -278,7 +278,8 @@ class MostSpecific(BaseILP):
         return grounded
 
     def check_match(self, t, x):
-        x = x.get_view("flat_ungrounded")
+        if hasattr(x, 'get_view'):
+            x = x.get_view("flat_ungrounded")
         # print("CHECK MATCHES T", t)
 
         t = tuple(ground(ele) for ele in t)
@@ -301,7 +302,8 @@ class MostSpecific(BaseILP):
         return False
 
     def get_matches(self, x, epsilon=0.0):
-        x = x.get_view("flat_ungrounded")
+        if hasattr(x, 'get_view'):
+            x = x.get_view("flat_ungrounded")
 
         grounded = self.ground_example(x)
 
