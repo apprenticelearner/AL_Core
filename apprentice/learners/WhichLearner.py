@@ -86,17 +86,16 @@ def most_parsimonious(expl_iter):
     l = sorted(expl_iter,key=lambda x:x.get_how_depth())
     return l[:1]
 
-def least_deep(expl_iter):
+def least_depth(expl_iter):
+    expl_iter = list(expl_iter)
     shuffle(expl_iter)
-    f = lambda x: x.rhs.input_rule.depth if hasattr(x.rhs.input_rule,'depth') else 0
-    l = sorted(expl_iter,key=f)
+    l = sorted(expl_iter,key=lambda x: getattr(x.rhs.input_rule,'depth',0))
     return l[:1]
 
 def least_operations(expl_iter):
+    expl_iter = list(expl_iter)
     shuffle(expl_iter)
-    print(expl_iter)
-    f = lambda x: x.rhs.input_rule.num_ops if hasattr(x.rhs.input_rule,'num_ops') else 0
-    l = sorted(expl_iter,key=f)
+    l = sorted(expl_iter,key=lambda x: getattr(x.rhs.input_rule,'num_ops',0))
     return l[:1]
 
 def return_all(expl_iter):
@@ -158,7 +157,7 @@ WHICH_HEURISTIC_AGENTS = {
 CULL_HOW_RULES = {
     'first': first,
     'mostparsimonious': most_parsimonious, #probably need to depricate
-    'leastdeep': least_deep,   
+    'leastdepth': least_depth,   
     'leastoperations': least_operations,   
     'all': return_all,  
     'random' : random,
