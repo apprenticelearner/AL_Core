@@ -415,7 +415,11 @@ def export_tree(dt):
 from sklearn.tree import _tree
 class DecisionTree(DecisionTreeClassifier):
     def fit(self,X,y):
-        
+        # if(len(y) > 1 and y[-1] > 0 and self.n_features_ == X.shape[1]): 
+        #     print("SKIP FIT", len(y), self.n_features_, X.shape[1])
+        #     return # Don't refit if positive
+        # else:
+        #     print("FIT", len(y), X.shape[1])
         # print("X",len(X[0]))
         # pprint(X)
         # pprint(y)

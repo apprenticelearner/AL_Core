@@ -22,6 +22,7 @@ from numba import types, njit,guvectorize,uint32,vectorize,prange
 from numba import void,b1,u1,u2,u4,u8,i1,i2,i4,i8,f4,f8,c8,c16
 from numba.typed import List, Dict
 from numba.types import UniTuple, ListType
+from copy import deepcopy
 
 global my_gensym_counter
 my_gensym_counter = 0
@@ -177,6 +178,14 @@ class WhereLearner(object):
         scores = [lrnr.score_match(partial_match,x) for partial_match in partial_matches]
         inds = np.where(scores == np.max(scores))[0]
         return [partial_matches[i] for i in inds]
+
+    def copy_to(frm, to):
+        self.learners[to] = deepcopy(self.learners[frm])
+        rhs_list = self.rhs_by_label.get(frm.label, [])
+        rhs_list.append(to)
+        self.rhs_by_label[rhs.label] = rhs_list
+
+
 
 
 

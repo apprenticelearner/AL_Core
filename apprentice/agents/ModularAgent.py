@@ -355,7 +355,7 @@ class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
-                 heuristic_learner='proportion_correct', explanation_choice='most_parsimonious',
+                 heuristic_learner='weighted_proportion_correct', explanation_choice='least_operations',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
                  constraint_set='ctat', **kwargs):
@@ -392,6 +392,11 @@ class ModularAgent(BaseAgent):
 
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
+
+    # def copy_skill(rhs_id):
+    #     self.rhs_by_label[rhs_id] =
+
+
 
     # -----------------------------REQUEST------------------------------------
 
@@ -445,9 +450,14 @@ class ModularAgent(BaseAgent):
         # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
+        rhs_list = [x for x in rhs_list if not getattr(x,"is_bad",False)]        
+
+
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
+
+
 
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
@@ -455,6 +465,9 @@ class ModularAgent(BaseAgent):
             print("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
+                ne_garbage = self.which_learner.learners[explanation.rhs].num_incorrect
+                print("HEURISTIC",self.which_learner.learners[explanation.rhs].heuristic(state), ne_garbage)
+                
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
                     response.update(skill_info)
@@ -490,6 +503,9 @@ class ModularAgent(BaseAgent):
         if(len(nonmatching_explanations) > 0):
             non_m_inds = np.where(partial_scores == np.max(partial_scores))[0]
             nonmatching_explanations = [nonmatching_explanations[i] for i in non_m_inds]
+            if(len(matching_explanations) == 0):
+                print(partial_scores)
+                print(non_m_inds)
         return matching_explanations, nonmatching_explanations
 
     def _matches_from_foas(self, rhs, sai, foci_of_attention):
@@ -574,12 +590,29 @@ class ModularAgent(BaseAgent):
 
     def fit(self, explanations, state, reward):  # -> return None
         if(not isinstance(reward,list)): reward = [reward]*len(explanations)
+
+        used_rhss = set()
+        used_selections = set()
         for exp,_reward in zip(explanations,reward):
             mapping = list(exp.mapping.values())
             # print(exp, mapping, 'rew:', _reward)
             self.when_learner.ifit(exp.rhs, state, mapping, _reward)
-            self.which_learner.ifit(exp.rhs, state, _reward)
             self.where_learner.ifit(exp.rhs, mapping, state, _reward)
+
+            #TODO: Reject adding to which if when would no longer match for this state + mapping
+            if(_reward <= 0 or mapping[0] not in used_selections):
+                self.which_learner.ifit(exp.rhs, state, _reward)    
+                used_selections.add(mapping[0])
+                new_utility = self.which_learner.learners[exp.rhs].heuristic(state)
+                exp.rhs.is_bad = new_utility[0] < .2
+            
+            # used_rhss.add(exp.rhs)
+
+        # for rhs in used_rhss:
+        #     self.which_learner.ifit(rhs, state, _reward)
+        #     new_utility = self.which_learner.learners[rhs].heuristic(state)
+        #     rhs.is_bad = new_utility[0] < .2
+                
 
     def train(self, state:Dict, sai:Sai=None, reward:float=None,
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
@@ -615,12 +648,16 @@ class ModularAgent(BaseAgent):
             explanations = self.explanations_from_skills(state, sai,
                                                          self.rhs_list,
                                                          foci_of_attention)
-            explanations = list(explanations)
+
+            explanations = list([x for x in explanations if not getattr(x.rhs,"is_bad",False)])
+
             performance_logger.info("explanations_from_skills {} ms".format((time.time_ns()-t_s)/(1e6)))
 
             explanations, nonmatching_explanations = self.where_matches(
                                                  explanations,
                                                  state)
+            
+
             if(len(explanations) == 0):
 
                 if(len(nonmatching_explanations) > 0):
