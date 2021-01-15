@@ -71,7 +71,7 @@ class WeightedProportionCorrect(TotalCorrect):
         return (p / s if s > 0 else 0,  s)
 
 class NonLinearProportionCorrect(TotalCorrect):
-    def heuristic(self,state,a=1.0,b=1.0):
+    def heuristic(self,state,a=1.0,b=.25):
         p,n = self.num_correct, self.num_incorrect
         n = a*n + b*(n*n)
         s = p + n

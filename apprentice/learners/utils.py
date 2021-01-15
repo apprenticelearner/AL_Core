@@ -160,3 +160,8 @@ def count_elements(x, var_counts):
     else:
         c = 1
     return c
+
+
+
+# class EmptySensitiveDictVectorizer(TransformerMixin, BaseEstimator):
+#     ''' Like DictVectorizer but adds a field for whether or 

@@ -355,7 +355,7 @@ class ModularAgent(BaseAgent):
 
     def __init__(self, feature_set, function_set,
                  when_learner='decisiontree', where_learner='version_space',
-                 heuristic_learner='weighted_proportion_correct', explanation_choice='least_operations',
+                 which_learner='weighted_proportion_correct', explanation_choice='least_operations',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
                  constraint_set='ctat', **kwargs):
@@ -365,7 +365,7 @@ class ModularAgent(BaseAgent):
                                             **kwargs.get("where_args",{}))
         self.when_learner = get_when_learner(when_learner,
                                             **kwargs.get("when_args",{}))
-        self.which_learner = get_which_learner(heuristic_learner,
+        self.which_learner = get_which_learner(which_learner,
                                                explanation_choice, **kwargs.get("which_args",{}))
 
         planner_class = get_planner_class(planner)
