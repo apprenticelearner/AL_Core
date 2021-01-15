@@ -44,10 +44,10 @@ def req_A(agent):
 @pytest.mark.parametrize("when", ['decision_tree', 'cobweb', 'trestle'])
 @pytest.mark.parametrize("where", ['version_space',
                                    'fastmostspecific',
-                                   'mostspecific',
+                                   'mostspecific',])
                                    # 'stateresponselearner',
                                    # 'relationallearner',
-                                   'specifictogeneral'])
+                                   # 'specifictogeneral'])
 @pytest.mark.parametrize("which", ['proportioncorrect', 'totalcorrect'])
 @pytest.mark.parametrize("choice", ['first', 'mostparsimonious', 'all', 'random'])
 def test_fo_planner_configs(when, where, which, choice):
