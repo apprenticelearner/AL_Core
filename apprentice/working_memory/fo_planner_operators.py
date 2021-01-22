@@ -295,7 +295,7 @@ Operator.register("add", add_rule)
 add_then_ones = Operator(('Add_Then_Ones', '?x', '?y'),
                          [(('value', '?x'), '?xv'),
                           (('value', '?y'), '?yv'),
-                          # (lambda x, y: x <= y, '?x', '?y')
+                          (lambda x, y: x <= y, '?x', '?y')
                           ],
                          [(('value', ('Add_Then_Ones', ('value', '?x'), ('value', '?y'))),
                            (int2_float_add_then_ones, '?xv', '?yv'))])
@@ -303,7 +303,7 @@ add_then_ones = Operator(('Add_Then_Ones', '?x', '?y'),
 add_then_tens = Operator(('Add_Then_Tens', '?x', '?y'),
                          [(('value', '?x'), '?xv'),
                           (('value', '?y'), '?yv'),
-                          # (lambda x, y: x <= y, '?x', '?y')
+                          (lambda x, y: x <= y, '?x', '?y')
                           ],
                          [(('value', ('Add_Then_Tens', ('value', '?x'), ('value', '?y'))),
                            (int2_float_add_then_tens, '?xv', '?yv'))])
@@ -312,7 +312,7 @@ add_then_ones3 = Operator(('Add_Then_Ones3', '?x', '?y', '?w'),
                           [(('value', '?x'), '?xv'),
                            (('value', '?y'), '?yv'),
                            (('value', '?w'), '?wv'),
-                           # (lambda x, y: x <= y, '?x', '?y')
+                           (lambda x, y: x <= y, '?x', '?y')
                            ],
                           [(('value', ('Add_Then_Ones3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
                             (int3_float_add_then_ones, '?xv', '?yv', '?wv'))])
@@ -321,7 +321,53 @@ add_then_tens3 = Operator(('Add_Then_Tens3', '?x', '?y', '?w'),
                           [(('value', '?x'), '?xv'),
                            (('value', '?y'), '?yv'),
                            (('value', '?w'), '?wv'),
-                           # (lambda x, y: x <= y, '?x', '?y')
+                           (lambda x, y: x <= y, '?x', '?y')
+                           ],
+                          [(('value', ('Add_Then_Tens3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
+                            (int3_float_add_then_tens, '?xv', '?yv', '?wv'))])
+
+add_then_ones_same_column = Operator(('Add_Then_Ones', '?x', '?y'),
+                         [(('value', '?x'), '?xv'),
+                          (('value', '?y'), '?yv'),
+                          (lambda x, y: x < y, '?x', '?y'),
+                          (('column', '?x'), '?c'),
+                          (('column', '?y'), '?c')
+                          ],
+                         [(('value', ('Add_Then_Ones', ('value', '?x'), ('value', '?y'))),
+                           (int2_float_add_then_ones, '?xv', '?yv'))])
+
+add_then_ones3_same_column = Operator(('Add_Then_Ones3', '?x', '?y', '?w'),
+                          [(('value', '?x'), '?xv'),
+                           (('value', '?y'), '?yv'),
+                           (('value', '?w'), '?wv'),
+                           (lambda x, y: x < y, '?x', '?y'),
+                           (lambda y, w: y < w, '?y', '?w'),
+                           (('column', '?x'), '?c'),
+                           (('column', '?y'), '?c'),
+                           (('column', '?w'), '?c')
+                           ],
+                          [(('value', ('Add_Then_Ones3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
+                            (int3_float_add_then_ones, '?xv', '?yv', '?wv'))])
+
+add_then_tens_same_column = Operator(('Add_Then_Tens', '?x', '?y'),
+                         [(('value', '?x'), '?xv'),
+                          (('value', '?y'), '?yv'),
+                          (lambda x, y: x < y, '?x', '?y'),
+                          (('column', '?x'), '?c'),
+                          (('column', '?y'), '?c')
+                          ],
+                         [(('value', ('Add_Then_Tens', ('value', '?x'), ('value', '?y'))),
+                           (int2_float_add_then_tens, '?xv', '?yv'))])
+
+add_then_tens3_same_column = Operator(('Add_Then_Tens3', '?x', '?y', '?w'),
+                          [(('value', '?x'), '?xv'),
+                           (('value', '?y'), '?yv'),
+                           (('value', '?w'), '?wv'),
+                           (lambda x, y: x < y, '?x', '?y'),
+                           (lambda y, w: y < w, '?y', '?w'),
+                           (('column', '?x'), '?c'),
+                           (('column', '?y'), '?c'),
+                           (('column', '?w'), '?c')
                            ],
                           [(('value', ('Add_Then_Tens3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
                             (int3_float_add_then_tens, '?xv', '?yv', '?wv'))])
@@ -562,10 +608,19 @@ stoichiometry_rules = [sig_fig_rule, div_rule, mult_rule]
 fraction_fun = [add_rule, mult_rule]
 fraction_feat = [equal_rule, editable_rule]
 
+multicolumn_fun = [add_then_ones_same_column,
+                   add_then_tens_same_column,
+                   add_then_ones3_same_column,
+                   add_then_tens3_same_column
+                   ]
+
+multicolumn_feat = []
+
 functionsets = {'tutor knowledge': arith_rules,
                 'stoichiometry': stoichiometry_rules,
                 'rumbleblocks': rb_rules, 'article selection': [],
-                'fraction arith': fraction_fun}
+                'fraction arith': fraction_fun,
+                'multicolumn': multicolumn_fun}
 
 featuresets = {'tutor knowledge': [equal_rule,
                                    grammar_parser_rule,
@@ -575,7 +630,8 @@ featuresets = {'tutor knowledge': [equal_rule,
                                                          bigram_rule,
                                                          equal_rule,
                                                          editable_rule],
-               'fraction arith': fraction_feat}
+               'fraction arith': fraction_feat,
+               'multicolumn': multicolumn_fun}
 
 
 if __name__ == "__main__":
