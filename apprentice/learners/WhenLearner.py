@@ -18,6 +18,7 @@ from concept_formation.trestle import TrestleTree
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Preprocessor
+from numbaILP.tree_classifiers import TreeClassifier
 
 # from ilp.foil_classifier import FoilClassifier
 
@@ -257,11 +258,114 @@ class ListValueFlattener(Preprocessor):
     def undo_transform(self, instance):
         raise NotImplementedError()
 
+class DecisionTree2(TreeClassifier):
+    def __init__(self):
+        super().__init__('decision_tree')
+
+        self.X = []
+        self.y = []
+        self.slots = {}
+        self.slots_count = 0
+        self.X_list = []
+
+    def _designate_new_slots(self,x):
+        ''' Makes new slots for unseen keys and values'''
+        for k, v in x.items():
+            if(k not in self.slots):
+                vocab = self.slots[k] = {chr(0) : self.slots_count}         
+                self.slots_count += 1
+            else:
+                vocab = self.slots[k]
+
+            if(v not in vocab): 
+                vocab[v] = self.slots_count
+                self.slots_count += 1
+
+    def _dict_to_onehot(self,x,silent_fail=False):
+        x_new = [0]*self.slots_count
+        for k, vocab in self.slots.items():
+            # print(k, vocab)
+            val = x.get(k,chr(0))
+            if(silent_fail):
+                if(val in vocab): x_new[vocab[val]] = 1
+            else:
+                x_new[vocab[val]] = 1
+        return np.asarray(x_new,dtype=np.bool)
+
+
+    def _compose_one_hots(self):
+        X = np.empty( (len(self.X_list), self.slots_count), dtype=np.uint8)
+        missing_vals = [None]*len(self.X_list)
+        for i, one_hot_x in enumerate(self.X_list):
+            X[i,:len(one_hot_x)] = one_hot_x
+            X[i,len(one_hot_x):] = 0 # missing
+
+            # miss = np.empty((self.slots_count-len(one_hot_x),2),dtype=np.int64)
+            # miss[:,0] = i
+            # miss[:,1] = np.arange(len(one_hot_x),self.slots_count)
+            # missing_vals[i] = miss
+        # missing_vals = np.concatenate(missing_vals)
+        return X
+
+
+
+    def ifit(self, x, y):
+        # print(x)
+
+        self._designate_new_slots(x)
+        self.X_list.append(self._dict_to_onehot(x))
+        self.X = self._compose_one_hots()
+        # print(self.X)
+        # print(self.missing_vals)
+
+
+
+        # ft = Flattener()
+        # tup = Tuplizer()
+        # lvf = ListValueFlattener()
+
+        # x = lvf.transform(x)
+        # x = tup.undo_transform(ft.transform(x))
+        # # pprint(x)`
+        # self.X.append(x)
+        self.y.append(int(y) if not isinstance(y, tuple) else y)
+        Y = np.asarray(self.y,dtype=np.int64)
+        # print("IFIT:",self.X)
+        # print(self.y)
+        return super(DecisionTree2, self).fit(self.X, None, Y)
+
+    def predict(self, X):
+
+        onehot_X = np.empty((len(X), self.slots_count),dtype=np.bool)
+        for i, x in enumerate(X):
+            # self._designate_new_slots(x)
+            onehot_x = self._dict_to_onehot(x,silent_fail=True)
+            onehot_X[i] = onehot_x
+        # onehot_X = np.concatenate(onehot_X,dtype=np.bool)
+
+        # print("predict")
+        # print(onehot_X)
+        # print("---------")
+
+        # ft = Flattener()
+        # tup = Tuplizer()
+        # lvf = ListValueFlattener()
+
+        # X = lvf.transform(X)
+
+        # X = [tup.undo_transform(ft.transform(x)) for x in X]
+        # print("BEEP", X)
+        # print("PRED:",X)
+        # print("VAL:", super(CustomPipeline, self).predict(X))
+        return super(DecisionTree2, self).predict(onehot_X,None)
+
+
 
 
 class CustomPipeline(Pipeline):
 
     def ifit(self, x, y):
+        print(x)
         if not hasattr(self, 'X'):
             self.X = []
         if not hasattr(self, 'y'):
@@ -365,12 +469,18 @@ def DictVectWrapper(clf):
     def fun(x=None):
         dv = DictVectorizer(sparse=False, sort=False)
         if x is None:
-            return CustomPipeline([('dict vect', dv),
+            return SpecialVectorizePipeline([('dict vect', dv),
                                    ('clf', clf())])
         else:
-            return CustomPipeline([('dict vect', dv),
+            return SpecialVectorizePipeline([('dict vect', dv),
                                    ('clf', clf(**x))])
 
+    return fun
+
+
+def SpecialDictVectWrapper(clf):
+    def fun(**kwargs):
+        return SpecialVectorizePipeline([('clf', clf(**kwargs))])
     return fun
 
     # def applicable_skills(self,state,skill_label,skills=None):
@@ -729,6 +839,8 @@ def get_when_learner(name, **kwargs):
 
 
 WHEN_LEARNERS = {
+    "decisiontree2": {"learner": "decisiontree2",
+                     "state_format": "variablized_state"},
     "decisiontree": {"learner": "decisiontree",
                      "state_format": "variablized_state"},
     "cobweb": {"learner": "cobweb", "when_type": "one_learner_per_rhs",
@@ -739,7 +851,8 @@ WHEN_LEARNERS = {
 
 WHEN_CLASSIFIERS = {
     'naivebayes': DictVectWrapper(BernoulliNB),
-    'decisiontree': DictVectWrapper(DecisionTree),
+    'decisiontree': SpecialDictVectWrapper(DecisionTree),
+    'decisiontree2': DecisionTree2,
     'logisticregression': DictVectWrapper(CustomLogisticRegression),
     'nearestneighbors': DictVectWrapper(CustomKNeighborsClassifier),
     'random_forest': DictVectWrapper(RandomForestClassifier),
