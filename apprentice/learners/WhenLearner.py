@@ -30,7 +30,7 @@ class WhenLearner(object):
     WHEN_TYPE_OPTIONS = ["one_learner_per_rhs", "one_learner_per_label"]
     CROSS_RHS_INFERENCE = ["none", "implicit_negatives", "rhs_in_y"]
 
-    def __init__(self, learner, when_type="one_learner_per_rhs",
+    def __init__(self, agent, learner, when_type="one_learner_per_rhs",
                  state_format="variablized_state",
                  cross_rhs_inference="none",
                  **learner_kwargs):
@@ -49,6 +49,7 @@ class WhenLearner(object):
                    "when_type must be 'one_learner_per_label' if using \
                     cross_rhs_inference = 'rhs_in_y', but got %r " % when_type
 
+        self.agent = agent
         self.learner_name = learner
         self.learner_kwargs = learner_kwargs
         self.type = when_type
@@ -81,11 +82,15 @@ class WhenLearner(object):
 
         if(self.cross_rhs_inference == "implicit_negatives"):
             self.examples[key] = {}
+            self.examples[key]['base_state'] = []
             self.examples[key]['state'] = []
             self.examples[key]['reward'] = []
             self.implicit_examples[key] = {}
+            self.implicit_examples[key]['base_state'] = []
+            self.implicit_examples[key]['overridden'] = []
             self.implicit_examples[key]['state'] = []
             self.implicit_examples[key]['reward'] = []
+            self.implicit_examples[key]['mapping'] = []
 
     def ifit(self, rhs, state, mapping, reward):
         # print("FIT_STATe", state)
@@ -94,17 +99,23 @@ class WhenLearner(object):
         # print("LEARNERS",self.sub_learners)
         
         if(self.cross_rhs_inference == "implicit_negatives"):
+            base_state = state.get_view('flat_ungrounded')
+            base_state = {k:v for k,v in base_state.items() if (k[0]=='contentEditable' and ('out' == k[1][:3] or 'carry' == k[1][:5]))}
+            base_state = [0 if(v) else 1 for v in base_state.values()]
+            # print(base_state)
             this_state = state.get_view(("variablize",rhs,tuple(mapping)))
-            pprint(this_state)
+            # pprint(this_state)
             if(self.type == "one_learner_per_label"):
                 key = rhs.label
             elif(self.type == "one_learner_per_rhs"):
                 key = rhs
 
 
-
+            base_states = self.examples[key]['base_state']
             states = self.examples[key]['state']
             rewards = self.examples[key]['reward']
+
+            base_states.append(base_state)
             states.append(this_state)
             rewards.append(reward)
 
@@ -114,18 +125,27 @@ class WhenLearner(object):
             # pprint(states)
             # pprint(rewards)
 
+            implicit_base_states = self.implicit_examples[key]['base_state']
             implicit_states = self.implicit_examples[key]['state']
             implicit_rewards = self.implicit_examples[key]['reward']
 
             # Remove any implicit negative examples in this rhs with the current state
-            try:
-                index_value = self.implicit_examples[key]['state'].index(this_state)
-            except ValueError:
-                index_value = -1
+            to_remove = []
+            for i,bs in enumerate(self.implicit_examples[key]['base_state']):
+                if(bs == base_state): to_remove.append(i)
+                    
+            if(len(to_remove) > 0):
+                print("To REMOVE", to_remove)
+            for i in reversed(to_remove):
+                del self.implicit_examples[key]['base_state'][i]
+                del self.implicit_examples[key]['state'][i]
+                del self.implicit_examples[key]['reward'][i]
+                del self.implicit_examples[key]['mapping'][i]
+            
 
-            if(index_value != -1):
-                del self.implicit_examples[key]['state'][index_value]
-                del self.implicit_examples[key]['reward'][index_value]
+                
+            
+            self.implicit_examples[key]['overridden'].append(base_state)
 
             print("MAIN:",str(rhs))
             self.sub_learners[key].fit(states+implicit_states,
@@ -139,33 +159,43 @@ class WhenLearner(object):
                     matches.append(k[2])
                     all_matches[k[1]] = matches
             # print("all_matches")
-            # print(all_matches)
+            # pprint(all_matches)
             # print("implicit_rewards")
             # print(implicit_rewards)
             if(reward > 0):
                 for other_key, other_impl_exs in self.implicit_examples.items():
                     
                     if(other_key != key):
-                        print("OTHER:",str(other_key))
+                        # print("OTHER:",str(other_key))
                         # print(other_key, key)
                         # Add implicit negative examples to any rhs that doesn't already have this state
                         # TODO: Do this for all bindings not just for the given state
                         # other_state = state.get_view(("variablize",other_key,tuple(mapping)))
-                        for m in all_matches.get(other_key,[]):
+                        # pprint(other_impl_exs['overridden'])
+                        if(base_state not in other_impl_exs['overridden'] and 
+                            base_state not in other_impl_exs['base_state']):
+                            used_sels = set()
+                            for m in all_matches.get(other_key,[]):
                             # print("other_map: ",m)
-                            other_state = state.get_view(("variablize",other_key,m))
+                            
                             # print("other_state:")
                             # pprint(other_state)
-
-                            if(other_state not in self.examples[other_key]['state']):
+                                print("IMPL NEG", other_key, m)
+                            
+                                other_state = state.get_view(("variablize",other_key,m))
                                 # print("BEFORE",other_impl_exs['reward'])
+                                other_impl_exs['base_state'].append(base_state)
                                 other_impl_exs['state'].append(other_state)
                                 other_impl_exs['reward'].append(-1)
+                                other_impl_exs['mapping'].append(m)
+                                if(m[0] not in used_sels):
+                                    self.agent.which_learner.ifit(other_key, other_state, m, -1)    
+                                    used_sels.add(m[0])
                                 # print("AFTER",other_impl_exs['reward'])
                         # print("TOTAL:",len(self.examples[other_key]['reward']))
                         # print("IMPL:",len(other_impl_exs['reward']))
-                        self.sub_learners[other_key].fit(self.examples[other_key]['state']+other_impl_exs['state'],
-                                                     self.examples[other_key]['reward']+other_impl_exs['reward'])
+                            self.sub_learners[other_key].fit(self.examples[other_key]['state']+other_impl_exs['state'],
+                                                         self.examples[other_key]['reward']+other_impl_exs['reward'])
 
                
 
@@ -258,15 +288,22 @@ class ListValueFlattener(Preprocessor):
     def undo_transform(self, instance):
         raise NotImplementedError()
 
-class DecisionTree2(TreeClassifier):
-    def __init__(self):
-        super().__init__('decision_tree')
-
+# class DecisionTree2(TreeClassifier):
+class DecisionTree2(object):
+    def __init__(self, impl="decision_tree_w_greedy_backup", use_missing=False):
+        if(impl == "sklearn"):
+            self.dt = DecisionTreeClassifier()
+        else:
+            self.dt = TreeClassifier(impl)
+        
+        self.impl = impl
         self.X = []
         self.y = []
         self.slots = {}
         self.slots_count = 0
         self.X_list = []
+        self.use_missing = use_missing
+        
 
     def _designate_new_slots(self,x):
         ''' Makes new slots for unseen keys and values'''
@@ -298,7 +335,7 @@ class DecisionTree2(TreeClassifier):
         missing_vals = [None]*len(self.X_list)
         for i, one_hot_x in enumerate(self.X_list):
             X[i,:len(one_hot_x)] = one_hot_x
-            X[i,len(one_hot_x):] = 0 # missing
+            X[i,len(one_hot_x):] = 2 if self.use_missing else 0 # missing
 
             # miss = np.empty((self.slots_count-len(one_hot_x),2),dtype=np.int64)
             # miss[:,0] = i
@@ -311,28 +348,40 @@ class DecisionTree2(TreeClassifier):
 
     def ifit(self, x, y):
         # print(x)
-
         self._designate_new_slots(x)
         self.X_list.append(self._dict_to_onehot(x))
         self.X = self._compose_one_hots()
-        # print(self.X)
-        # print(self.missing_vals)
-
-
-
-        # ft = Flattener()
-        # tup = Tuplizer()
-        # lvf = ListValueFlattener()
-
-        # x = lvf.transform(x)
-        # x = tup.undo_transform(ft.transform(x))
-        # # pprint(x)`
-        # self.X.append(x)
+        
         self.y.append(int(y) if not isinstance(y, tuple) else y)
         Y = np.asarray(self.y,dtype=np.int64)
-        # print("IFIT:",self.X)
-        # print(self.y)
-        return super(DecisionTree2, self).fit(self.X, None, Y)
+
+        self.fit(self.X,Y)
+
+    def fit(self, X, Y):
+        if(not isinstance(X,np.ndarray)):
+            self.X_list = []
+            for x in X:
+                self._designate_new_slots(x)
+                self.X_list.append(self._dict_to_onehot(x))
+            self.X = X = self._compose_one_hots()
+
+        # self.Y = Y
+
+        Y = np.asarray(Y,dtype=np.int64)
+
+        # if(len(X) > 20):
+        #     print("CUTTING")
+        #     X = X[10:]
+        #     Y = Y[10:]
+
+        # print(X.shape, Y.shape)
+
+        if(self.impl == "sklearn"):
+            return self.dt.fit(X, Y)
+        else:
+            # print(str(self.dt) if getattr(self.dt, "tree",None) is not None else None)
+            return self.dt.fit(X, None, Y)
+
 
     def predict(self, X):
 
@@ -357,7 +406,10 @@ class DecisionTree2(TreeClassifier):
         # print("BEEP", X)
         # print("PRED:",X)
         # print("VAL:", super(CustomPipeline, self).predict(X))
-        return super(DecisionTree2, self).predict(onehot_X,None)
+        if(self.impl == "sklearn"):
+            return self.dt.predict(onehot_X)
+        else:
+            return self.dt.predict(onehot_X,None)
 
 
 
@@ -593,12 +645,12 @@ class ScikitTrestle(object):
         self.state_format = "variablized_state"
 
     def ifit(self, x, y):
-        x = deepcopy(x)
+        x = deepcopy(dict(x))
         x['_y_label'] = float(y)
         self.tree.ifit(x)
 
     def fit(self, X, y):
-        X = deepcopy(X)
+        X = deepcopy(dict(X))
         for i, x in enumerate(X):
             x['_y_label'] = float(y)
         self.tree.fit(X, randomize_first=False)
@@ -618,12 +670,12 @@ class ScikitCobweb(object):
         self.state_format = "variablized_state"
 
     def ifit(self, x, y):
-        x = deepcopy(x)
+        x = deepcopy(dict(x))
         x['_y_label'] = float(y)
         self.tree.ifit(x)
 
     def fit(self, X, y):
-        X = deepcopy(X)
+        X = deepcopy(dict(X))
         for i, x in enumerate(X):
             # print(y)
             x['_y_label'] = float(y) if not isinstance(y,list) else y[i]
@@ -832,10 +884,10 @@ def get_when_sublearner(name, **kwargs):
     return WHEN_CLASSIFIERS[name.lower().replace(' ', '').replace('_', '')](**kwargs)
 
 
-def get_when_learner(name, **kwargs):
+def get_when_learner(agent, name, **kwargs):
     inp_d = WHEN_LEARNERS[name.lower().replace(' ', '').replace('_', '')]
     inp_d.update(kwargs)
-    return WhenLearner(**inp_d)
+    return WhenLearner(agent, **inp_d)
 
 
 WHEN_LEARNERS = {

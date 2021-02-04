@@ -363,9 +363,9 @@ class ModularAgent(BaseAgent):
                 
         self.where_learner = get_where_learner(where_learner,
                                             **kwargs.get("where_args",{}))
-        self.when_learner = get_when_learner(when_learner,
+        self.when_learner = get_when_learner(self, when_learner,
                                             **kwargs.get("when_args",{}))
-        self.which_learner = get_which_learner(which_learner,
+        self.which_learner = get_which_learner(self, which_learner,
                                                explanation_choice, **kwargs.get("which_args",{}))
 
         planner_class = get_planner_class(planner)
@@ -376,7 +376,7 @@ class ModularAgent(BaseAgent):
                                    function_set=self.function_set,
                                    feature_set=self.feature_set,
                                    **kwargs.get("planner_args",{}))
-        sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]        
+        sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")] 
         self.strip_attrs = strip_attrs
         self.state_variablizer = MethodType(sv, self)
         self.rhs_list = []
@@ -389,6 +389,8 @@ class ModularAgent(BaseAgent):
         self.rhs_counter = 0
         self.ret_train_expl = ret_train_expl
         self.last_state = None
+        self.remove_low_utility = True
+        self.one_pos_which_per_sel = True
 
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
@@ -448,7 +450,7 @@ class ModularAgent(BaseAgent):
         # print("REQUEST")
         # pprint({(k,v['value'],v['contentEditable']) for k,v in state.get_view("object").items() if 'value' in v and 'contentEditable' in v})
         # state = self.planner.apply_featureset(state)
-        rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
+        rhs_list = self.which_learner.sort_by_utility(self.rhs_list, state)
 
         rhs_list = [x for x in rhs_list if not getattr(x,"is_bad",False)]        
 
@@ -466,7 +468,15 @@ class ModularAgent(BaseAgent):
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
                 ne_garbage = self.which_learner.learners[explanation.rhs].num_incorrect
-                print("HEURISTIC",self.which_learner.learners[explanation.rhs].heuristic(state), ne_garbage)
+                rem_ne_garbage = self.which_learner.removal_learners[explanation.rhs].num_incorrect
+                pe_garbage = self.which_learner.learners[explanation.rhs].num_correct
+                rem_pe_garbage = self.which_learner.removal_learners[explanation.rhs].num_correct
+                ut = self.which_learner.get_utility(explanation.rhs,state)
+                rem_ut = self.which_learner.get_removal_utility(explanation.rhs,state)
+                # print(ut, rem_ut)
+                # ut = ut if isinstance(ut,(float,int)) else 0.0
+                # rem_ut = rem_ut if isinstance(rem_ut,(float,int)) else 0.0
+                print(f"UTILITY: U:({ut[0]:.3f}, {pe_garbage}:{ne_garbage}) R:({rem_ut[0]:.3f}, {rem_pe_garbage}:{rem_ne_garbage})")
                 
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
@@ -588,29 +598,35 @@ class ModularAgent(BaseAgent):
         self.when_learner.add_rhs(rhs)
         self.which_learner.add_rhs(rhs)
 
-    def fit(self, explanations, state, reward):  # -> return None
-        if(not isinstance(reward,list)): reward = [reward]*len(explanations)
+    def fit(self, explanations, state, rewards):  # -> return None
+        if(not isinstance(rewards,list)): rewards = [rewards]*len(explanations)
 
-        used_rhss = set()
         used_selections = set()
-        for exp,_reward in zip(explanations,reward):
+        for exp,reward in zip(explanations,rewards):
             mapping = list(exp.mapping.values())
             # print(exp, mapping, 'rew:', _reward)
-            self.when_learner.ifit(exp.rhs, state, mapping, _reward)
-            self.where_learner.ifit(exp.rhs, mapping, state, _reward)
+            self.when_learner.ifit(exp.rhs, state, mapping, reward)
+            self.where_learner.ifit(exp.rhs, mapping, state, reward)
 
             #TODO: Reject adding to which if when would no longer match for this state + mapping
-            if(_reward <= 0 or mapping[0] not in used_selections):
-                self.which_learner.ifit(exp.rhs, state, _reward)    
+            # If the reward is positive only increment which for the top explanation, but
+            #   if it is wrong increment neg for all
+            if(not self.one_pos_which_per_sel or 
+                reward <= 0 or mapping[0] not in used_selections):
+                self.which_learner.ifit(exp.rhs, state, mapping, reward)    
                 used_selections.add(mapping[0])
-                new_utility = self.which_learner.learners[exp.rhs].heuristic(state)
-                exp.rhs.is_bad = new_utility[0] < .2
+
+            if(self.remove_low_utility):
+                rem_utility = self.which_learner.get_removal_utility(exp.rhs,state)#learners[exp.rhs].utility(state)
+                exp.rhs.is_bad = rem_utility[0] < .2
+                if(exp.rhs.is_bad):
+                    print("MARKED BAD:"+str(exp.rhs))
             
             # used_rhss.add(exp.rhs)
 
         # for rhs in used_rhss:
         #     self.which_learner.ifit(rhs, state, _reward)
-        #     new_utility = self.which_learner.learners[rhs].heuristic(state)
+        #     new_utility = self.which_learner.learners[rhs].utility(state)
         #     rhs.is_bad = new_utility[0] < .2
                 
 

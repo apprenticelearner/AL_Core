@@ -5,73 +5,108 @@ from random import shuffle
 
 class WhichLearner(object):
 
-    def __init__(self, heuristic_learner, explanation_choice,**learner_kwargs):
+    def __init__(self, agent, utility_type, explanation_choice, remove_utility_type=None, **learner_kwargs):
         
         # self.learner_name = learner_name
-        self.heuristic_name = heuristic_learner
+        self.agent = agent
+        rem_util_same = (utility_type == remove_utility_type) or remove_utility_type is None
+        self.utility_type = utility_type
+        self.remove_utility_type = remove_utility_type if not rem_util_same else utility_type
         self.explanation_choice = explanation_choice
         self.learner_kwargs = learner_kwargs
         self.rhs_by_label = {}
         self.learners = {}
+        self.removal_learners = {} if not rem_util_same else self.learners
         self.explanation_choice = get_explanation_choice(explanation_choice)
 
 
+
     def add_rhs(self,rhs):
-        self.learners[rhs] = get_heuristic_sublearner(self.heuristic_name,**self.learner_kwargs)
+        self.learners[rhs] = get_utility_sublearner(self, rhs,self.utility_type,**self.learner_kwargs)
         rhs_list = self.rhs_by_label.get(rhs.label,[])
         rhs_list.append(rhs)
         self.rhs_by_label[rhs.label] = rhs_list
+        if(self.utility_type != self.remove_utility_type):
+            self.removal_learners[rhs] = get_utility_sublearner(self, rhs,self.remove_utility_type,**self.learner_kwargs)
 
-    def ifit(self,rhs, state, reward):
-        return self.learners[rhs].ifit(state, reward)
 
-    def sort_by_heuristic(self,rhs_list,state):
-        # print([(x._id_num,self.learners[x].heuristic(state)) for x in skills])
-        # out = sorted(skills,reverse=True, key=lambda x:self.learners[x].heuristic(state))
-        # print([(x._id_num,self.learners[x].heuristic(state)) for x in out])
-        return sorted(rhs_list,reverse=True, key=lambda x:self.learners[x].heuristic(state))
+    def ifit(self,rhs, state, mapping, reward):
+        self.learners[rhs].ifit(state, mapping, reward)
+        if(self.utility_type != self.remove_utility_type):
+            self.removal_learners[rhs].ifit(state, mapping, reward)
+
+    def sort_by_utility(self,rhs_list,state):
+        # print([(x._id_num,self.learners[x].utility(state)) for x in skills])
+        # out = sorted(skills,reverse=True, key=lambda x:self.learners[x].utility(state))
+        # print([(x._id_num,self.learners[x].utility(state)) for x in out])
+        return sorted(rhs_list,reverse=True, key=lambda x:self.get_utility(x,state))
 
     def select_how(self,expl_iter):
         return self.explanation_choice(expl_iter)
 
+    def get_utility(self, rhs, state):
+        return self.learners[rhs].utility(state)
 
-####---------------HEURISTIC------------########
+    def get_removal_utility(self, rhs, state):
+        return self.removal_learners[rhs].utility(state)
 
-class BaseHeuristicAgent(object):
+
+
+####---------------utility------------########
+
+class BaseutilityAgent(object):
     def __init__(self):
         pass
     def ifit(self,state,reward):
         pass
-    def heuristic(self,state):
+    def utility(self,state):
         pass
 
-class TotalCorrect(BaseHeuristicAgent):
+
+
+
+
+class TotalCorrect(BaseutilityAgent):
     def __init__(self):
         self.num_correct = 0
         self.num_incorrect = 0
-    def ifit(self,state,reward):
+    def ifit(self,state, mapping, reward):
         if(reward > 0):
             self.num_correct += 1
         else:
             self.num_incorrect += 1
-    def heuristic(self,state):
+    def utility(self,state):
         return self.num_correct
+
+class IncrementalWhenAccuracy(TotalCorrect):
+    def ifit(self, state, mapping, reward):
+        v_state = state.get_view(("variablize",self.rhs,tuple(mapping)))
+        pred = self.agent.when_learner.predict(self.rhs, v_state)
+        if(pred == reward):
+            self.num_correct += 1
+        else:
+            self.num_incorrect += 1
+
+    def utility(self, state):
+        p,n = self.num_correct, self.num_incorrect
+        s = p + n
+        return (p / s if s > 0 else 0,  s)
 
 
 class ProportionCorrect(TotalCorrect):
-    def heuristic(self,state):
+    def utility(self,state):
         p,n = self.num_correct, self.num_incorrect
         s = p + n
         return (p / s if s > 0 else 0,  s)
 
 class WeightedProportionCorrect(TotalCorrect):
-    def heuristic(self,state,w=2.0):
+    def utility(self,state,w=2.0):
         p,n = self.num_correct, w*self.num_incorrect
         s = p + n
         return (p / s if s > 0 else 0,  s)
 
 class NonLinearProportionCorrect(TotalCorrect):
-    def heuristic(self,state,a=1.0,b=.25):
+    def utility(self,state,a=1.0,b=.25):
         p,n = self.num_correct, self.num_incorrect
         n = a*n + b*(n*n)
         s = p + n
@@ -139,15 +174,19 @@ def random(expl_iter):
 def get_explanation_choice(name):
     return CULL_HOW_RULES[name.lower().replace(' ', '').replace('_', '')]
 
-def get_heuristic_sublearner(name,**learner_kwargs):
-    return WHICH_HEURISTIC_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+def get_utility_sublearner(parent, rhs, name,**learner_kwargs):
+    sl = WHICH_utility_AGENTS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+    sl.rhs = rhs
+    sl.agent = parent.agent
+    return sl
 
-def get_which_learner(heuristic_learner,explanation_choice,**kwargs):
-    return WhichLearner(heuristic_learner,explanation_choice,**kwargs)
+def get_which_learner(agent, utility_learner, explanation_choice,**kwargs):
+    return WhichLearner(agent, utility_learner, explanation_choice,**kwargs)
 
 
 
-WHICH_HEURISTIC_AGENTS = {
+WHICH_utility_AGENTS = {
+    'incrementalwhenaccuracy': IncrementalWhenAccuracy,
     'proportioncorrect': ProportionCorrect,
     'totalcorrect': TotalCorrect,   
     'weightedproportioncorrect': WeightedProportionCorrect,   

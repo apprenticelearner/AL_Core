@@ -964,12 +964,93 @@ def mask_select(x, m):
 
 import time
 
+from dataclasses import dataclass
+
+@dataclass
+class ConservativeVersionSpaceNode():
+    vs: VersionSpace = None
+    pos : float = 0.0
+    neg : float = 0.0
+    parent : ConservativeVersionSpaceNode = None
+    pos_matches : list = []
+    depth : int = 1
+    ind : int = -1
+
+    @attribute
+    def utility(self):
+        return self.pos - self.neg
+
+    def score_match(self, t, x):
+        self.vs.score_match(t,x)
+
+
+class ConservativeVersionSpace(BaseILP):
+    def __init__(self,*args,**kwargs):
+        #These are just going to be passed along to
+        self.args = args
+        self.kwargs = kwargs
+        self.nodes = []
+        self.head = None
+        #A nonlinearity that makes new generalizations get less than 1.0 
+        #  utility credit
+        self.score_activation = kwargs.get("score_activation",np.sqrt)
+
+
+
+    def ifit(self, t, x, y):
+
+        #Increment reward for any matching nodes
+        scores = [n.score_match(t, x) for n in self.nodes]
+        scores_nodes = [(s,n) for s,n in zip(scores,self.nodes)]
+        matching_nodes = [n for s,n in scores_nodes if s >= 1.0]
+        for node in matching_nodes:
+            if(y > 0):
+                node.pos += 1.0
+            else:
+                node.neg += 1.0
+        
+        if(len(scores) == 0 and y > 0):
+            vs = VersionSpace(**self.args, **self.kwargs)
+            vs.ifit(t, x, y)
+            node = ConservativeVersionSpaceNode(vs=vs,pos_matches=[t],ind=0)
+            self.nodes.append(vs)
+            self.head = vs
+            node.pos_matches = [(t,x)]
+        else:
+            #Get best matching, consistent, and most general node 
+            sorted_scores_nodes = sorted([(s,n.utility,-n.d,n) for s, n in scores_nodes])
+            score, _, node = sorted_scores_nodes[-1]
+            if(score < 1.0):
+                #If score is < 1.0 then make a child that is generalized beyond
+                # the best node by incorperating (t,x)
+                vs = VersionSpace(**self.args, **self.kwargs)
+                
+                #Train up to a copy of node and then this example too.
+                c_pos_matches = node.pos_matches + [(t,x)]
+                for _t, _x in c_pos_matches:
+                    vs.ifit(_t,_x,1)
+                child_node = ConservativeVersionSpaceNode(vs=vs,
+                    pos_matches=c_pos_matches,ind=len(self.nodes),
+                    pos=self.score_activation(score),parent=node,
+                    depth=node.depth+1)
+
+                self.nodes.append(child_node)
+
+        def get_matches(self, x):
+            _,_,node = sorted([(n.utility,-n.d,n) for n in self.nodes])[-1]
+            return node.vs.get_matches(x)
+
+        def check_match(self, t, x):
+            return self.score_match(t,x) == 1.0
+
+
+        def score_match(self, t, x):
+            score = max([n.score_match(t, x) for n in self.nodes])
+            return score
+
+
 class VersionSpace(BaseILP):
-    def __init__(self, args=None, constraints=None, use_neg=False, use_gen=False,
-                       propose_gens=True, use_neighbor_concepts=True,
-                       non_literal_attrs=["to_right","to_left","right","left","above","below","value","contentEditable"],
-                       remove_attrs=[],
-                       null_types=[None,""]):
+    def __init__(self, **args,**kwargs):
         self.pos_concepts = VersionSpaceILP(use_gen=use_gen)
         self.neg_concepts = VersionSpaceILP(use_gen=use_gen) if use_neg else None
         self.propose_gens = propose_gens
@@ -1926,6 +2007,7 @@ class Enumerizer(Preprocessor):
 # def version_space():
 
 WHERE_SUBLEARNERS = {
+    'conservativeversionspace': ConservativeVersionSpace,
     'versionspace': VersionSpace,
     'fastmostspecific': FastMostSpecific,
     'mostspecific': MostSpecific,
@@ -1935,6 +2017,7 @@ WHERE_SUBLEARNERS = {
 }
 
 WHERE_STRATEGY = {
+    'conservativeversionspace': "object",
     'versionspace': "object",
     'fastmostspecific': "object",
     'mostspecific': "first_order",
