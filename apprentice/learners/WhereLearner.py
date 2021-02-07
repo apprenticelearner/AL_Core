@@ -132,6 +132,7 @@ def get_vars(arg):
 class WhereLearner(object):
 
     def __init__(self, learner_name, **learner_kwargs):
+        # print("learner_name", learner_name)
         self.learner_name = learner_name
         self.learner_kwargs = learner_kwargs
         self.rhs_by_label = {}
@@ -139,7 +140,7 @@ class WhereLearner(object):
 
     def add_rhs(self, rhs, constraints):
         # args = [skill.selection_var] + skill.input_vars
-        self.learners[rhs] = get_where_sublearner(self.learner_name,
+        self.learners[rhs] = get_where_sublearner(self.learner_name, rhs,
             args=tuple(rhs.all_vars), constraints=constraints, **self.learner_kwargs)
 
         rhs_list = self.rhs_by_label.get(rhs.label, [])
@@ -158,6 +159,7 @@ class WhereLearner(object):
 
     def get_matches(self, rhs, X):
         # args = [skill.selection_var] + skill.input_vars
+        # print("BEEP",self.learners[rhs].get_matches(X))
         return self.learners[rhs].get_matches(X)
 
     def ifit(self, rhs, t, X, y):
@@ -791,8 +793,10 @@ class SpecificToGeneral(BaseILP):
             self.ifit(t, X[i], y[i])
 
 
-def get_where_sublearner(name, **learner_kwargs):
-    return WHERE_SUBLEARNERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+def get_where_sublearner(name, rhs, **learner_kwargs):
+    s = WHERE_SUBLEARNERS[name.lower().replace(' ', '').replace('_', '')](**learner_kwargs)
+    s.rhs = rhs
+    return s
 
 
 def get_where_learner(name, **kwargs):
@@ -964,29 +968,32 @@ def mask_select(x, m):
 
 import time
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class ConservativeVersionSpaceNode():
-    vs: VersionSpace = None
+    vs : object = None
     pos : float = 0.0
     neg : float = 0.0
-    parent : ConservativeVersionSpaceNode = None
-    pos_matches : list = []
+    parent : object = None
+    pos_matches : list = field(default_factory=list)
     depth : int = 1
     ind : int = -1
 
-    @attribute
+    @property
     def utility(self):
-        return self.pos - self.neg
+        s = (self.neg + .25*(self.neg**2)) + self.pos
+        if(s == 0.0): return 0.0
+        return self.pos / s
 
     def score_match(self, t, x):
-        self.vs.score_match(t,x)
+        return self.vs.score_match(t,x)
 
 
 class ConservativeVersionSpace(BaseILP):
     def __init__(self,*args,**kwargs):
-        #These are just going to be passed along to
+        # print("CONSERVATIVE VS INSTANTIATED")
+        #These are just going to be passed along to VersionSpace instances
         self.args = args
         self.kwargs = kwargs
         self.nodes = []
@@ -994,63 +1001,110 @@ class ConservativeVersionSpace(BaseILP):
         #A nonlinearity that makes new generalizations get less than 1.0 
         #  utility credit
         self.score_activation = kwargs.get("score_activation",np.sqrt)
+        self.heads = []
 
 
 
     def ifit(self, t, x, y):
-
+        print("IFIT", t, y)
         #Increment reward for any matching nodes
         scores = [n.score_match(t, x) for n in self.nodes]
         scores_nodes = [(s,n) for s,n in zip(scores,self.nodes)]
         matching_nodes = [n for s,n in scores_nodes if s >= 1.0]
         for node in matching_nodes:
+            amount = 1.0
+            # if(node.parent != None and node.parent in matching_nodes):
+            #     amount = .5
             if(y > 0):
                 node.pos += 1.0
             else:
                 node.neg += 1.0
+
+        # self.nodes = [n for n in self.nodes if n.utility >= .5]
+
+        print(["(%d)->%.2f(%d:%d)" %(n.depth,n.utility, n.pos,n.neg) for n in self.nodes])
+        print([ ",".join(["".join([y[-2:] for y in x[0]]) for x in n.pos_matches]) for n in self.nodes])
+
+        if(y > 0):
         
-        if(len(scores) == 0 and y > 0):
-            vs = VersionSpace(**self.args, **self.kwargs)
-            vs.ifit(t, x, y)
-            node = ConservativeVersionSpaceNode(vs=vs,pos_matches=[t],ind=0)
-            self.nodes.append(vs)
-            self.head = vs
-            node.pos_matches = [(t,x)]
-        else:
             #Get best matching, consistent, and most general node 
-            sorted_scores_nodes = sorted([(s,n.utility,-n.d,n) for s, n in scores_nodes])
-            score, _, node = sorted_scores_nodes[-1]
-            if(score < 1.0):
-                #If score is < 1.0 then make a child that is generalized beyond
-                # the best node by incorperating (t,x)
-                vs = VersionSpace(**self.args, **self.kwargs)
+            # sorted_scores_nodes = sorted([(s,n.utility,n.depth,n) for s, n in scores_nodes])
+            # score, _,_, node = sorted_scores_nodes[-1]
+            add_depth_1_cover = len(scores) == 0
+            if(len(scores) > 0 and max(scores) < 1.0):
+                for score, node in scores_nodes:
+
+                    if(node.utility >= .5):
+                    
+                        vs = VersionSpace(*self.args, **self.kwargs)
+                        
+                        #Train up to a copy of node and then this example too.
+                        c_pos_matches = node.pos_matches + [(t,x)]
+                        print("Generalize", ",".join(["".join([y[-2:] for y in x[0]]) for x in node.pos_matches]))
+                        for _t, _x in c_pos_matches:
+                            vs.ifit(_t,_x,1)
+                        child_node = ConservativeVersionSpaceNode(vs=vs,
+                            pos_matches=c_pos_matches,ind=len(self.nodes),
+                            pos=1, neg=0, parent=node,
+                            depth=node.depth+1)
+
+                        self.nodes.append(child_node)
+
+                        add_depth_1_cover = True
                 
-                #Train up to a copy of node and then this example too.
-                c_pos_matches = node.pos_matches + [(t,x)]
-                for _t, _x in c_pos_matches:
-                    vs.ifit(_t,_x,1)
-                child_node = ConservativeVersionSpaceNode(vs=vs,
-                    pos_matches=c_pos_matches,ind=len(self.nodes),
-                    pos=self.score_activation(score),parent=node,
-                    depth=node.depth+1)
 
-                self.nodes.append(child_node)
-
-        def get_matches(self, x):
-            _,_,node = sorted([(n.utility,-n.d,n) for n in self.nodes])[-1]
-            return node.vs.get_matches(x)
-
-        def check_match(self, t, x):
-            return self.score_match(t,x) == 1.0
+            if(add_depth_1_cover):
+                vs = VersionSpace(*self.args, **self.kwargs)
+                vs.ifit(t, x, y)
+                node = ConservativeVersionSpaceNode(vs=vs,pos_matches=[(t,x)],pos=1.0,ind=0)
+                self.nodes.append(node)
+                self.heads.append(node)
 
 
-        def score_match(self, t, x):
-            score = max([n.score_match(t, x) for n in self.nodes])
-            return score
+    def get_matches(self, x):
+        # print("CONSERVATIVE WHERE LEARNER: GET MATCHES")
+        if(len(self.nodes) == 0): return []
+        matches = set()
+        for node in self.nodes:
+            if(node.utility >= 0.5):
+                matches = matches.union(set([tuple(x) for x in node.vs.get_matches(x)]))
+            # _,_,node = sorted([(n.utility,n.depth,n) for n in self.nodes])[-1]
+        # if(node.utility > 1.0):
+
+        # print(["(%d):%d:%d" %(d,n.pos,n.neg) for u,d,n in sorted([(n.utility,n.depth,n) for n in self.nodes])])
+        # print("get_matches node:", node.utility,node.pos, node.neg,[t for t,x in node.pos_matches])
+            # out = node.vs.get_matches(x)
+        # else:
+            # out = []
+
+        # print("matches",self.rhs, list(matches))
+        # print([ ",".join(["".join([y[-2:] for y in x[0]]) for x in n.pos_matches]) for n in self.nodes])
+        return [list(m) for m in matches]
+
+    def check_match(self, t, x):
+        # print("CONSERVATIVE WHERE LEARNER: CHECK MATCH")
+        for node in self.nodes:
+            if(node.utility >= .5 and node.vs.check_match(t,x)):
+                return True
+
+
+        return False
+
+
+    def score_match(self, t, x):
+        # print("CONSERVATIVE WHERE LEARNER: SCORE MATCH")
+        if(len(self.nodes) == 0): return 0.0
+        okay_scores = [n.score_match(t, x) for n in self.nodes if n.utility >= .5] 
+        score = max(okay_scores) if len(okay_scores) > 0 else 0.0
+        return score
 
 
 class VersionSpace(BaseILP):
-    def __init__(self, **args,**kwargs):
+    def __init__(self, args=None, constraints=None, use_neg=False, use_gen=False,
+                       propose_gens=True, use_neighbor_concepts=True,
+                       non_literal_attrs=["to_right","to_left","right","left","above","below","value","contentEditable"],
+                       remove_attrs=[],
+                       null_types=[None,""]):
         self.pos_concepts = VersionSpaceILP(use_gen=use_gen)
         self.neg_concepts = VersionSpaceILP(use_gen=use_gen) if use_neg else None
         self.propose_gens = propose_gens
@@ -1510,10 +1564,12 @@ class VersionSpace(BaseILP):
 
 
     def get_matches(self, x):
+
         # with torch.no_grad():
 
         # start_time = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         if(not self.pos_ok):
+            print("NOT POS OK")
             return
 
         state = x.get_view("object")
@@ -1522,6 +1578,7 @@ class VersionSpace(BaseILP):
         # print(self.enumerizer.transform_values(["?sel","?arg0","?arg1"]))
 
         if(self.elem_slices == None):
+            print("NOT ELM SLICES")
             return
         # print(self.pos_concepts.spec_concepts)
 
@@ -1746,6 +1803,7 @@ class VersionSpace(BaseILP):
         # time5 = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         # print("E time %.4f ms" % (time5-time4))
         # print("")
+        # print("REACHED END")
 
     def skill_info(self):
         out = {}

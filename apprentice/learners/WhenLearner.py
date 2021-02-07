@@ -2,6 +2,7 @@ from pprint import pprint
 from copy import deepcopy
 from apprentice.learners.pyibl import Agent
 import numpy as np
+import re, json
 
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.tree import DecisionTreeClassifier
@@ -72,7 +73,7 @@ class WhenLearner(object):
     def add_rhs(self, rhs):
         if(self.type == "one_learner_per_rhs"):
             self.sub_learners[rhs] = get_when_sublearner(self.learner_name,
-                                                     **self.learner_kwargs)
+                                                rhs,**self.learner_kwargs)
             key = rhs
         else:
             key = rhs.label
@@ -121,7 +122,7 @@ class WhenLearner(object):
 
             if(key not in self.sub_learners):
                 self.sub_learners[key] = get_when_sublearner(self.learner_name,
-                                                         **self.learner_kwargs)
+                                                    rhs, **self.learner_kwargs)
             # pprint(states)
             # pprint(rewards)
 
@@ -216,6 +217,7 @@ class WhenLearner(object):
                 if(rhs.label not in self.sub_learners):
                     self.sub_learners[rhs.label] = get_when_sublearner(
                                                 self.learner_name,
+                                                rhs,
                                                 **self.learner_kwargs)
                 if(self.cross_rhs_inference == "rhs_in_y"):
                     self.sub_learners[rhs.label].ifit(state, (rhs._id_num, reward))
@@ -288,9 +290,35 @@ class ListValueFlattener(Preprocessor):
     def undo_transform(self, instance):
         raise NotImplementedError()
 
+def tree_condition_inds(tree):
+    if(tree is None or len(tree.nodes) <= 1): return []
+    #start w/ leaves and go up
+    # nodes = [n for n in tree.nodes if n.ttype == 2 and n.counts[1] > n.counts[0]]
+
+    next_nodes = [(tree.nodes[0], [])]
+    chains = []
+    while(len(next_nodes) > 0):
+        next_next_nodes = []
+        for i, (node,chain) in enumerate(next_nodes):
+            if(node.ttype == 1):
+                split_on, ithresh, left, right, nan = node.split_data[0]
+
+                next_next_nodes.append((tree.nodes[left],chain + [-split_on]))
+                next_next_nodes.append((tree.nodes[right],chain+ [split_on]))
+            elif(len(node.counts) == 2 and node.counts[1] > node.counts[0]):
+                chains.append((f'{node.counts[1]}'.zfill(3), chain))
+        next_nodes = next_next_nodes
+    for c in chains:
+        print(c)
+    # pprint(chains)
+
+
+
 # class DecisionTree2(TreeClassifier):
 class DecisionTree2(object):
+    # def __init__(self, impl="decision_tree", use_missing=False):
     def __init__(self, impl="decision_tree_w_greedy_backup", use_missing=False):
+        print("IMPL:",impl)
         if(impl == "sklearn"):
             self.dt = DecisionTreeClassifier()
         else:
@@ -300,6 +328,7 @@ class DecisionTree2(object):
         self.X = []
         self.y = []
         self.slots = {}
+        self.inverse = []
         self.slots_count = 0
         self.X_list = []
         self.use_missing = use_missing
@@ -311,12 +340,14 @@ class DecisionTree2(object):
             if(k not in self.slots):
                 vocab = self.slots[k] = {chr(0) : self.slots_count}         
                 self.slots_count += 1
+                self.inverse.append(f'!{k}')
             else:
                 vocab = self.slots[k]
 
             if(v not in vocab): 
                 vocab[v] = self.slots_count
                 self.slots_count += 1
+                self.inverse.append(f'{k}=={v}')
 
     def _dict_to_onehot(self,x,silent_fail=False):
         x_new = [0]*self.slots_count
@@ -379,7 +410,13 @@ class DecisionTree2(object):
         if(self.impl == "sklearn"):
             return self.dt.fit(X, Y)
         else:
-            # print(str(self.dt) if getattr(self.dt, "tree",None) is not None else None)
+            tree_str = str(self.dt) if getattr(self.dt, "tree",None) is not None else ''
+            # [n.split_on for n in self.dt.tree.nodes]
+            inds = [int(x.split(" : (")[1].split(")")[0]) for x in re.findall(r'NODE.+',tree_str)]
+            tree_condition_inds(self.dt.tree)
+            print(tree_str)
+            print(json.dumps({ind: self.inverse[ind] for ind in inds},indent=2))
+
             return self.dt.fit(X, None, Y)
 
 
@@ -406,9 +443,11 @@ class DecisionTree2(object):
         # print("BEEP", X)
         # print("PRED:",X)
         # print("VAL:", super(CustomPipeline, self).predict(X))
+
         if(self.impl == "sklearn"):
             return self.dt.predict(onehot_X)
         else:
+            # print("PRED:",self.rhs, self.dt.predict(onehot_X,None))
             return self.dt.predict(onehot_X,None)
 
 
@@ -880,8 +919,10 @@ parameters_sgd = {'loss': 'perceptron'}
 # --------------------------------UTILITIES--------------------------------
 
 
-def get_when_sublearner(name, **kwargs):
-    return WHEN_CLASSIFIERS[name.lower().replace(' ', '').replace('_', '')](**kwargs)
+def get_when_sublearner(name, rhs, **kwargs):
+    s = WHEN_CLASSIFIERS[name.lower().replace(' ', '').replace('_', '')](**kwargs)
+    s.rhs = rhs
+    return s
 
 
 def get_when_learner(agent, name, **kwargs):

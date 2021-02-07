@@ -231,7 +231,10 @@ def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
 
     for tup_ele in tup_elems:
         mapping[tup_ele] = tuple([mapping.get(x,x) for x in tup_ele])
+
+
     
+    # pprint(mapping)
     new_state = {}
     for key,vals in state.items():
         
@@ -267,10 +270,19 @@ def variablize_state_metaskill(self,state,rhs, where_match):
         exp = Explanation(rhs,mapping)
         resp = exp.to_response(state,self)
         # pprint(skill_info)
-        key = ("skill-%s"%resp["rhs_id"], *mapping.values())
+        sk_str = f"{str(self.rhs_list[resp['rhs_id']])}(id:{resp['rhs_id']})"
+        key = (sk_str, *mapping.values())
         to_append[key] = resp["inputs"]
-        to_append[("skill-%s"%resp["rhs_id"],"count")] = to_append.get(("skill-%s"%resp["rhs_id"],"count"),0) + 1
+        to_append[(sk_str,"count")] = to_append.get((sk_str,"count"),0) + 1
         to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
+
+    #Also append where_match
+    if(len(where_match)>1):
+        for i,x in enumerate(list(where_match)[1:]):
+            to_append[("arg%d"%i,)] = x
+    # to_append[("sel",)] = where_match[0]
+
+    # print(to_append)
         # for attr,val in resp["inputs"].items():
         #     key = (attr,("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values()))
         #     # print(key, ":", val)
@@ -278,7 +290,7 @@ def variablize_state_metaskill(self,state,rhs, where_match):
     # print("--------END THIS---------")
     
     state_obj = {**state.get_view("object"),**to_append}
-    # print(state_obj)
+    # pprint(state_obj)
     # state.set_view("object_skills_appended",state_obj)
     state = state_obj
     state = variablize_state_relative(self,state,rhs, where_match)
@@ -290,6 +302,7 @@ def variablize_state_metaskill(self,state,rhs, where_match):
     # pprint({k:state[k] for k in k_list[l_core:]})
     state = FlatState({k:state[k] for k in k_list[:l_core]},
                       {k:state[k] for k in k_list[l_core:]})
+
                 # pprint()
     # print(state)
     
