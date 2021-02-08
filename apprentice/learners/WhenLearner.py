@@ -360,6 +360,16 @@ class DecisionTree2(object):
                 x_new[vocab[val]] = 1
         return np.asarray(x_new,dtype=np.bool)
 
+    def _gen_feature_weights(self, strength=1.0):
+        weights = [0]*self.slots_count
+        for k, vocab in self.slots.items():
+            # print(k, vocab)
+            w = (1.0-strength) + (strength * (1.0/max(len(vocab)-1,1)))
+            for val,ind in vocab.items():
+                weights[ind] = w
+
+        return np.asarray(weights,dtype=np.float64)
+
 
     def _compose_one_hots(self):
         X = np.empty( (len(self.X_list), self.slots_count), dtype=np.uint8)
@@ -397,6 +407,7 @@ class DecisionTree2(object):
             self.X = X = self._compose_one_hots()
 
         # self.Y = Y
+        # print("W:",self._gen_feature_weights())
 
         Y = np.asarray(Y,dtype=np.int64)
 
@@ -414,10 +425,13 @@ class DecisionTree2(object):
             # [n.split_on for n in self.dt.tree.nodes]
             inds = [int(x.split(" : (")[1].split(")")[0]) for x in re.findall(r'NODE.+',tree_str)]
             tree_condition_inds(self.dt.tree)
-            print(tree_str)
-            print(json.dumps({ind: self.inverse[ind] for ind in inds},indent=2))
+            # print(tree_str)
 
-            return self.dt.fit(X, None, Y)
+            ft_weights = self._gen_feature_weights()
+            print(json.dumps({ind: str(self.inverse[ind])+f"(w:{ft_weights[ind]:.2f})" for ind in inds},indent=2)[2:-2])
+            
+
+            return self.dt.fit(X, None, Y, None, ft_weights)
 
 
     def predict(self, X):
