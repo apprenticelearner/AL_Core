@@ -365,15 +365,19 @@ def compute_retrieval(activation, tau, s):
     # return random() < (1/(1+math.exp((tau - activation) / s)))
     return random() < (1/(1+math.exp((tau - activation[-1]) / s)))
 
-def update_activation(explanations, base_activations, acc_activations, activations, question_type, exp_beta, default_beta, exp_inds, c, alpha, t, gamma, decay_acc, noise_mu, noise_sigma, operators):
+def update_activation(explanations, base_activations, acc_activations, activations, question_type, exp_beta, default_beta, exp_inds, c, alpha, t, exp_gamma, default_gamma, decay_acc, noise_mu, noise_sigma, operators):
+    exp_strs = [str(exp) for exp in explanations]
     for str_exp in activations:
-        if str_exp in [str(exp) for exp in explanations]:
+        if str_exp in exp_strs:
             if question_type in ["worked_example", "example"]: # hacky check to see WE vs RP (will prob not work now? need to change brds again)
                 beta = exp_beta
+                gamma = exp_gamma
             else:
                 beta = default_beta
+                gamma = default_gamma
         else:
             beta = default_beta
+            gamma = default_gamma
 
         decay = compute_decay(activations[str_exp], exp_inds[str_exp] - exp_inds[str_exp][0], c, alpha)
         # activations[str_exp] = np.append(activations[str_exp],
@@ -388,7 +392,7 @@ def update_activation(explanations, base_activations, acc_activations, activatio
 
 def compute_similarity(operators, operator1, arguments1, operator2, arguments2):
     # compute overlap similarity
-    setA = set(operators.get(operator1, {'done'}))
+    setA = set(operators.get(operator1, {'done'}))  # workaround to prevent div by zero
     for argument in arguments1:
         setA = setA.union(set(list(str(argument))))
 
@@ -405,7 +409,7 @@ def compute_evidence(str_exp, activations, operators):
     for other_exp_str, values in activations.items():
         other_operator = other_exp_str[:other_exp_str.find('(')]
         other_arguments = other_exp_str[other_exp_str.find(':') + 2:other_exp_str.find('->') - 1].split(',')
-        if operator == other_operator:
+        if operator == other_operator or (not operator.isalpha() and not other_operator.isalpha()):
             evidence -= np.exp(values[-1])*compute_similarity(operators, operator, arguments, other_operator, other_arguments)
         else:
             evidence += np.exp(values[-1])*compute_similarity(operators, operator, arguments, other_operator, other_arguments)
@@ -491,8 +495,9 @@ class MemoryAgent(BaseAgent):
         # TODO: make these configurable by json
         self.noise_mu = 0
         self.noise_sigma = 1
-        self.decay_acc = 0.001
-        self.gamma = 0.01
+        self.decay_acc = 0
+        self.default_gamma = 0.1
+        self.exp_gamma = 0.01
         self.operators = {
             'Sun': ['spiky', 'roundish', 'unfilled', 'multi'],
             'Diamond': ['spiky', 'filled', 'squarish', 'single'],
@@ -606,7 +611,7 @@ class MemoryAgent(BaseAgent):
             if self.use_memory and instruction_type != 'worked_example':
                 # decay activation if no explanation
                 update_activation([], self.base_activations, self.acc_activations, self.activations, instruction_type, self.exp_beta,
-                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
+                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.exp_gamma, self.default_gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
                 # update_activation([], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
                 self.t += 1
             response = EMPTY_RESPONSE
@@ -620,8 +625,8 @@ class MemoryAgent(BaseAgent):
                 else:    
                     self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
                 # update_activation([str_exp], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
-                update_activation([str_exp], self.base_activations, self.acc_activations, self.activations, instruction_type, self.exp_beta,
-                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
+                update_activation([], self.base_activations, self.acc_activations, self.activations, instruction_type, self.exp_beta,
+                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.exp_gamma, self.default_gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
                 self.t += 1
             response = responses[0].copy()
             if(n != 1):
@@ -848,8 +853,8 @@ class MemoryAgent(BaseAgent):
             if self.activation_path and not skip:
                 print("writing training activation at time", self.t)
                 # update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
-                update_activation(explanations, self.base_activations, self.acc_activations, self.activations, instruction_type, self.exp_beta,
-                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
+                update_activation([], self.base_activations, self.acc_activations, self.activations, instruction_type, self.exp_beta,
+                                  self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.exp_gamma, self.default_gamma, self.decay_acc, self.noise_mu, self.noise_sigma, self.operators)
                 write_activation(self.activations, self.agent_id, self.t, problem_name, self.activation_path)
         # print("FIT_A")
         self.fit(explanations, state, reward)
