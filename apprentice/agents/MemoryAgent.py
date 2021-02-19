@@ -448,9 +448,10 @@ class MemoryAgent(BaseAgent):
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
                  constraint_set='ctat', use_memory=True,
-                 c=0.277, alpha=0.177, tau=-0.7, exp_beta=4, default_beta=0, agent_id=None, activation_path=None, **kwargs):
-                
-                
+                 c=0.277, alpha=0.177, tau=-0.7, exp_beta=4, default_beta=0, noise_mu=0,
+                 noise_sigma=1, decay_acc = 0, default_gamma=0.1, exp_gamma=0.01, operators={},
+                 agent_id=None, activation_path=None, **kwargs):
+
         self.where_learner = get_where_learner(where_learner,
                                             **kwargs.get("where_args",{}))
         self.when_learner = get_when_learner(when_learner,
@@ -492,18 +493,12 @@ class MemoryAgent(BaseAgent):
         self.exp_beta = exp_beta
         self.default_beta = default_beta
 
-        # TODO: make these configurable by json
-        self.noise_mu = 0
-        self.noise_sigma = 1
-        self.decay_acc = 0
-        self.default_gamma = 0.1
-        self.exp_gamma = 0.01
-        self.operators = {
-            'Sun': ['spiky', 'roundish', 'unfilled', 'multi'],
-            'Diamond': ['spiky', 'filled', 'squarish', 'single'],
-            'Command': ['roundish', 'squarish', 'unfilled', 'single'],
-            'Bullseye': ['roundish', 'unfilled', 'multi']
-        }
+        self.noise_mu = noise_mu
+        self.noise_sigma = noise_sigma
+        self.decay_acc = decay_acc
+        self.default_gamma = default_gamma
+        self.exp_gamma = exp_gamma
+        self.operators = operators
 
         self.exp_inds = {}
         self.activation_path = activation_path
