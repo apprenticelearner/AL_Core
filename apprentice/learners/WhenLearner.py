@@ -390,8 +390,18 @@ class DecisionTree2(object):
     def ifit(self, x, y):
         # print(x)
         self._designate_new_slots(x)
-        self.X_list.append(self._dict_to_onehot(x))
+        one_hot_x = self._dict_to_onehot(x)
+
+
+            # print(X_mat.shape)
+            # print(x_mat.shape)
+            # print(np.matmul(X_mat, x_mat))
+
+        self.X_list.append(one_hot_x)
         self.X = self._compose_one_hots()
+
+        
+        # print(self.X)
         
         self.y.append(int(y) if not isinstance(y, tuple) else y)
         Y = np.asarray(self.y,dtype=np.int64)
@@ -424,13 +434,23 @@ class DecisionTree2(object):
             tree_str = str(self.dt) if getattr(self.dt, "tree",None) is not None else ''
             # [n.split_on for n in self.dt.tree.nodes]
             inds = [int(x.split(" : (")[1].split(")")[0]) for x in re.findall(r'NODE.+',tree_str)]
+
+            print()
+            print("---", self.rhs, "---")
             tree_condition_inds(self.dt.tree)
             # print(tree_str)
 
-            ft_weights = self._gen_feature_weights()
-            print(json.dumps({ind: str(self.inverse[ind])+f"(w:{ft_weights[ind]:.2f})" for ind in inds},indent=2)[2:-2])
+            
+            if(False):
+                ft_weights = self._gen_feature_weights()
+                print(json.dumps({ind: str(self.inverse[ind])+f"(w:{ft_weights[ind]:.2f})" for ind in inds},indent=2)[2:-2])
+            else:
+                ft_weights = np.ones((X.shape[1]),dtype=np.float64)
+                print(json.dumps({ind: str(self.inverse[ind]) for ind in inds},indent=2)[2:-2])
+            # print(json.dumps({ind: str(self.inverse[ind]) for ind in inds},indent=2)[2:-2])
             
 
+            # return self.dt.fit(X, None, Y, None)
             return self.dt.fit(X, None, Y, None, ft_weights)
 
 
@@ -440,29 +460,52 @@ class DecisionTree2(object):
         for i, x in enumerate(X):
             # self._designate_new_slots(x)
             onehot_x = self._dict_to_onehot(x,silent_fail=True)
+
+
+            # if(len(self.X) > 0):
+            #     # print("MATMUL", self.rhs)
+            #     X_mat = np.asarray(self.X)
+
+            #     inf_gain = self.dt.inf_gain(self.X, None, np.asarray(self.y,dtype=np.int64))
+            #     inf_gain = inf_gain > 0.0
+
+            #     # inf_gain /= np.linalg.norm(inf_gain)
+            #     # print(inf_gain)
+
+
+            #     x_mat = np.expand_dims(inf_gain*onehot_x[:X_mat.shape[1]],1)/np.sum(inf_gain)
+            #     inner = np.matmul(X_mat, x_mat)[:,0]
+            #     # print(inner)
+            #     max_inner = np.max(inner)
+            #     nearestNs = (inner >= max_inner *.95).nonzero()[0]
+            #     nn_ys = [_y for i, _y in enumerate(self.y) if i in nearestNs]
+            #     nn_pred = sum(nn_ys)
+            #     if(nn_pred < 0):
+            #         nn_pred = -1  
+            #     elif(nn_pred > 0):
+            #         nn_pred = 1;
+            #     else:
+            #         nn_pred = -0
+
+
             onehot_X[i] = onehot_x
         # onehot_X = np.concatenate(onehot_X,dtype=np.bool)
 
-        # print("predict")
-        # print(onehot_X)
-        # print("---------")
-
-        # ft = Flattener()
-        # tup = Tuplizer()
-        # lvf = ListValueFlattener()
-
-        # X = lvf.transform(X)
-
-        # X = [tup.undo_transform(ft.transform(x)) for x in X]
-        # print("BEEP", X)
-        # print("PRED:",X)
-        # print("VAL:", super(CustomPipeline, self).predict(X))
 
         if(self.impl == "sklearn"):
-            return self.dt.predict(onehot_X)
+            pred = self.dt.predict(onehot_X)
         else:
             # print("PRED:",self.rhs, self.dt.predict(onehot_X,None))
-            return self.dt.predict(onehot_X,None)
+            pred = self.dt.predict(onehot_X,None)
+
+        # if(pred[0] != nn_pred and nn_pred != 0 ):
+        #     if(nn_pred == -1):
+        #         pred[0] = nn_pred
+        #     print("---------------")
+        #     print(self.rhs)
+        #     print(max_inner, "pred:", pred[0], "nn_pred:", nn_pred, nn_ys)
+        #     print("---------------")
+        return pred
 
 
 

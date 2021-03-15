@@ -273,8 +273,8 @@ def variablize_state_metaskill(self,state,rhs, where_match):
         sk_str = f"{str(self.rhs_list[resp['rhs_id']])}(id:{resp['rhs_id']})"
         key = (sk_str, *mapping.values())
         to_append[key] = resp["inputs"]
-        to_append[(sk_str,"count")] = to_append.get((sk_str,"count"),0) + 1
-        to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
+        # to_append[(sk_str,"count")] = to_append.get((sk_str,"count"),0) + 1
+        # to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
 
     #Also append where_match
     if(len(where_match)>1):
@@ -612,6 +612,7 @@ class ModularAgent(BaseAgent):
         self.which_learner.add_rhs(rhs)
 
     def fit(self, explanations, state, rewards):  # -> return None
+        pprint(state.get_view("object"))
         if(not isinstance(rewards,list)): rewards = [rewards]*len(explanations)
 
         used_selections = set()

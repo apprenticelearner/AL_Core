@@ -48,6 +48,7 @@ AGENTS = {
     "WhereWhenHowNoFoa": WhereWhenHowNoFoa,
     "ModularAgent": ModularAgent,
     "ExpertaAgent": ExpertaAgent,
+    "RHS_LHS_Agent": RHS_LHS_Agent,
 }
 
 last_call_time = time.time_ns()
