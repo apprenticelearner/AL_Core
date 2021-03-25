@@ -400,7 +400,7 @@ def compute_similarity(operators, operator1, arguments1, operator2, arguments2):
     for argument in arguments2:
         setB = setB.union(set(list(str(argument))))
 
-    return len(setA.union(setB)) / (min(len(setA), len(setB)))
+    return len(setA.intersection(setB)) / (min(len(setA), len(setB)))
 
 def compute_evidence(str_exp, activations, operators):
     evidence = 0
