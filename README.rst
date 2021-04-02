@@ -16,7 +16,7 @@ The Apprentice Learner Architecture provides a framework for modeling and simula
 
 1. **AL_Core** (this repository), which is the core library for learner modeling used to configure and instantiate agents and author their background knowledge. 
 2. **AL_Train** (https://github.com/apprenticelearner/AL_Train), which contains code for interfacing AL agents with CTAT-HTML tutors and running training experiments.
-3. **AL_Outerloop** (https://github.com/apprenticelearner/AL_Outloop), which provides additional functionality to AL_Train simulating adaptive curricula.
+3. **AL_Outerloop** (https://github.com/apprenticelearner/AL_Outerloop), which provides additional functionality to AL_Train simulating adaptive curricula.
 
 Installation
 ============
