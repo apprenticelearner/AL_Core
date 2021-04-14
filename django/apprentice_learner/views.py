@@ -26,6 +26,7 @@ from apprentice.agents.Memo import Memo
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from apprentice.agents.ModularAgent import ModularAgent
 from apprentice.agents.RLAgent import RLAgent
+from apprentice.agents.RHS_LHS_Agent import RHS_LHS_Agent
 from apprentice.working_memory.representation import Sai
 
 
