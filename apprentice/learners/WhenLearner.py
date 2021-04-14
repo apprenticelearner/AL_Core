@@ -617,10 +617,10 @@ def DictVectWrapper(clf):
     def fun(x=None):
         dv = DictVectorizer(sparse=False, sort=False)
         if x is None:
-            return SpecialVectorizePipeline([('dict vect', dv),
+            return CustomPipeline([('dict vect', dv),
                                    ('clf', clf())])
         else:
-            return SpecialVectorizePipeline([('dict vect', dv),
+            return CustomPipeline([('dict vect', dv),
                                    ('clf', clf(**x))])
 
     return fun
@@ -1001,7 +1001,7 @@ WHEN_LEARNERS = {
 
 WHEN_CLASSIFIERS = {
     'naivebayes': DictVectWrapper(BernoulliNB),
-    'decisiontree': SpecialDictVectWrapper(DecisionTree),
+    'decisiontree': DictVectWrapper(DecisionTree),
     'decisiontree2': DecisionTree2,
     'logisticregression': DictVectWrapper(CustomLogisticRegression),
     'nearestneighbors': DictVectWrapper(CustomKNeighborsClassifier),
