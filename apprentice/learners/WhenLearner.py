@@ -513,7 +513,7 @@ class DecisionTree2(object):
 class CustomPipeline(Pipeline):
 
     def ifit(self, x, y):
-        print(x)
+        # print(x)
         if not hasattr(self, 'X'):
             self.X = []
         if not hasattr(self, 'y'):

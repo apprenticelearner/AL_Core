@@ -257,4 +257,27 @@ class Cross_Multiply(BaseOperator):
     def forward(x,y): 
         return float(x.value) * float(y.value)
 
+class Numerator_Multiply_symb(BaseOperator):
+    signature = 'float(TextField,TextField)'
+    template = "Numerator_Multiply({}.v,{}.v)"
+    nopython=False
+    muted_exceptions = [ValueError]
+    def condition(x,y): 
+        return x.id.split("_")[1] == y.id.split("_")[1]
+    def forward(x,y): 
+        return float(x.value) * float(y.value)
+
+class Cross_Multiply_symb(BaseOperator):
+    signature = 'float(TextField,TextField)'
+    template = "Cross_Multiply({}.v,{}.v)"
+    nopython=False
+    muted_exceptions = [ValueError]
+    def condition(x,y): 
+        return x.id.split("_")[1] != y.id.split("_")[1]
+    def forward(x,y): 
+        return float(x.value) * float(y.value)
+
+
+
+
 

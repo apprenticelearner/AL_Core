@@ -612,7 +612,7 @@ class ModularAgent(BaseAgent):
         self.which_learner.add_rhs(rhs)
 
     def fit(self, explanations, state, rewards):  # -> return None
-        pprint(state.get_view("object"))
+        # pprint(state.get_view("object"))
         if(not isinstance(rewards,list)): rewards = [rewards]*len(explanations)
 
         used_selections = set()
@@ -700,14 +700,14 @@ class ModularAgent(BaseAgent):
                                    state, sai, foci_of_attention)
                     performance_logger.info("explanations_from_how_search {} ms".format((time.time_ns()-t_s)/(1e6)))
                     explanations = [x for x in explanations]
-                    for exp in explanations:
-                        print(str(exp))
+                    # for exp in explanations:
+                    #     print(str(exp))
 
                     explanations = self.which_learner.select_how(explanations)
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
-                        print("FOUND EX:", str(exp))
+                        # print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:
