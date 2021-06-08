@@ -3,7 +3,6 @@
 # except ImportError:  # python 2
 #     import apprentice_learner.models as Agent
 
-from apprentice.agents.experta_agent import ExpertaAgent
 from apprentice.agents.ModularAgent import ModularAgent
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from apprentice.working_memory.representation import Sai
@@ -109,6 +108,9 @@ def test_FO_ModularAgent():
     SAI2 = agent_deserialized.request(state, reward = 1)
 
     assert(SAI1 == SAI2)
+
+if __name__ == "__main__":
+    test_FO_ModularAgent()
     
 
 #Intstructions for Sq5:

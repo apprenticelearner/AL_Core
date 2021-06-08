@@ -677,13 +677,13 @@ class ModularAgent(BaseAgent):
 
     def get_skills(self, states=None):
         out = []
-        print("GET_SKILLS")
-        print(states)
+        # print("GET_SKILLS")
+        # print(states)
         for state in states:
             req = self.request(state,
                                add_skill_info=True)
 
-            pprint(req)
+            # pprint(req)
             if(len(req) != 0):
                 req["when"] = json.dumps(req["when"])
                 req["where"] = json.dumps(req["where"])#tuple(len(list(req["where"].keys())) * ["?"])
