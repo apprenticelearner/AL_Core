@@ -34,9 +34,13 @@ from apprentice.working_memory.representation import Sai
 log = logging.getLogger('al-django')
 performance_logger = logging.getLogger('al-performance')
 
+DEFAULT_SAVE_AGENT = False
+DEFAULT_STAY_ACTIVE = True
+
+
 active_agent = None
 active_agent_id = None
-dont_save = True
+save_agent = None
 
 
 AGENTS = {
@@ -52,7 +56,7 @@ last_call_time = time.time_ns()
 
 
 def get_agent_by_id(id):
-    global active_agent, active_agent_id, dont_save
+    global active_agent, active_agent_id
     if id == active_agent_id:
         agent = active_agent
     else:
@@ -126,29 +130,35 @@ def create(http_request):
         traceback.print_exc()
         print("Failed to create agent", exp)
         return HttpResponseServerError(
-            "Failed to create agent, " "ensure provided args are " "correct."
+            "Failed to create agent, ensure provided args are correct."
         )
 
-    global active_agent, active_agent_id, dont_save
+    global active_agent, active_agent_id, save_agent
     if active_agent is not None:
         active_agent = None
         active_agent_id = None
-        dont_save = False
-    if str(data.get("stay_active", True)).lower() == "true":
+
+    if str(data.get("stay_active", DEFAULT_STAY_ACTIVE)).lower() == "true":
         active_agent = agent
         active_agent_id = str(agent.id)
-        dont_save = str(data.get("dont_save", True)).lower() == "true"
     else:
-        warns.append(
-            "Stability Warning: stay_active is set to false. Serialization and"
-            " deserialization of agents is currently not working for most"
-            " agent types. Expect Errors.")
+        # warns.append(
+        #     "Stability Warning: stay_active is set to false. Serialization and"
+        #     " deserialization of agents is currently not working for most"
+        #     " agent types. Expect Errors.")
+        pass
+
+    if "save_agent" in data:
+        save_agent = str(data["save_agent"]).lower() == "true"
+    elif "dont_save" in data:
+        save_agent = not str(data["dont_save"]).lower() == "true"
+    else:
+        save_agent = DEFAULT_SAVE_AGENT
 
     if len(warns) > 0:
         for warn in warns:
             log.warning(warn)
         ret_data["warnings"] = warns
-
 
     last_call_time = time.time_ns()
 
@@ -180,17 +190,17 @@ def request(http_request, agent_id):
         agent.inc_request()
 
         start_t = time.time_ns()
-        response = agent.instance.request(data["state"],**data.get('kwargs',{}))
+        response = agent.instance.request(data["state"], **data.get('kwargs', {}))
         performance_logger.info("Request Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
 
-        global dont_save
-        if not dont_save:
-            log.warning('Agent is being saved! This is probably not working.')
+        global save_agent
+        if save_agent:
+            # log.warning('Agent is being saved! This is probably not working.')
             agent.save()
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
-        last_call_time =  time.time_ns()
+        last_call_time = time.time_ns()
 
         if isinstance(response, Sai):
             temp = {'selection': response.selection,
@@ -199,15 +209,14 @@ def request(http_request, agent_id):
                     'mapping': {"?sel": response.selection},
                     'how': "n/a",
                     'skill_label': 'n/a'}
-            
+           
             return HttpResponse(
                     json.dumps({'selection': response.selection,
-                        'action': response.action,
-                        'inputs': response.inputs,
-                        'mapping': {"?sel": response.selection},
-                        'responses': [temp]
-                    }
-            ))
+                                'action': response.action,
+                                'inputs': response.inputs,
+                                'mapping': {"?sel": response.selection},
+                                'responses': [temp]
+                                }))
 
         return HttpResponse(json.dumps(response))
 
@@ -240,9 +249,9 @@ def get_skills(http_request, agent_id):
         agent.inc_request()
         response = agent.instance.get_skills(data["states"])
 
-        global dont_save
-        if not dont_save:
-            log.warning('Agent is being saved! This is probably not working.')
+        global save_agent
+        if save_agent:
+            # log.warning('Agent is being saved! This is probably not working.')
             agent.save()
 
         # pr.disable()
@@ -331,17 +340,17 @@ def train(http_request, agent_id):
         response = agent.instance.train(**data)
         performance_logger.info("Train Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
 
-        global dont_save
-        if not dont_save:
-            log.warning('Agent is being saved! This is probably not working.')
+        global save_agent
+        if save_agent:
+            # log.warning('Agent is being saved! This is probably not working.')
             agent.save()
 
         # pr.disable()
         # pr.dump_stats("al.cprof")
-        last_call_time =  time.time_ns()
+        last_call_time = time.time_ns()
 
         if(response is not None):
-             return HttpResponse(json.dumps(response))
+            return HttpResponse(json.dumps(response))
         else:
             return HttpResponse("OK")
 
