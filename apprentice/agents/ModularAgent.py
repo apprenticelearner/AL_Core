@@ -38,14 +38,25 @@ import cProfile
 import atexit
 import time
 import logging
+import os
 
 performance_logger = logging.getLogger('al-performance')
 agent_logger = logging.getLogger('al-agent')
-agent_logger.setLevel("ERROR")
-performance_logger.setLevel("ERROR")
 
+debugging_state = os.environ.get('DEBUGGING_STATE')
+debugging_agent = os.environ.get('DEBUGGING_AGENT')
+debugging_performance = os.environ.get('DEBUGGING_PERFORMANCE')
 
+if(not debugging_agent):
+    agent_logger.propagate = False
+if(not debugging_performance):
+    performance_logger.propagate = False
+if(not debugging_state and not debugging_agent and not debugging_performance):
+    performance_logger.propagate = False
+    agent_logger.propagate = False
 
+performance_logger.debug("Performance logger working.")
+agent_logger.debug("Agent logger also working.")
 
 def add_QMele_to_state(state):
     ''' A function which adds ?ele- to state keys... this is necessary in order to use
@@ -121,11 +132,15 @@ def variablize_by_where_swap(self,state,rhs,  match):
         state = state.get_view("flat_ungrounded")
     # print(state)
     # print(type(state))
+    performance_logger.error(state)
+    performance_logger.error(type(state))
     mapping = {'arg' + str(i-1) if i > 0 else 'sel':
                ele for i, ele in enumerate(match)}
-    # for i,x in enumerate(state):               
-    #     print("attr%i"%i,x)
-    #     print("val%i"%i,state[x])
+    for i,x in enumerate(state):               
+        # print("attr%i"%i,x)
+        # print("val%i"%i,state[x])
+        performance_logger.error("attr%i"%i,x)
+        performance_logger.error("val%i"%i,state[x])
 
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     # r_state = state
@@ -187,6 +202,7 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_
         mapping = {center:center_name}
         dist_map = {center:0}
     # print(state)
+    performance_logger.error(state)
     center_obj = state[center]
 
     stack = []
@@ -194,6 +210,8 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_
         ele = center_obj.get(d,None)
         # print("ele")
         # print(ele)
+        performance_logger.error("ele")
+        performance_logger.error(ele) 
         if(ele is None or ele == "" or
           (ele in dist_map and dist_map[ele] <= dist_map[center] + 1) or
            ele not in state):
@@ -267,13 +285,14 @@ def variablize_state_metaskill(self,state,rhs, where_match):
         exp = Explanation(rhs,mapping)
         resp = exp.to_response(state,self)
         # pprint(skill_info)
+        performance_logger.error(skill_info)
         key = ("skill-%s"%resp["rhs_id"], *mapping.values())
         to_append[key] = resp["inputs"]
         to_append[("skill-%s"%resp["rhs_id"],"count")] = to_append.get(("skill-%s"%resp["rhs_id"],"count"),0) + 1
         to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
         # for attr,val in resp["inputs"].items():
         #     key = (attr,("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values()))
-        #     # print(key, ":", val)
+        #     print(key, ":", val)
         #     flat_ungrounded[key] = val 
     # print("--------END THIS---------")
     
@@ -418,6 +437,7 @@ class ModularAgent(BaseAgent):
             else:
                 pred_state = state
             # print("MATCH", rhs,match)
+            agent_logger.error("MATCH", rhs, match)
             if(not skip_when):
                 p = self.when_learner.predict(rhs, pred_state)
                 
@@ -509,6 +529,8 @@ class ModularAgent(BaseAgent):
             else:
                 # print("Trying:", rhs)
                 # print(self.planner.unify_op.__code__.co_varnames)
+                agent_logger.error("Trying:", rhs)
+                agent_logger.error(self.planner.unify_op.__code__.co_varnames)
                 mappings = self.planner.unify_op(state,rhs.input_rule, sai,
                     foci_of_attention=foci_of_attention)
 
@@ -521,6 +543,7 @@ class ModularAgent(BaseAgent):
                 #                               allow_copy=False)
             for mapping in mappings:
                 # print("MAAAP", mapping)
+                agent_logger.error("MAAAP", mapping)
                 if(type(self.planner).__name__ == "FoPlannerModule"):
                     m = {"?sel": "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection}
                 else:
@@ -574,6 +597,7 @@ class ModularAgent(BaseAgent):
         for exp,_reward in zip(explanations,reward):
             mapping = list(exp.mapping.values())
             # print(exp, mapping, 'rew:', _reward)
+            agent_logger.error(exp, mapping, 'rew:', _reward)
             self.when_learner.ifit(exp.rhs, state, mapping, _reward)
             self.which_learner.ifit(exp.rhs, state, _reward)
             self.where_learner.ifit(exp.rhs, mapping, state, _reward)
@@ -582,6 +606,7 @@ class ModularAgent(BaseAgent):
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
         # pprint(state)
+        agent_logger.error(state)
 
         if(type(self.planner).__name__ == "FoPlannerModule"): 
             state = add_QMele_to_state(state)
@@ -594,6 +619,7 @@ class ModularAgent(BaseAgent):
 
         
         # print(sai, foci_of_attention)
+        agent_logger.error(sai, foci_of_attention)
         ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
         _ = [x for x in self.applicable_explanations(state)]
         ############################################################
@@ -602,11 +628,15 @@ class ModularAgent(BaseAgent):
         #   or we must infer it from the skills that would have fired
         if(rhs_id is not None and mapping is not None):
             # print("Reward: ", reward)
+            agent_logger("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
             # print("EX: ",str(explanations[0]))
+            agent_logger("EX: ",str(explanations[0]))
         elif(sai is not None):
             # pprint(state.get_view("object"))
+            agent_logger.error(state.get_view("object"))
             # print("TO HOW")
+            agent_logger.error("TO HOW")
             t_s = time.time_ns()
             explanations = self.explanations_from_skills(state, sai,
                                                          self.rhs_list,
@@ -634,6 +664,7 @@ class ModularAgent(BaseAgent):
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
                         # print("FOUND EX:", str(exp))
+                        agent_logger.error("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:
@@ -665,6 +696,7 @@ class ModularAgent(BaseAgent):
             responses = resp['responses']
             for resp in responses:
                 # print(resp['selection'],resp['action'],resp['inputs'], _inputs_equal(resp['inputs'],inputs))
+                agent_logger.error(resp['selection'],resp['action'],resp['inputs'], _inputs_equal(resp['inputs'],inputs))
                 if(resp['selection'] == selection and 
                    resp['action'] == action and 
                    _inputs_equal(resp['inputs'],inputs)):
