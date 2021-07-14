@@ -4,7 +4,6 @@ python:
 
 install:
   - pip install .
-  - pip install torch
 
 before_script:
   - pip install -r test-requirements.txt
