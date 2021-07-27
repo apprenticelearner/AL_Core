@@ -10,11 +10,10 @@ from apprentice.learners.when_learners.actor_critic import ValueNet
 from apprentice.learners.when_learners.actor_critic import ActionNet
 from apprentice.learners.when_learners.replay_memory import ReplayMemory
 from apprentice.learners.when_learners.replay_memory import Transition
-from apprentice.learners.when_learners.fractions_hasher import FractionsStateHasher
-from apprentice.learners.when_learners.fractions_hasher import FractionsActionHasher
+from apprentice.learners.utils import OnlineDictVectorizer
 
 # from concept_formation.trestle import TrestleTree
-from sklearn.feature_extraction import FeatureHasher
+# from sklearn.feature_extraction import FeatureHasher
 
 import logging
 log = logging.getLogger(__name__)
@@ -23,7 +22,7 @@ log = logging.getLogger(__name__)
 class DQNLearner(WhenLearner):
     def __init__(self, gamma=0.7, lr=3e-5, batch_size=64, mem_capacity=10000,
                  # state_size=394, action_size=257, state_hidden_size=197,
-                 state_size=50, action_size=50, state_hidden_size=30,
+                 state_size=300, action_size=100, state_hidden_size=30,
                  action_hidden_size=122):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else
@@ -38,10 +37,8 @@ class DQNLearner(WhenLearner):
         self.state_hidden_size = state_hidden_size
         self.action_hidden_size = action_hidden_size
 
-        self.state_hasher = FeatureHasher(n_features=self.state_size,
-                                          alternate_sign=False)
-        self.action_hasher = FeatureHasher(n_features=self.action_size,
-                                           alternate_sign=False)
+        self.state_hasher = OnlineDictVectorizer(n_features=self.state_size)
+        self.action_hasher = OnlineDictVectorizer(n_features=self.action_size)
 
         # special case to make things run faster and drop values
         # self.state_hasher = FractionsStateHasher()
@@ -67,7 +64,7 @@ class DQNLearner(WhenLearner):
 
         params = (list(self.value_net.parameters()) +
                   list(self.action_net.parameters()))
-        self.optimizer = torch.optim.Adam(params, lr=self.lr)
+        self.optimizer = torch.optim.AdamW(params, lr=self.lr)
 
     def update_target_net(self):
         self.target_value_net.load_state_dict(self.value_net.state_dict())
@@ -76,7 +73,7 @@ class DQNLearner(WhenLearner):
     def gen_state_vector(self, state: dict) -> np.ndarray:
         state = {str(a): state[a] for a in state}
 
-        return self.state_hasher.transform([state]).toarray()
+        return self.state_hasher.transform([state])
 
     def gen_action_vectors(
             self, actions: Collection[Activation]) -> np.ndarray:
@@ -94,7 +91,7 @@ class DQNLearner(WhenLearner):
                     act_d[str(a)] = v
             action_dicts.append(act_d)
 
-        return self.action_hasher.transform(action_dicts).toarray()
+        return self.action_hasher.transform(action_dicts)
 
     def eval(self, state: dict, action: Activation) -> float:
         if state is None:
@@ -124,7 +121,8 @@ class DQNLearner(WhenLearner):
             state_val, state_hidden = self.value_net(state_x)
             action_val = self.action_net(action_x,
                                          state_hidden.expand(len(actions), -1))
-            return (state_val.expand(len(actions), -1) + action_val).squeeze(1).cpu().tolist()
+            return (state_val.expand(len(actions), -1) +
+                    action_val).squeeze(1).cpu().tolist()
 
     def update(
         self,
@@ -252,7 +250,8 @@ class DQNLearner(WhenLearner):
             expected_state_action_values = (
                 reward + self.gamma * next_state_values).view(batch_size, 1)
 
-        # print(torch.cat([state_action_values, expected_state_action_values], 1))
+        # print(torch.cat([state_action_values, expected_state_action_values],
+        # 1))
         # print(expected_state_action_values)
 
         self.optimizer.zero_grad()
@@ -271,4 +270,3 @@ class DQNLearner(WhenLearner):
         self.optimizer.step()
 
         return loss.detach().item()
-

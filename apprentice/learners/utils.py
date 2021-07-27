@@ -6,6 +6,8 @@ from itertools import product
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 
+import numpy as np
+
 from apprentice.planners.fo_planner import Operator
 from apprentice.planners.fo_planner import build_index
 # from planners.fo_planner import subst
@@ -13,6 +15,7 @@ from apprentice.planners.fo_planner import is_variable
 from apprentice.planners.fo_planner import extract_strings
 
 pool = None
+
 
 def weighted_choice(choices):
     """
@@ -134,8 +137,8 @@ def clause_length(clause):
     var_counts = {}
     count = 0
 
-    for l in clause:
-        count += count_elements(l, var_counts)
+    for c in clause:
+        count += count_elements(c, var_counts)
 
     for v in var_counts:
         count += var_counts[v] - 1
@@ -160,3 +163,80 @@ def count_elements(x, var_counts):
     else:
         c = 1
     return c
+
+
+class OnlineDictVectorizer():
+    def __init__(self, n_features):
+        self.n_features = n_features
+        self.separator = '='
+        self.dtype = np.float32
+        self.reset()
+        self.counter = 0
+
+    def reset(self):
+        self.key = {}
+
+    def fit(self, X):
+        """
+        Given a set of X, it updates the key with any new values.
+        """
+
+        for x in X:
+            for f, v in x.items():
+                if isinstance(v, str):
+                    f = "%s%s%s" % (f, self.separator, v)
+                if f not in self.key:
+                    if len(self.key) < self.n_features:
+                        self.key[f] = len(self.key)
+                    else:
+                        print("Exceeded available features")
+
+        return self
+
+    def transform(self, X):
+        """
+        Transforms the data using existing key mappings.
+        """
+        new_X = np.zeros((len(X), self.n_features), dtype=self.dtype)
+
+        for i, x in enumerate(X):
+            for f, v in x.items():
+                if isinstance(v, str):
+                    f = "%s%s%s" % (f, self.separator, v)
+                    v = 1
+                try:
+                    new_X[i, self.key[f]] = self.dtype(v)
+                except KeyError:
+                    pass
+
+        return new_X
+
+    def fit_transform(self, X):
+        """
+        Similar to two calls of fit and transform, but does it all in
+        one iteration rather than two through the data.
+        """
+        self.counter += 1
+        new_X = np.zeros((len(X), self.n_features), dtype=self.dtype)
+
+        for i, x in enumerate(X):
+            for f, v in x.items():
+                if isinstance(v, str):
+                    f = "%s%s%s" % (f, self.separator, v)
+                    v = 1
+
+                if f not in self.key:
+                    if len(self.key) < self.n_features:
+                        self.key[f] = len(self.key)
+                    else:
+                        print("Exceeded available features")
+
+                try:
+                    new_X[i, self.key[f]] = self.dtype(v)
+                except KeyError:
+                    pass
+
+        if self.counter % 200 == 0:
+            print("Currently using {} features of {}".format(len(self.key),
+                                                             self.n_features))
+        return new_X
