@@ -12,8 +12,7 @@ import yaml
 
 from . import working_memory, agents, learners, planners
 
-
-def setup_logging(default_path='logging.yaml', default_level=logging.INFO,
+def setup_logging(default_path='logging.yaml', default_level=logging.NOTSET,
                   env_key='LOG_CFG'):
     # https://gist.github.com/kingspp/9451566a5555fb022215ca2b7b802f19
     path = default_path
