@@ -118,8 +118,10 @@ def create(http_request):
         return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
 
     try:
-        instance = AGENTS[data["agent_type"]](**args)
         agent_name = data.get("name", "")
+        instance = AGENTS[data["agent_type"]](agent_name=agent_name, **args)
+        print("NAME")
+        print(agent_name)
         agent = Agent(instance=instance, name=agent_name)
         agent.save()
         ret_data = {"agent_id": str(agent.id)}
@@ -174,6 +176,7 @@ def request(http_request, agent_id):
             return HttpResponseNotAllowed(["POST"])
         data = json.loads(http_request.body.decode("utf-8"))
 
+        pprint(data)
         if "state" not in data or data["state"] is None:
             log.error("request body missing 'state'")
             return HttpResponseBadRequest("request body missing 'state'")

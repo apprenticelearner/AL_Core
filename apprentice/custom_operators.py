@@ -44,23 +44,6 @@ vvvvvvvvvvvvvvvvvvvv WRITE YOUR OPERATORS BELOW vvvvvvvvvvvvvvvvvvvvvvv '''
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ^^^^^^^^^^^^^^ DEFINE ALL YOUR OPERATORS ABOVE THIS LINE ^^^^^^^^^^^^^^^^
 for name,op in locals().copy().items():
   if(isinstance(op, Operator)):

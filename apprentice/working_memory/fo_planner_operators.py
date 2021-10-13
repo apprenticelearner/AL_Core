@@ -532,6 +532,74 @@ rotate = Operator(('Rotate', '?b1'),
                    (('x', ('bound', ('Rotate', '?b1'))), '?xv')])
 
 
+def int_float_square(x):
+    z = float(x) * float(x)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
+def int_float_half(x):
+    z = float(x) * .5
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
+def circ_area(r):
+    area = float(r) * float(r)
+    return str(round(area)) + '*pi'
+
+def trap_area(a, b, h):
+    area = 0.5 * (float(a) + float(b)) * float(h)
+    return str(round(area))
+
+def tria_area(b, h):
+    area = 0.5 * float(b) * float(h)
+    return str(round(area))
+
+
+square_rule = Operator(('Square', '?x'),
+                     [(('value', '?x'), '?xv')],
+                     [(('value', ('Square', ('value', '?x') )),
+                       (int_float_square, '?xv'))])
+half_rule = Operator(('Half', '?x'),
+                     [(('value', '?x'), '?xv')],
+                     [(('value', ('Half', ('value', '?x') )),
+                       (int_float_half, '?xv'))])
+
+const_pi_rule = Operator(('Const Pi', '?x'),
+                     [],
+                     [(('value', ('Const Pi')),
+                       ('*pi', '?xv'))])
+
+pi_rule = Operator(('Pi', '?x'),
+                     [(('value', '?x'), '?xv')],
+                     [(('value', ('Pi', ('value', '?x') )),
+                       (lambda x:x+"*pi", '?xv'))])
+
+
+circ_rule = Operator(('Area Circle', '?x'),
+                      [(('value', '?x'), '?xv')],
+                      [(('value', ('Area Circle', ('value', '?x') )),
+                        (circ_area, '?xv'))])
+Operator.register("circ_rule", circ_rule)
+
+trap_rule = Operator(('Area Trapezoid', '?x1', '?x2', '?x3'),
+                 [(('value', '?x1'), '?xv1'),
+                  (('value', '?x2'), '?xv2'),
+                  (('value', '?x3'), '?xv3')],
+                 [(('value', ('Area Trapezoid', ('value', '?x1'),
+                 ('value', '?x2'), ('value', '?x3'))),
+                  (trap_area, '?xv1', '?xv2', '?xv3'))])
+Operator.register("trap_rule", trap_rule)
+
+tria_rule = Operator(('Area Triangle', '?x1', '?x2'),
+                 [(('value', '?x1'), '?xv1'),
+                  (('value', '?x2'), '?xv2')],
+                 [(('value', ('Area Triangle', ('value', '?x1'), ('value', '?x2'))),
+                  (tria_area, '?xv1', '?xv2'))])
+Operator.register("tria_rule", tria_rule)
+
+
 # ^^^^^^^^^^^^^^^^^ Define All Operators Above This Line ^^^^^^^^^^^^^^^^^^
 for name, op in locals().copy().items():
     if(isinstance(op, Operator)):
