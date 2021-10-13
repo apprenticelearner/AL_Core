@@ -578,7 +578,8 @@ class MemoryAgent(BaseAgent):
             if(explanation is not None):
                 # is there a reason for this?
                 if self.use_memory and explanation.selection_literal != "done" and instruction_type != "worked_example":
-                    if compute_retrieval(self.activations[str(explanation)], self.tau, 1):
+                    if str(explanation) in self.activations and compute_retrieval(self.activations[str(explanation)], self.tau, 1):
+                    # if compute_retrieval(self.activations[str(explanation)], self.tau, 1):
                         response = explanation.to_response(state, self)
                         if(add_skill_info):
                             response.update(skill_info)
@@ -837,8 +838,8 @@ class MemoryAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-        # if self.use_memory and instruction_type != 'worked_example':
-        if self.use_memory:
+        if self.use_memory and instruction_type != 'worked_example':
+        # if self.use_memory:
             skip = True # skip activation of done skill
             for exp in explanations:
                 str_exp = str(exp)
