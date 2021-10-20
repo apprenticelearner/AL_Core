@@ -352,12 +352,13 @@ def compute_activation(times, decay):
 
 def compute_activation_recursive(times, decay, beta):
     times = times + 1
-    return beta + math.log(np.sum(np.power(times, -decay)))
+    return beta + math.log(np.sum(np.power(2*times, -decay)))
 
 def compute_decay(activations, exp_i, c, alpha):
     # print("ACTIVATIONS: ", activations)
     relevant_activations = activations[exp_i]
     decay = c*np.exp(relevant_activations)+alpha
+
     # print("DECAY: ", decay)
     return decay
 
@@ -367,7 +368,7 @@ def compute_retrieval(activation, tau, s):
     v = (1/(1+math.exp((tau - activation[-1]) / s)))
     return random() < v
 
-def update_activation(explanations, activations, question_type, exp_beta, default_beta, exp_inds, c, alpha, t):
+def update_activation(explanations, activations, question_type, exp_beta, default_beta, exp_inds, c, alpha, t, decay_path):
     for str_exp in activations:
         if str_exp in [str(exp) for exp in explanations]:
             if question_type in ["worked_example", "example"]: # hacky check to see WE vs RP (will prob not work now? need to change brds again)
@@ -377,7 +378,14 @@ def update_activation(explanations, activations, question_type, exp_beta, defaul
         else:
             beta = default_beta
         decay = compute_decay(activations[str_exp], exp_inds[str_exp] - exp_inds[str_exp][0], c, alpha)
+        write_decay(str_exp, t, decay[-1], decay_path)
         activations[str_exp] = np.append(activations[str_exp], compute_activation_recursive(t - exp_inds[str_exp], decay, beta))
+
+
+def write_decay(skill, t, decay, decay_path):
+    with open(decay_path, "a") as outfile:
+        outfile.write(skill + "\t" + str(t) + "\t" + str(decay) + "\n")
+
 
 def write_activation(activations, agent_name, t, problem_name, activation_path):
     with open(activation_path, "a") as outfile:
@@ -478,6 +486,7 @@ class MemoryAgent(BaseAgent):
 
         # self.activation_path = activation_path
         self.activation_path = "memory-activations/memory_{}_{}.txt".format(datetime.now().strftime("%Y-%m-%d-%H:%M:%S"), self.agent_name)
+        self.decay_path = "memory-activations/decay_{}_{}.txt".format(datetime.now().strftime("%Y-%m-%d-%H:%M:%S"), self.agent_name)
 
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
@@ -485,6 +494,10 @@ class MemoryAgent(BaseAgent):
         if self.activation_path and not path.exists(self.activation_path):
             with open(self.activation_path, "a") as outfile:
                 outfile.write("id\tquestion\tskill\ttime\tactivation\n")
+
+        if self.decay_path and not path.exists(self.decay_path):
+            with open(self.decay_path, "a") as outfile:
+                outfile.write("skill\ttime\tdecay\n")
 
             # with open(self.activation_path[:-4] + "_responses.txt", "a") as outfile:
             #     outfile.write("id\tquestion\tskill\tselection\taction\tinput\ttime\n")
@@ -608,7 +621,7 @@ class MemoryAgent(BaseAgent):
         if(len(responses) == 0):
             if self.use_memory and instruction_type != 'worked_example':
                 # decay activation if no explanation
-                update_activation([], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                update_activation([], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.decay_path)
                 self.t += 1
             response = EMPTY_RESPONSE
         else:
@@ -620,7 +633,7 @@ class MemoryAgent(BaseAgent):
                     self.exp_inds[str_exp] = np.array([self.t])
                 else:
                     self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
-                update_activation([str_exp], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                update_activation([str_exp], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.decay_path)
                 self.t += 1
             response = responses[0].copy()
             if(n != 1):
@@ -838,8 +851,8 @@ class MemoryAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-        if self.use_memory and instruction_type != 'worked_example':
-        # if self.use_memory:
+        # if self.use_memory and instruction_type != 'worked_example':
+        if self.use_memory:
             skip = True # skip activation of done skill
             for exp in explanations:
                 str_exp = str(exp)
@@ -856,7 +869,7 @@ class MemoryAgent(BaseAgent):
                     #     write_steps(exp, self.agent_id, self.t, problem_name, exp.to_response(state, self), self.activation_path)
             # COMPUTE ACTIVATION HERE #
             if not skip:
-                update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t)
+                update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.decay_path)
             if self.activation_path and not skip:
                 print("writing training activation at time", self.t)
                 write_activation(self.activations, self.agent_name, self.t, problem_name, self.activation_path)
