@@ -358,9 +358,10 @@ class ModularAgent(BaseAgent):
                  heuristic_learner='proportion_correct', explanation_choice='random',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
-                 constraint_set='ctat', **kwargs):
+                 constraint_set='ctat', agent_name='hello_world', **kwargs):
                 
                 
+        self.agent_name = agent_name
         self.where_learner = get_where_learner(where_learner,
                                             **kwargs.get("where_args",{}))
         self.when_learner = get_when_learner(when_learner,
@@ -461,12 +462,12 @@ class ModularAgent(BaseAgent):
 
         
         if(len(responses) == 0):
-            return EMPTY_RESPONSE
+            return EMPTY_RESPONSE, {}
         else:
             response = responses[0].copy()
             if(n != 1):
                 response['responses'] = responses
-            return response
+            return response, {}
             
 
     # ------------------------------TRAIN----------------------------------------

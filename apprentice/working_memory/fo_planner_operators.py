@@ -600,6 +600,39 @@ tria_rule = Operator(('Area Triangle', '?x1', '?x2'),
 Operator.register("tria_rule", tria_rule)
 
 
+def int3_float_add(x, y, w):
+    z = float(x) + float(y) + float(w)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
+add_3 = Operator(('Add_3', '?x', '?y', '?w'),
+                          [(('value', '?x'), '?xv'),
+                           (('value', '?y'), '?yv'),
+                           (('value', '?w'), '?wv'),
+                           # (lambda x, y: x <= y, '?x', '?y')
+                           ],
+                          [(('value', ('Add_3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
+                            (int3_float_add, '?xv', '?yv', '?wv'))])
+Operator.register("add_3", add_3)
+
+def int3_float_mul(x, y, w):
+    z = float(x) * float(y) * float(w)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+
+mul_3 = Operator(('Mul_3', '?x', '?y', '?w'),
+                          [(('value', '?x'), '?xv'),
+                           (('value', '?y'), '?yv'),
+                           (('value', '?w'), '?wv'),
+                           # (lambda x, y: x <= y, '?x', '?y')
+                           ],
+                          [(('value', ('Mul_3', ('value', '?x'), ('value', '?y'), ('value', '?w'))),
+                            (int3_float_mul, '?xv', '?yv', '?wv'))])
+Operator.register("mul_3", mul_3)
+
+
 # ^^^^^^^^^^^^^^^^^ Define All Operators Above This Line ^^^^^^^^^^^^^^^^^^
 for name, op in locals().copy().items():
     if(isinstance(op, Operator)):
@@ -627,7 +660,7 @@ stoichiometry_rules = [sig_fig_rule, div_rule, mult_rule]
 # arith_rules = [add_rule, sub_rule, mult_rule, div_rule, update_rule,
 #                done_rule]
 # arith_rules = [add_rule, mult_rule, update_rule, done_rule]
-fraction_fun = [add_rule, mult_rule]
+fraction_fun = [add_rule, mult_rule, add_3, mul_3]
 fraction_feat = [equal_rule, editable_rule]
 
 functionsets = {'tutor knowledge': arith_rules,

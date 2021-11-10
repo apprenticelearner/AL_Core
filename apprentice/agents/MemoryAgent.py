@@ -2,6 +2,7 @@ from pprint import pprint
 from random import random
 from random import choice
 from typing import Dict
+from cv2 import exp
 import numpy as np
 
 
@@ -32,7 +33,7 @@ import json
 import math
 
 import cProfile
- 
+
 # pr = cProfile.Profile()
 # pr.enable()
 
@@ -63,7 +64,7 @@ def add_QMele_to_state(state):
             if(_k != "id" and _v in obj_names):
                 _v = "?ele-" + _v
             v_new[_k] = _v
-        out[k] = v_new        
+        out[k] = v_new
     return out
 
 # def cleanup(*args):
@@ -104,7 +105,7 @@ def safe_cast(val, to_type, default=None):
         return default
 
 
-def _inputs_equal(inputsA, inputsB):        
+def _inputs_equal(inputsA, inputsB):
         keys1 = set(inputsA.keys())
         keys2 = set(inputsB.keys())
         if(keys1 == keys2):
@@ -127,14 +128,14 @@ def variablize_by_where_swap(self,state,rhs,  match):
     # print(type(state))
     mapping = {'arg' + str(i-1) if i > 0 else 'sel':
                ele for i, ele in enumerate(match)}
-    # for i,x in enumerate(state):               
+    # for i,x in enumerate(state):
     #     print("attr%i"%i,x)
     #     print("val%i"%i,state[x])
 
     r_state = rename_flat(state, {mapping[a]: a for a in mapping})
     # r_state = state
     #TODO: Do this better...
-    
+
     # r_state = {key:val for key,val in r_state.items() if "contentEditable" in key or "value" in key}
     if(self.strip_attrs and len(self.strip_attrs) > 0):
         r_state = {key:val for key,val in r_state.items() if key[0] not in self.strip_attrs}
@@ -226,7 +227,7 @@ def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
                 float_name = "float." + dir_map[d] + "==" + mapping[ele]
                 if(float_name not in mapping):
                     mapping[f_ele] = float_name
-                    break 
+                    break
     floating_elems = [x for x in state.keys() if x not in mapping and isinstance(x,str)]
     assert len(floating_elems) == 0, "Floating elements %s \
            could not be assigned relative to the rest of the state" % \
@@ -235,10 +236,10 @@ def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
 
     for tup_ele in tup_elems:
         mapping[tup_ele] = tuple([mapping.get(x,x) for x in tup_ele])
-    
+
     new_state = {}
     for key,vals in state.items():
-        
+
         if(isinstance(vals,dict)):
             new_vals = {}
             for k,v in vals.items():
@@ -247,10 +248,10 @@ def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
             new_state[mapping[key]] = new_vals
         else:
             new_state[key] = mapping.get(vals,vals)
-        
+
     new_state = flatten_state(new_state)
     # StateMultiView.transforms(("object"))
-    
+
 
     return new_state
 
@@ -258,11 +259,11 @@ def variablize_state_metaskill(self,state,rhs, where_match):
     # if(isinstance(state, StateMultiView) and second_pass):
     # try:
     #     state = state.get_view("object_skills_appended")
-        
+
     # except:
         # state_obj = state.get_view("object").copy()
         # print("variablize_state_metaskill", second_pass,where_match)
-        
+
         # all_expls = self.applicable_explanations(state, add_skill_info=True,second_pass=False,skip_when=True)
         # print("-------START THIS---------")
     to_append = {}
@@ -278,17 +279,17 @@ def variablize_state_metaskill(self,state,rhs, where_match):
         # for attr,val in resp["inputs"].items():
         #     key = (attr,("skill-%s"%resp["rhs_id"], *skill_info['mapping'].values()))
         #     # print(key, ":", val)
-        #     flat_ungrounded[key] = val 
+        #     flat_ungrounded[key] = val
     # print("--------END THIS---------")
-    
+
     state_obj = {**state.get_view("object"),**to_append}
     # print(state_obj)
     # state.set_view("object_skills_appended",state_obj)
     state = state_obj
     state = variablize_state_relative(self,state,rhs, where_match)
     k_list = list(state.keys())
-    
-    
+
+
     l_core = len(state)-len(to_append)
     # pprint({k:state[k] for k in k_list[:l_core]})
     # pprint({k:state[k] for k in k_list[l_core:]})
@@ -296,7 +297,7 @@ def variablize_state_metaskill(self,state,rhs, where_match):
                       {k:state[k] for k in k_list[l_core:]})
                 # pprint()
     # print(state)
-    
+
     # pprint("r_state")
     # pprint(r_state)
     return state
@@ -345,70 +346,6 @@ def expression_matches(expression, state):
         if(expr_comparitor(fact_expr, expression, mapping)):
             yield mapping
 
-
- 
-def compute_activation(times, decay):
-    return math.log(np.sum(times**(-decay)))
-
-def compute_activation_recursive(times, decay, beta):
-    times = times + 1
-    return beta + math.log(np.sum(np.power(2*times, -decay)))
-
-def compute_decay(activations, exp_i, c, alpha):
-    # print("ACTIVATIONS: ", activations)
-    relevant_activations = activations[exp_i]
-    decay = c*np.exp(relevant_activations)+alpha
-
-    # print("DECAY: ", decay)
-    return decay
-
-def compute_retrieval(activation, tau, s):
-    # print("probability of retrieval:", (1/(1+math.exp((tau - activation[-1]) / s))))
-    # return random() < (1/(1+math.exp((tau - activation) / s)))
-    v = (1/(1+math.exp((tau - activation[-1]) / s)))
-    return random() < v
-
-def update_activation(explanations, activations, question_type, exp_beta, default_beta, exp_inds, c, alpha, t, decay_path):
-    for str_exp in activations:
-        if str_exp in [str(exp) for exp in explanations]:
-            if question_type in ["worked_example", "example"]: # hacky check to see WE vs RP (will prob not work now? need to change brds again)
-                beta = exp_beta # 4
-            else:
-                beta = default_beta # 0
-        else:
-            beta = default_beta
-        decay = compute_decay(activations[str_exp], exp_inds[str_exp] - exp_inds[str_exp][0], c, alpha)
-        write_decay(str_exp, t, decay[-1], decay_path)
-        activations[str_exp] = np.append(activations[str_exp], compute_activation_recursive(t - exp_inds[str_exp], decay, beta))
-
-
-def write_decay(skill, t, decay, decay_path):
-    with open(decay_path, "a") as outfile:
-        outfile.write(skill + "\t" + str(t) + "\t" + str(decay) + "\n")
-
-
-def write_activation(activations, agent_name, t, problem_name, activation_path):
-    with open(activation_path, "a") as outfile:
-        for a in activations:
-            # outfile.write(agent_id + "\t" + problem_name + "\t" + a + "\t" + str(t) + "\t" + str(activations[a][-1])+"\n")
-
-            outfile.write(agent_name + "\t" + "problem-name-foo" + "\t" + a + "\t" + str(t) + "\t" + str(activations[a][-1])+"\n")
-
-            # outfile.write(agent_id + "\t" + a + "\t" + str(t) + "\t" + str(activations[a][-1])+"\n")
-
-def write_steps(explanation, agent_id, t, problem_name, response, activation_path):
-    with open(activation_path[:-4] + "_responses.txt", "a") as outfile:
-        if bool(response):
-            selection = response["selection"]
-            action = response["action"]
-            i = str(response["inputs"]["value"])
-            # outfile.write(agent_id + "\t" + problem_name + "\t" + str(explanation) + "\t" + selection + "\t" + action + "\t" + i + "\t" + str(t) + "\n")
-            outfile.write(agent_id + "\t" + str(explanation) + "\t" + selection + "\t" + action + "\t" + i + "\t" + str(t) + "\n")
-        else:
-            print(agent_id)
-            # outfile.write(agent_id + "\t" + problem_name + "\t" + str(explanation) + "\t" + str(response) + "\t" + str(response) + "\t" + str(response) + "\t" + str(t) + "\n")
-            outfile.write(agent_id  + "\t" + str(explanation) + "\t" + str(response) + "\t" + str(response) + "\t" + str(response) + "\t" + str(t) + "\n")
-
 EMPTY_RESPONSE = {}
 
 STATE_VARIABLIZATIONS = {"whereappend": variablize_by_where_append,
@@ -416,7 +353,8 @@ STATE_VARIABLIZATIONS = {"whereappend": variablize_by_where_append,
                          "relative" : variablize_state_relative,
                          "metaskill" : variablize_state_metaskill}
 
-
+RETRIEVAL_TYPE_PRATICE = "RETRIEVAL_TYPE_PRATICE"
+RETRIEVAL_TYPE_STUDY = "RETRIEVAL_TYPE_STUDY"
 
 class MemoryAgent(BaseAgent):
 
@@ -426,9 +364,10 @@ class MemoryAgent(BaseAgent):
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
                  constraint_set='ctat', use_memory=True,
-                 c=0.277, alpha=0.177, tau=-0.7, exp_beta=4, default_beta=0, agent_name=None, activation_path=None, **kwargs):
-                
-                
+                 s=1, c=0.277, alpha=0.177, tau=-0.7, beta=4, b_study=4, b_practice=0, agent_name=None,
+                 **kwargs):
+
+
         self.where_learner = get_where_learner(where_learner,
                                             **kwargs.get("where_args",{}))
         self.when_learner = get_when_learner(when_learner,
@@ -444,7 +383,7 @@ class MemoryAgent(BaseAgent):
                                    function_set=self.function_set,
                                    feature_set=self.feature_set,
                                    **kwargs.get("planner_args",{}))
-        sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]        
+        sv = STATE_VARIABLIZATIONS[state_variablization.lower().replace("_","")]
         self.strip_attrs = strip_attrs
         self.state_variablizer = MethodType(sv, self)
         self.rhs_list = []
@@ -459,34 +398,28 @@ class MemoryAgent(BaseAgent):
         self.last_state = None
 
         self.explanations_list = np.empty(shape=[0, 1])
+
         self.activations = {}
+        self.exp_times = {}
+        self.decays = {}
+        self.bs = {}
         self.use_memory = use_memory
         self.t = 0
-        
 
-
-        exp_beta = 4
-        default_beta = 0
-        tau = 0.7
-        c=0.277, 
-        alpha=0.177
-
-        self.exp_beta = exp_beta # 4
-        self.default_beta = default_beta # 0
+        self.beta = beta # 4
         self.tau = tau # 0.7
         self.c = c # 0.277
         self.alpha = alpha # 0.177
+        self.s = s # 1
+        self.b_study = b_study
+        self.b_practice = b_practice # 0
 
-
-
-
-        self.exp_inds = {}
-
+        self.print_log = kwargs['print_log']
         self.agent_name = agent_name
+        self.log = []
 
-        # self.activation_path = activation_path
-        self.activation_path = "memory-activations/memory_{}_{}.txt".format(datetime.now().strftime("%Y-%m-%d-%H:%M:%S"), self.agent_name)
-        self.decay_path = "memory-activations/decay_{}_{}.txt".format(datetime.now().strftime("%Y-%m-%d-%H:%M:%S"), self.agent_name)
+        # self.activation_path = "memory-activations/memory_{}_{}.txt".format(datetime.now().strftime("%Y-%m-%d-%H:%M:%S"), self.agent_name)
+        # self.decay_path = "memory-activations/decay_{}_{}.txt".format(datetime.now().strftime("%Y-%m-%d-%H:%M:%S"), self.agent_name)
 
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
@@ -502,6 +435,68 @@ class MemoryAgent(BaseAgent):
             # with open(self.activation_path[:-4] + "_responses.txt", "a") as outfile:
             #     outfile.write("id\tquestion\tskill\tselection\taction\tinput\ttime\n")
 
+    def update_activation_for_post_test(self):
+        # for _ in range(self.t, 2 * self.t):
+        #     self._update_activation([], RETRIEVAL_TYPE_STUDY)
+        #     self.t += 1
+        self.t = 2 * self.t
+
+    def get_activations(self):
+        return self.activations
+
+    def get_log(self):
+        return self.log
+
+    def log_step(self, problem_name, action):
+        data = {
+            "problem_name": problem_name,
+            "action": action
+        }
+        return self.log.append(data)
+
+    def _compute_activation_recursive(self, exp, add_t=False):
+        bs = self.bs[exp]
+        times = self.t - self.exp_times[exp] + (1 if add_t else 0)
+        decays = self.decays[exp]
+        return self.beta + np.log(np.sum(bs * np.power(times, -decays)))
+
+    def _compute_decay(self, str_exp):
+        decay = self.c * math.exp(self.activations[str_exp][-1]) + self.alpha
+        return decay
+
+    def _compute_retrieval(self, exp):
+        exp = str(exp)
+        m = self._compute_activation_recursive(exp)
+        v = (1 / (1 + math.exp((self.tau - m) / self.s)))
+
+        if self.print_log: print(f"{str(exp)}: {v}, {m}")
+        return v, m, random() < v
+    
+    def _update_activation(self, explanations, retrieval_type):
+        for exp in explanations:
+            exp = str(exp)
+            b = self.b_practice if retrieval_type == RETRIEVAL_TYPE_PRATICE else self.b_study
+
+            if exp not in self.bs:
+                self.bs[exp] = np.array([])
+            self.bs[exp] = np.append(self.bs[exp], b)
+
+            if exp not in self.activations:
+                self.activations[exp] = np.array([-np.inf])
+
+            if exp not in self.exp_times:
+                self.exp_times[exp] = np.array([], dtype=np.int)
+            self.exp_times[exp] = np.append(self.exp_times[exp], self.t)
+
+            decay = self._compute_decay(exp)
+            if exp not in self.decays:
+                self.decays[exp] = np.array([])
+            self.decays[exp] = np.append(self.decays[exp], decay)
+
+            m = self._compute_activation_recursive(exp, True)
+            self.activations[exp] = np.append(self.activations[exp], m)
+
+
     # -----------------------------REQUEST------------------------------------
 
     def all_where_parts(self,state, rhs_list=None):
@@ -512,9 +507,7 @@ class MemoryAgent(BaseAgent):
             for match in self.where_learner.get_matches(rhs, state):
                 if(len(match) != len(set(match))):
                     continue
-                yield rhs,match 
-
-
+                yield rhs,match
 
 
     def applicable_explanations(self, state, rhs_list=None,
@@ -529,7 +522,7 @@ class MemoryAgent(BaseAgent):
             # print("MATCH", rhs,match)
             if(not skip_when):
                 p = self.when_learner.predict(rhs, pred_state)
-                
+
                 if(p <= 0):
                     continue
 
@@ -542,38 +535,11 @@ class MemoryAgent(BaseAgent):
                 skill_info = None
             yield explanation, skill_info
 
-    def request(self, state: dict, add_skill_info=False,n=1,instruction_type=None,**kwargs):  # -> Returns sai
-        # print("=====REQUEST=====")
-        # for k, a in self.activations.items():
-        #     print("{}: {}".format(k, len(a)))
-        # for k, a in self.exp_inds.items():
-        #     print("{}: {}".format(k, len(a)))
-
-        # print("-" * 10)
-
-        # print("aljdflakhjsfkldj")
-        # print(self.name)
-        # print(self.id)
-        # print(instruction_type)
-        # pprint(kwargs)
-
-        # pprint(state)
+    def request(self, state: dict, add_skill_info=False, n=1, problem_info=None, **kwargs):  # -> Returns sai
         if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
-        if "problem_name" in state:
-            print("problem_name in state")
-            problem_name = state["problem_name"]["value"]
-        else:
-            problem_name = "fake_problem_name"
-
-        # instruction_type should be example or feedback
-        if instruction_type is None:
-            if "practice_type" in state:
-                instruction_type = state["practice_type"]["value"].lower()
-            else:
-                instruction_type = "practice"
 
         if(not isinstance(state,StateMultiView)):
-            state = StateMultiView("object", state) 
+            state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
         state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
         # pprint(state.get_view("flat_ungrounded"))
@@ -586,25 +552,29 @@ class MemoryAgent(BaseAgent):
         retrieved_explanations = []
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
-        for explanation,skill_info in itr:
+        selected_v, selected_m = None, None
+
+        applicable_explanations_count = 0
+        for explanation, skill_info in itr:
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
+                applicable_explanations_count += 1
                 # is there a reason for this?
-                if self.use_memory and explanation.selection_literal != "done" and instruction_type != "worked_example":
-                    if str(explanation) in self.activations and compute_retrieval(self.activations[str(explanation)], self.tau, 1):
-                    # if compute_retrieval(self.activations[str(explanation)], self.tau, 1):
+                if self.use_memory and explanation.selection_literal != "done":
+                    if str(explanation) in self.activations:
+                        v, m, success = self._compute_retrieval(explanation)
+                        if not success:
+                            continue
+
+                        selected_v, selected_m = v, m
+
                         response = explanation.to_response(state, self)
                         if(add_skill_info):
                             response.update(skill_info)
                             response["mapping"] = explanation.mapping
-                        # retrieved_explanations.append(explanation)
-                        # responses.append(response)
 
-                        activation = self.activations[str(explanation)]
-                        retrieved_explanations.append((activation, explanation))
-                        responses.append((activation, response))
-                    else:
-                        continue
+                        retrieved_explanations.append((v, explanation))
+                        responses.append((v, response))
                 else:
                     response = explanation.to_response(state, self)
                     if(add_skill_info):
@@ -617,40 +587,33 @@ class MemoryAgent(BaseAgent):
             responses.sort(reverse=True)
             retrieved_explanations = [r[1] for r in retrieved_explanations]
             responses = [r[1] for r in responses]
-        
+
         if(len(responses) == 0):
-            if self.use_memory and instruction_type != 'worked_example':
-                # decay activation if no explanation
-                update_activation([], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.decay_path)
-                self.t += 1
             response = EMPTY_RESPONSE
         else:
-            # update first retrieved skill, decay others
-            if retrieved_explanations and retrieved_explanations[0].selection_literal != "done" and instruction_type != "worked_example":
+            if retrieved_explanations and retrieved_explanations[0].selection_literal != "done":
                 str_exp = str(retrieved_explanations[0])
-                print("selected explanation:", str_exp)
-                if str_exp not in self.exp_inds:
-                    self.exp_inds[str_exp] = np.array([self.t])
-                else:
-                    self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
-                update_activation([str_exp], self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.decay_path)
-                self.t += 1
+                self._update_activation([str_exp], RETRIEVAL_TYPE_PRATICE)
             response = responses[0].copy()
             if(n != 1):
                 response['responses'] = responses
-        # write activations/steps if done not selected
-        exp = None if not retrieved_explanations else str_exp
-        # note: have to use Done response instead of explanaion format since we don't save it otherwise
-        if self.activation_path and response.get("selection") != "done" and instruction_type != "worked_example":
-            # print("explanation:", exp)
-            print("response:", str(response))
-            print("writing request activation at time", self.t-1)
-            
-            write_activation(self.activations, self.agent_name, self.t-1, problem_name, self.activation_path)
-            # print("writing request steps at time", self.t-1)
-            # write_steps(exp, self.agent_id, self.t-1, problem_name, response, self.activation_path)
-        return response
-            
+
+        info = {}
+        selected_skill = str(retrieved_explanations[0]) if len(retrieved_explanations) > 0 else "NO EXP"
+        if self.use_memory:
+            self.t += 1
+            info = {
+                # 'applicable_explanations_count': applicable_explanations_count,
+                'v': selected_v,
+                'm': selected_m,
+                'selected_skill': selected_skill,
+                'applicable_explanations_count': applicable_explanations_count
+            }
+
+        if self.print_log: print(f"selected_skill: {selected_skill} (v: {selected_v}, m: {selected_m}")
+        # self.log_step(problem_info['problem_name'], "request")
+        return response, info
+
 
     # ------------------------------TRAIN----------------------------------------
 
@@ -690,7 +653,7 @@ class MemoryAgent(BaseAgent):
                 # else:
                 #     itr = []
             else:
-                print("Trying:", rhs)
+                # print("Trying:", rhs)
                 # print(self.planner.unify_op.__code__.co_varnames)
                 mappings = self.planner.unify_op(state,rhs.input_rule, sai,
                     foci_of_attention=foci_of_attention)
@@ -703,7 +666,6 @@ class MemoryAgent(BaseAgent):
                 #                               allow_bottomout=False,
                 #                               allow_copy=False)
             for mapping in mappings:
-                # print("MAAAP", mapping)
                 if(type(self.planner).__name__ == "FoPlannerModule"):
                     m = {"?sel": "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection}
                 else:
@@ -763,44 +725,17 @@ class MemoryAgent(BaseAgent):
 
     def train(self, state:Dict, sai:Sai=None, reward:float=None,
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
-              ret_train_expl=False, add_skill_info=False,instruction_type=None,**kwargs):  # -> return None
-        # pprint(state)
-        # print("=====TRAIN=====")
+              ret_train_expl=False, add_skill_info=False, problem_info=None, **kwargs):  # -> return None
 
-        # for k, a in self.activations.items():
-        #     print("{}: {}".format(k, len(a)))
-        # for k, a in self.exp_inds.items():
-        #     print("{}: {}".format(k, len(a)))
-
-        # print("-" * 10)
-        
-        if "problem_name" in state:
-            print("problem_name in state")
-            problem_name = state["problem_name"]["value"]
-        else:
-            problem_name = "fake_problem_name"
-
-        # instruction_type should be example or feedback
-        if instruction_type is None:
-            if "practice_type" in state:
-                instruction_type = state["practice_type"]["value"].lower()
-            else:
-                instruction_type = "practice"
-
-        c = self.c
-        alpha = self.alpha
-
-        if(type(self.planner).__name__ == "FoPlannerModule"): 
+        if(type(self.planner).__name__ == "FoPlannerModule"):
             state = add_QMele_to_state(state)
             sai.selection = "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
         state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
         # state_featurized = state.get_view("flat_ungrounded")
-        # state_featurized =
+        # print(sai, foci_of_attention)
 
-        
-        print(sai, foci_of_attention)
         ###########ONLY NECESSARY FOR IMPLICIT NEGATIVES#############
         _ = [x for x in self.applicable_explanations(state)]
         ############################################################
@@ -808,12 +743,8 @@ class MemoryAgent(BaseAgent):
         #Either the explanation (i.e. prev application of skill) is provided
         #   or we must infer it from the skills that would have fired
         if(rhs_id is not None and mapping is not None):
-            # print("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
-            # print("EX: ",str(explanations[0]))
         elif(sai is not None):
-            # pprint(state.get_view("object"))
-            # print("TO HOW")
             t_s = time.time_ns()
             explanations = self.explanations_from_skills(state, sai,
                                                          self.rhs_list,
@@ -825,12 +756,9 @@ class MemoryAgent(BaseAgent):
                                                  explanations,
                                                  state)
             if(len(explanations) == 0):
-
                 if(len(nonmatching_explanations) > 0):
                     explanations = [choice(nonmatching_explanations)]
-
                 else:
-                    # print(state_featurized)
                     t_s = time.time_ns()
                     explanations = self.explanations_from_how_search(
                                    state, sai, foci_of_attention)
@@ -840,7 +768,7 @@ class MemoryAgent(BaseAgent):
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
-                        print("FOUND EX:", str(exp))
+                        # print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:
@@ -851,32 +779,25 @@ class MemoryAgent(BaseAgent):
             raise ValueError("Call to train missing SAI, or unique identifiers")
 
         explanations = list(explanations)
-        # if self.use_memory and instruction_type != 'worked_example':
-        if self.use_memory:
+
+        # QUESTION: should activation be updated when AL receive correctness feedback?
+        # Currently, no since the activation should already be updated in request().
+        if self.use_memory and rhs_id is None:
             skip = True # skip activation of done skill
             for exp in explanations:
                 str_exp = str(exp)
                 if exp.selection_literal != "done":
                     skip = False
                     self.explanations_list = np.append(self.explanations_list, str_exp)
-                    if str_exp not in self.activations:
-                        self.activations[str_exp] = np.array([-np.inf])
-                        self.exp_inds[str_exp] = np.array([self.t])
-                    else:
-                        self.exp_inds[str_exp] = np.append(self.exp_inds[str_exp], self.t)
-                    # if self.activation_path:
-                    #     print("writing training steps at time", self.t)
-                    #     write_steps(exp, self.agent_id, self.t, problem_name, exp.to_response(state, self), self.activation_path)
-            # COMPUTE ACTIVATION HERE #
+
+            if len(explanations) > 1:
+                print("*** MORE THAN ONE EXP ***")
             if not skip:
-                update_activation(explanations, self.activations, instruction_type, self.exp_beta, self.default_beta, self.exp_inds, self.c, self.alpha, self.t, self.decay_path)
-            if self.activation_path and not skip:
-                print("writing training activation at time", self.t)
-                write_activation(self.activations, self.agent_name, self.t, problem_name, self.activation_path)
-        # print("FIT_A")
+                self._update_activation(explanations, RETRIEVAL_TYPE_STUDY)
+                self.t += 1
+
         self.fit(explanations, state, reward)
-        if self.use_memory and not skip:
-            self.t += 1
+        # self.log_step(problem_info['problem_name'], "train")
         if(self.ret_train_expl):
             out = []
             for exp in explanations:
@@ -888,7 +809,6 @@ class MemoryAgent(BaseAgent):
 
     # ------------------------------CHECK--------------------------------------
 
-    
 
     def check(self, state, selection, action, inputs):
         resp = self.request(state,n=-1)
@@ -896,8 +816,8 @@ class MemoryAgent(BaseAgent):
             responses = resp['responses']
             for resp in responses:
                 # print(resp['selection'],resp['action'],resp['inputs'], _inputs_equal(resp['inputs'],inputs))
-                if(resp['selection'] == selection and 
-                   resp['action'] == action and 
+                if(resp['selection'] == selection and
+                   resp['action'] == action and
                    _inputs_equal(resp['inputs'],inputs)):
                     return 1
 
@@ -921,7 +841,7 @@ class MemoryAgent(BaseAgent):
                 del req["inputs"]
                 del req["mapping"]
                 del req["selection"]
-                
+
 
                 if(req is not None):
                     out.append(frozenset([(k, v) for k, v in req.items()]))
@@ -982,7 +902,7 @@ def kb_to_flat_ungrounded(knowledge_base):
 class FlatState(dict):
     def __init__(self, core_features,secondary_features):
         self.core_len = len(core_features)
-        self.core_features = {**core_features} 
+        self.core_features = {**core_features}
         super(FlatState,self).__init__({**core_features,**secondary_features})
 
     def __setitem__(self, x,y):
