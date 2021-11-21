@@ -1569,7 +1569,7 @@ class VersionSpace(BaseILP):
 
         # start_time = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
         if(not self.pos_ok):
-            print("NOT POS OK")
+            # print("NOT POS OK")
             return
 
         state = x.get_view("object")

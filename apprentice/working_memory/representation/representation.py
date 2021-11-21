@@ -292,6 +292,7 @@ class Explanation(object):
         response['action'] = self.rhs.action
         response['inputs'] = self.compute(state, agent)
         response['rhs_id'] = self.rhs._id_num
+        response['mapping'] = self.mapping
         return response
 
     def get_skill_info(self,agent,when_state=None):

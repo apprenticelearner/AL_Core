@@ -13,6 +13,7 @@ from copy import deepcopy
 import itertools
 import math
 import numpy as np
+from pprint import pprint
 
 
 def toFloatIfFloat(x):
@@ -123,6 +124,7 @@ class NumbaPlanner(BasePlanner):
 					allow_copy=True,
 					epsilon=0.0,
 					max_solutions=100):
+		print("foci_of_attention:", foci_of_attention)
 		# print("HOW_SEARCH D=", search_depth, "N_ops=",len(operators) if operators is not None else -1)
 		assert "value" in sai.inputs, "For now NumbaPlanner only searches for exaplantions of SAIs with inputs['value'] set."
 
@@ -150,14 +152,16 @@ class NumbaPlanner(BasePlanner):
 		#Try to find a solution by looking for a number, if that doesn't work treat as string				
 		operator_compositions = kb.how_search(operators,goal,search_depth=search_depth,max_solutions=max_solutions)
 		# print("%.02f"%(time.time()-start_time),"BEEP3")
-		# print(operator_compositions)
+		# for op_comp in operator_compositions:
+		# 	print(op_comp.template, [arg.binding.id for arg in op_comp.args])
+		# pprint(operator_compositions)
 		if(len(operator_compositions) == 0 and isinstance(goal,(int,float,bool))):
 			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=max_solutions)
 		# out = []
 
 		at_least_one = False
 		for op_comp in reversed(operator_compositions): #Note this is a kludge
-			if(not allow_copy and op_comp.depth == 0 and min([op.depth for op in operators]) > 0):
+			if(not allow_copy and op_comp.depth == 1):# and min([op.depth for op in operators]) > 0):
 				continue	
 
 			op_comp = deepcopy(op_comp)

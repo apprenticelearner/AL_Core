@@ -46,6 +46,56 @@ performance_logger.setLevel("ERROR")
 
 
 
+def encode_neighbors(objs, l_str='to_left', r_str="to_right", a_str="above", b_str="below", strip_attrs=["x", "y", "width", "height"]):
+  # objs = list(_objs.values()) if(isinstance(_objs,dict)) else _objs
+  objs_list = list(objs.values())
+
+  rel_objs = []
+  for i, obj in enumerate(objs):
+    rel_objs.append({
+      l_str : [],
+      r_str : [], 
+      a_str : [],
+      b_str : [],
+    })
+
+  # print("THIS IS BEING CALLED", len(objs_list))
+  # pprint(objs,sort_dicts=False)
+
+  for i, a_obj in enumerate(objs_list):
+    for j, b_obj in enumerate(objs_list):
+      if(i != j):
+        if(a_obj['y'] > b_obj['y'] and
+           a_obj['x'] < b_obj['x'] + b_obj['width'] and
+           a_obj['x'] + a_obj['width'] > b_obj['x']):
+            dist = a_obj['y'] - b_obj['y'];
+            rel_objs[i][a_str].append((dist, j));
+            rel_objs[j][b_str].append((dist, i));
+
+        if(a_obj['x'] < b_obj['x'] and
+           a_obj['y'] + a_obj['height'] > b_obj['y'] and
+           a_obj['y'] < b_obj['y'] + b_obj['height']):
+            dist = b_obj['x'] - a_obj['x']
+            rel_objs[i][r_str].append((dist, j));
+            rel_objs[j][l_str].append((dist, i));
+
+  strip_attrs_set = set(strip_attrs)
+  out = {}   
+  for (_id, obj), rel_obj in zip(objs.items(), rel_objs):
+    # print(_id, obj["x"],obj["y"],obj["width"],obj["height"])
+    new_obj = {k:v for k,v in obj.items() if k not in strip_attrs}
+    new_obj[l_str] = objs_list[sorted(rel_obj[l_str])[0][1]]["id"] if len(rel_obj[l_str]) > 0 else ""
+    new_obj[r_str] = objs_list[sorted(rel_obj[r_str])[0][1]]["id"] if len(rel_obj[r_str]) > 0 else ""
+    new_obj[a_str] = objs_list[sorted(rel_obj[a_str])[0][1]]["id"] if len(rel_obj[a_str]) > 0 else ""
+    new_obj[b_str] = objs_list[sorted(rel_obj[b_str])[0][1]]["id"] if len(rel_obj[b_str]) > 0 else ""
+    out[_id] = new_obj
+
+  # if(any([obj.get('value',"") != "" and obj.get('value',"")]))  
+  # print()
+
+  return out
+
+
 
 def add_QMele_to_state(state):
     ''' A function which adds ?ele- to state keys... this is necessary in order to use
@@ -212,6 +262,7 @@ def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
         state = state.get_view("object").copy()
     center = list(where_match)[0]
     mapping = _relative_rename_recursive(state,center,center_name=center_name)
+    # print(mapping)
     floating_elems = [x for x in state.keys() if x not in mapping and isinstance(x,str)]
     tup_elems = [x for x in state.keys() if x not in mapping and isinstance(x,tuple)]
 
@@ -372,6 +423,13 @@ class ModularAgent(BaseAgent):
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
                  constraint_set='ctat', **kwargs):
+
+        print(dict(feature_set=feature_set, function_set=function_set,
+                 when_learner=when_learner, where_learner=where_learner,
+                 which_learner=which_learner, explanation_choice=explanation_choice,
+                 planner=planner, state_variablization=state_variablization, search_depth=search_depth,
+                 numerical_epsilon=numerical_epsilon, ret_train_expl=ret_train_expl, strip_attrs=strip_attrs,
+                 constraint_set=constraint_set),kwargs)
                 
                 
         self.where_learner = get_where_learner(where_learner,
@@ -404,6 +462,7 @@ class ModularAgent(BaseAgent):
         self.last_state = None
         self.remove_low_utility = True
         self.one_pos_which_per_sel = True
+        self.prev_skill_app = None
 
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
@@ -454,6 +513,10 @@ class ModularAgent(BaseAgent):
             yield explanation, skill_info
 
     def request(self, state: dict, add_skill_info=False,n=1,**kwargs):  # -> Returns sai
+        state = encode_neighbors(state)
+        # pprint(state,sort_dicts=False)
+        print("REQUEST")
+        print(dict(add_skill_info=add_skill_info, n=n), kwargs)
 
         if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
         if(not isinstance(state,StateMultiView)):
@@ -490,7 +553,7 @@ class ModularAgent(BaseAgent):
                 # ut = ut if isinstance(ut,(float,int)) else 0.0
                 # rem_ut = rem_ut if isinstance(rem_ut,(float,int)) else 0.0
                 print(f"UTILITY: U:({ut[0]:.3f}, {pe_garbage}:{ne_garbage}) R:({rem_ut[0]:.3f}, {rem_pe_garbage}:{rem_ne_garbage})")
-                
+                self.prev_skill_app = explanation
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
                     response.update(skill_info)
@@ -500,11 +563,13 @@ class ModularAgent(BaseAgent):
         # pprint(responses)
         # print("---------------")
         if(len(responses) == 0):
+            self.prev_skill_app = None
             return EMPTY_RESPONSE
         else:
             response = responses[0].copy()
             if(n != 1):
                 response['responses'] = responses
+            print("response:", response)                    
             return response
             
 
@@ -583,6 +648,7 @@ class ModularAgent(BaseAgent):
         # print(state)
         itr = self.planner.how_search(state, sai,
                                       foci_of_attention=foci_of_attention)
+        print("---- HOW EXPLANATIONS--- ")
         for input_rule, mapping in itr:
             inp_vars = list(mapping.keys())
             varz = list(mapping.values())
@@ -593,6 +659,7 @@ class ModularAgent(BaseAgent):
 
             literals = [sai.selection] + varz
             ordered_mapping = {k: v for k, v in zip(rhs.all_vars, literals)}
+            print(rhs, ordered_mapping.values())
             yield Explanation(rhs, ordered_mapping)
 
     def add_rhs(self, rhs, skill_label="DEFAULT_SKILL"):  # -> return None
@@ -647,8 +714,14 @@ class ModularAgent(BaseAgent):
     def train(self, state:Dict, sai:Sai=None, reward:float=None,
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
+        
+        state = encode_neighbors(state)
         # pprint(state)
-
+        # print('TRAIN')
+        print(dict(sai=sai, reward=reward, rhs_id=rhs_id,
+                  skill_label=skill_label, foci_of_attention=foci_of_attention, mapping=mapping,
+                  ret_train_expl=ret_train_expl, add_skill_info=add_skill_info))
+            # kwargs)
 
         if(type(self.planner).__name__ == "FoPlannerModule"): 
             state = add_QMele_to_state(state)
@@ -667,6 +740,11 @@ class ModularAgent(BaseAgent):
 
         #Either the explanation (i.e. prev application of skill) is provided
         #   or we must infer it from the skills that would have fired
+        # if(self.prev_skill_app):
+        #     print("PREV SKILL APP", self.prev_skill_app)
+        #     explanations = [self.prev_skill_app]
+        #     self.prev_skill_app = None            
+
         if(rhs_id is not None and mapping is not None):
             # print("Reward: ", reward)
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
@@ -720,6 +798,7 @@ class ModularAgent(BaseAgent):
         explanations = list(explanations)
         for exp in explanations:
             print("Updating skill ->:", str(exp))
+            print("--------")
         # print("FIT_A")
         self.fit(explanations, state, reward)
         if(self.ret_train_expl):
@@ -728,7 +807,7 @@ class ModularAgent(BaseAgent):
                 resp = exp.to_response(state,self)
                 if(add_skill_info): resp.update(exp.get_skill_info(self))
                 out.append(resp)
-
+            print(out)
             return out
 
     # ------------------------------CHECK--------------------------------------
