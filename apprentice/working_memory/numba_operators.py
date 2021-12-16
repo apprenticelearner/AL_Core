@@ -1,6 +1,7 @@
 from numbert.operator import BaseOperator
 import math
 from numba import njit
+import numpy as np
 from .representation import numbalizer
 
 textfield = {
@@ -146,6 +147,29 @@ class Divide(BaseOperator):
 
     def forward(x, y):
         return x / y
+
+
+class ConvertNumerator(BaseOperator):
+    commutes = False
+    signature = 'float(float,float,float)'
+
+    def condition(cden, iden, inum):
+        return iden != 0 and iden <= cden
+
+    def forward(cden, iden, inum):
+        return (cden / iden) * inum
+
+
+# class DivideRound(BaseOperator):
+#     commutes = False
+#     signature = 'float(float,float)'
+
+#     def condition(x, y):
+#         return y != 0
+
+#     def forward(x, y):
+#         # Rounding errors start around 9 decimal places out
+#         return np.round(x / y, 12) 
 
 
 class Equals(BaseOperator):
