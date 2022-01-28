@@ -137,6 +137,13 @@ class Multiply(BaseOperator):
     def forward(x, y):
         return x * y
 
+class Multiply2(BaseOperator):
+    commutes = True
+    signature = 'float(float,float)'
+
+    def forward(x, y):
+        return x * y
+
 
 class Divide(BaseOperator):
     commutes = False

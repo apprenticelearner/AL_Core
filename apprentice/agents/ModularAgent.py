@@ -298,7 +298,8 @@ def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
         else:
             new_state[key] = mapping.get(vals,vals)
         
-    new_state = flatten_state(new_state)
+    new_state = {**flatten_state(new_state),**flatten_state(state)}
+    # pprint(new_state)
     # StateMultiView.transforms(("object"))
     
 
