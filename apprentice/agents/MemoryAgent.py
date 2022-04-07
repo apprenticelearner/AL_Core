@@ -424,13 +424,13 @@ class MemoryAgent(BaseAgent):
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
 
-        if self.activation_path and not path.exists(self.activation_path):
-            with open(self.activation_path, "a") as outfile:
-                outfile.write("id\tquestion\tskill\ttime\tactivation\n")
+        # if self.activation_path and not path.exists(self.activation_path):
+        #     with open(self.activation_path, "a") as outfile:
+        #         outfile.write("id\tquestion\tskill\ttime\tactivation\n")
 
-        if self.decay_path and not path.exists(self.decay_path):
-            with open(self.decay_path, "a") as outfile:
-                outfile.write("skill\ttime\tdecay\n")
+        # if self.decay_path and not path.exists(self.decay_path):
+        #     with open(self.decay_path, "a") as outfile:
+        #         outfile.write("skill\ttime\tdecay\n")
 
             # with open(self.activation_path[:-4] + "_responses.txt", "a") as outfile:
             #     outfile.write("id\tquestion\tskill\tselection\taction\tinput\ttime\n")

@@ -581,7 +581,7 @@ circ_rule = Operator(('Area Circle', '?x'),
                       [(('value', '?x'), '?xv')],
                       [(('value', ('Area Circle', ('value', '?x') )),
                         (circ_area, '?xv'))])
-Operator.register("circ_rule", circ_rule)
+# Operator.register("circ_rule", circ_rule)
 
 trap_rule = Operator(('Area Trapezoid', '?x1', '?x2', '?x3'),
                  [(('value', '?x1'), '?xv1'),
@@ -590,14 +590,28 @@ trap_rule = Operator(('Area Trapezoid', '?x1', '?x2', '?x3'),
                  [(('value', ('Area Trapezoid', ('value', '?x1'),
                  ('value', '?x2'), ('value', '?x3'))),
                   (trap_area, '?xv1', '?xv2', '?xv3'))])
-Operator.register("trap_rule", trap_rule)
+# Operator.register("trap_rule", trap_rule)
 
 tria_rule = Operator(('Area Triangle', '?x1', '?x2'),
                  [(('value', '?x1'), '?xv1'),
                   (('value', '?x2'), '?xv2')],
                  [(('value', ('Area Triangle', ('value', '?x1'), ('value', '?x2'))),
                   (tria_area, '?xv1', '?xv2'))])
-Operator.register("tria_rule", tria_rule)
+# Operator.register("tria_rule", tria_rule)
+
+
+def int_float_pow(x, y):
+    z = float(x) ** float(y)
+    if z.is_integer():
+        z = int(z)
+    return str(z)
+pow_rule = Operator(('Power', '?x', '?y'),
+                     [(('value', '?x'), '?xv'),
+                      (('value', '?y'), '?yv')],
+                     [(('value', ('Power', ('value', '?x'),
+                                  ('value', '?y'))),
+                       (int_float_pow, '?xv', '?yv'))])
+Operator.register("pow", pow_rule)
 
 
 def int3_float_add(x, y, w):
