@@ -371,7 +371,7 @@ class MemoryAgent(BaseAgent):
         self.where_learner = get_where_learner(where_learner,
                                             **kwargs.get("where_args",{}))
         self.when_learner = get_when_learner(when_learner,
-                                            **kwargs.get("when_args",{}))
+                                            **kwargs.get("when_args",{ "cross_rhs_inference": "implicit_negatives"}))
         self.which_learner = get_which_learner(heuristic_learner,
                                                explanation_choice, **kwargs.get("which_args",{}))
 
