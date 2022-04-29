@@ -452,6 +452,7 @@ class ModularAgent(BaseAgent):
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         for explanation,skill_info in itr:
+            print(f'explanation: {str(explanation)}')
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
                 response = explanation.to_response(state, self)
@@ -462,12 +463,12 @@ class ModularAgent(BaseAgent):
 
         
         if(len(responses) == 0):
-            return EMPTY_RESPONSE, {}
+            return EMPTY_RESPONSE
         else:
             response = responses[0].copy()
             if(n != 1):
                 response['responses'] = responses
-            return response, {}
+            return response
             
 
     # ------------------------------TRAIN----------------------------------------
@@ -579,6 +580,11 @@ class ModularAgent(BaseAgent):
             self.which_learner.ifit(exp.rhs, state, _reward)
             self.where_learner.ifit(exp.rhs, mapping, state, _reward)
 
+    def show_skills(self):
+        print('show_skills')
+        for rhs in self.rhs_list:
+            print(rhs)
+
     def train(self, state:Dict, sai:Sai=None, reward:float=None,
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
@@ -628,13 +634,14 @@ class ModularAgent(BaseAgent):
                     t_s = time.time_ns()
                     explanations = self.explanations_from_how_search(
                                    state, sai, foci_of_attention)
+
                     performance_logger.info("explanations_from_how_search {} ms".format((time.time_ns()-t_s)/(1e6)))
 
                     explanations = self.which_learner.select_how(explanations)
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
-                        # print("FOUND EX:", str(exp))
+                        print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:

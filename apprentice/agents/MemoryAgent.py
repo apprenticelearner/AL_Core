@@ -371,7 +371,8 @@ class MemoryAgent(BaseAgent):
         self.where_learner = get_where_learner(where_learner,
                                             **kwargs.get("where_args",{}))
         self.when_learner = get_when_learner(when_learner,
-                                            **kwargs.get("when_args",{ "cross_rhs_inference": "implicit_negatives"}))
+                                            **kwargs.get("when_args",{}))
+                                            # **kwargs.get("when_args",{ "cross_rhs_inference": "implicit_negatives"}))
         self.which_learner = get_which_learner(heuristic_learner,
                                                explanation_choice, **kwargs.get("which_args",{}))
 
@@ -610,7 +611,9 @@ class MemoryAgent(BaseAgent):
                 'applicable_explanations_count': applicable_explanations_count
             }
 
-        if self.print_log: print(f"selected_skill: {selected_skill} (v: {selected_v}, m: {selected_m}")
+        selected_v =f"{selected_v:.3f}" if selected_v else None
+        selected_m =f"{selected_m:.3f}" if selected_m else None
+        if self.print_log: print(f"selected_skill: {selected_skill} (v: {selected_v}, m: {selected_m})")
         # self.log_step(problem_info['problem_name'], "request")
         return response, info
 

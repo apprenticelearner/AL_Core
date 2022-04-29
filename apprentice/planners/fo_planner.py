@@ -342,7 +342,7 @@ def pattern_match(pattern, index, substitution, epsilon=0.0):
     # pprint(pattern)
     ps = []
     remove_negs = []
-
+    
     for p in pattern:
         if isinstance(p, tuple) and len(p) > 0 and p[0] == 'not':
             new_p = subst(substitution, p)
@@ -636,7 +636,6 @@ class FoPlannerModule(BasePlanner):
                     allow_copy=True,
                     epsilon=0.0):
 
-
         if(operators == None and sai.action == "ButtonPressed"):
             yield -1,{}
             return
@@ -661,7 +660,6 @@ class FoPlannerModule(BasePlanner):
             for iv_m in knowledge_base.fc_query([((attr, '?input'), input_val)],
                                                 max_depth=0,
                                                 epsilon=self.epsilon):
-
                 input_rule = unground(iv_m['?input'])
                 args = get_vars(input_rule)
                 mapping = {"?arg%d"%i: arg for i,arg in enumerate(args)}
@@ -775,6 +773,7 @@ class FoPlanner:
         return '?gensym%i' % self._gensym_counter
 
     def add_fact(self, fact):
+        # print(f'add: {str(fact)}')
         self.facts.add(fact)
         key = index_key(fact)
         for k in get_variablized_keys(key):
