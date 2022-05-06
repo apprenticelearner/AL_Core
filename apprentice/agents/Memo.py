@@ -41,6 +41,7 @@ class Memo(BaseAgent):
         resp = self.lookup.get(state, None)
         if ((resp is None and reward > 0) or
            (resp is not None and reward >= resp[2])):
+            skill_label = kwargs.get('skill_label',"")
             self.lookup[state] = (skill_label, sai, reward)
 
         if (resp is not None and reward < 0 and skill_label == resp[0] and
