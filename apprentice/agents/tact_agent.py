@@ -39,7 +39,6 @@ class WorkingMemory(ReteNetwork):
         self.sais_to_remove = []
         self.ext_facts: Dict[str, Fact] = {}
         self.matching_sais: List[Sai] = []
-        self.max_depth = 1
         self.concepts = []
         self.skills = []
 
@@ -68,21 +67,41 @@ class WorkingMemory(ReteNetwork):
                 self.ext_facts[k] = new_fact
                 self.add_fact(new_fact)
 
-    def add_skill(self, fact):
-        self.skills.append(fact)
-        self.add_fact(fact)
+    def get_new_skill_match(self) -> Optional[Match]:
+        for skill in self.skills:
+            for pnode in skill.p_nodes:
+                if pnode.new:
+                    # these use pop(0) so we get breadth first expansion
+                    # i.e., (first in first out search)
+                    t = pnode.new.pop(0)
+                    return Match(pnode, t)
+        return None
 
-    def add_concept(self, fact):
-        self.concepts.append(fact)
-        self.add_fact(fact)
+    def get_new_concept_match(self) -> Optional[Match]:
+        for concept in self.concepts:
+            for pnode in concept.p_nodes:
+                if pnode.new:
+                    t = pnode.new.pop(0)
+                    return Match(pnode, t)
+        return None
 
-    def remove_skill(self, fact):
-        self.skills.remove(fact)
-        self.remove_fact(fact)
+    def add_skill(self, skill):
+        self.skills.append(skill)
+        self.add_production(skill)
 
-    def remove_concept(self, fact):
-        self.concepts.remove(fact)
-        self.remove_fact(fact)
+    def add_concept(self, concept):
+        self.concepts.append(concept)
+        self.add_production(concept)
+
+    def remove_skill(self, skill):
+        self.skills.remove(skill)
+        self.remove_production(skill)
+        # TODO remove any facts that depend on this skill
+
+    def remove_concept(self, concept):
+        self.concepts.remove(concept)
+        self.remove_production(concept)
+        # TODO remove any facts that depend on this concept
 
     def add_fact(self, fact):
         super().add_fact(fact)
@@ -122,64 +141,48 @@ class WorkingMemory(ReteNetwork):
         ids = set([wme.identifier for wme in match.token.wmes])
         return [self.facts[i] for i in ids]
 
-    def get_new_skill_match(self):
-        for pnode in self.pnodes:
-            if pnode.new:
-                t = pnode.pop_new_token()
-                return Match(pnode, t)
-        return None
+    def conceptual_inference(self):
+        while True:
+            m = self.get_new_concept_match()
+            if not m:
+                break
 
-    def get_new_concept_match(self):
-        for pnode in self.pnodes:
-            if pnode.new:
-                t = pnode.pop_new_token()
-                return Match(pnode, t)
-        return None
+            try:
+                output = m.fire()
+            except Exception:
+                # if rule fails, then it is an invalid match
+                continue
 
-    def explain(self, sai):
-        print('trying to explain', sai)
-        # for m in list(self.wm.matches):
+            self.track_match_deletion(m)
+
+            if output:
+                for f in output:
+                    # print('adding', f)
+                    f.match = m
+                    f.depth = 0
+                    self.add_fact(f)
+                self.match_dependencies[m.token] = output
+
+    def skill_inference(self, max_depth=0):
 
         for s in self.get_sais_to_remove():
             self.matching_sais.remove(s)
 
-
-        # for f in self.facts.values():
-        #     d = 0
-        #     if hasattr(f, 'depth'):
-        #         d = f.depth
-        #     print(d, f)
-
         for s in self.matching_sais:
-            if s == sai:
-                # print("EXPLAINATION DEPTH", s.depth)
-                # print(s)
-                self.render_trace(s)
-                assert False
-                return s
+            if (s.depth > max_depth and 'SAI' not in
+                    s.match.pnode.production.__name__):
+                continue
+            yield s
 
-        # self.wm.render_graph()
-
-        # Get all matches
-        skill_matches = []
-        concept_matches = []
         while True:
-            m = self.get_new_match()
+            m = self.get_new_skill_match()
             if not m:
                 break
-            else:
-                if m.mtype == 'skill':
-                    skill_matches.append(m)
-                else:
-                    concept_matches.append(m)
 
-        #while True:
-        for m in concept_matches:
-            # skip matches beyond depth
             depth = (sum([f.depth if hasattr(f, 'depth') else 0 for f in
                      self.get_dependent_facts(m)]) + 1)
 
-            if (depth > self.max_depth and 'SAI' not in
+            if (depth > max_depth and 'SAI' not in
                     m.pnode.production.__name__):
                 continue
 
@@ -189,13 +192,6 @@ class WorkingMemory(ReteNetwork):
                 # if rule fails, then it is an invalid match
                 continue
 
-            # if depth > self.max_depth and not isinstance(output, Sai):
-            #     continue
-
-            # print([(f.depth, f['id']) if hasattr(f, 'depth') else 0 for f in
-            #        self.get_dependent_facts(m)])
-            # print(depth)
-
             self.track_match_deletion(m)
 
             if isinstance(output, Sai):
@@ -204,10 +200,8 @@ class WorkingMemory(ReteNetwork):
                 output.depth = depth
                 self.matching_sais.append(output)
                 self.match_dependencies[m.token] = [output]
-                if output == sai:
-                    self.render_trace(output)
-                    assert False
-                    return sai
+                yield output
+
             elif output:
                 for f in output:
                     # print('adding', f)
@@ -216,47 +210,12 @@ class WorkingMemory(ReteNetwork):
                     self.add_fact(f)
                 self.match_dependencies[m.token] = output
 
-        for m in skill_matches:
-            # skip matches beyond depth
-            depth = (sum([f.depth if hasattr(f, 'depth') else 0 for f in
-                     self.get_dependent_facts(m)]) + 1)
-
-            if (depth > self.max_depth and 'SAI' not in
-                    m.pnode.production.__name__):
-                continue
-
-            try:
-                output = m.fire()
-            except Exception:
-                # if rule fails, then it is an invalid match
-                continue
-
-            # if depth > self.max_depth and not isinstance(output, Sai):
-            #     continue
-
-            # print([(f.depth, f['id']) if hasattr(f, 'depth') else 0 for f in
-            #        self.get_dependent_facts(m)])
-            # print(depth)
-
-            self.track_match_deletion(m)
-
-            if isinstance(output, Sai):
-                # print('adding sai', output)
-                output.match = m
-                output.depth = depth
-                self.matching_sais.append(output)
-                self.match_dependencies[m.token] = [output]
-                if output == sai:
-                    self.render_trace(output)
-                    assert False
-                    return sai
-            elif output:
-                for f in output:
-                    # print('adding', f)
-                    f.match = m
-                    f.depth = depth
-                    self.add_fact(f)
-                self.match_dependencies[m.token] = output
+    def explain(self, sai, max_depth=0):
+        for output in self.skill_inference(max_depth=max_depth):
+            if output == sai:
+                # self.render_trace(output)
+                # assert False
+                yield output
 
     def render_trace(self, ele):
         print("CONDITIONS OF COMPILE")
@@ -413,8 +372,10 @@ class WorkingMemory(ReteNetwork):
 
 
 class MatchDeletionTracker:
-    # This gets added to a token's children list in the rete, this makes it
-    # possible to track when tokens and corresponding matches are deleted.
+    """
+    This gets added to a token's children list in the rete, this makes it
+    possible to track when tokens and corresponding matches are deleted.
+    """
 
     def __init__(self, wm, match):
         self.wm = wm
@@ -433,7 +394,8 @@ class TACTAgent(DiffBaseAgent):
 
     def __init__(
             self,
-            skills: List[Production] = [],
+            concepts: List[Production] = None,
+            skills: List[Production] = None,
             **kwargs
     ):
         # Just track the state as a set of Facts?
@@ -442,11 +404,18 @@ class TACTAgent(DiffBaseAgent):
         self.last_match = None
         self.last_sai: Optional[Sai] = None
         self.wm = WorkingMemory()
+        self.exp_to_skills = {}
 
+        log.debug(concepts)
         log.debug(skills)
 
-        for p in skills:
-            self.wm.add_production(p)
+        if concepts:
+            for c in concepts:
+                self.wm.add_concept(c)
+
+        if skills:
+            for s in skills:
+                self.wm.add_skill(s)
 
     def request_diff(self, state_diff: Dict):
         """
@@ -458,56 +427,54 @@ class TACTAgent(DiffBaseAgent):
         # Just loads in the differences from the state diff
 
         self.wm.update_with_diff(state_diff)
+
+        self.wm.conceptual_inference()
+
+        for output in self.wm.skill_inference():
+            self.last_sai = output
+            return {'selection': output.selection,
+                    'action': output.action,
+                    'inputs': output.inputs}
+
         return {}
 
-        # print("FACTS")
-        # for f in self.wm.facts:
-        #     print(f, self.wm.facts[f])
-        # print()
+    def compile_memo_rule(self, sai):
+        current_facts = [Fact(**{k: f[k] for k in f})
+                         for f in self.wm.facts.values()]
 
-        # from pprint import pprint
-        # pprint(self.wm.recently_removed_matches)
+        @Production(AND(*current_facts))
+        def memoSAI_rule():
+            return Sai(selection=sai.selection,
+                       action=sai.action,
+                       inputs=sai.inputs)
 
-        # pprint(self.wm.match_dependencies)
+        return memoSAI_rule
 
-        # print("# prod: {}".format(len(self.wm.productions)))
-        # print("# facts: {}".format(len(self.wm.facts)))
-        # print("# wmes: {}".format(len(self.wm.working_memory)))
-        # print("# nodes: {}".format(self.wm.num_nodes()))
-        # self.wm.render_graph()
-        # print(self.wm)
+    def update_skill_with_negative(self, skill):
+        """
+        restrict conditions on the provided skill so that it no longer match
+        the current working memory state.
+        """
+        print('updating skill with negative not implemented.')
 
-        # output = None
-        # candidate_activations = list(self.wm.matches)
+    def update_skill_with_positive(self, skill):
+        """
+        restrict conditions on the provided skill so that it no longer match
+        the current working memory state.
+        """
+        current_facts = set(tuple((k, f[k]) for k in f)
+                         for f in self.wm.facts.values())
 
-        # print(candidate_activations)
+        union = []
 
-        # while True:
-        #     if len(candidate_activations) == 0:
-        #         return {}
+        for f in skill.pattern:
+            e = tuple((k, f[k]) for k in f)
+            if e in current_facts:
+                union.append(f)
+            
+        print(union)
 
-        #     best_match = random.choice(candidate_activations)
-        #     candidate_activations.remove(best_match)
-
-        #     # TODO update
-        #     # state = self.wm.state
-
-        #     output = best_match.fire()
-
-        #     if isinstance(output, Sai):
-        #         break
-
-        #     candidate_activations = list(self.wm.matches)
-
-        #     # TODO update
-        #     # next_state = self.wm.state
-
-        # self.last_match = best_match
-        # self.last_sai = output
-
-        # return {'selection': output.selection,
-        #         'action': output.action,
-        #         'inputs': output.inputs}
+        print('updating skill with positive not implemented.')
 
     def train_diff(self, state_diff, next_state_diff, sai, reward):
         """
@@ -524,31 +491,53 @@ class TACTAgent(DiffBaseAgent):
         # prior_state->state->next_state
         self.wm.update_with_diff(state_diff)
 
-        explaination = self.wm.explain(sai)
-        print('my exp is', explaination)
+        if reward < 0:
+            for explaination in self.wm.explain(sai, max_depth=0):
+                # restrict conditions on matching rules so that
+                # they no longer match the current situation
+                self.update_skill_with_negative(
+                        explaination.match.pnode.production)
+        else:
+            explaination = None
+            for explaination in self.wm.explain(sai, max_depth=1):
 
-        if explaination is not None and reward > 0:
-            print('learn new rule')
+                if explaination.depth == 1:
+                    # we have a rule (one-step exp) that matches and is
+                    # correct, do nothing?
+                    break
 
-        elif explaination is None and reward > 0:
-            print('memorize output')
-            current_facts = [Fact(**{k: f[k] for k in f if k in {'id', 'value',
-                             'contentEditable'}}) for f in
-                             self.wm.facts.values()]
+                if explaination in self.exp_to_skills:
+                    # we have an explaination that corresponds to an existing
+                    # rule however the rule does not match, generalize
+                    # conditions to make it match
+                    self.update_skill_with_positive(
+                            self.exp_to_skills[explaination])
+                    break
 
-            @Production(AND(*current_facts))
-            def new_rule():
-                new_sai = Sai(selection=sai.selection,
-                              action=sai.action,
-                              inputs=sai.inputs)
-                return new_sai
+                else:
+                    # we have an explaination that does not correspond to an
+                    # existing rule, compile a new rule
+                    print("compile new rule here.")
+                    new_skill = self.compile_explaination(explaination)
+                    self.wm.add_skill(new_skill)
+                    self.exp_to_skills[explaination] = new_skill
+                    break
 
-            # print(new_rule)
-
-            # self.wm.add_production(new_rule)
+            if explaination is None:
+                k = (sai.selection, sai.action, frozenset(sai.inputs.items()))
+                if k in self.exp_to_skills:
+                    # Check if memo rule already exists for SAI, if so, then
+                    # generalize the rule to cover this instance.
+                    self.update_skill_with_positive(
+                            self.exp_to_skills[k])
+                else:
+                    # we are unable to find an explaination, create a memo rule
+                    print('memorize state-action as memo rule')
+                    new_skill = self.compile_memo_rule(sai)
+                    self.wm.add_skill(new_skill)
+                    self.exp_to_skills[k] = new_skill
 
         # need to apply both updates
-        # print(next_state_diff)
         self.wm.update_with_diff(next_state_diff)
 
     def check(self, state: Dict, sai: Sai, **kwargs) -> float:
