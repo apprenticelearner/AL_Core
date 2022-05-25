@@ -94,7 +94,7 @@ class WhenLearner(object):
         
         if(self.cross_rhs_inference == "implicit_negatives"):
             this_state = state.get_view(("variablize",rhs,tuple(mapping)))
-            pprint(this_state)
+            # pprint(this_state)
             if(self.type == "one_learner_per_label"):
                 key = rhs.label
             elif(self.type == "one_learner_per_rhs"):

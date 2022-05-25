@@ -371,8 +371,8 @@ class MemoryAgent(BaseAgent):
         self.where_learner = get_where_learner(where_learner,
                                             **kwargs.get("where_args",{}))
         self.when_learner = get_when_learner(when_learner,
-                                            **kwargs.get("when_args",{}))
-                                            # **kwargs.get("when_args",{ "cross_rhs_inference": "implicit_negatives"}))
+                                            # **kwargs.get("when_args",{}))
+                                            **kwargs.get("when_args",{ "cross_rhs_inference": "implicit_negatives"}))
         self.which_learner = get_which_learner(heuristic_learner,
                                                explanation_choice, **kwargs.get("which_args",{}))
 
@@ -581,6 +581,7 @@ class MemoryAgent(BaseAgent):
                     if(add_skill_info):
                         response.update(skill_info)
                         response["mapping"] = explanation.mapping
+                    retrieved_explanations.append(explanation)
                     responses.append(response)
 
         if self.use_memory:
