@@ -771,7 +771,7 @@ class MemoryAgent(BaseAgent):
 
                     rhs_by_how = self.rhs_by_how.get(skill_label, {})
                     for exp in explanations:
-                        # print("FOUND EX:", str(exp))
+                        print("FOUND EX:", str(exp))
                         if(exp.rhs.as_tuple in rhs_by_how):
                             exp.rhs = rhs_by_how[exp.rhs.as_tuple]
                         else:

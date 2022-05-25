@@ -614,6 +614,22 @@ pow_rule = Operator(('Power', '?x', '?y'),
 Operator.register("pow", pow_rule)
 
 
+def swap_text(s):
+    # f = s[0]
+    # l = s[-1]
+    # s[0] = l
+    # s[-1] = f
+    s = str(s)
+    assert s != ""
+    return s[::-1]
+
+swap_rule = Operator(('Inverse', '?x'),
+                         [(('value', '?x'), '?xv')],
+                         [(('value', ('Swap', ('value', '?x'))),
+                            (swap_text, '?xv'))])
+Operator.register("inverse", swap_rule)
+
+
 def int3_float_add(x, y, w):
     z = float(x) + float(y) + float(w)
     if z.is_integer():

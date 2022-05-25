@@ -845,7 +845,6 @@ class FoPlanner:
 
     def get_effects(self, op_eps):
         operator, epsilon = op_eps
-        # print(operator.effects)
         ret = []
         for m in operator.match(self.index, epsilon):
             try:
