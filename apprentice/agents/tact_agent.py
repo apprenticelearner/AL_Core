@@ -8,6 +8,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 import inspect
+import numpy as np
+import scipy
 
 import colorama
 import jsondiff
@@ -156,6 +158,8 @@ class WorkingMemory(ReteNetwork):
             self.track_match_deletion(m)
 
             if output:
+                print(output)
+
                 for f in output:
                     # print('adding', f)
                     f.match = m
@@ -405,6 +409,7 @@ class TACTAgent(DiffBaseAgent):
         self.last_sai: Optional[Sai] = None
         self.wm = WorkingMemory()
         self.exp_to_skills = {}
+        self.var_counter = 0
 
         log.debug(concepts)
         log.debug(skills)
@@ -456,25 +461,33 @@ class TACTAgent(DiffBaseAgent):
         the current working memory state.
         """
         print('updating skill with negative not implemented.')
-
-    def update_skill_with_positive(self, skill):
-        """
-        restrict conditions on the provided skill so that it no longer match
-        the current working memory state.
-        """
+        # ANTI UNIFICATION - LOOKUP CONCEPT LEARNING
+        # want to add additional condition
         current_facts = set(tuple((k, f[k]) for k in f)
-                         for f in self.wm.facts.values())
-
-        union = []
+                            for f in self.wm.facts.values())
+        # Those facts that caused the skill to match
+        intersection = []
 
         for f in skill.pattern:
             e = tuple((k, f[k]) for k in f)
             if e in current_facts:
-                union.append(f)
-            
-        print(union)
+                intersection.append(f)
 
-        print('updating skill with positive not implemented.')
+
+    def update_skill_with_positive(self, skill):
+        """
+        generalize conditions on the provided skill so that it matches
+        the current working memory state.
+        """
+
+        wm_facts = list(self.wm.facts.values())
+        skill_facts = [f for f in skill.pattern]
+        #print(f'SKILL PATTERN: {skill.pattern}')
+
+
+        new_skill_facts = self.antiunify_sets(wm_facts, skill_facts)
+        #exit(0)
+
 
     def train_diff(self, state_diff, next_state_diff, sai, reward):
         """
@@ -499,6 +512,8 @@ class TACTAgent(DiffBaseAgent):
                         explaination.match.pnode.production)
         else:
             explaination = None
+            #print('printing SAI in train_diff')
+            #print(sai)
             for explaination in self.wm.explain(sai, max_depth=1):
 
                 if explaination.depth == 1:
@@ -524,6 +539,7 @@ class TACTAgent(DiffBaseAgent):
                     break
 
             if explaination is None:
+                #print('explaination is none')
                 k = (sai.selection, sai.action, frozenset(sai.inputs.items()))
                 if k in self.exp_to_skills:
                     # Check if memo rule already exists for SAI, if so, then
@@ -545,6 +561,78 @@ class TACTAgent(DiffBaseAgent):
         Checks the correctness (reward) of an SAI action in a given state.
         """
         raise NotImplementedError("Check not implemented for TACT agent.")
+
+    def get_skolem(self):
+        self.var_counter += 1
+        return 'var{}'.format(self.var_counter)
+
+    def antiunify_facts(self, f1, f2):
+        # Case where either f1 or f2 are nil
+        if f1 is None or f2 is None:
+            return {}, 0
+
+        new_fact_dict = {attr: f1[attr] if f1[attr] == f2[attr] else V(self.get_skolem())
+                         for attr in f1 if attr in f2}
+
+        # 1 for Fact() + 1 for each attribute
+        cost = 1 + len(new_fact_dict)
+        # Add 1 for each attribute with constant value
+        for val in new_fact_dict.values():
+            if not isinstance(val, V):
+                cost += 1
+
+        return Fact(**new_fact_dict), cost
+
+    # NEED TO AVOID GENERALIZING ON RELATIONS
+    def antiunify_sets(self, wm_facts, skill_facts):
+        # Need the cost matrix to be square, so pad shorter list with None values
+        if len(wm_facts) != len(skill_facts):
+            wm_facts, skill_facts = self.pad_with_null(wm_facts, skill_facts)
+        # Used to store new antiunified facts
+        new_facts = {}
+
+        # Initialize cost matrix
+        cost_matrix = np.zeros((len(skill_facts), len(wm_facts)))
+        #print(np.shape(cost_matrix))
+        # Iterate over skill facts (rows of cost matrix) and WM facts (cols of cost matrix)
+        # and antiunify facts one to one, save returned cost and fact
+        for i, skill_fact in enumerate(skill_facts):
+            for j, wm_fact in enumerate(wm_facts):
+                new_fact, cost = self.antiunify_facts(skill_fact, wm_fact)
+                if new_fact:
+                    new_facts[(i,j)] = new_fact
+                cost_matrix[i][j] = cost
+
+        #print(f'COST MATRIX: {cost_matrix}')
+        #print(f'COST MATRIX SHAPE: {np.shape(cost_matrix)}')
+
+        rows, cols = scipy.optimize.linear_sum_assignment(cost_matrix, maximize=True)
+        #print(f'ROW INDEX ASSIGNMENTS: {rows}')
+        #print(f'COLUMN INDEX ASSIGNMENTS: {cols}')
+        #values = {(rows[i], cols[i]): cost_matrix[rows[i]][cols[i]] for i, _ in enumerate(rows)}
+        #print(f'COST MATRIX ASSIGNMENTS: {values}')
+        new_skill_facts = [new_facts.get((rows[i], cols[i])) for i, _ in enumerate(rows)
+                           if new_facts.get((rows[i], cols[i]))]
+
+        #print(f'NEW FACTS: {new_skill_facts}')
+        #print(f'NUM NEW FACTS: {len(new_skill_facts)}')
+        return new_skill_facts
+
+    def pad_with_null(self, list1, list2):
+        def add_null(li, num):
+            for i in range(num):
+                li.append(None)
+            return li
+
+        list1_len = len(list1)
+        list2_len = len(list2)
+
+        diff = list1_len - list2_len
+        if diff < 0:
+            list1 = add_null(list1, np.abs(diff))
+        else:
+            list2 = add_null(list2, np.abs(diff))
+        return list1, list2
 
 
 if __name__ == "__main__":
