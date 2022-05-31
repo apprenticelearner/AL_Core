@@ -183,6 +183,8 @@ class WorkingMemory(ReteNetwork):
             if not m:
                 break
 
+            print(m)
+            exit(0)
             depth = (sum([f.depth if hasattr(f, 'depth') else 0 for f in
                      self.get_dependent_facts(m)]) + 1)
 
@@ -212,6 +214,7 @@ class WorkingMemory(ReteNetwork):
                     f.match = m
                     f.depth = depth
                     self.add_fact(f)
+                # Facts produced from the firing of a rule depend on current match
                 self.match_dependencies[m.token] = output
 
     def explain(self, sai, max_depth=0):
@@ -486,7 +489,6 @@ class TACTAgent(DiffBaseAgent):
 
 
         new_skill_facts = self.antiunify_sets(wm_facts, skill_facts)
-        #exit(0)
 
 
     def train_diff(self, state_diff, next_state_diff, sai, reward):
@@ -523,7 +525,7 @@ class TACTAgent(DiffBaseAgent):
 
                 if explaination in self.exp_to_skills:
                     # we have an explaination that corresponds to an existing
-                    # rule however the rule does not match, generalize
+                    # rule (skill) however the rule does not match, generalize
                     # conditions to make it match
                     self.update_skill_with_positive(
                             self.exp_to_skills[explaination])
@@ -564,24 +566,53 @@ class TACTAgent(DiffBaseAgent):
 
     def get_skolem(self):
         self.var_counter += 1
-        return 'var{}'.format(self.var_counter)
+        return 'var-antiunify{}'.format(self.var_counter)
 
-    def antiunify_facts(self, f1, f2):
+    def antiunify_facts(self, f1, f2, var_mappings):
+        """
+        Takes two facts and antiunifies them into a new fact. The new fact contains
+        the intersection of attributes between f1 and f2, and values remain as
+        constant values if both facts have the same attr:value pair, otherwise the
+        value is replaced by a variable V.
+
+        :param f1: Fact 1 to antiunify
+        :param f2: Fact 2 to antiunify
+        :param var_mappings: A dict that maps attribute values (x,y) to variable
+                             definitions of type V
+        :return: The antiunified fact or None, the cost of the antiunification,
+                 the dict of variable mappings
+        """
         # Case where either f1 or f2 are nil
         if f1 is None or f2 is None:
-            return {}, 0
+            return None, 0, var_mappings
 
-        new_fact_dict = {attr: f1[attr] if f1[attr] == f2[attr] else V(self.get_skolem())
-                         for attr in f1 if attr in f2}
+        # Get new value pair to variable mappings if not in var_mappings already
+        new_var_mappings = {(f1[attr], f2[attr]): V(self.get_skolem())
+                            for attr in f1 if attr in f2
+                            if f1[attr] != f2[attr] and (f1[attr], f2[attr]) not in var_mappings}
 
-        # 1 for Fact() + 1 for each attribute
-        cost = 1 + len(new_fact_dict)
+        var_mappings.update(new_var_mappings)
+
+        # Create antiunified fact dict using constant values when values are the same
+        # otherwise using the var_mapping dict
+        new_fact_dict = {attr: f1[attr] if f1[attr] == f2[attr]
+                                        else var_mappings[(f1[attr], f2[attr])]
+                                        for attr in f1 if attr in f2}
+
+        # For case where two facts have nothing in common, new_fact_dict is empty
+        if not new_fact_dict:
+            return None, 0, var_mappings
+
+        # 1 for each attribute
+        cost = len(new_fact_dict)
+        cost += (sum([1 for attr in f1 if attr in f2 if f1[attr] != f2[attr]])
+                      - len(var_mappings))
         # Add 1 for each attribute with constant value
         for val in new_fact_dict.values():
             if not isinstance(val, V):
                 cost += 1
 
-        return Fact(**new_fact_dict), cost
+        return Fact(**new_fact_dict), cost, var_mappings
 
     # NEED TO AVOID GENERALIZING ON RELATIONS
     def antiunify_sets(self, wm_facts, skill_facts):
@@ -590,32 +621,33 @@ class TACTAgent(DiffBaseAgent):
             wm_facts, skill_facts = self.pad_with_null(wm_facts, skill_facts)
         # Used to store new antiunified facts
         new_facts = {}
+        # Used to store val/val -> variable mappings
+        var_mappings = {}
 
         # Initialize cost matrix
         cost_matrix = np.zeros((len(skill_facts), len(wm_facts)))
-        #print(np.shape(cost_matrix))
         # Iterate over skill facts (rows of cost matrix) and WM facts (cols of cost matrix)
         # and antiunify facts one to one, save returned cost and fact
         for i, skill_fact in enumerate(skill_facts):
             for j, wm_fact in enumerate(wm_facts):
-                new_fact, cost = self.antiunify_facts(skill_fact, wm_fact)
+                new_fact, cost, var_mappings = self.antiunify_facts(skill_fact, wm_fact, var_mappings)
                 if new_fact:
                     new_facts[(i,j)] = new_fact
                 cost_matrix[i][j] = cost
 
-        #print(f'COST MATRIX: {cost_matrix}')
-        #print(f'COST MATRIX SHAPE: {np.shape(cost_matrix)}')
+        print(f'COST MATRIX: {cost_matrix}')
+        print(f'COST MATRIX SHAPE: {np.shape(cost_matrix)}')
 
         rows, cols = scipy.optimize.linear_sum_assignment(cost_matrix, maximize=True)
-        #print(f'ROW INDEX ASSIGNMENTS: {rows}')
-        #print(f'COLUMN INDEX ASSIGNMENTS: {cols}')
-        #values = {(rows[i], cols[i]): cost_matrix[rows[i]][cols[i]] for i, _ in enumerate(rows)}
-        #print(f'COST MATRIX ASSIGNMENTS: {values}')
+        print(f'ROW INDEX ASSIGNMENTS: {rows}')
+        print(f'COLUMN INDEX ASSIGNMENTS: {cols}')
+        values = {(rows[i], cols[i]): cost_matrix[rows[i]][cols[i]] for i, _ in enumerate(rows)}
+        print(f'COST MATRIX ASSIGNMENTS: {values}')
         new_skill_facts = [new_facts.get((rows[i], cols[i])) for i, _ in enumerate(rows)
                            if new_facts.get((rows[i], cols[i]))]
 
-        #print(f'NEW FACTS: {new_skill_facts}')
-        #print(f'NUM NEW FACTS: {len(new_skill_facts)}')
+        print(f'NEW FACTS: {new_skill_facts}')
+        print(f'NUM NEW FACTS: {len(new_skill_facts)}')
         return new_skill_facts
 
     def pad_with_null(self, list1, list2):
