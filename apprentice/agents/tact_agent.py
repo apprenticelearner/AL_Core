@@ -183,8 +183,6 @@ class WorkingMemory(ReteNetwork):
             if not m:
                 break
 
-            print(m)
-            exit(0)
             depth = (sum([f.depth if hasattr(f, 'depth') else 0 for f in
                      self.get_dependent_facts(m)]) + 1)
 
@@ -635,19 +633,19 @@ class TACTAgent(DiffBaseAgent):
                     new_facts[(i,j)] = new_fact
                 cost_matrix[i][j] = cost
 
-        print(f'COST MATRIX: {cost_matrix}')
-        print(f'COST MATRIX SHAPE: {np.shape(cost_matrix)}')
+        #print(f'COST MATRIX: {cost_matrix}')
+        #print(f'COST MATRIX SHAPE: {np.shape(cost_matrix)}')
 
         rows, cols = scipy.optimize.linear_sum_assignment(cost_matrix, maximize=True)
-        print(f'ROW INDEX ASSIGNMENTS: {rows}')
-        print(f'COLUMN INDEX ASSIGNMENTS: {cols}')
-        values = {(rows[i], cols[i]): cost_matrix[rows[i]][cols[i]] for i, _ in enumerate(rows)}
-        print(f'COST MATRIX ASSIGNMENTS: {values}')
+        #print(f'ROW INDEX ASSIGNMENTS: {rows}')
+        #print(f'COLUMN INDEX ASSIGNMENTS: {cols}')
+        #values = {(rows[i], cols[i]): cost_matrix[rows[i]][cols[i]] for i, _ in enumerate(rows)}
+        #print(f'COST MATRIX ASSIGNMENTS: {values}')
         new_skill_facts = [new_facts.get((rows[i], cols[i])) for i, _ in enumerate(rows)
                            if new_facts.get((rows[i], cols[i]))]
 
-        print(f'NEW FACTS: {new_skill_facts}')
-        print(f'NUM NEW FACTS: {len(new_skill_facts)}')
+        #print(f'NEW FACTS: {new_skill_facts}')
+        #print(f'NUM NEW FACTS: {len(new_skill_facts)}')
         return new_skill_facts
 
     def pad_with_null(self, list1, list2):
