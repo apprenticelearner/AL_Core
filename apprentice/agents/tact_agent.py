@@ -38,6 +38,7 @@ class WorkingMemory(ReteNetwork):
         super().__init__()
         self.recently_removed_matches = []
         self.match_dependencies = {}
+        self.prod_to_facts = {}
         self.sais_to_remove = []
         self.ext_facts: Dict[str, Fact] = {}
         self.matching_sais: List[Sai] = []
@@ -204,6 +205,8 @@ class WorkingMemory(ReteNetwork):
                 output.depth = depth
                 self.matching_sais.append(output)
                 self.match_dependencies[m.token] = [output]
+                # Keep track of facts associated with skill/production
+                self.prod_to_facts
                 yield output
 
             elif output:
@@ -410,6 +413,7 @@ class TACTAgent(DiffBaseAgent):
         self.last_sai: Optional[Sai] = None
         self.wm = WorkingMemory()
         self.exp_to_skills = {}
+        self.var_mappings = {}
         self.var_counter = 0
 
         log.debug(concepts)
@@ -483,10 +487,14 @@ class TACTAgent(DiffBaseAgent):
 
         wm_facts = list(self.wm.facts.values())
         skill_facts = [f for f in skill.pattern]
-        #print(f'SKILL PATTERN: {skill.pattern}')
-
-
+        # List of antiunified facts
         new_skill_facts = self.antiunify_sets(wm_facts, skill_facts)
+        #exit(0)
+        # Update skill by removing and re-adding
+        #for i in self.wm.skills: print(i)
+        #print('OUR SKILL')
+        #print(skill)
+        #self.wm.remove_skill(skill)
 
 
     def train_diff(self, state_diff, next_state_diff, sai, reward):
@@ -566,7 +574,7 @@ class TACTAgent(DiffBaseAgent):
         self.var_counter += 1
         return 'var-antiunify{}'.format(self.var_counter)
 
-    def antiunify_facts(self, f1, f2, var_mappings):
+    def antiunify_facts(self, f1, f2):
         """
         Takes two facts and antiunifies them into a new fact. The new fact contains
         the intersection of attributes between f1 and f2, and values remain as
@@ -577,50 +585,51 @@ class TACTAgent(DiffBaseAgent):
         :param f2: Fact 2 to antiunify
         :param var_mappings: A dict that maps attribute values (x,y) to variable
                              definitions of type V
-        :return: The antiunified fact or None, the cost of the antiunification,
+        :return: The antiunified fact or None, the specificity-reward of the antiunification,
                  the dict of variable mappings
         """
         # Case where either f1 or f2 are nil
         if f1 is None or f2 is None:
-            return None, 0, var_mappings
+            return None, 0
 
         # Get new value pair to variable mappings if not in var_mappings already
         new_var_mappings = {(f1[attr], f2[attr]): V(self.get_skolem())
+                            if (f1[attr], f2[attr]) not in self.var_mappings else self.var_mapping[(f1[attr], f2[attr])]
                             for attr in f1 if attr in f2
-                            if f1[attr] != f2[attr] and (f1[attr], f2[attr]) not in var_mappings}
+                            if f1[attr] != f2[attr]}
 
-        var_mappings.update(new_var_mappings)
+        self.var_mappings.update(new_var_mappings)
 
         # Create antiunified fact dict using constant values when values are the same
         # otherwise using the var_mapping dict
         new_fact_dict = {attr: f1[attr] if f1[attr] == f2[attr]
-                                        else var_mappings[(f1[attr], f2[attr])]
+                                        else self.var_mappings[(f1[attr], f2[attr])]
                                         for attr in f1 if attr in f2}
 
         # For case where two facts have nothing in common, new_fact_dict is empty
         if not new_fact_dict:
-            return None, 0, var_mappings
+            return None, 0
 
         # 1 for each attribute
-        cost = len(new_fact_dict)
-        cost += (sum([1 for attr in f1 if attr in f2 if f1[attr] != f2[attr]])
-                      - len(var_mappings))
+        reward = len(new_fact_dict)
+        reward += (sum([1 for attr in f1 if attr in f2 if f1[attr] != f2[attr]])
+                      - len(new_var_mappings))
         # Add 1 for each attribute with constant value
         for val in new_fact_dict.values():
             if not isinstance(val, V):
-                cost += 1
+                reward += 1
 
-        return Fact(**new_fact_dict), cost, var_mappings
+        return Fact(**new_fact_dict), reward
+
 
     # NEED TO AVOID GENERALIZING ON RELATIONS
     def antiunify_sets(self, wm_facts, skill_facts):
+        self.var_mappings = {}
         # Need the cost matrix to be square, so pad shorter list with None values
         if len(wm_facts) != len(skill_facts):
             wm_facts, skill_facts = self.pad_with_null(wm_facts, skill_facts)
         # Used to store new antiunified facts
         new_facts = {}
-        # Used to store val/val -> variable mappings
-        var_mappings = {}
 
         # Initialize cost matrix
         cost_matrix = np.zeros((len(skill_facts), len(wm_facts)))
@@ -628,7 +637,7 @@ class TACTAgent(DiffBaseAgent):
         # and antiunify facts one to one, save returned cost and fact
         for i, skill_fact in enumerate(skill_facts):
             for j, wm_fact in enumerate(wm_facts):
-                new_fact, cost, var_mappings = self.antiunify_facts(skill_fact, wm_fact, var_mappings)
+                new_fact, cost = self.antiunify_facts(skill_fact, wm_fact)
                 if new_fact:
                     new_facts[(i,j)] = new_fact
                 cost_matrix[i][j] = cost
