@@ -206,7 +206,7 @@ class WorkingMemory(ReteNetwork):
                 self.matching_sais.append(output)
                 self.match_dependencies[m.token] = [output]
                 # Keep track of facts associated with skill/production
-                self.prod_to_facts
+                #self.prod_to_facts
                 yield output
 
             elif output:
@@ -594,7 +594,7 @@ class TACTAgent(DiffBaseAgent):
 
         # Get new value pair to variable mappings if not in var_mappings already
         new_var_mappings = {(f1[attr], f2[attr]): V(self.get_skolem())
-                            if (f1[attr], f2[attr]) not in self.var_mappings else self.var_mapping[(f1[attr], f2[attr])]
+                            if (f1[attr], f2[attr]) not in self.var_mappings else self.var_mappings[(f1[attr], f2[attr])]
                             for attr in f1 if attr in f2
                             if f1[attr] != f2[attr]}
 
