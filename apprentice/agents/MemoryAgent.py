@@ -436,11 +436,11 @@ class MemoryAgent(BaseAgent):
             # with open(self.activation_path[:-4] + "_responses.txt", "a") as outfile:
             #     outfile.write("id\tquestion\tskill\tselection\taction\tinput\ttime\n")
 
-    def update_activation_for_post_test(self):
+    def update_activation_for_post_test(self, wait_time):
         # for _ in range(self.t, 2 * self.t):
         #     self._update_activation([], RETRIEVAL_TYPE_STUDY)
         #     self.t += 1
-        self.t = 2 * self.t
+        self.t = self.t + (self.t * wait_time)
 
     def get_activations(self):
         return self.activations
@@ -470,7 +470,7 @@ class MemoryAgent(BaseAgent):
         m = self._compute_activation_recursive(exp)
         v = (1 / (1 + math.exp((self.tau - m) / self.s)))
 
-        if self.print_log: print(f"{str(exp)}: {v}, {m}")
+        # if self.print_log: print(f"{str(exp)}: {v}, {m}")
         return v, m, random() < v
     
     def _update_activation(self, explanations, retrieval_type):
@@ -609,12 +609,13 @@ class MemoryAgent(BaseAgent):
                 'v': selected_v,
                 'm': selected_m,
                 'selected_skill': selected_skill,
-                'applicable_explanations_count': applicable_explanations_count
+                'applicable_explanations_count': applicable_explanations_count,
             }
 
         selected_v =f"{selected_v:.3f}" if selected_v else None
         selected_m =f"{selected_m:.3f}" if selected_m else None
         if self.print_log: print(f"selected_skill: {selected_skill} (v: {selected_v}, m: {selected_m})")
+        info['skill'] = f"{selected_skill} (v: {selected_v})"
         # self.log_step(problem_info['problem_name'], "request")
         return response, info
 
@@ -809,7 +810,9 @@ class MemoryAgent(BaseAgent):
                 if(add_skill_info): resp.update(exp.get_skill_info(self))
                 out.append(resp)
 
-            return out
+            selected_skill = str(explanations[0]) if len(explanations) > 0 else "NO EXP"
+            return selected_skill
+            # return out
 
     # ------------------------------CHECK--------------------------------------
 
