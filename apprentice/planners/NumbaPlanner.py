@@ -140,7 +140,8 @@ class NumbaPlanner(BasePlanner):
 		
 		#Try to find a solution by looking for a number, if that doesn't work treat as string				
 		operator_compositions = kb.how_search(operators,goal,search_depth=search_depth,max_solutions=100)
-		# print(operator_compositions)
+		print('op compo')
+		print(operator_compositions)
 		if(len(operator_compositions) == 0 and isinstance(goal,(int,float,bool))):
 			operator_compositions = kb.how_search(operators,str_preserve_ints(goal),search_depth=search_depth,max_solutions=100)
 		out = []

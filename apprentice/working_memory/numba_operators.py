@@ -5,14 +5,14 @@ from .representation import numbalizer
 
 textfield = {
     "id" : "string",
-    "dom_class" : "string",
+    # "dom_class" : "string",
     # "offsetParent" : "string",
     "value" : "string",
     "contentEditable" : "number",
-    "above" : "string",
-    "below" : "string",
-    "to_right" : "string",
-    "to_left" : "string",
+    # "above" : "string",
+    # "below" : "string",
+    # "to_right" : "string",
+    # "to_left" : "string",
 }
 
 button = {
@@ -300,3 +300,16 @@ class Bullseye(BaseOperator):
         l = int(b) // int(a)
         r = int(b) ** int(a)
         return l + r
+
+class Pow(BaseOperator):
+    commutes = False
+    signature = 'float(float,float)'
+
+    def forward(x, y):
+        return x ** y
+
+class Inverse(BaseOperator):
+    signature = 'string(string)'
+
+    def forward(x):
+        return x[::-1]
