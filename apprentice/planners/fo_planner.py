@@ -644,6 +644,9 @@ class FoPlannerModule(BasePlanner):
 
         if(not state.contains_view("func_knowledge_base")):
             key_vals_grounded = state.compute_from("key_vals_grounded","flat_ungrounded")
+            # print('kvg')
+            # print(foci_of_attention)
+            # print(key_vals_grounded)
             knowledge_base = FoPlanner(key_vals_grounded,
                                         self.function_set)
             

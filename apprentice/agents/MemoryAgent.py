@@ -732,11 +732,22 @@ class MemoryAgent(BaseAgent):
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False, problem_info=None, **kwargs):  # -> return None
 
+        fstate = None
+        if foci_of_attention is not None and len(foci_of_attention) > 0:
+            fstate = {k: state[k] for k in foci_of_attention}
+            print('fstate')
+            print(fstate)
+            fstate = add_QMele_to_state(fstate)
+            fstate = StateMultiView("object", fstate)
+            fstate.register_transform("*","variablize",self.state_variablizer)
+            fstate.set_view("flat_ungrounded", self.planner.apply_featureset(fstate))
+
         if(type(self.planner).__name__ == "FoPlannerModule"):
             state = add_QMele_to_state(state)
             sai.selection = "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection
         state = StateMultiView("object", state)
         state.register_transform("*","variablize",self.state_variablizer)
+
         state.set_view("flat_ungrounded", self.planner.apply_featureset(state))
         # state_featurized = state.get_view("flat_ungrounded")
         # print(sai, foci_of_attention)
@@ -751,7 +762,7 @@ class MemoryAgent(BaseAgent):
             explanations = [Explanation(self.rhs_list[rhs_id], mapping)]
         elif(sai is not None):
             t_s = time.time_ns()
-            explanations = self.explanations_from_skills(state, sai,
+            explanations = self.explanations_from_skills(state if fstate is None else fstate, sai,
                                                          self.rhs_list,
                                                          foci_of_attention)
             explanations = list(explanations)
@@ -766,7 +777,7 @@ class MemoryAgent(BaseAgent):
                 else:
                     t_s = time.time_ns()
                     explanations = self.explanations_from_how_search(
-                                   state, sai, foci_of_attention)
+                                   state if fstate is None else fstate, sai, foci_of_attention)
                     performance_logger.info("explanations_from_how_search {} ms".format((time.time_ns()-t_s)/(1e6)))
 
                     explanations = self.which_learner.select_how(explanations)
