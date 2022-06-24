@@ -418,6 +418,7 @@ class MemoryAgent(BaseAgent):
         self.print_log = kwargs['print_log']
         self.agent_name = agent_name
         self.log = []
+        self.fails = [0, 0]
 
         # self.activation_path = "memory-activations/memory_{}_{}.txt".format(datetime.now().strftime("%Y-%m-%d-%H:%M:%S"), self.agent_name)
         # self.decay_path = "memory-activations/decay_{}_{}.txt".format(datetime.now().strftime("%Y-%m-%d-%H:%M:%S"), self.agent_name)
@@ -515,7 +516,9 @@ class MemoryAgent(BaseAgent):
                                 add_skill_info=False,
                                 skip_when = False,
                                 ):  # -> returns Iterator<Explanation>
+        self.fails = [0, 0]
         for rhs,match in self.all_where_parts(state,rhs_list):
+            self.fails[0] += 1
             if(self.when_learner.state_format == "variablized_state"):
                 pred_state = state.get_view(("variablize", rhs, tuple(match)))
             else:
@@ -525,6 +528,7 @@ class MemoryAgent(BaseAgent):
                 p = self.when_learner.predict(rhs, pred_state)
 
                 if(p <= 0):
+                    self.fails[1] += 1
                     continue
 
             mapping = {v: m for v, m in zip(rhs.all_vars, match)}
@@ -547,6 +551,8 @@ class MemoryAgent(BaseAgent):
         # state = self.planner.apply_featureset(state)
         rhs_list = self.which_learner.sort_by_heuristic(self.rhs_list, state)
 
+        fail_reason = "DEFAULT"
+
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
                             add_skill_info=add_skill_info)
@@ -565,6 +571,7 @@ class MemoryAgent(BaseAgent):
                     if str(explanation) in self.activations:
                         v, m, success = self._compute_retrieval(explanation)
                         if not success:
+                            fail_reason = "RETRIEVAL"
                             continue
 
                         selected_v, selected_m = v, m
@@ -602,6 +609,8 @@ class MemoryAgent(BaseAgent):
 
         info = {}
         selected_skill = str(retrieved_explanations[0]) if len(retrieved_explanations) > 0 else "NO EXP"
+        selected_skill_where_part = str(self.where_learner.learners[retrieved_explanations[0].rhs]) if len(retrieved_explanations) > 0 else "N/A"
+
         if self.use_memory:
             self.t += 1
             info = {
@@ -610,11 +619,20 @@ class MemoryAgent(BaseAgent):
                 'm': selected_m,
                 'selected_skill': selected_skill,
                 'applicable_explanations_count': applicable_explanations_count,
+                'where': selected_skill_where_part,
             }
+
+        if response == EMPTY_RESPONSE:
+            # info['where'] = info['applicable_explanations_count']
+            info['where'] = self.fails
+            # for _ in self.all_where_parts(state,rhs_list):
+            #     info['where'] += 1
+
 
         selected_v =f"{selected_v:.3f}" if selected_v else None
         selected_m =f"{selected_m:.3f}" if selected_m else None
         if self.print_log: print(f"selected_skill: {selected_skill} (v: {selected_v}, m: {selected_m})")
+        if self.print_log: print(f"where-part: {selected_skill_where_part}")
         info['skill'] = f"{selected_skill} (v: {selected_v})"
         # self.log_step(problem_info['problem_name'], "request")
         return response, info
@@ -822,7 +840,8 @@ class MemoryAgent(BaseAgent):
                 out.append(resp)
 
             selected_skill = str(explanations[0]) if len(explanations) > 0 else "NO EXP"
-            return selected_skill
+            selected_skill_where_part = str(self.where_learner.learners[explanations[0].rhs]) if len(explanations) > 0 else "N/A"
+            return selected_skill_where_part, selected_skill
             # return out
 
     # ------------------------------CHECK--------------------------------------
