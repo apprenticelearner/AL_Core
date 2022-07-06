@@ -2,6 +2,7 @@ from pprint import pprint
 from random import random
 from random import choice
 from typing import Dict
+from apprentice.working_memory.representation.representation import Skill
 from cv2 import exp
 import numpy as np
 
@@ -555,13 +556,16 @@ class MemoryAgent(BaseAgent):
 
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
-                            add_skill_info=add_skill_info)
+                            # add_skill_info=add_skill_info, 
+                            add_skill_info=True) 
+                            # skip_when=True)
         retrieved_explanations = []
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
         selected_v, selected_m = None, None
 
         applicable_explanations_count = 0
+        skill_infos = []
         for explanation, skill_info in itr:
             agent_logger.debug("Skill Application: {} {}".format(explanation,explanation.rhs._id_num))
             if(explanation is not None):
@@ -583,6 +587,7 @@ class MemoryAgent(BaseAgent):
 
                         retrieved_explanations.append((v, explanation))
                         responses.append((v, response))
+                        skill_infos.append(skill_info)
                 else:
                     response = explanation.to_response(state, self)
                     if(add_skill_info):
@@ -610,6 +615,7 @@ class MemoryAgent(BaseAgent):
         info = {}
         selected_skill = str(retrieved_explanations[0]) if len(retrieved_explanations) > 0 else "NO EXP"
         selected_skill_where_part = str(self.where_learner.learners[retrieved_explanations[0].rhs]) if len(retrieved_explanations) > 0 else "N/A"
+        selected_skill_when_part = str(skill_infos[0]['when']) if len(retrieved_explanations) > 0 else "N/A"
 
         if self.use_memory:
             self.t += 1
@@ -620,6 +626,7 @@ class MemoryAgent(BaseAgent):
                 'selected_skill': selected_skill,
                 'applicable_explanations_count': applicable_explanations_count,
                 'where': selected_skill_where_part,
+                'when': selected_skill_when_part
             }
 
         if response == EMPTY_RESPONSE:
@@ -841,7 +848,9 @@ class MemoryAgent(BaseAgent):
 
             selected_skill = str(explanations[0]) if len(explanations) > 0 else "NO EXP"
             selected_skill_where_part = str(self.where_learner.learners[explanations[0].rhs]) if len(explanations) > 0 else "N/A"
-            return selected_skill_where_part, selected_skill
+            # selected_skill_when_part = str(self.when_learner.skill_info(explanations[0].rhs, state.get_view('object'))) if len(explanations) > 0 else "N/A"
+            selected_skill_when_part = str(explanations[0].get_skill_info(self)['when']) if len(explanations) > 0 else "N/A"
+            return selected_skill_when_part, selected_skill_where_part, selected_skill
             # return out
 
     # ------------------------------CHECK--------------------------------------

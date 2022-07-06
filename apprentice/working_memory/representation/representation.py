@@ -299,7 +299,7 @@ class Explanation(object):
         else:    
             when_info = tuple(agent.when_learner.skill_info(self.rhs, when_state))
         skill_info = {"when": when_info,
-                      "where": agent.where_learner.skill_info(self.rhs),
+                    #   "where": agent.where_learner.skill_info(self.rhs),
                       "how": str(self.rhs.input_rule),
                       "which": 0.0,
                       "mapping" : self.mapping}
