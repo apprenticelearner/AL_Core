@@ -18,6 +18,7 @@ from concept_formation.trestle import TrestleTree
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Preprocessor
+from numbaILP.tree_classifiers import TreeClassifier
 
 # from ilp.foil_classifier import FoilClassifier
 
@@ -708,6 +709,227 @@ class MajorityClass(object):
             return [0 for x in X]
 
 
+
+def tree_condition_inds(tree):
+    if(tree is None or len(tree.nodes) <= 1): return []
+    #start w/ leaves and go up
+    # nodes = [n for n in tree.nodes if n.ttype == 2 and n.counts[1] > n.counts[0]]
+
+    next_nodes = [(tree.nodes[0], [])]
+    chains = []
+    while(len(next_nodes) > 0):
+        next_next_nodes = []
+        for i, (node,chain) in enumerate(next_nodes):
+            if(node.ttype == 1):
+                split_on, ithresh, left, right, nan = node.split_data[0]
+
+                next_next_nodes.append((tree.nodes[left],chain + [-split_on]))
+                next_next_nodes.append((tree.nodes[right],chain+ [split_on]))
+            elif(len(node.counts) == 2 and node.counts[1] > node.counts[0]):
+                chains.append((f'{node.counts[1]}'.zfill(3), chain))
+        next_nodes = next_next_nodes
+    for c in chains:
+        print(c)
+    # pprint(chains)
+
+
+class DecisionTree2(object):
+    # def __init__(self, impl="decision_tree", use_missing=False):
+    def __init__(self, impl="decision_tree_w_greedy_backup", use_missing=False):
+        print("IMPL:",impl)
+        if(impl == "sklearn"):
+            self.dt = DecisionTreeClassifier()
+        else:
+            self.dt = TreeClassifier(impl)
+        
+        self.impl = impl
+        self.X = []
+        self.y = []
+        self.slots = {}
+        self.inverse = []
+        self.slots_count = 0
+        self.X_list = []
+        self.use_missing = use_missing
+        
+
+    def _designate_new_slots(self,x):
+        ''' Makes new slots for unseen keys and values'''
+        for k, v in x.items():
+            if(k not in self.slots):
+                vocab = self.slots[k] = {chr(0) : self.slots_count}         
+                self.slots_count += 1
+                self.inverse.append(f'!{k}')
+            else:
+                vocab = self.slots[k]
+
+            if(v not in vocab): 
+                vocab[v] = self.slots_count
+                self.slots_count += 1
+                self.inverse.append(f'{k}=={v}')
+
+    def _dict_to_onehot(self,x,silent_fail=False):
+        x_new = [0]*self.slots_count
+        for k, vocab in self.slots.items():
+            # print(k, vocab)
+            val = x.get(k,chr(0))
+            if(silent_fail):
+                if(val in vocab): x_new[vocab[val]] = 1
+            else:
+                x_new[vocab[val]] = 1
+        return np.asarray(x_new,dtype=np.bool)
+
+    def _gen_feature_weights(self, strength=1.0):
+        weights = [0]*self.slots_count
+        for k, vocab in self.slots.items():
+            # print(k, vocab)
+            w = (1.0-strength) + (strength * (1.0/max(len(vocab)-1,1)))
+            for val,ind in vocab.items():
+                weights[ind] = w
+
+        return np.asarray(weights,dtype=np.float64)
+
+
+    def _compose_one_hots(self):
+        X = np.empty( (len(self.X_list), self.slots_count), dtype=np.uint8)
+        missing_vals = [None]*len(self.X_list)
+        for i, one_hot_x in enumerate(self.X_list):
+            X[i,:len(one_hot_x)] = one_hot_x
+            X[i,len(one_hot_x):] = 2 if self.use_missing else 0 # missing
+
+            # miss = np.empty((self.slots_count-len(one_hot_x),2),dtype=np.int64)
+            # miss[:,0] = i
+            # miss[:,1] = np.arange(len(one_hot_x),self.slots_count)
+            # missing_vals[i] = miss
+        # missing_vals = np.concatenate(missing_vals)
+        return X
+
+
+
+    def ifit(self, x, y):
+        # print(x)
+        self._designate_new_slots(x)
+        one_hot_x = self._dict_to_onehot(x)
+
+
+            # print(X_mat.shape)
+            # print(x_mat.shape)
+            # print(np.matmul(X_mat, x_mat))
+
+        self.X_list.append(one_hot_x)
+        self.X = self._compose_one_hots()
+
+        
+        # print(self.X)
+        
+        self.y.append(int(y) if not isinstance(y, tuple) else y)
+        Y = np.asarray(self.y,dtype=np.int64)
+
+        self.fit(self.X,Y)
+
+    def fit(self, X, Y):
+        if(not isinstance(X,np.ndarray)):
+            self.X_list = []
+            for x in X:
+                self._designate_new_slots(x)
+                self.X_list.append(self._dict_to_onehot(x))
+            self.X = X = self._compose_one_hots()
+
+        # self.Y = Y
+        # print("W:",self._gen_feature_weights())
+
+        Y = np.asarray(Y,dtype=np.int64)
+
+        # if(len(X) > 20):
+        #     print("CUTTING")
+        #     X = X[10:]
+        #     Y = Y[10:]
+
+        # print(X.shape, Y.shape)
+
+        if(self.impl == "sklearn"):
+            return self.dt.fit(X, Y)
+        else:
+            tree_str = str(self.dt) if getattr(self.dt, "tree",None) is not None else ''
+            # [n.split_on for n in self.dt.tree.nodes]
+            inds = [int(x.split(" : (")[1].split(")")[0]) for x in re.findall(r'NODE.+',tree_str)]
+
+            print()
+            print("---", self.rhs, "---")
+            tree_condition_inds(self.dt.tree)
+            # print(tree_str)
+
+            
+            if(False):
+                ft_weights = self._gen_feature_weights()
+                print(json.dumps({ind: str(self.inverse[ind])+f"(w:{ft_weights[ind]:.2f})" for ind in inds},indent=2)[2:-2])
+            else:
+                ft_weights = np.ones((X.shape[1]),dtype=np.float64)
+                print(json.dumps({ind: str(self.inverse[ind]) for ind in inds},indent=2)[2:-2])
+            # print(json.dumps({ind: str(self.inverse[ind]) for ind in inds},indent=2)[2:-2])
+            
+
+            # return self.dt.fit(X, None, Y, None)
+            return self.dt.fit(X, None, Y, None, ft_weights)
+
+
+    def predict(self, X):
+
+        onehot_X = np.empty((len(X), self.slots_count),dtype=np.bool)
+        for i, x in enumerate(X):
+            # self._designate_new_slots(x)
+            onehot_x = self._dict_to_onehot(x,silent_fail=True)
+
+
+            # if(len(self.X) > 0):
+            #     # print("MATMUL", self.rhs)
+            #     X_mat = np.asarray(self.X)
+
+            #     inf_gain = self.dt.inf_gain(self.X, None, np.asarray(self.y,dtype=np.int64))
+            #     inf_gain = inf_gain > 0.0
+
+            #     # inf_gain /= np.linalg.norm(inf_gain)
+            #     # print(inf_gain)
+
+
+            #     x_mat = np.expand_dims(inf_gain*onehot_x[:X_mat.shape[1]],1)/np.sum(inf_gain)
+            #     inner = np.matmul(X_mat, x_mat)[:,0]
+            #     # print(inner)
+            #     max_inner = np.max(inner)
+            #     nearestNs = (inner >= max_inner *.95).nonzero()[0]
+            #     nn_ys = [_y for i, _y in enumerate(self.y) if i in nearestNs]
+            #     nn_pred = sum(nn_ys)
+            #     if(nn_pred < 0):
+            #         nn_pred = -1  
+            #     elif(nn_pred > 0):
+            #         nn_pred = 1;
+            #     else:
+            #         nn_pred = -0
+
+
+            onehot_X[i] = onehot_x
+        # onehot_X = np.concatenate(onehot_X,dtype=np.bool)
+
+
+        if(self.impl == "sklearn"):
+            pred = self.dt.predict(onehot_X)
+        else:
+            # print("PRED:",self.rhs, self.dt.predict(onehot_X,None))
+            pred = self.dt.predict(onehot_X,None)
+
+        # if(pred[0] != nn_pred and nn_pred != 0 ):
+        #     if(nn_pred == -1):
+        #         pred[0] = nn_pred
+        #     print("---------------")
+        #     print(self.rhs)
+        #     print(max_inner, "pred:", pred[0], "nn_pred:", nn_pred, nn_ys)
+        #     print("---------------")
+        return pred
+
+
+
+
+
+
 parameters_nearest = {'n_neighbors': 3}
 parameters_sgd = {'loss': 'perceptron'}
 
@@ -727,6 +949,8 @@ def get_when_learner(name, **kwargs):
 WHEN_LEARNERS = {
     "decisiontree": {"learner": "decisiontree",
                      "state_format": "variablized_state"},
+    "decisiontree": {"learner": "decisiontree",
+                     "state_format": "variablized_state"},
     "cobweb": {"learner": "cobweb", "when_type": "one_learner_per_rhs",
                "state_format": "variablized_state"},
     "trestle": {"learner": "cobweb", "when_type": "one_learner_per_rhs",
@@ -736,6 +960,7 @@ WHEN_LEARNERS = {
 WHEN_CLASSIFIERS = {
     'naivebayes': DictVectWrapper(BernoulliNB),
     'decisiontree': DictVectWrapper(DecisionTree),
+    'decisiontree2': DecisionTree2,
     'logisticregression': DictVectWrapper(CustomLogisticRegression),
     'nearestneighbors': DictVectWrapper(CustomKNeighborsClassifier),
     'random_forest': DictVectWrapper(RandomForestClassifier),
