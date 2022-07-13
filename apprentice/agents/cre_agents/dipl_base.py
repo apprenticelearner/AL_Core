@@ -52,7 +52,7 @@ class BaseDIPLAgent(object):
         self.which_cls = config_get(['which_type','which_cls','which','which_learner'], 
             default='proportion_correct', registry=registries["which"])
         
-        print(self.where_cls)
+        
         # Standardize arguments for mechanisms.
         self.when_args = config_get(['when_args'], {})
         self.where_args = config_get(['where_args'], {})
@@ -61,7 +61,8 @@ class BaseDIPLAgent(object):
 
         self.function_set = resolve_op_set(config.get("function_set",[]))
         self.feature_set = resolve_op_set(config.get("feature_set",[]))
-        self.should_encode_neighbors = config_get(['encode_neighbors', 'should_encode_neighbors'], True)
+        self.should_find_neighbors = config_get(['find_neighbors', 'should_find_neighbors'],
+         default=False)
 
         # Reroute config options that user might define at the agent level
         #  but belong at the learning mechanism level.
@@ -77,7 +78,7 @@ class BaseDIPLAgent(object):
             self.how_args['function_set'] = self.function_set
 
 
-        self.fact_types = config_get('fact_types', default='html',
+        self.fact_types = config_get(['fact_types','environment', 'env'], default='html',
             registry=registries.get('fact_set',[]))
 
         self.action_chooser = config_get("action_chooser",
@@ -86,6 +87,9 @@ class BaseDIPLAgent(object):
         self.explanation_chooser = config_get("explanation_chooser",
             default='max_which_utility', registry=registries['skill_app_chooser'])
 
+        self.constraints = config_get(['constraints','environment', 'env'], default='html',
+            registry=registries.get('constraint',[]))
+
         self.config = {k:v for k,v in config.items() if k not in covered}
 
     def __init__(self, **config):
@@ -93,7 +97,7 @@ class BaseDIPLAgent(object):
 
     def request(self, *args, **kwargs):
         ''' Legacy method name : pipe into act ''' 
-        self.act(*args, **kwargs)
+        return self.act(*args, **kwargs)
 
 
 # -------------------------------------------------------------------------

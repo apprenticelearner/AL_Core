@@ -82,6 +82,43 @@ def Copy(a):
 def Concatenate(a, b):
     return a + b
 
+def b_not_zero(a,b,c):
+    return b != 0
+
+@Op(signature=f8(f8,f8,f8),
+    check=b_not_zero,
+    shorthand='(({0} / {1}) * {2})')
+def ConvertNumerator(a, b, c):
+    return (a / b) * c
+
+
+# --------------
+# : Cast float/str
+
+def check_cast_float(a):
+    if(a == ""): return False
+    try:
+        float(a)
+    except:
+        return False
+    return True
+
+@Op(shorthand = '{0}', check=check_cast_float)
+def CastFloat(a):
+    return float(a)
+
+def check_cast_str(a):
+    try:
+        str(a)
+    except:
+        return False
+    return True
+
+@Op(shorthand = '{0}', check=check_cast_str)
+def CastStr(a):
+    return str(a)
+
+
 
 ##### Define all Ops above this line #####
 

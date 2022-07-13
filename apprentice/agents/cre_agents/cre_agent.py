@@ -6,6 +6,9 @@ from apprentice.agents.cre_agents.state import State, encode_neighbors
 from apprentice.agents.cre_agents.dipl_base import BaseDIPLAgent
 from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEncoder, Vectorizer
 
+from cre.utils import PrintElapse
+from cre import TF
+from cre.gval import new_gval
 
 EMPTY_RESPONSE = {}
 
@@ -16,7 +19,7 @@ class SAI(object):
             inp = args[0]
             if(hasattr(inp, 'selection')):
                 selection = inp.selection
-                action_type = getattr(inp, 'action_type', sai.action)
+                action_type = getattr(inp, 'action_type', inp.action)
                 inputs = inp.inputs
             elif(isinstance(inp, (list,tuple))):
                 selection, action_type, inputs = inp
@@ -43,8 +46,8 @@ class SAI(object):
 
     def __eq__(self, other):
         if(not isinstance(other,SAI)): return False
-        return (self.selection, self.action_type, self.inputs) == \
-               (other.selection, other.action_type, other.inputs)
+        return (self.selection.id, self.action_type, self.inputs) == \
+               (other.selection.id, other.action_type, other.inputs)
 
     def __getitem__(self, i):
         return iter(self)[i]
@@ -80,9 +83,11 @@ class Skill(object):
 
     def get_applications(self, state, skip_when=False):
         applications = []
+        # print(self.how_part,":")
+        # print(self.where_lrn_mech.conds)
         for match in self.where_lrn_mech.get_matches(state):
-            # print('match', [m.id for m in match], self.when_lrn_mech.predict(state, match))
-            if(self.when_lrn_mech.predict(state, match) or skip_when):
+            when_predict = 1 if skip_when else self.when_lrn_mech.predict(state, match)
+            if(when_predict > 0):
                 skill_app = SkillApplication(self, match)
                 if(skill_app is not None):
                     applications.append(skill_app)
@@ -99,10 +104,9 @@ class Skill(object):
     def __call__(self, *match):
         args = match[1:]
         if(hasattr(self.how_part, '__call__')):
-            # print("CALL:",self.how_part, [x.id for x in args])
             try:
                 val = self.how_part(*args)
-            except:
+            except Exception as e:
                 return None
         else:
             val = self.how_part
@@ -112,9 +116,16 @@ class Skill(object):
 
     def ifit(self, state, match, reward):
         reward = float(reward)
+        # with PrintElapse("fit where"):
         self.where_lrn_mech.ifit(state, match, reward)
+        # with PrintElapse("fit when"):
         self.when_lrn_mech.ifit(state, match, reward) 
+        # with PrintElapse("fit which")
         self.which_lrn_mech.ifit(state, match, reward)
+
+        # if(not hasattr(self.how_part,'__call__') and self.how_part == -1):
+        #     print("<<", self.how_part, match)
+        #     raise ValueError()
 
     def __repr__(self):
         return f"Skill({self.how_part}, id: {self.id_num})"
@@ -138,7 +149,8 @@ class SkillApplication(object):
         info = {
             'skill_label' : self.skill.label,
             'skill_id' :  getattr(self,'id_num', None),
-            'selection' :  sai.selection,
+            'selection' :  sai.selection.id,
+            'action' :  sai.action_type,
             'action_type' :  sai.action_type,
             'inputs' :  sai.inputs,
             'mapping' :  {f"arg{i-1}" if i else "sel" : x.id for i,x in enumerate(self.match)}
@@ -172,7 +184,7 @@ class CREAgent(BaseDIPLAgent):
         self.flattener = Flattener(self.fact_types, in_memset=None, id_attr="id")
         self.feature_applier = FeatureApplier(self.feature_set)
         self.relative_encoder = RelativeEncoder(self.fact_types, in_memset=None, id_attr='id')
-        self.vectorizer = Vectorizer(val_types)
+        # self.vectorizer = Vectorizer(val_types)
 
         state = self.state = State(self)
 
@@ -186,7 +198,19 @@ class CREAgent(BaseDIPLAgent):
         def flat_featurized(state):
             flat = state.get('flat')
             feature_applier = state.agent.feature_applier
-            return feature_applier(flat)
+            featurized_state = feature_applier(flat)
+
+
+            # print("FEATURIZE")
+            for skill in self.skills:
+                for match in skill.where_lrn_mech.get_matches(state):
+                    val = list(skill(*match).inputs.values())[0]
+                    head = TF(skill.id_num, val, *[m.id for m in match])
+                    # gval = new_gval(head, val)
+                    featurized_state.declare(head)
+                    # print("BOOP", gval)
+            # print(featurized_state)
+            return featurized_state
 
     def __init__(self, encode_neighbors=True, **config):
         # Parent defines learning-mechanism classes and args + action_chooser
@@ -201,8 +225,14 @@ class CREAgent(BaseDIPLAgent):
 
 
     def standardize_state(self, state):
+        #NOTE: Should just change to locked at interface
+        for k,obj in state.items():
+            if('contentEditable' in obj):
+                obj['locked'] = not obj['contentEditable']
+                del obj['contentEditable']
+                
         if(isinstance(state, dict)):
-            if self.should_encode_neighbors:
+            if self.should_find_neighbors:
                 state = encode_neighbors(state)
             wm = self.memset_builder(state, MemSet())
         elif(isinstance(state, MemSet)):
@@ -210,6 +240,8 @@ class CREAgent(BaseDIPLAgent):
         else:
             raise ValueError(f"Unrecognized State Type: \n{state}")
 
+        # if('working_memory' in self.state):
+        #     self.state.get('working_memory').free()
         self.state.set('working_memory', wm)
         return self.state
 
@@ -234,6 +266,7 @@ class CREAgent(BaseDIPLAgent):
 # : Act
     def get_skill_applications(self, state):
         skill_applications = []
+        print()
         for skill in self.skills:
             for skill_app in skill.get_applications(state):
                 skill_applications.append(skill_app)
@@ -243,15 +276,20 @@ class CREAgent(BaseDIPLAgent):
 
     def act(self, state, add_skill_info=False, n=1, **kwargs):  # -> Returns sai
         state = self.standardize_state(state)
-        skill_applications = self.get_skill_applications(state)
+        with PrintElapse("self.get_skill_applications"):
+            skill_applications = self.get_skill_applications(state)
 
         if(len(skill_applications) > 0):
             skill_app = self.action_chooser(state, skill_applications)
 
             # print("--ACT: ", skill_app)
-            print("--ACT: ")
-            for skill_app in skill_applications:
-                print(skill_app)
+            # print()
+            # print("--ACT: ")
+            # print(skill_app)
+            # print(skill_app.skill.when_lrn_mech.predict(state,skill_app.match))
+
+            # for skill_app in skill_applications:
+            #     print(skill_app)
 
             self.prev_skill_app = skill_app
             response = skill_app.get_info()
@@ -269,7 +307,9 @@ class CREAgent(BaseDIPLAgent):
         subset = self.skills 
         if(skill_id is not None):
             subset = skills[skill_id]
-        elif(skill_label is not None):
+
+        # TODO: choose "NO_LABEL" or None to be standard
+        elif(skill_label is not None and skill_label is not "NO_LABEL"):
             subset = self.skills_by_label.get(skill_label, self.skills)
 
         # TODO: else
@@ -280,6 +320,15 @@ class CREAgent(BaseDIPLAgent):
             # TODO: can probably reduce by matching n_args
             
         return subset
+
+    def choose_best_explanation(self, state, skill_apps):
+        print("CHOOSE BEST", len(skill_apps))
+        def get_score(skill_app):
+            score = skill_app.skill.where_lrn_mech.score_match(state, skill_app.match)
+            print("SCORE", score, skill_app)
+            return score
+        return sorted(skill_apps, key=get_score)[-1]
+
 
 
     def explain_from_skills(self, state, sai, 
@@ -324,7 +373,10 @@ class CREAgent(BaseDIPLAgent):
                 else:
                     if(skill.how_part == inp):
                         skill_apps.append(SkillApplication(skill, [sai.selection]))                        
-        return skill_apps
+        if(len(skill_apps) > 0):
+            return self.choose_best_explanation(state, skill_apps)
+        else:
+            return None
 
 
     def induce_skill(self, state, sai, arg_foci=None, label=None):
@@ -332,24 +384,30 @@ class CREAgent(BaseDIPLAgent):
         # Does not currently support multiple inputs per SAI.
         input_attr, inp = list(sai.inputs.items())[0]
         
-        # Use how-learning mechanism produce a set of candidate how-parts
-        explanation_set = self.how_lrn_mech.get_explanations(
-                state, inp, arg_foci)
+        # TODO: Make this not CTAT specific
+        if(sai.selection.id != "done"):
+            # Use how-learning mechanism produce a set of candidate how-parts
+            explanation_set = self.how_lrn_mech.get_explanations(
+                    state, inp, arg_foci)
 
-        # If any candidates then choose one, otherwise treat how-part
-        #  as a constant.
-        if(len(explanation_set) > 0):
-            how_part, args = explanation_set.choose()
-            if(how_part is None): how_part = inp
+            # If any candidates then choose one, otherwise treat how-part
+            #  as a constant.
+            if(len(explanation_set) > 0):
+                how_part, args = explanation_set.choose()
+                if(how_part is None): how_part = inp
+            else:
+                how_part, args = inp, []
         else:
-            how_part, args = inp, []
+            how_part = -1
+            explanation_set = None
+            args = []
 
         # Make new skill.
         skill = Skill(self, len(self.skills), 
             sai.action_type, how_part, input_attr, 
             label=label, explanation_set=explanation_set)
 
-        print("INDUCE SKILL", skill)
+        # print("INDUCE SKILL", skill)
 
         # Add new skill to various collections.
         self.skills.append(skill)
@@ -364,30 +422,42 @@ class CREAgent(BaseDIPLAgent):
     def train(self, state, sai=None, reward:float=None,
               arg_foci=None, skill_label=None, skill_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):
+        if(skill_label == "NO_LABEL"): skill_label = None
 
         if('foci_of_attention' in kwargs and arg_foci is None):
             arg_foci = kwargs['foci_of_attention'] 
 
+        # with PrintElapse("standardize"):
         state = self.standardize_state(state)
         sai = self.standardize_SAI(sai)
         arg_foci = self.standardize_arg_foci(arg_foci)
+        skill_apps = None
 
-        print("--TRAIN:", sai.selection.id, sai.inputs['value'])
+        # print("--TRAIN:", sai.selection.id, sai.inputs['value'])
 
+        # with PrintElapse("explain_from_skills"):
         # Feedback Case : just train according to the last skill application.
+        # if(self.prev_skill_app != None):
+        #     print(self.prev_skill_app.sai, sai, self.prev_skill_app.sai == sai)
         if(self.prev_skill_app != None and self.prev_skill_app.sai == sai):
-            skill_apps = [self.prev_skill_app]
-
+            # print("PREV SKILL APP", self.prev_skill_app)
+            skill_app = self.prev_skill_app
         # Demonstration Case : try to explain the sai from existing skills.
         else:
-            skill_apps = self.explain_from_skills(state, sai, arg_foci, skill_label)
+            skill_app = self.explain_from_skills(state, sai, arg_foci, skill_label)
 
+        # with PrintElapse("induce_skill"):
         # If existing skills fail then induce a new one with how-learning.
-        if(len(skill_apps) == 0):
-            skill_apps = [self.induce_skill(state, sai, arg_foci, skill_label)]
+        if(skill_app is None):
+            skill_app = self.induce_skill(state, sai, arg_foci, skill_label)
 
-        for skill_app in skill_apps:
+
+        with PrintElapse("ifit"):
+            # skill_app = skill_apps[0]
+            print("Update", skill_app)
+            # for skill_app in skill_apps:
             skill_app.skill.ifit(state, skill_app.match, reward)
+        # print()
 
 
 

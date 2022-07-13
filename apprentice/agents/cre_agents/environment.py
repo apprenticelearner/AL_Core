@@ -1,19 +1,28 @@
-from cre import define_fact, Fact
+from cre import define_fact, Fact, Conditions
 from cre.default_ops import CastFloat
 from apprentice.agents.cre_agents.extending import new_register_decorator, new_register_all
+from apprentice.agents.cre_agents.ops import CastFloat, CastStr
 
 
 # NOTE : env_config might be unecessary
+# Env Config 
 register_env_config = new_register_decorator("env_config", full_descr="environment configuration")
 
 # NOTE : action might be unecessary
+# Action
 register_action = new_register_decorator("action", full_descr="action type")
 register_all_actions = new_register_all("action", types=[], full_descr="action type")
 
+# Fact
 register_fact = new_register_decorator("fact", full_descr="fact type")
 register_all_facts = new_register_all("fact", types=[Fact], full_descr="fact type")
 
+# Fact set
 register_fact_set = new_register_decorator("fact_set", full_descr='fact set')
+
+# Base Constraints
+register_constraints = new_register_decorator("constraint", full_descr="base constraint")
+
 
 
 with register_all_facts as HTML_fact_types:
@@ -92,4 +101,29 @@ with register_all_facts as HTML_fact_types:
 
 register_fact_set(name='html')(HTML_fact_types)
 # with register_all_actions as HTML_action_types:
+
+
+@register_constraints(name='none')
+def default_constraints(_vars):
+    sel, args = _vars[0], _vars[1:]
+
+    conds = Conditions(sel)
+    for arg in args:
+        conds &= arg
+    return conds
+
+@register_constraints(name='html')
+def html_constraints(_vars):
+    sel, args = _vars[0], _vars[1:]
+    conds = default_constraints(_vars)
+        
+    if(sel.base_type._fact_name == "TextField"):
+        conds &= (sel.locked == False)
+
+    for arg in args:
+        if(arg.base_type._fact_name == "TextField"):
+            conds &= (arg.value != '')        
+
+    return conds
+
 

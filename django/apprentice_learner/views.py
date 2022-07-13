@@ -27,6 +27,7 @@ from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
 from apprentice.agents.ModularAgent import ModularAgent
 from apprentice.agents.RLAgent import RLAgent
 from apprentice.agents.RHS_LHS_Agent import RHS_LHS_Agent
+from apprentice.agents.cre_agents import CREAgent
 from apprentice.working_memory.representation import Sai
 
 
@@ -50,6 +51,7 @@ AGENTS = {
     "ModularAgent": ModularAgent,
     "ExpertaAgent": ExpertaAgent,
     "RHS_LHS_Agent": RHS_LHS_Agent,
+    "CREAgent": CREAgent,
 }
 
 last_call_time = time.time_ns()
@@ -119,11 +121,19 @@ def create(http_request):
         # print("errors:\n {}".format("\n".join(errs)))
         return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
 
+
+    global active_agent, active_agent_id, dont_save
     try:
         instance = AGENTS[data["agent_type"]](**args)
         agent_name = data.get("name", "")
         agent = Agent(instance=instance, name=agent_name)
-        agent.save()
+        if(not dont_save):
+            agent.save()
+        else:
+            active_agent = agent
+            agent.id = 0
+            active_agent_id = str(agent.id)
+            print(active_agent_id)
         ret_data = {"agent_id": str(agent.id)}
 
     except Exception as exp:
@@ -133,7 +143,6 @@ def create(http_request):
             "Failed to create agent, " "ensure provided args are " "correct."
         )
 
-    global active_agent, active_agent_id, dont_save
     if active_agent is not None:
         active_agent = None
         active_agent_id = None

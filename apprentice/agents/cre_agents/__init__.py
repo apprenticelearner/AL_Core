@@ -5,3 +5,4 @@ from .how import register_how
 from .where import register_where
 from .when import register_when
 from .which import register_which
+from .cre_agent import CREAgent

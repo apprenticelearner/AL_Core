@@ -318,7 +318,7 @@ def tree_condition_inds(tree):
 class DecisionTree2(object):
     # def __init__(self, impl="decision_tree", use_missing=False):
     def __init__(self, impl="decision_tree_w_greedy_backup", use_missing=False):
-        print("IMPL:",impl)
+        # print("IMPL:",impl)
         if(impl == "sklearn"):
             self.dt = DecisionTreeClassifier()
         else:
@@ -678,7 +678,7 @@ class DecisionTree(DecisionTreeClassifier):
         #     return # Don't refit if positive
         # else:
         #     print("FIT", len(y), X.shape[1])
-        # print("X",len(X[0]))
+        # print("   X",len(X[0]))
         # pprint(X)
         # pprint(y)
         # print("y",len(y))

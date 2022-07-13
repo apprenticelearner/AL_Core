@@ -422,14 +422,14 @@ class ModularAgent(BaseAgent):
                  which_learner='weighted_proportion_correct', explanation_choice='least_operations',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
-                 constraint_set='ctat', **kwargs):
+                 constraint_set='ctat', should_find_neighbors=False, **kwargs):
 
-        print(dict(feature_set=feature_set, function_set=function_set,
-                 when_learner=when_learner, where_learner=where_learner,
-                 which_learner=which_learner, explanation_choice=explanation_choice,
-                 planner=planner, state_variablization=state_variablization, search_depth=search_depth,
-                 numerical_epsilon=numerical_epsilon, ret_train_expl=ret_train_expl, strip_attrs=strip_attrs,
-                 constraint_set=constraint_set),kwargs)
+        # print(dict(feature_set=feature_set, function_set=function_set,
+        #          when_learner=when_learner, where_learner=where_learner,
+        #          which_learner=which_learner, explanation_choice=explanation_choice,
+        #          planner=planner, state_variablization=state_variablization, search_depth=search_depth,
+        #          numerical_epsilon=numerical_epsilon, ret_train_expl=ret_train_expl, strip_attrs=strip_attrs,
+        #          constraint_set=constraint_set),kwargs)
                 
                 
         self.where_learner = get_where_learner(where_learner,
@@ -463,6 +463,7 @@ class ModularAgent(BaseAgent):
         self.remove_low_utility = True
         self.one_pos_which_per_sel = True
         self.prev_skill_app = None
+        self.should_find_neighbors = should_find_neighbors
 
         assert constraint_set in CONSTRAINT_SETS, "constraint_set %s not recognized. Choose from: %s" % (constraint_set,CONSTRAINT_SETS.keys())
         self.constraint_generator = CONSTRAINT_SETS[constraint_set]
@@ -513,10 +514,10 @@ class ModularAgent(BaseAgent):
             yield explanation, skill_info
 
     def request(self, state: dict, add_skill_info=False,n=1,**kwargs):  # -> Returns sai
-        state = encode_neighbors(state)
+        if(self.should_find_neighbors): state = encode_neighbors(state)
         # pprint(state,sort_dicts=False)
-        print("REQUEST")
-        print(dict(add_skill_info=add_skill_info, n=n), kwargs)
+        # print("REQUEST")
+        # print(dict(add_skill_info=add_skill_info, n=n), kwargs)
 
         if(type(self.planner).__name__ == "FoPlannerModule"): state = add_QMele_to_state(state)
         if(not isinstance(state,StateMultiView)):
@@ -569,7 +570,7 @@ class ModularAgent(BaseAgent):
             response = responses[0].copy()
             if(n != 1):
                 response['responses'] = responses
-            print("response:", response)                    
+            # print("response:", response)                    
             return response
             
 
@@ -715,13 +716,12 @@ class ModularAgent(BaseAgent):
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):  # -> return None
         
-        state = encode_neighbors(state)
-        # pprint(state)
+        if(self.should_find_neighbors): state = encode_neighbors(state)
         # print('TRAIN')
-        print(dict(sai=sai, reward=reward, rhs_id=rhs_id,
-                  skill_label=skill_label, foci_of_attention=foci_of_attention, mapping=mapping,
-                  ret_train_expl=ret_train_expl, add_skill_info=add_skill_info))
-            # kwargs)
+        # print(dict(sai=sai, reward=reward, rhs_id=rhs_id,
+        #           skill_label=skill_label, foci_of_attention=foci_of_attention, mapping=mapping,
+        #           ret_train_expl=ret_train_expl, add_skill_info=add_skill_info))
+        #     # kwargs)
 
         if(type(self.planner).__name__ == "FoPlannerModule"): 
             state = add_QMele_to_state(state)
@@ -778,6 +778,7 @@ class ModularAgent(BaseAgent):
                                    state, sai, foci_of_attention)
                     performance_logger.info("explanations_from_how_search {} ms".format((time.time_ns()-t_s)/(1e6)))
                     explanations = [x for x in explanations]
+                    # print(explanations)
                     # for exp in explanations:
                     #     print(str(exp))
 
@@ -807,7 +808,7 @@ class ModularAgent(BaseAgent):
                 resp = exp.to_response(state,self)
                 if(add_skill_info): resp.update(exp.get_skill_info(self))
                 out.append(resp)
-            print(out)
+            # print(out)
             return out
 
     # ------------------------------CHECK--------------------------------------

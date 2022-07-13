@@ -66,7 +66,7 @@ import time
 start_time = time.time()
 
 class NumbaPlanner(BasePlanner):
-	def __init__(self,search_depth,function_set,feature_set,**kwargs):
+	def __init__(self, search_depth, function_set, feature_set, **kwargs):
 		self.function_set = function_set
 		self.feature_set = feature_set
 		self.epsilon = 0.0
