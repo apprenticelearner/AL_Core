@@ -322,10 +322,11 @@ class CREAgent(BaseDIPLAgent):
         return subset
 
     def choose_best_explanation(self, state, skill_apps):
-        print("CHOOSE BEST", len(skill_apps))
+        # print("CHOOSE BEST", len(skill_apps))
+        # print(skill_apps[0].skill.where_lrn_mech.conds)
         def get_score(skill_app):
             score = skill_app.skill.where_lrn_mech.score_match(state, skill_app.match)
-            print("SCORE", score, skill_app)
+            # print("SCORE", score, skill_app)
             return score
         return sorted(skill_apps, key=get_score)[-1]
 
@@ -368,6 +369,8 @@ class CREAgent(BaseDIPLAgent):
                         skill_app = SkillApplication(skill, match)
                         if(skill_app is not None):
                             skill_apps.append(skill_app)
+
+
 
                 # For skills with constant how-parts just check equality
                 else:
@@ -426,6 +429,7 @@ class CREAgent(BaseDIPLAgent):
 
         if('foci_of_attention' in kwargs and arg_foci is None):
             arg_foci = kwargs['foci_of_attention'] 
+        print("arg_foci:", arg_foci)
 
         # with PrintElapse("standardize"):
         state = self.standardize_state(state)

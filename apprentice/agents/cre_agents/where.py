@@ -95,7 +95,8 @@ class AntiUnify(BaseCREWhere):
             _vars = self._ensure_vars(match)
             # print()
             # print(_vars)
-            conds = Conditions.from_facts(match, _vars)
+            conds = Conditions.from_facts(match, _vars, 
+                alpha_flags=("visible", "few_valued"))
 
             # print("B")
             # print(conds)

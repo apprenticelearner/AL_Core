@@ -51,7 +51,10 @@ class ExplanationSet():
 
             def expl_key(tup):
                 op_comp, match = tup
-                return (op_comp.depth, abs(op_comp.n_terms-len(match)))
+                foci_not_match = True
+                if(arg_foci is not None):
+                    foci_not_match = [m.id for m in match] != [f.id for f in arg_foci]
+                return (foci_not_match, op_comp.depth, abs(op_comp.n_terms-len(match)))
 
             self.explanations = sorted(self.explanations, key=expl_key)
         else:
@@ -148,8 +151,9 @@ class SetChaining(BaseHow):
         else:
             expl_set = ExplanationSet(explanation_tree, arg_foci)
 
-        # if(expl_set is not None):
-        #     for op_comp, match in expl_set:
-        #         print("<<", op_comp, [m.id for m in match])
+        if(expl_set is not None):
+            for op_comp, match in expl_set:
+                print("<<", op_comp, [m.id for m in match])
+
 
         return expl_set
