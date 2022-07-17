@@ -6,6 +6,7 @@ import traceback
 import logging
 from pprint import pprint
 import time
+from datetime import datetime
 
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_list_or_404
@@ -42,6 +43,8 @@ active_agent = None
 active_agent_id = None
 save_agent = None
 
+SKILL_FIRING_LOG = None
+
 
 AGENTS = {
     "Stub": Stub,
@@ -62,6 +65,35 @@ def get_agent_by_id(id):
     else:
         agent = Agent.objects.get(id=id)
     return agent
+
+
+def log_skill_fire(agent, response):
+    global SKILL_FIRING_LOG
+    if SKILL_FIRING_LOG is None:
+        SKILL_FIRING_LOG = 'skills_fired_' + \
+            datetime.strftime(datetime.now(), '%Y-%m-%d %H-%M-%S') + '.tsv'
+        with open(SKILL_FIRING_LOG, 'w') as out:
+            header = ['agent_id', 'agent_name', 'action_type', 'selection',
+                      'action', 'input', 'skill_id']
+            out.write('\t'.join(header))
+    with open(SKILL_FIRING_LOG, 'a') as out:
+        if(len(response) > 0):
+            log_row = [agent.id,
+                       agent.name,
+                       'Student Action',
+                       response['selection'],
+                       response['action'],
+                       response['inputs']['value'],
+                       response['rhs_id']]
+        else:
+            log_row = [agent.id,
+                       agent.name,
+                       'Hint Request',
+                       'N/A',
+                       'N/A',
+                       'N/A',
+                       'N/A']
+        out.write('\n' + '\t'.join([str(v) for v in log_row]))
 
 
 @csrf_exempt
@@ -174,7 +206,8 @@ def request(http_request, agent_id):
     That object should have the following fields:
     """
     global last_call_time
-    performance_logger.info("Interface Feedback Time: {} ms".format((time.time_ns()-last_call_time)/1e6))
+    performance_logger.info("Interface Feedback Time: {} ms".format(
+        (time.time_ns() - last_call_time) / 1e6))
 
     # pr.enable()
     try:
@@ -190,8 +223,12 @@ def request(http_request, agent_id):
         agent.inc_request()
 
         start_t = time.time_ns()
-        response = agent.instance.request(data["state"], **data.get('kwargs', {}))
-        performance_logger.info("Request Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
+        agent_kwargs = data.get('kwargs', {})
+        agent_kwargs['add_skill_info'] = True
+
+        response = agent.instance.request(data["state"], **agent_kwargs)
+        performance_logger.info("Request Elapse Time: {} ms".format(
+            (time.time_ns() - start_t) / (1e6)))
 
         global save_agent
         if save_agent:
@@ -209,14 +246,16 @@ def request(http_request, agent_id):
                     'mapping': {"?sel": response.selection},
                     'how': "n/a",
                     'skill_label': 'n/a'}
-           
+
             return HttpResponse(
-                    json.dumps({'selection': response.selection,
-                                'action': response.action,
-                                'inputs': response.inputs,
-                                'mapping': {"?sel": response.selection},
-                                'responses': [temp]
-                                }))
+                json.dumps({'selection': response.selection,
+                            'action': response.action,
+                            'inputs': response.inputs,
+                            'mapping': {"?sel": response.selection},
+                            'responses': [temp]
+                            }))
+
+        log_skill_fire(agent, response)
 
         return HttpResponse(json.dumps(response))
 
@@ -285,7 +324,8 @@ def train(http_request, agent_id):
     feedback.
     """
     global last_call_time
-    performance_logger.info("Interface Feedback Time: {} ms".format((time.time_ns()-last_call_time)/1e6))
+    performance_logger.info("Interface Feedback Time: {} ms".format(
+        (time.time_ns() - last_call_time) / 1e6))
     # pr.enable()
     try:
         if http_request.method != "POST":
@@ -338,7 +378,8 @@ def train(http_request, agent_id):
 
         start_t = time.time_ns()
         response = agent.instance.train(**data)
-        performance_logger.info("Train Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
+        performance_logger.info("Train Elapse Time: {} ms".format(
+            (time.time_ns() - start_t) / (1e6)))
 
         global save_agent
         if save_agent:

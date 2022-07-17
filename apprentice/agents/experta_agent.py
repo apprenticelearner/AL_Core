@@ -14,7 +14,7 @@ from apprentice.working_memory.base import WorkingMemory
 from apprentice.working_memory.representation import Skill, Activation, Sai
 from apprentice.working_memory.experta_skills import experta_skill_map
 from apprentice.explain.explanation import Explanation
-from experta import KnowledgeEngine
+
 import colorama
 
 colorama.init(autoreset=True)
@@ -45,6 +45,7 @@ class ExpertaAgent(DiffBaseAgent):
     ):
         # Just track the state as a set of Facts?
         # initialize to None, so gets replaced on first state.
+        from experta import KnowledgeEngine
         super().__init__()
         self.last_activation = None
         self.last_sai = None
