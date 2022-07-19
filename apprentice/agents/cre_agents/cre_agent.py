@@ -201,15 +201,10 @@ class CREAgent(BaseDIPLAgent):
             featurized_state = feature_applier(flat)
 
 
-            # print("FEATURIZE")
-            for skill in self.skills:
-                for match in skill.where_lrn_mech.get_matches(state):
-                    val = list(skill(*match).inputs.values())[0]
-                    head = TF(skill.id_num, val, *[m.id for m in match])
-                    # gval = new_gval(head, val)
-                    featurized_state.declare(head)
-                    # print("BOOP", gval)
-            # print(featurized_state)
+
+
+
+
             return featurized_state
 
     def __init__(self, encode_neighbors=True, **config):
@@ -266,7 +261,7 @@ class CREAgent(BaseDIPLAgent):
 # : Act
     def get_skill_applications(self, state):
         skill_applications = []
-        print()
+        # print()
         for skill in self.skills:
             for skill_app in skill.get_applications(state):
                 skill_applications.append(skill_app)
@@ -429,7 +424,7 @@ class CREAgent(BaseDIPLAgent):
 
         if('foci_of_attention' in kwargs and arg_foci is None):
             arg_foci = kwargs['foci_of_attention'] 
-        print("arg_foci:", arg_foci)
+        # print("arg_foci:", arg_foci)
 
         # with PrintElapse("standardize"):
         state = self.standardize_state(state)
@@ -456,11 +451,11 @@ class CREAgent(BaseDIPLAgent):
             skill_app = self.induce_skill(state, sai, arg_foci, skill_label)
 
 
-        with PrintElapse("ifit"):
+        # with PrintElapse("ifit"):
             # skill_app = skill_apps[0]
-            print("Update", skill_app)
+            # print("Update", skill_app)
             # for skill_app in skill_apps:
-            skill_app.skill.ifit(state, skill_app.match, reward)
+        skill_app.skill.ifit(state, skill_app.match, reward)
         # print()
 
 

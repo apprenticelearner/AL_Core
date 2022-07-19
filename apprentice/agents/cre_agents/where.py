@@ -155,7 +155,7 @@ class MostSpecific(BaseCREWhere):
         # print(self.check_match(state, match))
             
     def score_match(self, state, match):
-        return float(self.check_match(match))
+        return float(self.check_match(state, match))
 
     def as_conditions(self):
         # TODO:

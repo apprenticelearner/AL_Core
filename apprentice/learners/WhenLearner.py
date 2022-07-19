@@ -229,6 +229,11 @@ class WhenLearner(object):
                 # print([id(x) for x in self.sub_learners.values()])
                 # print("FIT:", str(rhs), reward)
                 # print("------------------")
+                self.sub_learners[rhs].bloop = getattr(self.sub_learners[rhs], "bloop", [])
+                self.sub_learners[rhs].bloop.append(state)
+
+                for b in self.sub_learners[rhs].bloop:
+                    pprint(b)
 
                 self.sub_learners[rhs].ifit(state, reward)
 
@@ -684,6 +689,12 @@ class DecisionTree(DecisionTreeClassifier):
         # print("y",len(y))
         # pprint(y)
         # print("--^--^--")
+        # for b in self.bloop:
+        #     print(b)
+        for x, _y in zip(X,y):
+            print(x, _y)
+
+
         super(DecisionTree,self).fit(X,y)
         # print(hex(id(self)))
         # print("X")

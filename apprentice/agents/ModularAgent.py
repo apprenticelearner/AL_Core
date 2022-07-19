@@ -207,6 +207,7 @@ def variablize_by_where_append(self,state,rhs,match):
     if(self.strip_attrs and len(self.strip_attrs) > 0):
         r_state = {key:val for key,val in r_state.items() if key[0] not in self.strip_attrs}
 
+    # print(r_state)
     # del_list = []
     # for k,v in r_state.items():
     #     try:

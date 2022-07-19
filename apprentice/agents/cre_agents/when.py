@@ -87,12 +87,42 @@ class VectorTransformMixin():
         self.X = []
         self.Y = []
         self.X_width = 0
+        self.bloop = []
 
     def transform(self, state, match):
+        from cre import TF
+        from cre.gval import new_gval
         featurized_state = state.get("flat_featurized")
+
+        if(not self.encode_relative):
+            featurized_state = featurized_state.copy()
+            agent = self.skill.agent
+            # Add skill app candidates
+            for skill in agent.skills:
+                for match in skill.where_lrn_mech.get_matches(state):
+                    val = list(skill(*match).inputs.values())[0]
+                    head = TF("Skill:", skill.how_part, skill.id_num, *[m.id for m in match])
+                    gval = new_gval(head, val)
+                    featurized_state.declare(gval)
+
+            # Add match
+            sel_tup = new_gval(TF("Sel:", match[0]), "")
+            featurized_state.declare(sel_tup)
+            if(len(match) > 1):
+                arg_tup = new_gval(TF("Args:", *[m.id for m in match[1:]]), "")
+                featurized_state.declare(arg_tup)
+
+        # for skill in agent.skills:
+        #     for match in skill.where_lrn_mech.get_matches(state):
+        #         val = list(skill(*match).inputs.values())[0]
+        #         head = TF("Skill:", skill.how_part, skill.id_num, *[m.id for m in match])
+        #         gval = new_gval(head, val)
+                
+
+        # self.bloop.append(featurized_state)
         # for fact in featurized_state:
         #     print(repr(fact), hash(fact))
-        if(self.encode_relative):
+        else:
             wm = state.get("working_memory")
             self.relative_encoder.set_in_memset(wm)
             _vars = self.skill.where_lrn_mech._ensure_vars(match)
@@ -135,12 +165,20 @@ class VectorTransformMixin():
         for i, x in enumerate(self.X):
             X[i, :len(x)] = x
 
-        # for i, (x, y) in enumerate(zip(self.X, self.Y)):
-        #     print(x,y)
+        # self.bloop.append(state.get("flat_featurized"))
+        # for b in self.bloop:
+        #     print(b)
+
+        
+
+
 
         # print("X shape:", X.shape)
 
         Y = np.array(self.Y, dtype=np.int64)
+
+        # for i, (x, y) in enumerate(zip(X, Y)):
+        #     print(x,y)
         # print(Y)
         return X, Y
 
@@ -165,15 +203,19 @@ class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
         X,Y = self.append_and_flatten_vecs(state, match, reward)
         # print("fit", X[-1], reward)
 
-        
-        self.classifier.fit(X, self.Y)
+        print("F\t", int(reward), X[-1])
+        self.classifier.fit(X, Y)
+
+
 
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
+        prediction = self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0]
+        print("P\t", prediction, nominal[:self.X_width])
 
         # print(self.skill, match)
         # print("predict", nominal[:self.X_width].reshape(1,-1), self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0])
 
-        return self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0]
+        return prediction
 
 

@@ -151,9 +151,9 @@ class SetChaining(BaseHow):
         else:
             expl_set = ExplanationSet(explanation_tree, arg_foci)
 
-        if(expl_set is not None):
-            for op_comp, match in expl_set:
-                print("<<", op_comp, [m.id for m in match])
+        # if(expl_set is not None):
+        #     for op_comp, match in expl_set:
+        #         print("<<", op_comp, [m.id for m in match])
 
 
         return expl_set
