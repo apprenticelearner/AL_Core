@@ -23,14 +23,13 @@ def _config_get(config, registry, covered, names, default):
 
     return default
 
-def resolve_op_set(op_set):
+def resolve_list(lst, registry):
     out = []
-    op_registry = registries['op']
-    for op in op_set:
-        if(isinstance(op, str)):
-            name = op.lower().replace("_","")
-            op = op_registry[name]
-        out.append(op)
+    for obj in lst:
+        if(isinstance(obj, str)):
+            name = obj.lower().replace("_","")
+            obj = registry[name]
+        out.append(obj)
     return out
 
 
@@ -59,8 +58,24 @@ class BaseDIPLAgent(object):
         self.how_args = config_get(['how_args','planner_args'], {})
         self.which_args = config_get(['which_args'], {})
 
-        self.function_set = resolve_op_set(config.get("function_set",[]))
-        self.feature_set = resolve_op_set(config.get("feature_set",[]))
+        # print(registries['feature_factory'])
+
+        # Handle extra features
+        self.extra_features = []
+        for extra_feature, level in resolve_list(config.get('extra_features',[]), registries['feature_factory']):
+            # print("<<", extra_feature, level)
+            if(level == 'agent' or level is None):
+                self.extra_features.append(extra_feature)
+            elif(level == 'when'):
+                ef = self.when_args.get('extra_features', [])
+                ef.append(extra_feature)
+                self.when_args['extra_features'] = ef
+        
+        
+
+        self.function_set = resolve_list(config.get("function_set",[]), registries['op'])
+        self.feature_set = resolve_list(config.get("feature_set",[]), registries['op'])
+
         self.should_find_neighbors = config_get(['find_neighbors', 'should_find_neighbors'],
          default=False)
 

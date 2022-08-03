@@ -4,11 +4,12 @@ from cre import MemSet, Op, UntypedOp, Fact, FactProxy
 from apprentice.agents.base import BaseAgent
 from apprentice.agents.cre_agents.state import State, encode_neighbors
 from apprentice.agents.cre_agents.dipl_base import BaseDIPLAgent
-from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEncoder, Vectorizer
+from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEncoder, Vectorizer, Enumerizer
 
 from cre.utils import PrintElapse
 from cre import TF
 from cre.gval import new_gval
+
 
 EMPTY_RESPONSE = {}
 
@@ -85,7 +86,11 @@ class Skill(object):
         applications = []
         # print(self.how_part,":")
         # print(self.where_lrn_mech.conds)
-        for match in self.where_lrn_mech.get_matches(state):
+        matches = list(self.where_lrn_mech.get_matches(state))
+
+
+        for match in matches:
+            # print("\t" , [m.id for m in match])
             when_predict = 1 if skip_when else self.when_lrn_mech.predict(state, match)
             if(when_predict > 0):
                 skill_app = SkillApplication(self, match)
@@ -119,9 +124,11 @@ class Skill(object):
         # with PrintElapse("fit where"):
         self.where_lrn_mech.ifit(state, match, reward)
         # with PrintElapse("fit when"):
-        self.when_lrn_mech.ifit(state, match, reward) 
+        self.when_lrn_mech.ifit(state, match, reward)
         # with PrintElapse("fit which")
         self.which_lrn_mech.ifit(state, match, reward)
+
+        print("FIT", reward, self, [m.id for m in match])
 
         # if(not hasattr(self.how_part,'__call__') and self.how_part == -1):
         #     print("<<", self.how_part, match)
@@ -181,9 +188,11 @@ class CREAgent(BaseDIPLAgent):
             val_types.add(op.signature.return_type)
 
         self.memset_builder = MemSetBuilder()
-        self.flattener = Flattener(self.fact_types, in_memset=None, id_attr="id")
+        self.enumerizer = Enumerizer()
+        self.flattener = Flattener(self.fact_types,
+            in_memset=None, id_attr="id", enumerizer=self.enumerizer)
         self.feature_applier = FeatureApplier(self.feature_set)
-        self.relative_encoder = RelativeEncoder(self.fact_types, in_memset=None, id_attr='id')
+        # self.relative_encoder = RelativeEncoder(self.fact_types, in_memset=None, id_attr='id')
         # self.vectorizer = Vectorizer(val_types)
 
         state = self.state = State(self)
@@ -194,16 +203,15 @@ class CREAgent(BaseDIPLAgent):
             flattener = state.agent.flattener
             return flattener(wm)
 
-        @state.register_transform(is_incremental=True, prereqs=['flat'])
+        @state.register_transform(is_incremental=len(self.extra_features)==0, prereqs=['flat'])
         def flat_featurized(state):
             flat = state.get('flat')
             feature_applier = state.agent.feature_applier
             featurized_state = feature_applier(flat)
 
-
-
-
-
+            featurized_state = featurized_state.copy()
+            for extra_feature in self.extra_features:
+                featurized_state = extra_feature(self, state, featurized_state)
 
             return featurized_state
 
@@ -277,7 +285,7 @@ class CREAgent(BaseDIPLAgent):
         if(len(skill_applications) > 0):
             skill_app = self.action_chooser(state, skill_applications)
 
-            # print("--ACT: ", skill_app)
+            print("--ACT: ", skill_app)
             # print()
             # print("--ACT: ")
             # print(skill_app)
@@ -290,10 +298,11 @@ class CREAgent(BaseDIPLAgent):
             response = skill_app.get_info()
             if(n != 1):
                 response['responses'] = [x.get_info() for x in skill_applications]
-            return response
         else:
             self.prev_skill_app = None
-            return EMPTY_RESPONSE
+            response = EMPTY_RESPONSE
+        self.state.clear()
+        return response
 
 # ------------------------------------------------
 # : Train
@@ -317,13 +326,16 @@ class CREAgent(BaseDIPLAgent):
         return subset
 
     def choose_best_explanation(self, state, skill_apps):
-        # print("CHOOSE BEST", len(skill_apps))
-        # print(skill_apps[0].skill.where_lrn_mech.conds)
         def get_score(skill_app):
             score = skill_app.skill.where_lrn_mech.score_match(state, skill_app.match)
-            # print("SCORE", score, skill_app)
+            print("SCORE", score, skill_app)
             return score
-        return sorted(skill_apps, key=get_score)[-1]
+
+        scored_apps = [x for x in [(get_score(sa), sa) for sa in skill_apps] if x[0] > 0.0]
+        if(len(scored_apps) > 0):
+            return sorted(scored_apps, key=lambda x: x[0])[-1][1]
+        else:
+            return None
 
 
 
@@ -337,6 +349,7 @@ class CREAgent(BaseDIPLAgent):
         #  the how + where parts. 
         for skill in skills_to_try:
             for candidate in skill.get_applications(state, skip_when=True):
+                # print(candidate, candidate.sai, sai, candidate.sai == sai)
                 if(candidate.sai == sai):
                     # If foci are given make sure candidate has the 
                     #  same arguments in it's match.
@@ -346,9 +359,13 @@ class CREAgent(BaseDIPLAgent):
 
                     skill_apps.append(candidate)
 
+        if(len(skill_apps) > 0): print("EXPL HOW + WHERE")
+
         # If that doesn't work try to find an explanation from the existing
         #  skills that matches just the how-parts.
         if(len(skill_apps) == 0):
+
+
             input_attr, inp = list(sai.inputs.items())[0]
 
             for skill in skills_to_try:
@@ -371,10 +388,14 @@ class CREAgent(BaseDIPLAgent):
                 else:
                     if(skill.how_part == inp):
                         skill_apps.append(SkillApplication(skill, [sai.selection]))                        
-        if(len(skill_apps) > 0):
-            return self.choose_best_explanation(state, skill_apps)
-        else:
-            return None
+
+            if(len(skill_apps) > 0): print("EXPL HOW")
+
+        best_expl = self.choose_best_explanation(state, skill_apps)
+        if(best_expl is not None):
+            print(best_expl.skill.where_lrn_mech.conds)
+        print("BEST EXPLANATION", best_expl)
+        return best_expl
 
 
     def induce_skill(self, state, sai, arg_foci=None, label=None):
@@ -392,6 +413,7 @@ class CREAgent(BaseDIPLAgent):
             #  as a constant.
             if(len(explanation_set) > 0):
                 how_part, args = explanation_set.choose()
+                print("CHOICE", how_part, args)
                 if(how_part is None): how_part = inp
             else:
                 how_part, args = inp, []
@@ -456,12 +478,45 @@ class CREAgent(BaseDIPLAgent):
             # print("Update", skill_app)
             # for skill_app in skill_apps:
         skill_app.skill.ifit(state, skill_app.match, reward)
+
+        self.state.clear()
         # print()
 
 
 
 
+##### Thoughts on optimization for later ##### 
+'''
+Time Breakdown:
+    52% Act
+        40% predict 
+            34% transform
+            65% predict
+        12% get_matches
+            encode_relative
+    48% Train
+        16% ifit
+            10% transform
+            6% fit
+        13% explain from skills
+        5% induce skill
+        3% standardize SAI
+        5% standardize state
 
 
+-Need to make input state update incrementally
+
+-Vectorizer: Could avoid re-fetching from dictionaries in Vectorizer by 
+caching idrecs of the input memset similar to fact_ptrs data
+structure in memset.
+    -Note wouldn't help unless featurized state could be made to update incrementally
+
+
+Thoughts on what is going on w/ When:
+1) Lack of explicit null
+2) Inclusion of "value":  maybe should be decremented
+
+
+'''
 
 

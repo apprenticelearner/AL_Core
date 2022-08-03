@@ -17,7 +17,7 @@ def test_init_base_dipl():
 def test_cre_agent():
     function_set = ["Add3", "Mod10", "Add", "Div10", "Copy"]
     # Test no FOCI
-    agent = CREAgent(feature_set=["Equals"], function_set=function_set,
+    agent = CREAgent(feature_set=[], function_set=function_set,
                      where="antiunify")
 
     py_dict = new_mc_addition_state(567,491) 
@@ -50,7 +50,7 @@ def test_cre_agent():
     print("---------------------------")
 
     # Test w/ foci
-    agent = CREAgent(feature_set=["Equals"], function_set=function_set,
+    agent = CREAgent(feature_set=[], function_set=function_set,
                      where="antiunify")
 
     py_dict = new_mc_addition_state(567,491) 

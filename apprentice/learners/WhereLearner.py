@@ -1565,6 +1565,7 @@ class VersionSpace(BaseILP):
 
     def get_matches(self, x):
 
+        # print("START")
         # with torch.no_grad():
 
         # start_time = time.clock_gettime_ns(time.CLOCK_BOOTTIME)/float(1e6)
@@ -1784,7 +1785,7 @@ class VersionSpace(BaseILP):
         #     translated.append(torch.index_select(inds_by_type[typ],0,rel_to_type.view(-1)).view(-1,1))
         # translated = torch.cat(translated,dim=1)
         # print(translated)
-        
+        # print("END")
         #Yield each consistent 'where' assignments (i.e. the set of matches) by their original names
         # print(elem_names_list)
         # pprint(self.skill_info())

@@ -232,8 +232,8 @@ class WhenLearner(object):
                 self.sub_learners[rhs].bloop = getattr(self.sub_learners[rhs], "bloop", [])
                 self.sub_learners[rhs].bloop.append(state)
 
-                for b in self.sub_learners[rhs].bloop:
-                    pprint(b)
+                # for b in self.sub_learners[rhs].bloop:
+                #     pprint(b)
 
                 self.sub_learners[rhs].ifit(state, reward)
 
@@ -322,7 +322,7 @@ def tree_condition_inds(tree):
 # class DecisionTree2(TreeClassifier):
 class DecisionTree2(object):
     # def __init__(self, impl="decision_tree", use_missing=False):
-    def __init__(self, impl="decision_tree_w_greedy_backup", use_missing=False):
+    def __init__(self, impl="sklearn", use_missing=False):
         # print("IMPL:",impl)
         if(impl == "sklearn"):
             self.dt = DecisionTreeClassifier()
@@ -393,11 +393,14 @@ class DecisionTree2(object):
 
 
     def ifit(self, x, y):
-        # print(x)
         self._designate_new_slots(x)
         one_hot_x = self._dict_to_onehot(x)
 
-
+        #### -------Print mapping------------####
+        # print("L:",len(one_hot_x))
+        # for i, x in enumerate(one_hot_x):
+        #     print(int(x), self.inverse[i])
+        #### --------------------------------####
             # print(X_mat.shape)
             # print(x_mat.shape)
             # print(np.matmul(X_mat, x_mat))
@@ -617,16 +620,46 @@ def iFitWrapper(clf):
 
     return fun
 
+from sklearn.base import TransformerMixin, BaseEstimator
+
+
+
+
+
+
 
 def DictVectWrapper(clf):
     def fun(x=None):
         dv = DictVectorizer(sparse=False, sort=False)
+
+        class PrintTransform(BaseEstimator, TransformerMixin):
+            def fit(self, X, Y):
+                return self
+
+            def transform(self, X):
+                # print(dv.inverse_transform(X))
+                try:
+                    for (k,v) in  dv.inverse_transform(X)[-1].items():
+                        print(":", k, v)
+                except:
+                    pass
+                return X
+
+            def inverse_transform(self, target):
+                return target
+
+        pt = PrintTransform()
+
         if x is None:
             return CustomPipeline([('dict vect', dv),
-                                   ('clf', clf())])
+                                    ('pt', pt),
+                                   ('clf', clf()),
+                                   ])
         else:
             return CustomPipeline([('dict vect', dv),
-                                   ('clf', clf(**x))])
+                                    ('pt', pt),
+                                   ('clf', clf(**x)),
+                                   ])
 
     return fun
 
@@ -691,11 +724,14 @@ class DecisionTree(DecisionTreeClassifier):
         # print("--^--^--")
         # for b in self.bloop:
         #     print(b)
-        for x, _y in zip(X,y):
-            print(x, _y)
+        # for x, _y in zip(X,y):
+        #     print(x, _y)
 
 
         super(DecisionTree,self).fit(X,y)
+
+
+
         # print(hex(id(self)))
         # print("X")
         # print(X)
@@ -708,7 +744,7 @@ class DecisionTree(DecisionTreeClassifier):
         # print("PREDICT")
         # print(hex(id(self)))
         # print("X")
-        # print(X)
+        print(X)
         # export_tree(self)
         
         

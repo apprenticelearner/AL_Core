@@ -49,12 +49,16 @@ class ExplanationSet():
             else:
                 self.explanations = list(iter(self.explanation_tree))
 
+            # print("ARG FOCI", [f.id for f in arg_foci])
             def expl_key(tup):
                 op_comp, match = tup
-                foci_not_match = True
-                if(arg_foci is not None):
-                    foci_not_match = [m.id for m in match] != [f.id for f in arg_foci]
-                return (foci_not_match, op_comp.depth, abs(op_comp.n_terms-len(match)))
+                # foci_match = False
+                # if(arg_foci is not None):
+                #     foci_match = [m.id for m in match] == [f.id for f in arg_foci]
+                # tup = (not foci_match, op_comp.depth, abs(op_comp.n_terms-len(match)), op_comp.n_ops)
+                tup = (op_comp.depth, abs(op_comp.n_terms-len(match)), op_comp.n_ops)
+                # print("<<", [m.id for m in match],  op_comp, tup)
+                return tup 
 
             self.explanations = sorted(self.explanations, key=expl_key)
         else:
@@ -107,6 +111,7 @@ class SetChaining(BaseHow):
 
     def get_explanations(self, state, value, arg_foci=None,
         function_set=None, min_stop_depth=-1, search_depth=None):
+
         wm = state.get("working_memory")
 
         if(search_depth is None):
@@ -117,6 +122,7 @@ class SetChaining(BaseHow):
 
         # Prevent from learning too shallow when multiple foci
         if(arg_foci is not None and len(arg_foci) > 1):
+            arg_foci = list(reversed(arg_foci))
             min_stop_depth = search_depth
         
         facts = wm.get_facts() if arg_foci is None else arg_foci

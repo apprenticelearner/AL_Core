@@ -261,6 +261,7 @@ def _relative_rename_recursive(state,center,center_name="sel",mapping=None,dist_
 def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
     if(isinstance(state, StateMultiView)):
         state = state.get_view("object").copy()
+    # pprint(state)
     center = list(where_match)[0]
     mapping = _relative_rename_recursive(state,center,center_name=center_name)
     # print(mapping)
@@ -293,6 +294,7 @@ def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
         if(isinstance(vals,dict)):
             new_vals = {}
             for k,v in vals.items():
+                # if(k == "contentEditable" or k == "value" or isinstance(key,tuple)):
                 if(k == "contentEditable" or isinstance(key,tuple)):
                     new_vals[k] = mapping.get(v,v)
             new_state[mapping[key]] = new_vals
@@ -305,6 +307,8 @@ def variablize_state_relative(self,state,rhs, where_match,center_name="sel"):
 
     return new_state
 
+from cre.utils import PrintElapse
+
 def variablize_state_metaskill(self,state,rhs, where_match):
     # if(isinstance(state, StateMultiView) and second_pass):
     # try:
@@ -316,16 +320,18 @@ def variablize_state_metaskill(self,state,rhs, where_match):
         
         # all_expls = self.applicable_explanations(state, add_skill_info=True,second_pass=False,skip_when=True)
         # print("-------START THIS---------")
+
     to_append = {}
-    for rhs, match in self.all_where_parts(state):
-        mapping = {v: m for v, m in zip(rhs.all_vars, match)}
-        exp = Explanation(rhs,mapping)
-        resp = exp.to_response(state,self)
-        # pprint(skill_info)
-        sk_str = f"{str(self.rhs_list[resp['rhs_id']])}(id:{resp['rhs_id']})"
-        key = (sk_str, *mapping.values())
-        to_append[key] = resp["inputs"]
-        # to_append[(sk_str,"count")] = to_append.get((sk_str,"count"),0) + 1
+    with PrintElapse("all_where_parts"):
+        for rhs, match in self.all_where_parts(state):
+            mapping = {v: m for v, m in zip(rhs.all_vars, match)}
+            exp = Explanation(rhs,mapping)
+            resp = exp.to_response(state,self)
+            # pprint(skill_info)
+            sk_str = f"{str(self.rhs_list[resp['rhs_id']])}(id:{resp['rhs_id']})"
+            key = (sk_str, *mapping.values())
+            to_append[key] = resp["inputs"]
+    # to_append[(sk_str,"count")] = to_append.get((sk_str,"count"),0) + 1
         # to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
 
     #Also append where_match
@@ -342,18 +348,22 @@ def variablize_state_metaskill(self,state,rhs, where_match):
     # print("--------END THIS---------")
     
     state_obj = {**state.get_view("object"),**to_append}
+    # print(state_obj)
     # pprint(state_obj)
     # state.set_view("object_skills_appended",state_obj)
     state = state_obj
-    state = variablize_state_relative(self,state,rhs, where_match)
+    with PrintElapse("variablize_state_relative"):
+        state = variablize_state_relative(self,state,rhs, where_match)
     k_list = list(state.keys())
     
     
     l_core = len(state)-len(to_append)
     # pprint({k:state[k] for k in k_list[:l_core]})
     # pprint({k:state[k] for k in k_list[l_core:]})
-    state = FlatState({k:state[k] for k in k_list[:l_core]},
+    state = FlatState({k:state[k] for k in k_list},
                       {k:state[k] for k in k_list[l_core:]})
+
+    # print(state)
 
                 # pprint()
     # print(state)
@@ -533,9 +543,10 @@ class ModularAgent(BaseAgent):
         rhs_list = [x for x in rhs_list if not getattr(x,"is_bad",False)]        
 
 
-        explanations = self.applicable_explanations(
-                            state, rhs_list=rhs_list,
-                            add_skill_info=add_skill_info)
+        with PrintElapse("get_skill_applications"):
+            explanations = self.applicable_explanations(
+                                state, rhs_list=rhs_list,
+                                add_skill_info=add_skill_info)
 
 
 
@@ -593,9 +604,9 @@ class ModularAgent(BaseAgent):
         if(len(nonmatching_explanations) > 0):
             non_m_inds = np.where(partial_scores == np.max(partial_scores))[0]
             nonmatching_explanations = [nonmatching_explanations[i] for i in non_m_inds]
-            if(len(matching_explanations) == 0):
-                print(partial_scores)
-                print(non_m_inds)
+            # if(len(matching_explanations) == 0):
+            #     print(partial_scores)
+            #     print(non_m_inds)
         return matching_explanations, nonmatching_explanations
 
     def _matches_from_foas(self, rhs, sai, foci_of_attention):
@@ -884,10 +895,11 @@ def unground(arg):
 
 
 def flatten_state(state):
-    tup = Tuplizer()
-    flt = Flattener()
-    state = flt.transform(tup.transform(state))
-    return state
+    with PrintElapse("flatten"):
+        tup = Tuplizer()
+        flt = Flattener()
+        state = flt.transform(tup.transform(state))
+        return state
 
 
 def grounded_key_vals_state(state):

@@ -26,12 +26,12 @@ transfrom_registry = registries['transform']
 # registered_transforms = {}
 
 class State:
-    def clear(keep_incr=True):
+    def clear(self, keep_incr=True):
         state_formats = {}
         if(keep_incr):
-            for k, (val, config) in self.state_formats:
+            for k, (val, config) in self.state_formats.items():
                 if(config.get("is_incremental", False)):
-                    state_formats[k] = val
+                    state_formats[k] = (val, config)
         self.state_formats = state_formats
 
     def __init__(self, agent):

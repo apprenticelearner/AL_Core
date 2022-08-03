@@ -42,7 +42,7 @@ def _register(obj, registry, name=None, name_resolver=None,
         warnings.warn(f"Redefinition of {full_descr} '{name}'.", stacklevel=2+stack_extra)
 
     if(insert_func is not None):
-        insert_func(registry, obj, *args, **kwargs)
+        insert_func(registry, obj, name, *args, **kwargs)
     else:
         registry[regular_name] = obj
     return obj

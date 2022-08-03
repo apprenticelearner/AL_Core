@@ -68,14 +68,13 @@ from cre import Conditions, Var
 class BaseCREWhere(BaseWhere):
     def _ensure_vars(self, match):
         if(not hasattr(self,'vars')):
+
             _vars = []
             for i, fact in enumerate(match):
                 alias = f"Arg{i-1}" if i else "Sel"
                 _vars.append(Var(fact._fact_type, alias))
             self.vars = _vars
-            self._base_conds = self.constraint_builder(_vars) #Conditions(_vars[0])
-            # for i in range(1,len(_vars)):
-            #     self._base_conds &= _vars[i]
+            self._base_conds = self.constraint_builder(_vars)
 
         return self.vars
 
@@ -89,31 +88,29 @@ class AntiUnify(BaseCREWhere):
 
     def ifit(self, state, match, reward=1):
         wm = state.get("working_memory")
-        if(self.conds is None or 
-           not self.check_match(state, match)):
 
-            _vars = self._ensure_vars(match)
-            # print()
-            # print(_vars)
-            conds = Conditions.from_facts(match, _vars, 
-                alpha_flags=("visible", "few_valued"))
+        # TODO: For efficiency should really gaurd with check_match here,
+        #    but need to change check_match so that it will ensure the 
+        #    existence of any guarded unprovided facts, like neighbors.
 
-            # print("B")
-            # print(conds)
-            if(self.conds is None):
-                # print("<<!", conds)
-                self.conds = self._base_conds & conds
-            else:
-                # print("<<!", conds)
-                self.conds = self._base_conds & self.conds.antiunify(conds, fix_same_var=True)
-                # print("<<", self.conds)
+        _vars = self._ensure_vars(match)
 
+        conds = Conditions.from_facts(match, _vars, 
+            alpha_flags=("visible", "few_valued"),
+            beta_weight=10.0
+            )
 
-            # print("OUT")
-            # print(self.conds)
+        if(self.conds is None):
+            self.conds = self._base_conds & conds
+        else:
+            self.conds = self._base_conds & self.conds.antiunify(conds, fix_same_var=True)
+
+        # print(">>", self.conds)
             
     def score_match(self, state, match):
         wm = state.get('working_memory')
+        if(not self._base_conds.check_match(match, wm)):
+            return 0.0 
         return self.conds.score_match(match, wm)
 
     def as_conditions(self):
