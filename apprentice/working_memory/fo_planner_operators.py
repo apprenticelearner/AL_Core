@@ -444,6 +444,7 @@ Operator.register("equal", equal_rule)
 is_number_rule = Operator(('IsNumber', '?x'),
                           [(('value', '?x'), '?xv')],
                           [(('IsNumber', '?x'), (is_str_number, '?xv'))])
+Operator.register("is_number", is_number_rule)
 
 editable_rule = Operator(('Editable', '?x'),
                          [(('value', '?x'), '?xv'),

@@ -1,6 +1,7 @@
 import inspect
 from dataclasses import dataclass
 from typing import Collection, Callable, Any
+from sklearn import tree
 
 import experta
 from experta import Fact
@@ -297,7 +298,8 @@ class Explanation(object):
         if(when_state is None):
             when_info = None
         else:    
-            when_info = tuple(agent.when_learner.skill_info(self.rhs, when_state))
+            # when_info = tuple(agent.when_learner.skill_info(self.rhs, when_state))
+            when_info = tree.export_text(agent.when_learner.skill_info(self.rhs, when_state))
         skill_info = {"when": when_info,
                     #   "where": agent.where_learner.skill_info(self.rhs),
                       "how": str(self.rhs.input_rule),

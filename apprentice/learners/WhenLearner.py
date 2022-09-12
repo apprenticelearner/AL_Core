@@ -2,6 +2,7 @@ from pprint import pprint
 from copy import deepcopy
 from apprentice.learners.pyibl import Agent
 import numpy as np
+import re, json
 
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.tree import DecisionTreeClassifier
@@ -416,6 +417,7 @@ def export_tree(dt):
 from sklearn.tree import _tree
 class DecisionTree(DecisionTreeClassifier):
     def fit(self,X,y):
+        print(f'fit: {len(X)}')
         
         # print("X",len(X[0]))
         # pprint(X)
@@ -434,6 +436,12 @@ class DecisionTree(DecisionTreeClassifier):
 
     def predict(self, X):
         # print("PREDICT")
+
+        # print(X)
+        # print(type(X))
+        # print(X.size)
+        # print(f'predict: {len(X)}')
+        
         # print(hex(id(self)))
         # print("X")
         # print(X)
@@ -444,33 +452,34 @@ class DecisionTree(DecisionTreeClassifier):
 
     def skill_info(self, examples, feature_names=None):
         # print("SLOOP", examples)
-        tree = self
-        tree_ = tree.tree_
-        # print("feature_names", feature_names)
-        feature_name = [
-            feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
-            for i in tree_.feature
-        ]
-        node_indicator = tree.decision_path(examples)
-        dense_ind = np.array(node_indicator.todense())
+        return self
+        # tree = self
+        # tree_ = tree.tree_
+        # # print("feature_names", feature_names)
+        # feature_name = [
+        #     feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
+        #     for i in tree_.feature
+        # ]
+        # node_indicator = tree.decision_path(examples)
+        # dense_ind = np.array(node_indicator.todense())
 
-        def recurse(node, ind):
-            if(tree_.feature[node] != _tree.TREE_UNDEFINED):
-                l = tree_.children_left[node]
-                less = ind[l]
-                if(not less):
-                    s = recurse(tree_.children_right[node], ind)
-                else:
-                    s = recurse(tree_.children_left[node], ind)
+        # def recurse(node, ind):
+        #     if(tree_.feature[node] != _tree.TREE_UNDEFINED):
+        #         l = tree_.children_left[node]
+        #         less = ind[l]
+        #         if(not less):
+        #             s = recurse(tree_.children_right[node], ind)
+        #         else:
+        #             s = recurse(tree_.children_left[node], ind)
 
-                name = feature_name[node]
-                ineq = "<=" if less else ">"
-                thresh = str(tree_.threshold[node])
-                return [(name.replace("?ele-", ""), ineq, thresh)] + s
-            else:
-                return []
-        for ind in dense_ind:
-            return recurse(0, ind)
+        #         name = feature_name[node]
+        #         ineq = "<=" if less else ">"
+        #         thresh = str(tree_.threshold[node])
+        #         return [(name.replace("?ele-", ""), ineq, thresh)] + s
+        #     else:
+        #         return []
+        # for ind in dense_ind:
+        #     return recurse(0, ind)
 
 
 class ScikitTrestle(object):
@@ -853,8 +862,8 @@ class DecisionTree2(object):
             # [n.split_on for n in self.dt.tree.nodes]
             inds = [int(x.split(" : (")[1].split(")")[0]) for x in re.findall(r'NODE.+',tree_str)]
 
-            print()
-            print("---", self.rhs, "---")
+            # print()
+            # print("---", self.rhs, "---")
             tree_condition_inds(self.dt.tree)
             # print(tree_str)
 
@@ -925,6 +934,10 @@ class DecisionTree2(object):
         #     print("---------------")
         return pred
 
+    def skill_info(self, examples, feature_names=None):
+        return ''
+        # print("SLOOP", examples)
+
 
 
 
@@ -948,8 +961,9 @@ def get_when_learner(name, **kwargs):
 
 WHEN_LEARNERS = {
     "decisiontree": {"learner": "decisiontree",
+                    #  "state_format": "state_only"},
                      "state_format": "variablized_state"},
-    "decisiontree": {"learner": "decisiontree",
+    "decisiontree2": {"learner": "decisiontree2",
                      "state_format": "variablized_state"},
     "cobweb": {"learner": "cobweb", "when_type": "one_learner_per_rhs",
                "state_format": "variablized_state"},

@@ -45,6 +45,9 @@ from datetime import datetime
 
 from os import path
 
+from matplotlib import pyplot as plt
+from sklearn import tree
+
 performance_logger = logging.getLogger('al-performance')
 agent_logger = logging.getLogger('al-agent')
 agent_logger.setLevel("ERROR")
@@ -363,7 +366,7 @@ class MemoryAgent(BaseAgent):
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', explanation_choice='random',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
-                 numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
+                 numerical_epsilon=0.0, ret_train_expl=False, strip_attrs=[],
                  constraint_set='ctat', use_memory=True,
                  s=1, c=0.277, alpha=0.177, tau=-0.7, beta=4, b_study=4, b_practice=0, agent_name=None,
                  **kwargs):
@@ -474,7 +477,7 @@ class MemoryAgent(BaseAgent):
 
         # if self.print_log: print(f"{str(exp)}: {v}, {m}")
         return v, m, random() < v
-    
+
     def _update_activation(self, explanations, retrieval_type):
         for exp in explanations:
             exp = str(exp)
@@ -522,10 +525,13 @@ class MemoryAgent(BaseAgent):
             self.fails[0] += 1
             if(self.when_learner.state_format == "variablized_state"):
                 pred_state = state.get_view(("variablize", rhs, tuple(match)))
+                # pred_state = state
             else:
                 pred_state = state
             # print("MATCH", rhs,match)
             if(not skip_when):
+                # print('before predict')
+                # pprint(pred_state)
                 p = self.when_learner.predict(rhs, pred_state)
 
                 if(p <= 0):
@@ -554,11 +560,12 @@ class MemoryAgent(BaseAgent):
 
         fail_reason = "DEFAULT"
 
+        sw = False
         explanations = self.applicable_explanations(
                             state, rhs_list=rhs_list,
-                            # add_skill_info=add_skill_info, 
-                            add_skill_info=True) 
-                            # skip_when=True)
+                            # add_skill_info=add_skill_info,
+                            add_skill_info=True,
+                            skip_when=sw)
         retrieved_explanations = []
         responses = []
         itr = itertools.islice(explanations, n) if n > 0 else iter(explanations)
@@ -675,6 +682,7 @@ class MemoryAgent(BaseAgent):
     def explanations_from_skills(self, state, sai, rhs_list,
                                  foci_of_attention=None):  # -> return Iterator<skill>
         for rhs in rhs_list:
+            print('in here')
             if(isinstance(rhs.input_rule, (int, float, str))):
                 # TODO: Hard attr assumption fix this.
                 mappings = [{}] if sai.inputs["value"] == rhs.input_rule else []
@@ -696,6 +704,7 @@ class MemoryAgent(BaseAgent):
                 #                               allow_bottomout=False,
                 #                               allow_copy=False)
             for mapping in mappings:
+                print('in there')
                 if(type(self.planner).__name__ == "FoPlannerModule"):
                     m = {"?sel": "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection}
                 else:
@@ -703,6 +712,17 @@ class MemoryAgent(BaseAgent):
                 m.update(mapping)
                 if(len(m)==len(set(m.values()))):
                     yield Explanation(rhs, m)
+
+    def explanations_from_solution(self, sai, solution):  # -> return Iterator<Explanation>
+        inp_vars = list(solution['mapping'].keys())
+        varz = list(solution['mapping'].values())
+        rhs = RHS(selection_expr=sai.selection, action=sai.action,
+                    input_rule=solution['input_rule'], selection_var="?sel",
+                    input_vars=inp_vars, input_attrs=list(sai.inputs.keys()))
+
+        literals = [sai.selection] + varz
+        ordered_mapping = {k: v for k, v in zip(rhs.all_vars, literals)}
+        yield Explanation(rhs, ordered_mapping)
 
     def explanations_from_how_search(self, state, sai, foci_of_attention):  # -> return Iterator<Explanation>
         # sel_match = next(expression_matches(
@@ -714,11 +734,20 @@ class MemoryAgent(BaseAgent):
         # sel_match = {"?sel" : sai.selection}
         # selection_rule = sai.selection
         # print(state)
+        # print("@" * 20)
         itr = self.planner.how_search(state, sai,
                                       foci_of_attention=foci_of_attention)
         for input_rule, mapping in itr:
+            # print('---')
             inp_vars = list(mapping.keys())
             varz = list(mapping.values())
+
+            # print(mapping)
+            # print(type(inp_vars[0]))
+            # print(type(varz[0]))
+            # print('..')
+            # print(input_rule)
+            # print(type(input_rule[0]))
 
             rhs = RHS(selection_expr=sai.selection, action=sai.action,
                       input_rule=input_rule, selection_var="?sel",
@@ -727,6 +756,8 @@ class MemoryAgent(BaseAgent):
             literals = [sai.selection] + varz
             ordered_mapping = {k: v for k, v in zip(rhs.all_vars, literals)}
             yield Explanation(rhs, ordered_mapping)
+
+        # print("DONE" + "@" * 20)
 
     def add_rhs(self, rhs, skill_label="DEFAULT_SKILL"):  # -> return None
         rhs._id_num = self.rhs_counter
@@ -755,9 +786,12 @@ class MemoryAgent(BaseAgent):
 
     def train(self, state:Dict, sai:Sai=None, reward:float=None,
               skill_label=None, foci_of_attention=None, rhs_id=None, mapping=None,
-              ret_train_expl=False, add_skill_info=False, problem_info=None, **kwargs):  # -> return None
+              ret_train_expl=False, add_skill_info=False, problem_info=None, 
+              solution=None, **kwargs):  # -> return None
 
         fstate = None
+        print('******' * 10)
+        print(foci_of_attention)
         if foci_of_attention is not None and len(foci_of_attention) > 0:
             fstate = {k: state[k] for k in foci_of_attention}
             print('fstate')
@@ -801,8 +835,14 @@ class MemoryAgent(BaseAgent):
                     explanations = [choice(nonmatching_explanations)]
                 else:
                     t_s = time.time_ns()
-                    explanations = self.explanations_from_how_search(
-                                   state if fstate is None else fstate, sai, foci_of_attention)
+
+                    print(solution)
+                    if solution != None:
+                        print('use solution')
+                        explanations = self.explanations_from_solution(sai, solution)
+                    else:
+                        explanations = self.explanations_from_how_search(
+                                        state if fstate is None else fstate, sai, foci_of_attention)
                     performance_logger.info("explanations_from_how_search {} ms".format((time.time_ns()-t_s)/(1e6)))
 
                     explanations = self.which_learner.select_how(explanations)
