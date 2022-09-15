@@ -366,7 +366,7 @@ class MemoryAgent(BaseAgent):
                  when_learner='decisiontree', where_learner='version_space',
                  heuristic_learner='proportion_correct', explanation_choice='random',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
-                 numerical_epsilon=0.0, ret_train_expl=False, strip_attrs=[],
+                 numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
                  constraint_set='ctat', use_memory=True,
                  s=1, c=0.277, alpha=0.177, tau=-0.7, beta=4, b_study=4, b_practice=0, agent_name=None,
                  **kwargs):
@@ -511,8 +511,9 @@ class MemoryAgent(BaseAgent):
 
         for rhs in rhs_list:
             for match in self.where_learner.get_matches(rhs, state):
-                if(len(match) != len(set(match))):
-                    continue
+                # TODO: this doesn't work with concept 4
+                # if(len(match) != len(set(match))):
+                #     continue
                 yield rhs,match
 
 
@@ -521,7 +522,11 @@ class MemoryAgent(BaseAgent):
                                 skip_when = False,
                                 ):  # -> returns Iterator<Explanation>
         self.fails = [0, 0]
+        print('rhs list')
+        print(rhs_list)
         for rhs,match in self.all_where_parts(state,rhs_list):
+            print('in')
+            print(rhs)
             self.fails[0] += 1
             if(self.when_learner.state_format == "variablized_state"):
                 pred_state = state.get_view(("variablize", rhs, tuple(match)))
@@ -545,6 +550,7 @@ class MemoryAgent(BaseAgent):
                 skill_info = explanation.get_skill_info(self,pred_state)
             else:
                 skill_info = None
+            print('yield')
             yield explanation, skill_info
 
     def request(self, state: dict, add_skill_info=False, n=1, problem_info=None, **kwargs):  # -> Returns sai
@@ -622,7 +628,7 @@ class MemoryAgent(BaseAgent):
         info = {}
         selected_skill = str(retrieved_explanations[0]) if len(retrieved_explanations) > 0 else "NO EXP"
         selected_skill_where_part = str(self.where_learner.learners[retrieved_explanations[0].rhs]) if len(retrieved_explanations) > 0 else "N/A"
-        selected_skill_when_part = str(skill_infos[0]['when']) if len(retrieved_explanations) > 0 else "N/A"
+        # selected_skill_when_part = str(skill_infos[0]['when']) if len(retrieved_explanations) > 0 else "N/A"
 
         if self.use_memory:
             self.t += 1
@@ -633,7 +639,8 @@ class MemoryAgent(BaseAgent):
                 'selected_skill': selected_skill,
                 'applicable_explanations_count': applicable_explanations_count,
                 'where': selected_skill_where_part,
-                'when': selected_skill_when_part
+                # 'when': selected_skill_when_part
+                'when': "...",
             }
 
         if response == EMPTY_RESPONSE:
@@ -682,7 +689,6 @@ class MemoryAgent(BaseAgent):
     def explanations_from_skills(self, state, sai, rhs_list,
                                  foci_of_attention=None):  # -> return Iterator<skill>
         for rhs in rhs_list:
-            print('in here')
             if(isinstance(rhs.input_rule, (int, float, str))):
                 # TODO: Hard attr assumption fix this.
                 mappings = [{}] if sai.inputs["value"] == rhs.input_rule else []
@@ -704,7 +710,6 @@ class MemoryAgent(BaseAgent):
                 #                               allow_bottomout=False,
                 #                               allow_copy=False)
             for mapping in mappings:
-                print('in there')
                 if(type(self.planner).__name__ == "FoPlannerModule"):
                     m = {"?sel": "?ele-" + sai.selection if sai.selection[0] != "?" else sai.selection}
                 else:
@@ -790,16 +795,18 @@ class MemoryAgent(BaseAgent):
               solution=None, **kwargs):  # -> return None
 
         fstate = None
-        print('******' * 10)
-        print(foci_of_attention)
-        if foci_of_attention is not None and len(foci_of_attention) > 0:
-            fstate = {k: state[k] for k in foci_of_attention}
-            print('fstate')
-            print(fstate)
-            fstate = add_QMele_to_state(fstate)
-            fstate = StateMultiView("object", fstate)
-            fstate.register_transform("*","variablize",self.state_variablizer)
-            fstate.set_view("flat_ungrounded", self.planner.apply_featureset(fstate))
+
+        # Hacky FOA.
+        # print('******' * 10)
+        # print(foci_of_attention)
+        # if foci_of_attention is not None and len(foci_of_attention) > 0:
+        #     fstate = {k: state[k] for k in foci_of_attention}
+        #     print('fstate')
+        #     print(fstate)
+        #     fstate = add_QMele_to_state(fstate)
+        #     fstate = StateMultiView("object", fstate)
+        #     fstate.register_transform("*","variablize",self.state_variablizer)
+        #     fstate.set_view("flat_ungrounded", self.planner.apply_featureset(fstate))
 
         if(type(self.planner).__name__ == "FoPlannerModule"):
             state = add_QMele_to_state(state)

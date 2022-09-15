@@ -148,12 +148,17 @@ class NumbaPlanner(BasePlanner):
 
 		at_least_one = False
 		for op_comp in operator_compositions:
+			# print('in here')
 			if(not allow_copy and op_comp.depth == 0 and min([op.depth for op in operators]) > 0):
+				print('oh no')
 				continue	
 
 			op_comp = deepcopy(op_comp)
 			args = [arg.binding.id for arg in op_comp.args]
-			if(len(set(args)) != len(args)): continue
+			# print('hmm')
+			# This make concept 4 fails
+			# if(len(set(args)) != len(args)): continue
+			# print('ok')
 			if(foci_of_attention != None and len(foci_of_attention) != len(args)): continue				
 
 			mapping = {"?arg%s"%i:arg for i,arg in enumerate(args)}

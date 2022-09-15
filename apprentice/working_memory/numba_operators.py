@@ -304,12 +304,24 @@ class Bullseye(BaseOperator):
 class Pow(BaseOperator):
     commutes = False
     signature = 'float(float,float)'
+    # muted_exceptions = [OverflowError]
+
+    def condition(x,y): 
+        return x < 10 and y < 10
+        # return not(x > 15 and y > 15)
 
     def forward(x, y):
         return x ** y
 
 class Inverse(BaseOperator):
-    signature = 'string(string)'
+    signature = 'string(float)'
+    nopython = False
 
+    # signature = 'float(TextField)'
+    #     return float(x.value)
     def forward(x):
-        return x[::-1]
+        s = str(x)
+        return s[::-1]
+
+        # x = int(x / 10) + ((x % 10) * 10)
+        # return x
