@@ -278,6 +278,16 @@ class Cross_Multiply_symb(BaseOperator):
         return float(x.value) * float(y.value)
 
 
-
+class ConvertNumerator(BaseOperator):
+    commutes = False
+    signature = 'float(float, float, float)'
+    # template = "ConvertNumerator({0},{1},{2})"
+    # nopython=False
+    # muted_exceptions = [ValueError]
+    def condition(cden, iden, inum): 
+        return iden != 0 and iden <= cden
+        
+    def forward(cden, iden, inum): 
+        return (cden / iden) * inum
 
 

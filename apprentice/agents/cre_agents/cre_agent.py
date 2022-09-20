@@ -392,8 +392,8 @@ class CREAgent(BaseDIPLAgent):
             if(len(skill_apps) > 0): print("EXPL HOW")
 
         best_expl = self.choose_best_explanation(state, skill_apps)
-        if(best_expl is not None):
-            print(best_expl.skill.where_lrn_mech.conds)
+        # if(best_expl is not None):
+        #     print(best_expl.skill.where_lrn_mech.conds)
         print("BEST EXPLANATION", best_expl)
         return best_expl
 

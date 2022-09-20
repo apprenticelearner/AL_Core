@@ -217,7 +217,6 @@ class StateMultiView(object):
         self.transform_dict = {}
         self.register_transform("object", "flat_ungrounded", flatten_state)
         self.register_transform("object", "nb_object", numbalizer.state_to_nb_objects)
-        self.register_transform("nb_object", "nb_enumerized", numbalizer.nb_objects_to_enumerized)
 
 
         self.register_transform("flat_ungrounded", "key_vals_grounded",
@@ -292,7 +291,6 @@ class Explanation(object):
         response['action'] = self.rhs.action
         response['inputs'] = self.compute(state, agent)
         response['rhs_id'] = self.rhs._id_num
-        response['mapping'] = self.mapping
         return response
 
     def get_skill_info(self,agent,when_state=None):

@@ -351,17 +351,17 @@ if __name__ == "__main__":
             # equation_strings.append(eq[1])
             sentences.add(eq[1].lower())
 
-    fdir = "/Users/cmaclell/Dropbox/projects/simstudent/Authoring" \
-           "Tools/java/Projects/articleSelectionTutor/massproduct" \
-           "ion-templates/"
-    fname = "article_sentences.txt"
+    # fdir = "/Users/cmaclell/Dropbox/projects/simstudent/Authoring" \
+    #        "Tools/java/Projects/articleSelectionTutor/massproduct" \
+    #        "ion-templates/"
+    # fname = "article_sentences.txt"
 
-    with open(fdir + fname, encoding="ISO-8859-1") as fin:
-        key = None
-        for line in fin:
-            line = line.strip()
-            print('adding', line.lower())
-            sentences.add(line.lower())
+    # with open(fdir + fname, encoding="ISO-8859-1") as fin:
+    #     key = None
+    #     for line in fin:
+    #         line = line.strip()
+    #         print('adding', line.lower())
+    #         sentences.add(line.lower())
 
     # sentences = list(sentences)
     # shuffle(sentences)
@@ -370,6 +370,7 @@ if __name__ == "__main__":
 
     # equation_strings = ["3x + 2", "-4x", "4x", "700", "-5", "-100"]
 
+    [['3', 'x', '+', '2']...]
     sents = [[c for c in s] for s in sentences]
     # pprint(sents)
 

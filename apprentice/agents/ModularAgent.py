@@ -322,15 +322,15 @@ def variablize_state_metaskill(self,state,rhs, where_match):
         # print("-------START THIS---------")
 
     to_append = {}
-    with PrintElapse("all_where_parts"):
-        for rhs, match in self.all_where_parts(state):
-            mapping = {v: m for v, m in zip(rhs.all_vars, match)}
-            exp = Explanation(rhs,mapping)
-            resp = exp.to_response(state,self)
-            # pprint(skill_info)
-            sk_str = f"{str(self.rhs_list[resp['rhs_id']])}(id:{resp['rhs_id']})"
-            key = (sk_str, *mapping.values())
-            to_append[key] = resp["inputs"]
+    # with PrintElapse("all_where_parts"):
+    for rhs, match in self.all_where_parts(state):
+        mapping = {v: m for v, m in zip(rhs.all_vars, match)}
+        exp = Explanation(rhs,mapping)
+        resp = exp.to_response(state,self)
+        # pprint(skill_info)
+        sk_str = f"{str(self.rhs_list[resp['rhs_id']])}(id:{resp['rhs_id']})"
+        key = (sk_str, *mapping.values())
+        to_append[key] = resp["inputs"]
     # to_append[(sk_str,"count")] = to_append.get((sk_str,"count"),0) + 1
         # to_append[("all-skills","count")] = to_append.get(("all-skills","count"),0) + 1
 
@@ -352,15 +352,15 @@ def variablize_state_metaskill(self,state,rhs, where_match):
     # pprint(state_obj)
     # state.set_view("object_skills_appended",state_obj)
     state = state_obj
-    with PrintElapse("variablize_state_relative"):
-        state = variablize_state_relative(self,state,rhs, where_match)
+    # with PrintElapse("variablize_state_relative"):
+    state = variablize_state_relative(self,state,rhs, where_match)
     k_list = list(state.keys())
     
     
     l_core = len(state)-len(to_append)
     # pprint({k:state[k] for k in k_list[:l_core]})
     # pprint({k:state[k] for k in k_list[l_core:]})
-    state = FlatState({k:state[k] for k in k_list},
+    state = FlatState({k:state[k] for k in k_list[:l_core]},
                       {k:state[k] for k in k_list[l_core:]})
 
     # print(state)
@@ -433,7 +433,7 @@ class ModularAgent(BaseAgent):
                  which_learner='weighted_proportion_correct', explanation_choice='least_operations',
                  planner='fo_planner', state_variablization="whereswap", search_depth=1,
                  numerical_epsilon=0.0, ret_train_expl=True, strip_attrs=[],
-                 constraint_set='ctat', should_find_neighbors=False, **kwargs):
+                 constraint_set='ctat', should_find_neighbors=True, **kwargs):
 
         # print(dict(feature_set=feature_set, function_set=function_set,
         #          when_learner=when_learner, where_learner=where_learner,
@@ -543,10 +543,10 @@ class ModularAgent(BaseAgent):
         rhs_list = [x for x in rhs_list if not getattr(x,"is_bad",False)]        
 
 
-        with PrintElapse("get_skill_applications"):
-            explanations = self.applicable_explanations(
-                                state, rhs_list=rhs_list,
-                                add_skill_info=add_skill_info)
+        # with PrintElapse("get_skill_applications"):
+        explanations = self.applicable_explanations(
+                            state, rhs_list=rhs_list,
+                            add_skill_info=add_skill_info)
 
 
 
@@ -565,7 +565,7 @@ class ModularAgent(BaseAgent):
                 # print(ut, rem_ut)
                 # ut = ut if isinstance(ut,(float,int)) else 0.0
                 # rem_ut = rem_ut if isinstance(rem_ut,(float,int)) else 0.0
-                print(f"UTILITY: U:({ut[0]:.3f}, {pe_garbage}:{ne_garbage}) R:({rem_ut[0]:.3f}, {rem_pe_garbage}:{rem_ne_garbage})")
+                # print(f"UTILITY: U:({ut[0]:.3f}, {pe_garbage}:{ne_garbage}) R:({rem_ut[0]:.3f}, {rem_pe_garbage}:{rem_ne_garbage})")
                 self.prev_skill_app = explanation
                 response = explanation.to_response(state, self)
                 if(add_skill_info):
@@ -895,11 +895,11 @@ def unground(arg):
 
 
 def flatten_state(state):
-    with PrintElapse("flatten"):
-        tup = Tuplizer()
-        flt = Flattener()
-        state = flt.transform(tup.transform(state))
-        return state
+    # with PrintElapse("flatten"):
+    tup = Tuplizer()
+    flt = Flattener()
+    state = flt.transform(tup.transform(state))
+    return state
 
 
 def grounded_key_vals_state(state):

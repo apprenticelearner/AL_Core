@@ -212,7 +212,7 @@ class WhenLearner(object):
         else:
             state = state.get_view(("variablize",rhs,tuple(mapping)))
             # print("WHEN LEARNER")
-            # print(state)
+            pprint(state)
             if(self.type == "one_learner_per_label"):
                 if(rhs.label not in self.sub_learners):
                     self.sub_learners[rhs.label] = get_when_sublearner(
@@ -638,11 +638,11 @@ def DictVectWrapper(clf):
 
             def transform(self, X):
                 # print(dv.inverse_transform(X))
-                try:
-                    for (k,v) in  dv.inverse_transform(X)[-1].items():
-                        print(":", k, v)
-                except:
-                    pass
+                # try:
+                #     for (k,v) in  dv.inverse_transform(X)[-1].items():
+                #         print(":", k, v)
+                # except:
+                #     pass
                 return X
 
             def inverse_transform(self, target):
@@ -744,7 +744,7 @@ class DecisionTree(DecisionTreeClassifier):
         # print("PREDICT")
         # print(hex(id(self)))
         # print("X")
-        print(X)
+        # print(X)
         # export_tree(self)
         
         

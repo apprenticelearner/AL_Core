@@ -135,7 +135,7 @@ class SetChaining(BaseHow):
 
         # Try to find the value as a string
         explanation_tree = planner.search_for_explanations(
-            value, function_set, search_depth, 
+            value, function_set, search_depth=search_depth, 
             min_stop_depth=min_stop_depth)
 
         # If fail try float; NOTE: Still a little bit of a kludge
@@ -146,7 +146,7 @@ class SetChaining(BaseHow):
             try:
                 flt_val = float(value)
                 explanation_tree = planner.search_for_explanations(
-                    flt_val, function_set, search_depth, 
+                    flt_val, function_set, search_depth=search_depth, 
                     min_stop_depth=min_stop_depth)
 
                 expl_set = ExplanationSet(explanation_tree, arg_foci)

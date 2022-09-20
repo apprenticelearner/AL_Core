@@ -75,6 +75,7 @@ class BaseCREWhere(BaseWhere):
                 _vars.append(Var(fact._fact_type, alias))
             self.vars = _vars
             self._base_conds = self.constraint_builder(_vars)
+            print(type(self._base_conds))
 
         return self.vars
 
