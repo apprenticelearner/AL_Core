@@ -1,7 +1,7 @@
 from numbert.operator import BaseOperator
 import math
 from numba import njit
-from .representation import numbalizer
+# from .representation import numbalizer
 
 textfield = {
     "id" : "string",
@@ -62,14 +62,14 @@ overlay_button = {
 }
 
 
-numbalizer.register_specification("TextField",textfield)
-numbalizer.register_specification("TextArea",textfield)
-numbalizer.register_specification("Button", button)
-numbalizer.register_specification("Checkbox", checkbox)
-numbalizer.register_specification("RadioButton", checkbox)
-numbalizer.register_specification("Component",component)
-numbalizer.register_specification("Symbol",symbol)
-numbalizer.register_specification("OverlayButton",overlay_button)
+# numbalizer.register_specification("TextField",textfield)
+# numbalizer.register_specification("TextArea",textfield)
+# numbalizer.register_specification("Button", button)
+# numbalizer.register_specification("Checkbox", checkbox)
+# numbalizer.register_specification("RadioButton", checkbox)
+# numbalizer.register_specification("Component",component)
+# numbalizer.register_specification("Symbol",symbol)
+# numbalizer.register_specification("OverlayButton",overlay_button)
 
 
 @njit(cache=True)

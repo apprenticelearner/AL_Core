@@ -24,15 +24,23 @@ transfrom_registry = registries['transform']
 
 # A dictionary of to_type : {**from_type : transform_func}
 # registered_transforms = {}
-
+from cre.utils import PrintElapse
 class State:
     def clear(self, keep_incr=True):
+        # if("working_memory" in self.state_formats):
+        #     wm = self.state_formats['working_memory'][0]
+        #     print("WM REFS", wm._meminfo.refcount)
+        #     with PrintElapse("free"):
+        #         wm.free()
+
         state_formats = {}
         if(keep_incr):
             for k, (val, config) in self.state_formats.items():
                 if(config.get("is_incremental", False)):
                     state_formats[k] = (val, config)
         self.state_formats = state_formats
+
+
 
     def __init__(self, agent):
         self.agent = agent

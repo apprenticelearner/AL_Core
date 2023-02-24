@@ -140,16 +140,25 @@ class VectorTransformMixin():
         #     print(repr(fact), hash(fact))
         # else:
         wm = state.get("working_memory")
+        # print("WM BEF RE RECOUNT", wm._meminfo.refcount)
         # print(wm)
         self.relative_encoder.set_in_memset(wm)
         _vars = self.skill.where_lrn_mech._ensure_vars(match)
         # print(":::", self.skill.id_num, "_vars", _vars[0].base_ptr)
 
         # print(featurized_state)
+
+        # Featurize state relative to selection
+        #  NOTE: Could also use arguments, but there is currently a hard
+        #  to find bug associated with this
         featurized_state = self.relative_encoder.encode_relative_to(
-            featurized_state, match, _vars)
-            # featurized_state, [match[0]], [_vars[0]])
+            featurized_state, [match[0]], [_vars[0]])
+            # featurized_state, match, _vars)
+
+        # print(shorthand_state_rel(featurized_state))
             
+        
+        # print("WM AFT RE RECOUNT", wm._meminfo.refcount)            
 
             # if(self.skill.id_num == 0):
             #     print(featurized_state)
@@ -210,6 +219,7 @@ class VectorTransformMixin():
 
     def append_and_flatten_vecs(self, state, match, reward):
         # with PrintElapse("\ttransform"):
+
         continuous, nominal = self.transform(state, match)
 
 
@@ -259,28 +269,18 @@ class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
 
     def ifit(self, state, match, reward):
         X,Y = self.append_and_flatten_vecs(state, match, reward)
-        # print("fit", X[-1], reward)
-
-        # print(f"T{self.skill.id_num} {[m.id for m in match]}\t", int(reward), X[-1])
         self.classifier.fit(X, Y)
-
-
 
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
         prediction = self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0]
-        # if(self.skill.id_num == 4):
-        # print(f"P{self.skill.id_num} {[m.id for m in match]}\t", prediction, nominal[:self.X_width])
-
-        # print(self.skill, match)
-        # print("predict", nominal[:self.X_width].reshape(1,-1), self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0])
-
         return prediction
 
 
+np.set_printoptions(edgeitems=300000, linewidth=10000000)
 
 # Note: Has bugs
-# @register_when
+@register_when
 class DecisionTree(BaseWhen, VectorTransformMixin):
     def __init__(self, skill, impl="decision_tree",
                 **kwargs):
@@ -295,11 +295,13 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
     def ifit(self, state, match, reward):
         X,Y = self.append_and_flatten_vecs(state, match, reward)
 
-        print("AAAAH")
+        # print("AAAAH")
         # print("fit", X[-1], reward)
 
         # print(f"T{self.skill.id_num} {[m.id for m in match]}\t", int(reward), X[-1])
-        print(X)
+        
+        # print(X)
+        # print(Y)
         with PrintElapse("A"):
             self.classifier.fit(X, None, Y)
 
@@ -308,6 +310,94 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
         prediction = self.classifier.predict(nominal[:self.X_width].reshape(1,-1), None)[0]
+        # if(self.skill.id_num == 4):
+        #     print(f"P{self.skill.id_num} {[m.id for m in match]}\t", prediction, nominal[:self.X_width])
+
+        # print(self.skill, match)
+        # print("predict", nominal[:self.X_width].reshape(1,-1), self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0])
+
+        return prediction
+
+
+
+
+
+
+from .debug_utils import shorthand_state_rel
+
+
+# Note: Has bugs
+@register_when
+class STAND(BaseWhen, VectorTransformMixin):
+    def __init__(self, skill,
+                **kwargs):
+        super().__init__(skill, **kwargs)
+        from numbaILP.stand import STANDClassifier
+
+        VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
+        self.classifier = STANDClassifier()
+
+    def ifit(self, state, match, reward):
+        X,Y = self.append_and_flatten_vecs(state, match, reward)
+
+        from numbaILP.fnvhash import hasharray
+
+        
+                
+        
+        # print(X[-1])
+        # print(f"{self.skill.id_num} fit: ", hasharray(X[-1]))
+        # print(shorthand_state_wm(state))
+        # print(shorthand_state_flat(state))
+        # print("AAAAH")
+        # print("fit", X[-1], reward)
+
+        # print(f"T{self.skill.id_num} {[m.id for m in match]}\t", int(reward), X[-1])
+        
+        # print(X)
+        # print(Y)
+        # try:
+        # print("xf", X[-1])
+        print("IA", self.classifier.instance_ambiguity(X[-1], None))
+        # except Exception as e:
+        #     print(self.classifier)
+        #     raise e
+
+        # try:
+        self.classifier.fit(X, None, Y)
+        # print(self.classifier)
+        # except Exception as e:
+        #     print(self.classifier)
+        #     raise e
+
+
+    def predict(self, state, match):
+        from numbaILP.fnvhash import hasharray
+
+
+        # print([(x.id, get_value(x)) for x in state.get("working_memory").get_facts()])
+        
+
+        continuous, nominal = self.transform(state, match)
+        # try:
+        #     print("SKILL", self.skill.id_num)
+
+        
+        # print(nominal)    
+        # print("xp", nominal)
+
+        prediction = self.classifier.predict(nominal[:self.X_width].reshape(1,-1), None)[0]
+
+        # print(shorthand_state_wm(state))
+        # print(shorthand_state_flat(state))
+        # print(f"{self.skill.id_num} {prediction} pred:", hasharray(nominal), [m.id for m in match])
+        
+            # if(prediction > 0):
+        
+            # print()    
+        # except Exception as e:
+        #     print(self.classifier)
+        #     raise e 
         # if(self.skill.id_num == 4):
         #     print(f"P{self.skill.id_num} {[m.id for m in match]}\t", prediction, nominal[:self.X_width])
 

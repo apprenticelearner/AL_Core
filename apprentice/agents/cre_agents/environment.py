@@ -1,7 +1,7 @@
 from cre import define_fact, Fact, Conditions
-from cre.default_ops import CastFloat
+from cre.default_funcs import CastFloat
 from apprentice.agents.cre_agents.extending import new_register_decorator, new_register_all
-from apprentice.agents.cre_agents.ops import CastFloat, CastStr
+from apprentice.agents.cre_agents.funcs import CastFloat, CastStr
 
 
 # NOTE : env_config might be unecessary
@@ -82,8 +82,8 @@ with register_all_facts as HTML_fact_types:
     def text_field_str(x):
         return f"TextField(id={x.id!r}, value={x.value!r}, locked={x.locked!r})"
 
-    TextField._fact_proxy.__str__ = text_field_str
-    TextField._fact_proxy.__repr__ = text_field_str
+    # TextField._fact_proxy.__str__ = text_field_str
+    # TextField._fact_proxy.__repr__ = text_field_str
 
     def button_str(x):
         return f"Button(id={x.id!r})"

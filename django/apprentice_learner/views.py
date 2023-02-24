@@ -20,7 +20,7 @@ from django.http import HttpResponseNotAllowed
 
 from apprentice_learner.models import Agent
 
-from apprentice.agents.experta_agent import ExpertaAgent
+# from apprentice.agents.experta_agent import ExpertaAgent
 from apprentice.agents.Stub import Stub
 from apprentice.agents.Memo import Memo
 from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
@@ -49,7 +49,7 @@ AGENTS = {
     "RLAgent": RLAgent,
     "WhereWhenHowNoFoa": WhereWhenHowNoFoa,
     "ModularAgent": ModularAgent,
-    "ExpertaAgent": ExpertaAgent,
+    # "ExpertaAgent": ExpertaAgent,
     "RHS_LHS_Agent": RHS_LHS_Agent,
     "CREAgent": CREAgent,
 }

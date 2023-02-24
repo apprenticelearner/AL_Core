@@ -1,6 +1,6 @@
 from numba.types import f8, string, boolean
 import numpy as np
-from cre import MemSet, Op, UntypedOp, Fact, FactProxy
+from cre import MemSet, CREFunc, UntypedCREFunc, Fact, FactProxy
 from apprentice.agents.base import BaseAgent
 from apprentice.agents.cre_agents.state import State, encode_neighbors
 from apprentice.agents.cre_agents.dipl_base import BaseDIPLAgent
@@ -9,6 +9,14 @@ from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEnco
 from cre.utils import PrintElapse
 from cre import TF
 from cre.gval import new_gval
+
+from numba.core.runtime.nrt import rtsys
+import gc
+def used_bytes(garbage_collect=True):
+    # if(garbage_collect): gc.collect()
+    stats = rtsys.get_allocation_stats()
+    # print(stats)
+    return stats.alloc-stats.free
 
 
 EMPTY_RESPONSE = {}
@@ -86,9 +94,12 @@ class Skill(object):
         applications = []
         # print(self.how_part,":")
         # print(self.where_lrn_mech.conds)
+
+        # with PrintElapse("get_matches"):
         matches = list(self.where_lrn_mech.get_matches(state))
 
 
+        # with PrintElapse("iter_matches"):
         for match in matches:
             # print("\t" , [m.id for m in match])
             when_predict = 1 if skip_when else self.when_lrn_mech.predict(state, match)
@@ -110,6 +121,8 @@ class Skill(object):
         args = match[1:]
         if(hasattr(self.how_part, '__call__')):
             try:
+                hp = self.how_part
+                print(hp, hp.n_args, hp.depth)
                 val = self.how_part(*args)
             except Exception as e:
                 return None
@@ -125,10 +138,10 @@ class Skill(object):
         self.where_lrn_mech.ifit(state, match, reward)
         # with PrintElapse("fit when"):
         self.when_lrn_mech.ifit(state, match, reward)
-        # with PrintElapse("fit which")
+        # with PrintElapse("fit which"):
         self.which_lrn_mech.ifit(state, match, reward)
 
-        print("FIT", reward, self, [m.id for m in match])
+        # print("FIT", reward, self, [m.id for m in match])
 
         # if(not hasattr(self.how_part,'__call__') and self.how_part == -1):
         #     print("<<", self.how_part, match)
@@ -178,14 +191,14 @@ class CREAgent(BaseDIPLAgent):
                 # print(attr_spec)
                 val_types.add(attr_spec['type'])
 
-        for op in self.feature_set:
+        for func in self.feature_set:
             # print(op, type(op), isinstance(op, Op))
-            if(isinstance(op, UntypedOp)):
+            if(isinstance(func, UntypedCREFunc)):
                 raise ValueError(
                 "Feature functions must be typed. Specify signature in definition. " +
-                "For instance @Op(signature = unicode_type(unicode_type,unicode_type))."
+                "For instance @CREFunc(signature = unicode_type(unicode_type,unicode_type))."
                 )
-            val_types.add(op.signature.return_type)
+            val_types.add(func.signature.return_type)
 
         self.memset_builder = MemSetBuilder()
         self.enumerizer = Enumerizer()
@@ -233,7 +246,14 @@ class CREAgent(BaseDIPLAgent):
             if('contentEditable' in obj):
                 obj['locked'] = not obj['contentEditable']
                 del obj['contentEditable']
-                
+        
+        # Clean up old wm
+        # if("working_memory" in self.state):
+        #     print("HI")
+        #     wm = self.state.get("working_memory")
+        #     wm.free()
+        # print(used_bytes())
+
         if(isinstance(state, dict)):
             if self.should_find_neighbors:
                 state = encode_neighbors(state)
@@ -243,9 +263,18 @@ class CREAgent(BaseDIPLAgent):
         else:
             raise ValueError(f"Unrecognized State Type: \n{state}")
 
+        # print(wm)
         # if('working_memory' in self.state):
         #     self.state.get('working_memory').free()
+        # print("WM INITIAL RECOUNT", wm._meminfo.refcount)
         self.state.set('working_memory', wm)
+        prev_skill_app = getattr(self,'prev_skill_app',None)
+        if(prev_skill_app):
+            prev_sel = prev_skill_app.match[0]
+            self.prev_skill_app.match =[wm.get_fact(id=m.id) for m in prev_skill_app.match]
+            # wm = None
+            # used_bytes()
+            # print("REF COUNT", prev_sel._meminfo.refcount)
         return self.state
 
     def standardize_SAI(self, sai):
@@ -279,8 +308,8 @@ class CREAgent(BaseDIPLAgent):
 
     def act(self, state, add_skill_info=False, n=1, **kwargs):  # -> Returns sai
         state = self.standardize_state(state)
-        with PrintElapse("self.get_skill_applications"):
-            skill_applications = self.get_skill_applications(state)
+        # with PrintElapse("self.get_skill_applications"):
+        skill_applications = self.get_skill_applications(state)
 
         if(len(skill_applications) > 0):
             skill_app = self.action_chooser(state, skill_applications)
@@ -301,7 +330,11 @@ class CREAgent(BaseDIPLAgent):
         else:
             self.prev_skill_app = None
             response = EMPTY_RESPONSE
+
+        prev_skill_app = getattr(self,'prev_skill_app',None)
+        # if(prev_skill_app): print("BEF", getattr(self,'prev_skill_app',None).match[0]._meminfo.refcount)
         self.state.clear()
+        # if(prev_skill_app): print("AFT", getattr(self,'prev_skill_app',None).match[0]._meminfo.refcount)
         return response
 
 # ------------------------------------------------
@@ -313,7 +346,7 @@ class CREAgent(BaseDIPLAgent):
             subset = skills[skill_id]
 
         # TODO: choose "NO_LABEL" or None to be standard
-        elif(skill_label is not None and skill_label is not "NO_LABEL"):
+        elif(skill_label is not None and skill_label != "NO_LABEL"):
             subset = self.skills_by_label.get(skill_label, self.skills)
 
         # TODO: else
@@ -413,7 +446,7 @@ class CREAgent(BaseDIPLAgent):
             #  as a constant.
             if(len(explanation_set) > 0):
                 how_part, args = explanation_set.choose()
-                print("CHOICE", how_part, args)
+                # print("CHOICE", how_part, args)
                 if(how_part is None): how_part = inp
             else:
                 how_part, args = inp, []
@@ -461,23 +494,27 @@ class CREAgent(BaseDIPLAgent):
         # if(self.prev_skill_app != None):
         #     print(self.prev_skill_app.sai, sai, self.prev_skill_app.sai == sai)
         if(self.prev_skill_app != None and self.prev_skill_app.sai == sai):
-            # print("PREV SKILL APP", self.prev_skill_app)
+            print("PREV SKILL APP", self.prev_skill_app)
             skill_app = self.prev_skill_app
         # Demonstration Case : try to explain the sai from existing skills.
         else:
-            skill_app = self.explain_from_skills(state, sai, arg_foci, skill_label)
+            with PrintElapse("explain_from_skills"):
+                skill_app = self.explain_from_skills(state, sai, arg_foci, skill_label)
 
-        # with PrintElapse("induce_skill"):
+        with PrintElapse("induce_skill"):
         # If existing skills fail then induce a new one with how-learning.
-        if(skill_app is None):
-            skill_app = self.induce_skill(state, sai, arg_foci, skill_label)
+            if(skill_app is None):
+                skill_app = self.induce_skill(state, sai, arg_foci, skill_label)
 
-
+        # print("WM")
+        # print(state.get("working_memory"))
         # with PrintElapse("ifit"):
             # skill_app = skill_apps[0]
             # print("Update", skill_app)
             # for skill_app in skill_apps:
-        skill_app.skill.ifit(state, skill_app.match, reward)
+        with PrintElapse("self.ifit"):
+            skill_app.skill.ifit(state, skill_app.match, reward)
+
 
         self.state.clear()
         # print()

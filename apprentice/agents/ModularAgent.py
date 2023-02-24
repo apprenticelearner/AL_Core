@@ -16,7 +16,7 @@ from apprentice.learners.WhereLearner import get_where_learner
 from apprentice.learners.WhichLearner import get_which_learner
 from apprentice.planners.base_planner import get_planner_class
 from apprentice.planners.VectorizedPlanner import VectorizedPlanner
-from apprentice.planners.NumbaPlanner import NumbaPlanner
+# from apprentice.planners.NumbaPlanner import NumbaPlanner
 from types import MethodType
 
 

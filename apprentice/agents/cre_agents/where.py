@@ -88,9 +88,12 @@ class AntiUnify(BaseCREWhere):
 
 
     def ifit(self, state, match, reward=1):
-        wm = state.get("working_memory")
 
-        # TODO: For efficiency should really gaurd with check_match here,
+        # Only fit on positive reward
+        if(reward <= 0): return
+
+        wm = state.get("working_memory")
+        # TODO: For efficiency should really guard with check_match here,
         #    but need to change check_match so that it will ensure the 
         #    existence of any guarded unprovided facts, like neighbors.
 
@@ -99,14 +102,16 @@ class AntiUnify(BaseCREWhere):
         conds = Conditions.from_facts(match, _vars, 
             alpha_flags=("visible", "few_valued"),
             beta_weight=10.0
-            )
+        )
+
+        # print(self.conds)
+        # print(conds)
 
         if(self.conds is None):
             self.conds = self._base_conds & conds
         else:
             self.conds = self._base_conds & self.conds.antiunify(conds, fix_same_var=True)
 
-        # print(">>", self.conds)
             
     def score_match(self, state, match):
         wm = state.get('working_memory')
@@ -119,10 +124,13 @@ class AntiUnify(BaseCREWhere):
 
     def get_matches(self, state):
         wm = state.get('working_memory')
+        # print("WM BEF MATCH RECOUNT", wm._meminfo.refcount)
+        
         if(self.conds is not None):
             # with PrintElapse("get_matches"):
             matches = self.conds.get_matches(wm)
             matches = [m[:len(self.vars)] for m in matches]
+            # print("WM AFT MATCH RECOUNT", wm._meminfo.refcount)
             return matches
         else:
             return []
@@ -145,6 +153,9 @@ class MostSpecific(BaseCREWhere):
         self.id_sets = set()
 
     def ifit(self, state, match, reward=1):
+        # Only fit on positive reward
+        if(reward <= 0): return
+
         self._ensure_vars(match)
         match_ids = tuple([x.id for x in match])
         if(match_ids not in self.id_sets):
@@ -162,6 +173,7 @@ class MostSpecific(BaseCREWhere):
     def get_matches(self, state):
         wm = state.get('working_memory')
         matches = []
+        
         # print("MATCHES:",self.skill)
         for id_set in self.id_sets:
             try:
@@ -172,6 +184,7 @@ class MostSpecific(BaseCREWhere):
             except KeyError:
                 continue
         # print()
+
         return matches
 
     def check_match(self, state, match):
