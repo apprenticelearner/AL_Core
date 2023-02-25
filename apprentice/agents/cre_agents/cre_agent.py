@@ -122,7 +122,6 @@ class Skill(object):
         if(hasattr(self.how_part, '__call__')):
             try:
                 hp = self.how_part
-                print(hp, hp.n_args, hp.depth)
                 val = self.how_part(*args)
             except Exception as e:
                 return None
