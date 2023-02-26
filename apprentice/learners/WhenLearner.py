@@ -19,7 +19,7 @@ from concept_formation.trestle import TrestleTree
 from concept_formation.preprocessor import Tuplizer
 from concept_formation.preprocessor import Flattener
 from concept_formation.preprocessor import Preprocessor
-from numbaILP.tree_classifiers import TreeClassifier
+from stand.tree_classifier import TreeClassifier
 
 # from ilp.foil_classifier import FoilClassifier
 

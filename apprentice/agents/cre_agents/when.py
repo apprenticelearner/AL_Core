@@ -285,7 +285,7 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
     def __init__(self, skill, impl="decision_tree",
                 **kwargs):
         super().__init__(skill, **kwargs)
-        from numbaILP.splitter import TreeClassifier
+        from stand.tree_classifier import TreeClassifier
 
         VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
         self.classifier = TreeClassifier(impl)
@@ -332,7 +332,7 @@ class STAND(BaseWhen, VectorTransformMixin):
     def __init__(self, skill,
                 **kwargs):
         super().__init__(skill, **kwargs)
-        from numbaILP.stand import STANDClassifier
+        from stand.stand import STANDClassifier
 
         VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
         self.classifier = STANDClassifier()
@@ -340,7 +340,7 @@ class STAND(BaseWhen, VectorTransformMixin):
     def ifit(self, state, match, reward):
         X,Y = self.append_and_flatten_vecs(state, match, reward)
 
-        from numbaILP.fnvhash import hasharray
+        from stand.fnvhash import hasharray
 
         
                 
@@ -372,7 +372,7 @@ class STAND(BaseWhen, VectorTransformMixin):
 
 
     def predict(self, state, match):
-        from numbaILP.fnvhash import hasharray
+        from stand.fnvhash import hasharray
 
 
         # print([(x.id, get_value(x)) for x in state.get("working_memory").get_facts()])
