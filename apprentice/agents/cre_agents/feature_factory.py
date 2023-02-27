@@ -17,8 +17,8 @@ from numba.types import Tuple, i8, TypeRef
 from cre import TF
 from cre.gval import new_gval
 from cre.utils import _struct_tuple_from_pointer_arr, _func_from_address, PrintElapse, _struct_from_ptr
-from cre.cre_object import CREObjType
-from cre.op import GenericOpType
+from cre.obj import CREObjType
+from cre.func import CREFuncType
 from cre.memset import MemSetType
 from numba.core.typing.typeof import typeof
 from cre.transform.enumerizer import EnumerizerType
@@ -70,7 +70,7 @@ def get_declare_skill_cands_func(how_part):
         call_type = types.FunctionType(sig)#.return_type(i8[::1]))
         check_type = types.FunctionType(types.boolean(*sig.args))#.return_type(i8[::1]))
         
-        @njit(types.void(MemSetType, EnumerizerType, GenericOpType, i8, i8[:,::1]), cache=True)
+        @njit(types.void(MemSetType, EnumerizerType, CREFuncType, i8, i8[:,::1]), cache=True)
         def _declare_skill_cands(memset, enumerizer, how_part, id_num, match_ptrs):
             declare_skill_cands(memset, enumerizer, how_part, id_num,
              match_ptrs, tuple_type, call_type, check_type)

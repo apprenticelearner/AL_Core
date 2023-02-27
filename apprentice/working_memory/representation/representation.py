@@ -200,8 +200,8 @@ def kb_to_flat_ungrounded(knowledge_base):
     return state
 
 
-from numbert.numbalizer import Numbalizer
-numbalizer = Numbalizer()
+# from numbert.numbalizer import Numbalizer
+numbalizer = None#Numbalizer()
 
 
 

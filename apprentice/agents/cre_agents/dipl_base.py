@@ -73,8 +73,8 @@ class BaseDIPLAgent(object):
         
         
 
-        self.function_set = resolve_list(config.get("function_set",[]), registries['op'])
-        self.feature_set = resolve_list(config.get("feature_set",[]), registries['op'])
+        self.function_set = resolve_list(config.get("function_set",[]), registries['func'])
+        self.feature_set = resolve_list(config.get("feature_set",[]), registries['func'])
 
         self.should_find_neighbors = config_get(['find_neighbors', 'should_find_neighbors'],
          default=False)
