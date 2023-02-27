@@ -5,6 +5,15 @@ from cre import Op
 register_op = new_register_decorator("op", full_descr="Op")
 register_all_ops = new_register_all("op", types=[Op], full_descr="Op")
 
+@Op(signature=string(),
+    shorthand = '[DX]')
+def DX():
+    return "[DX]"
+
+@Op(signature=string(),
+    shorthand = '[SPLIT]')
+def SPLIT():
+    return "[SPLIT]"
 
 @Op(signature=boolean(string,string),
     shorthand = '({0} == {1})',

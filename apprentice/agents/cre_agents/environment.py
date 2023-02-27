@@ -24,6 +24,14 @@ register_fact_set = new_register_decorator("fact_set", full_descr='fact set')
 register_constraints = new_register_decorator("constraint", full_descr="base constraint")
 
 
+with register_all_facts as Tree_fact_types:
+    Node = define_fact("Node", {
+        "id": str,
+        "parent": "Node",
+        "value": str,
+    })
+
+register_fact_set(name='tree')(Tree_fact_types)
 
 with register_all_facts as HTML_fact_types:
     Component = define_fact("Component", {
