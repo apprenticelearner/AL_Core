@@ -101,8 +101,9 @@ class Skill(object):
 
         # with PrintElapse("iter_matches"):
         for match in matches:
-            # print("\t" , [m.id for m in match])
             when_predict = 1 if skip_when else self.when_lrn_mech.predict(state, match)
+
+            # print("1" if when_predict else "0",  match[0].id,"\t" , [m.id for m in match][1:], "  ", self.how_part)
             if(when_predict > 0):
                 skill_app = SkillApplication(self, match)
                 if(skill_app is not None):
@@ -120,8 +121,10 @@ class Skill(object):
     def __call__(self, *match):
         args = match[1:]
         if(hasattr(self.how_part, '__call__')):
+            if(len(args) != self.how_part.n_args):
+                raise ValueError(f"Incorrect number of args: {len(args)}, for skill how-part {self.how_part} with {self.how_part.n_args} positional arguments.")
+
             try:
-                hp = self.how_part
                 val = self.how_part(*args)
             except Exception as e:
                 return None
@@ -404,11 +407,17 @@ class CREAgent(BaseDIPLAgent):
             for skill in skills_to_try:
                 # Execute how-search to depth 1 with each skill's how-part
                 if(hasattr(skill.how_part,'__call__')):
+                    if(arg_foci is not None and skill.how_part.n_args != len(arg_foci)):
+                        continue 
                     
                     explanation_set = self.how_lrn_mech.get_explanations(
                         state, inp, arg_foci, function_set=[skill.how_part],
                         search_depth=1, min_stop_depth=1)
+
                     for _, match in explanation_set:
+                        if(len(match) != skill.how_part.n_args):
+                            continue
+
                         match = [sai.selection, *match]
                         # print("<<", _, f'[{", ".join([x.id for x in match])}])')
                         skill_app = SkillApplication(skill, match)

@@ -122,6 +122,10 @@ class AntiUnify(BaseCREWhere):
             
     def score_match(self, state, match):
         wm = state.get('working_memory')
+        if(len(self.vars) != len(match)):
+            print(self.skill.how_part)
+            print(match)
+            raise ValueError()
         if(not self._base_conds.check_match(match, wm)):
             return 0.0 
         return self.conds.score_match(match, wm)
@@ -136,6 +140,7 @@ class AntiUnify(BaseCREWhere):
         if(self.conds is not None):
             # with PrintElapse("get_matches"):
             matches = self.conds.get_matches(wm)
+            print("<<", self.vars)
             matches = [m[:len(self.vars)] for m in matches]
             # print("WM AFT MATCH RECOUNT", wm._meminfo.refcount)
             return matches

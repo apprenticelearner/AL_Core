@@ -106,7 +106,7 @@ class SetChaining(BaseHow):
 "function_set must consist of Op intances for SetChaining how-learning mechanism." 
 
     def get_explanations(self, state, value, arg_foci=None,
-        function_set=None, min_stop_depth=-1, search_depth=None):
+            function_set=None, min_stop_depth=-1, search_depth=None):
 
         wm = state.get("working_memory")
 
