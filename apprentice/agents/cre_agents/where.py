@@ -75,7 +75,7 @@ class BaseCREWhere(BaseWhere):
                 _vars.append(Var(fact._fact_type, alias))
             self.vars = _vars
             self._base_conds = self.constraint_builder(_vars)
-            print(type(self._base_conds))
+            # print(type(self._base_conds))
 
         return self.vars
 
@@ -93,24 +93,31 @@ class AntiUnify(BaseCREWhere):
         if(reward <= 0): return
 
         wm = state.get("working_memory")
+
         # TODO: For efficiency should really guard with check_match here,
         #    but need to change check_match so that it will ensure the 
         #    existence of any guarded unprovided facts, like neighbors.
-
         _vars = self._ensure_vars(match)
 
         conds = Conditions.from_facts(match, _vars, 
-            alpha_flags=("visible", "few_valued"),
+            alpha_flags=[("visible", "few_valued"), ('unique_id',)],
             beta_weight=10.0
         )
-
+        # print("vvvvvvvvvvvvvvvvv")
         # print(self.conds)
         # print(conds)
+        # print("-------------------")
 
         if(self.conds is None):
             self.conds = self._base_conds & conds
         else:
             self.conds = self._base_conds & self.conds.antiunify(conds, fix_same_var=True)
+
+        # print(self.conds)
+        # print("^^^^^^^^^^^^^^^^^^")
+        # s = str(self.conds)
+        # if("Sel.above" not in s and "Sel.below" not in s):
+        #     raise ValueError()
 
             
     def score_match(self, state, match):

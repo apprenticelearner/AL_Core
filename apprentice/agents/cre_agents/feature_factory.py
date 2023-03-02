@@ -26,26 +26,27 @@ from cre.transform.enumerizer import EnumerizerType
 
 # @njit(cache=True)
 @njit(cache=True, locals={"match_ptr_set" : i8[::1]})
-def declare_skill_cands(memset, enumerizer, _how_part, id_num, match_ptrs, tuple_type, cre_func_type):
+def declare_skill_cands(memset, enumerizer, _how_part,
+            id_num, match_ptrs, tuple_type, cre_func_type):
     how_part = cast(_how_part, cre_func_type)
-    # call = _func_from_address(call_type, how_part.call_heads_addr)
-    # check = _func_from_address(check_type, how_part.check_addr)
-    
+    # print("--------------")
+    if(len(match_ptrs) > 10):
+        raise ValueError()
     for i in range(len(match_ptrs)):
         match_ptr_set = match_ptrs[i].copy()
         match = _struct_tuple_from_pointer_arr(tuple_type, match_ptr_set)
 
-        # if(how_part.check_addr == 0 or check(*match[1:])):
-        val = how_part(*match[1:])
-        # print(val, match)
+        try:
+            val = how_part(*match[1:])
+        except:
+            continue
         # print("VAL@", match[1:], val)
-        head = TF("SkillCand:", cast(how_part,CREFuncType), id_num, *match)
+        head = TF("SkillCand:", cast(how_part, CREFuncType), id_num, *match)
+        # print(head)
         nom  = enumerizer.enumerize(val)
         # TODO: Should also try to make float
         gval = new_gval(head, val, nom=nom)
         memset.declare(gval)
-        # print(head)
-        # raise ValueError()
 
 @njit(cache=True, locals={"match_ptr_set" : i8[::1]})
 def declare_skill_const(memset, how_part, id_num, match_ptrs, tuple_type):
@@ -59,7 +60,7 @@ def declare_skill_const(memset, how_part, id_num, match_ptrs, tuple_type):
 
 
 _declare_skill_cands_cache={}
-def get_declare_skill_cands_func(how_part):
+def get_declare_skill_cands_impl(how_part):
     sig = getattr(how_part, "signature", None)
     if(sig is None):
         return_type = typeof(how_part)
@@ -110,7 +111,7 @@ def SkillCandidates(agent, state, feat_state):
                     match_ptrs[i][j] = fact.get_ptr()
 
             # with PrintElapse("\t\t\tget_declare"):
-            msc = get_declare_skill_cands_func(skill.how_part)
+            msc = get_declare_skill_cands_impl(skill.how_part)
             # with PrintElapse("\t\t\tcall_declare"):
             # print(":::", skill.how_part, skill.id_num)
             msc(feat_state, agent.enumerizer, skill.how_part, skill.id_num, match_ptrs)

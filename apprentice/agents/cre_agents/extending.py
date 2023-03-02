@@ -26,6 +26,9 @@ class Registery():
     def __str__(self):
         return str(self.reg_dict)
 
+    def __len__(self):
+        return len(self.reg_dict)
+
 def _resolve_name(obj, name_resolver=None):
     if(name_resolver is not None):
         return name_resolver(obj)

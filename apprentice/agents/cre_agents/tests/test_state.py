@@ -1,10 +1,10 @@
-from apprentice.agents.cre_agents.environment import Button, TextField, Container
+from apprentice.agents.cre_agents.environment import Component, Button, TextField, Container
 from apprentice.agents.cre_agents.state import encode_neighbors, State
 
 from numba.types import unicode_type
 from cre import MemSet
 from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEncoder, Vectorizer
-from cre.default_ops import Equals
+from cre.default_funcs import Equals
 
 def new_mc_addition_state(upper, lower):
     upper, lower = str(upper), str(lower)
