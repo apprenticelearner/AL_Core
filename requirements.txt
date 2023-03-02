@@ -24,3 +24,4 @@ dill
 django-cors-headers
 numba>=0.50.1
 numbert @ git+https://github.com/DannyWeitekamp/numbert.git
+stand @ git+https://github.com/DannyWeitekamp/STAND.git

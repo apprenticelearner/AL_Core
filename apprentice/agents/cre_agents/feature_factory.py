@@ -19,28 +19,34 @@ from cre.gval import new_gval
 from cre.utils import _struct_tuple_from_pointer_arr, _func_from_address, PrintElapse, _struct_from_ptr
 from cre.obj import CREObjType
 from cre.func import CREFuncType
+from cre.utils import cast
 from cre.memset import MemSetType
 from numba.core.typing.typeof import typeof
 from cre.transform.enumerizer import EnumerizerType
 
 # @njit(cache=True)
 @njit(cache=True, locals={"match_ptr_set" : i8[::1]})
-def declare_skill_cands(memset, enumerizer, how_part, id_num, match_ptrs, tuple_type, call_type, check_type):
-    call = _func_from_address(call_type, how_part.call_addr)
-    check = _func_from_address(check_type, how_part.check_addr)
-    
+def declare_skill_cands(memset, enumerizer, _how_part,
+            id_num, match_ptrs, tuple_type, cre_func_type):
+    how_part = cast(_how_part, cre_func_type)
+    # print("--------------")
+    if(len(match_ptrs) > 10):
+        raise ValueError()
     for i in range(len(match_ptrs)):
         match_ptr_set = match_ptrs[i].copy()
         match = _struct_tuple_from_pointer_arr(tuple_type, match_ptr_set)
 
-        if(how_part.check_addr == 0 or check(*match[1:])):
-            val = call(*match[1:])
-            # print("VAL@", match[1:], val)
-            head = TF("SkillCand:", how_part, id_num, *match)
-            nom  = enumerizer.enumerize(val)
-            # TODO: Should also try to make float
-            gval = new_gval(head, val, nom=nom)
-            memset.declare(gval)
+        try:
+            val = how_part(*match[1:])
+        except:
+            continue
+        # print("VAL@", match[1:], val)
+        head = TF("SkillCand:", cast(how_part, CREFuncType), id_num, *match)
+        # print(head)
+        nom  = enumerizer.enumerize(val)
+        # TODO: Should also try to make float
+        gval = new_gval(head, val, nom=nom)
+        memset.declare(gval)
 
 @njit(cache=True, locals={"match_ptr_set" : i8[::1]})
 def declare_skill_const(memset, how_part, id_num, match_ptrs, tuple_type):
@@ -54,7 +60,7 @@ def declare_skill_const(memset, how_part, id_num, match_ptrs, tuple_type):
 
 
 _declare_skill_cands_cache={}
-def get_declare_skill_cands_func(how_part):
+def get_declare_skill_cands_impl(how_part):
     sig = getattr(how_part, "signature", None)
     if(sig is None):
         return_type = typeof(how_part)
@@ -67,13 +73,14 @@ def get_declare_skill_cands_func(how_part):
         sig = return_type
     elif(sig not in _declare_skill_cands_cache):
         tuple_type = Tuple(tuple([TypeRef(CREObjType),*[TypeRef(x) for x in sig.args]]))
-        call_type = types.FunctionType(sig)#.return_type(i8[::1]))
-        check_type = types.FunctionType(types.boolean(*sig.args))#.return_type(i8[::1]))
+        cre_func_type = how_part.precise_type#CREFuncTypeClass(return_type=sig.return_type, arg_types=sig.args, is_composed=True)
+        # call_type = types.FunctionType(sig)#.return_type(i8[::1]))
+        # check_type = types.FunctionType(types.boolean(*sig.args))#.return_type(i8[::1]))
         
         @njit(types.void(MemSetType, EnumerizerType, CREFuncType, i8, i8[:,::1]), cache=True)
         def _declare_skill_cands(memset, enumerizer, how_part, id_num, match_ptrs):
             declare_skill_cands(memset, enumerizer, how_part, id_num,
-             match_ptrs, tuple_type, call_type, check_type)
+             match_ptrs, tuple_type, cre_func_type)
         
         _declare_skill_cands_cache[sig] = _declare_skill_cands
     return _declare_skill_cands_cache[sig]
@@ -104,7 +111,7 @@ def SkillCandidates(agent, state, feat_state):
                     match_ptrs[i][j] = fact.get_ptr()
 
             # with PrintElapse("\t\t\tget_declare"):
-            msc = get_declare_skill_cands_func(skill.how_part)
+            msc = get_declare_skill_cands_impl(skill.how_part)
             # with PrintElapse("\t\t\tcall_declare"):
             # print(":::", skill.how_part, skill.id_num)
             msc(feat_state, agent.enumerizer, skill.how_part, skill.id_num, match_ptrs)

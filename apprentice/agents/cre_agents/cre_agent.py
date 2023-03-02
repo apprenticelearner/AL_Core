@@ -101,8 +101,9 @@ class Skill(object):
 
         # with PrintElapse("iter_matches"):
         for match in matches:
-            # print("\t" , [m.id for m in match])
             when_predict = 1 if skip_when else self.when_lrn_mech.predict(state, match)
+
+            # print("1" if when_predict else "0",  match[0].id,"\t" , [m.id for m in match][1:], "  ", self.how_part)
             if(when_predict > 0):
                 skill_app = SkillApplication(self, match)
                 if(skill_app is not None):
@@ -120,9 +121,10 @@ class Skill(object):
     def __call__(self, *match):
         args = match[1:]
         if(hasattr(self.how_part, '__call__')):
+            if(len(args) != self.how_part.n_args):
+                raise ValueError(f"Incorrect number of args: {len(args)}, for skill how-part {self.how_part} with {self.how_part.n_args} positional arguments.")
+
             try:
-                hp = self.how_part
-                print(hp, hp.n_args, hp.depth)
                 val = self.how_part(*args)
             except Exception as e:
                 return None
@@ -314,7 +316,7 @@ class CREAgent(BaseDIPLAgent):
         if(len(skill_applications) > 0):
             skill_app = self.action_chooser(state, skill_applications)
 
-            print("--ACT: ", skill_app)
+            # print("--ACT: ", skill_app)
             # print()
             # print("--ACT: ")
             # print(skill_app)
@@ -328,6 +330,7 @@ class CREAgent(BaseDIPLAgent):
             if(n != 1):
                 response['responses'] = [x.get_info() for x in skill_applications]
         else:
+            # print("--NO ACTION")
             self.prev_skill_app = None
             response = EMPTY_RESPONSE
 
@@ -361,10 +364,10 @@ class CREAgent(BaseDIPLAgent):
     def choose_best_explanation(self, state, skill_apps):
         def get_score(skill_app):
             score = skill_app.skill.where_lrn_mech.score_match(state, skill_app.match)
-            print("SCORE", score, skill_app)
+            # print("SCORE", score, skill_app)
             return score
 
-        scored_apps = [x for x in [(get_score(sa), sa) for sa in skill_apps] if x[0] > 0.0]
+        scored_apps = [x for x in [(get_score(sa), sa) for sa in skill_apps]]# if x[0] > 0.0]
         if(len(scored_apps) > 0):
             return sorted(scored_apps, key=lambda x: x[0])[-1][1]
         else:
@@ -392,7 +395,7 @@ class CREAgent(BaseDIPLAgent):
 
                     skill_apps.append(candidate)
 
-        if(len(skill_apps) > 0): print("EXPL HOW + WHERE")
+        # if(len(skill_apps) > 0): print("EXPL HOW + WHERE")
 
         # If that doesn't work try to find an explanation from the existing
         #  skills that matches just the how-parts.
@@ -404,11 +407,17 @@ class CREAgent(BaseDIPLAgent):
             for skill in skills_to_try:
                 # Execute how-search to depth 1 with each skill's how-part
                 if(hasattr(skill.how_part,'__call__')):
+                    if(arg_foci is not None and skill.how_part.n_args != len(arg_foci)):
+                        continue 
                     
                     explanation_set = self.how_lrn_mech.get_explanations(
                         state, inp, arg_foci, function_set=[skill.how_part],
                         search_depth=1, min_stop_depth=1)
+
                     for _, match in explanation_set:
+                        if(len(match) != skill.how_part.n_args):
+                            continue
+
                         match = [sai.selection, *match]
                         # print("<<", _, f'[{", ".join([x.id for x in match])}])')
                         skill_app = SkillApplication(skill, match)
@@ -422,12 +431,12 @@ class CREAgent(BaseDIPLAgent):
                     if(skill.how_part == inp):
                         skill_apps.append(SkillApplication(skill, [sai.selection]))                        
 
-            if(len(skill_apps) > 0): print("EXPL HOW")
+            # if(len(skill_apps) > 0): print("EXPL HOW")
 
         best_expl = self.choose_best_explanation(state, skill_apps)
         # if(best_expl is not None):
         #     print(best_expl.skill.where_lrn_mech.conds)
-        print("BEST EXPLANATION", best_expl)
+        # print("BEST EXPLANATION", best_expl)
         return best_expl
 
 
@@ -494,17 +503,18 @@ class CREAgent(BaseDIPLAgent):
         # if(self.prev_skill_app != None):
         #     print(self.prev_skill_app.sai, sai, self.prev_skill_app.sai == sai)
         if(self.prev_skill_app != None and self.prev_skill_app.sai == sai):
-            print("PREV SKILL APP", self.prev_skill_app)
+            # print("PREV SKILL APP", self.prev_skill_app)
             skill_app = self.prev_skill_app
         # Demonstration Case : try to explain the sai from existing skills.
         else:
-            with PrintElapse("explain_from_skills"):
-                skill_app = self.explain_from_skills(state, sai, arg_foci, skill_label)
+            # with PrintElapse("explain_from_skills"):
+            skill_app = self.explain_from_skills(state, sai, arg_foci, skill_label)
 
-        with PrintElapse("induce_skill"):
+        # with PrintElapse("induce_skill"):
         # If existing skills fail then induce a new one with how-learning.
-            if(skill_app is None):
-                skill_app = self.induce_skill(state, sai, arg_foci, skill_label)
+        if(skill_app is None):
+            # print("INDUCE SKILL")
+            skill_app = self.induce_skill(state, sai, arg_foci, skill_label)
 
         # print("WM")
         # print(state.get("working_memory"))
@@ -512,8 +522,8 @@ class CREAgent(BaseDIPLAgent):
             # skill_app = skill_apps[0]
             # print("Update", skill_app)
             # for skill_app in skill_apps:
-        with PrintElapse("self.ifit"):
-            skill_app.skill.ifit(state, skill_app.match, reward)
+        # with PrintElapse("self.ifit"):
+        skill_app.skill.ifit(state, skill_app.match, reward)
 
 
         self.state.clear()

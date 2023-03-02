@@ -110,6 +110,8 @@ class VectorTransformMixin():
 
         for extra_feature in self.extra_features:
             featurized_state = extra_feature(self, state, featurized_state, match)
+
+        # print(featurized_state)
         # Add skill app candidates
         # for skill in agent.skills:
         #     for match in skill.where_lrn_mech.get_matches(state):
@@ -142,17 +144,18 @@ class VectorTransformMixin():
         wm = state.get("working_memory")
         # print("WM BEF RE RECOUNT", wm._meminfo.refcount)
         # print(wm)
-        self.relative_encoder.set_in_memset(wm)
-        _vars = self.skill.where_lrn_mech._ensure_vars(match)
-        # print(":::", self.skill.id_num, "_vars", _vars[0].base_ptr)
+        if(self.encode_relative):
+            self.relative_encoder.set_in_memset(wm)
+            _vars = self.skill.where_lrn_mech._ensure_vars(match)
+            # print(":::", self.skill.id_num, "_vars", _vars[0].base_ptr)
 
-        # print(featurized_state)
+            # print(featurized_state)
 
-        # Featurize state relative to selection
-        #  NOTE: Could also use arguments, but there is currently a hard
-        #  to find bug associated with this
-        featurized_state = self.relative_encoder.encode_relative_to(
-            featurized_state, [match[0]], [_vars[0]])
+            # Featurize state relative to selection
+            #  NOTE: Could also use arguments, but there is currently a hard
+            #  to find bug associated with this
+            featurized_state = self.relative_encoder.encode_relative_to(
+                featurized_state, [match[0]], [_vars[0]])
             # featurized_state, match, _vars)
 
         # print(shorthand_state_rel(featurized_state))
@@ -173,11 +176,13 @@ class VectorTransformMixin():
 
         continuous, nominal = self.vectorizer(featurized_state)
 
+        # print(nominal.shape)
+
 
         #### -------Print mapping------------####
         # print("---------------------------------------")
-        # # for (ind, val) in self.vectorizer.get_inv_map().items():
-        # #     print("*", ind, nominal[ind], ind,val)
+        # for (ind, val) in self.vectorizer.get_inv_map().items():
+        #     print("*", ind, nominal[ind], ind,val)
         # ind_vals = sorted([(ind, str(val)) for (ind, val) in self.vectorizer.get_inv_map().items()],
         #                 key=lambda t : t[1])
         # for ind, val in ind_vals:
@@ -285,7 +290,7 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
     def __init__(self, skill, impl="decision_tree",
                 **kwargs):
         super().__init__(skill, **kwargs)
-        from numbaILP.splitter import TreeClassifier
+        from stand.tree_classifier import TreeClassifier
 
         VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
         self.classifier = TreeClassifier(impl)
@@ -300,10 +305,10 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
 
         # print(f"T{self.skill.id_num} {[m.id for m in match]}\t", int(reward), X[-1])
         
-        # print(X)
+        # print(X[-1])
         # print(Y)
-        with PrintElapse("A"):
-            self.classifier.fit(X, None, Y)
+        # with PrintElapse("A"):
+        self.classifier.fit(X, None, Y)
 
 
 
@@ -332,7 +337,7 @@ class STAND(BaseWhen, VectorTransformMixin):
     def __init__(self, skill,
                 **kwargs):
         super().__init__(skill, **kwargs)
-        from numbaILP.stand import STANDClassifier
+        from stand.stand import STANDClassifier
 
         VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
         self.classifier = STANDClassifier()
@@ -340,7 +345,7 @@ class STAND(BaseWhen, VectorTransformMixin):
     def ifit(self, state, match, reward):
         X,Y = self.append_and_flatten_vecs(state, match, reward)
 
-        from numbaILP.fnvhash import hasharray
+        from stand.fnvhash import hasharray
 
         
                 
@@ -372,7 +377,7 @@ class STAND(BaseWhen, VectorTransformMixin):
 
 
     def predict(self, state, match):
-        from numbaILP.fnvhash import hasharray
+        from stand.fnvhash import hasharray
 
 
         # print([(x.id, get_value(x)) for x in state.get("working_memory").get_facts()])

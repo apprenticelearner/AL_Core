@@ -85,25 +85,27 @@ with register_all_facts as HTML_fact_types:
     #     "children" : "List(TextField)"
     # })
 
+    def str_as_id(x):
+        return x.id
 
-    # Redefine __str__ to be more concise
-    def text_field_str(x):
+    # Redefine __repr__ to be more concise
+    def text_field_repr(x):
         return f"TextField(id={x.id!r}, value={x.value!r}, locked={x.locked!r})"
 
-    # TextField._fact_proxy.__str__ = text_field_str
-    # TextField._fact_proxy.__repr__ = text_field_str
+    TextField._fact_proxy.__str__ = str_as_id
+    TextField._fact_proxy.__repr__ = text_field_repr
 
-    def button_str(x):
+    def button_repr(x):
         return f"Button(id={x.id!r})"
 
-    Button._fact_proxy.__str__ = button_str
-    Button._fact_proxy.__repr__ = button_str
+    Button._fact_proxy.__str__ = str_as_id
+    Button._fact_proxy.__repr__ = button_repr
 
-    def component_str(x):
+    def component_repr(x):
         return f"Component(id={x.id!r})"
 
-    Component._fact_proxy.__str__ = component_str
-    Component._fact_proxy.__repr__ = component_str
+    Component._fact_proxy.__str__ = str_as_id
+    Component._fact_proxy.__repr__ = component_repr
 
     # TextField._fact_proxy.__repr__ = text_field_str
 

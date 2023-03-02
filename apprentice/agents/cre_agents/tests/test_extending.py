@@ -1,4 +1,4 @@
-from apprentice.agents.CRE_Agent.extending import new_register_all, new_register_decorator, registries
+from apprentice.agents.cre_agents.extending import new_register_all, new_register_decorator, registries
 
 def test_register():
     register_funcs = new_register_decorator("my_funcs")

@@ -7,7 +7,7 @@ from apprentice.agents.cre_agents.tests.test_state import new_mc_addition_state
 from numba.types import unicode_type
 from cre import MemSet
 from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEncoder, Vectorizer
-from cre.default_ops import Equals
+from cre.default_funcs import Equals
 
 
 
