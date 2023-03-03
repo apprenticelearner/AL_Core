@@ -113,18 +113,37 @@ class AntiUnify(BaseCREWhere):
         else:
             self.conds = self._base_conds & self.conds.antiunify(conds, fix_same_var=True)
 
+        # if(not self.check_match(state, match)):
+        #     raise ValueError("BAD BAD BAD")
         # print(self.conds)
         # print("^^^^^^^^^^^^^^^^^^")
         # s = str(self.conds)
         # if("Sel.above" not in s and "Sel.below" not in s):
         #     raise ValueError()
 
+        # print("---------------")
+        # if(len(match) > 1):
+        #     print(match[1])
+        #     print(match[1].left)
+        # print([_m.id for _m in match])
+
+        # SANITY CHECK -- Don't remove
+        # is_there = False
+        # for m in self.conds.get_matches(wm):
+        #     print(":", [_m.id for _m in m[:len(match)]])
+        #     if([_m.id for _m in m[:len(match)]] == [_m.id for _m in match]):
+        #         is_there = True
+        # print("IS_THERE", is_there)
+        # print(self.conds.score_match(match, wm), self.conds.check_match(match, wm))
+        # if(not is_there):
+        #     raise ValueError()
+
             
     def score_match(self, state, match):
         wm = state.get('working_memory')
         if(len(self.vars) != len(match)):
-            print(self.skill.how_part)
-            print(match)
+            # print(self.skill.how_part)
+            # print(match)
             raise ValueError()
         if(not self._base_conds.check_match(match, wm)):
             return 0.0 
@@ -140,7 +159,7 @@ class AntiUnify(BaseCREWhere):
         if(self.conds is not None):
             # with PrintElapse("get_matches"):
             matches = self.conds.get_matches(wm)
-            print("<<", self.vars)
+            # print("<<", self.vars)
             matches = [m[:len(self.vars)] for m in matches]
             # print("WM AFT MATCH RECOUNT", wm._meminfo.refcount)
             return matches

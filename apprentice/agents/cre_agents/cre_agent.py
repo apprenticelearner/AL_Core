@@ -103,7 +103,7 @@ class Skill(object):
         for match in matches:
             when_predict = 1 if skip_when else self.when_lrn_mech.predict(state, match)
 
-            # print("1" if when_predict else "0",  match[0].id,"\t" , [m.id for m in match][1:], "  ", self.how_part)
+            # print("1" if when_predict else "0",  match[0].id,"\t" , [m.id for m in match][1:], self.id_num, self.how_part)
             if(when_predict > 0):
                 skill_app = SkillApplication(self, match)
                 if(skill_app is not None):

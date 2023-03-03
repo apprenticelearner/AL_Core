@@ -55,28 +55,6 @@ with register_all_facts as HTML_fact_types:
         "children" : "List(Component)"
     })
 
-    # NOTE: For now TextField will be the base class 
-    # TextField = define_fact("TextField", {
-    #     "id" : str,
-    #     "above" : "TextField", 
-    #     "below" : "TextField",
-    #     "left": "TextField", 
-    #     "right" : "TextField",
-    #     "parents" : "List(TextField)",
-    #     "value" : {"type" : str, "visible" : True, "semantic" : True,
-    #                 'conversions' : {float : CastFloat}},
-    #     "locked" : {"type" : bool, "visible" : True},
-    # })
-
-    # Button = define_fact("Button", {
-    #     "inherit_from" : "TextField",
-    # })
-
-    # Container = define_fact("Container", {
-    #     "inherit_from" : "TextField",
-    #     "children" : "List(TextField)"
-    # })
-
     def str_as_id(x):
         return x.id
 
