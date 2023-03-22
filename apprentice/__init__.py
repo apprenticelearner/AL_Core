@@ -3,9 +3,9 @@ import logging.config
 import os
 
 # import so "disable_loggers" can have effect
-from experta import unwatch
+#from experta import unwatch
 
-unwatch()
+#unwatch()
 
 import coloredlogs
 import yaml
