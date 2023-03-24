@@ -5,6 +5,21 @@ from cre import CREFunc
 register_func = new_register_decorator("func", full_descr="CREFunc")
 register_all_funcs = new_register_all("func", types=[CREFunc], full_descr="CREFunc")
 
+@CREFunc(signature=string(),
+    shorthand = '[DX]')
+def DX():
+    return "[DX]"
+
+@CREFunc(signature=string(),
+    shorthand = '[SPLIT]')
+def SPLIT():
+    return "[SPLIT]"
+    
+@CREFunc(signature=string(),
+    shorthand = '[COEFF]')
+def COEFF():
+    return "[COEFF]"
+
 @CREFunc(signature=boolean(string,string),
     shorthand = '{0} == {1}',
     commutes=True)
@@ -83,22 +98,20 @@ def ConvertNumerator(a, b, c):
 
 
 # --------------
-# : Conversion Functions float/str
+# : Cast float/str
 
-register_conversion = new_register_decorator("conversion", full_descr="Conversions between types")
-
-@register_conversion(name="CastFloat")
 @CREFunc(shorthand = 'f8({0})')
 def CastFloat(a):
     return float(a)
 
-@register_conversion(name="CastStr")
+
 @CREFunc(shorthand = 'str({0})')
 def CastStr(a):
     return str(a)
 
 
-##### Define all CREFuncs above this line #####
+
+##### Define all Ops above this line #####
 
 register_all_funcs()
 
