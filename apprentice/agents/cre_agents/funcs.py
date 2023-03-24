@@ -14,6 +14,11 @@ def DX():
     shorthand = '[SPLIT]')
 def SPLIT():
     return "[SPLIT]"
+    
+@CREFunc(signature=string(),
+    shorthand = '[COEFF]')
+def COEFF():
+    return "[COEFF]"
 
 @CREFunc(signature=boolean(string,string),
     shorthand = '{0} == {1}',
