@@ -26,7 +26,8 @@ with register_all_facts as Tree_fact_types:
     Node = define_fact("Node", {
         "id": str,
         "parent": "Node",
-        "value": str,
+        # "children": "List[Node]",
+        "value" : {"type" : str, "visible" : True, "semantic": True}
     })
 
 register_fact_set(name='tree')(Tree_fact_types)

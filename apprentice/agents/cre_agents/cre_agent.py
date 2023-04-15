@@ -5,6 +5,7 @@ from apprentice.agents.base import BaseAgent
 from apprentice.agents.cre_agents.state import State, encode_neighbors
 from apprentice.agents.cre_agents.dipl_base import BaseDIPLAgent
 from apprentice.shared import SAI as BaseSAI, rand_skill_uid, rand_skill_app_uid, rand_state_uid
+from apprentice.agents.cre_agents.logger import Logger
 from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEncoder, Vectorizer, Enumerizer
 
 from cre.utils import PrintElapse
@@ -21,6 +22,9 @@ def used_bytes(garbage_collect=True):
     stats = rtsys.get_allocation_stats()
     # print(stats)
     return stats.alloc-stats.free
+
+logger = Logger().logger
+EMPTY_RESPONSE = {}
 
 # -----------------------
 # : Function minimal_str + get_info
@@ -51,7 +55,7 @@ def func_get_info(func, ignore_funcs=[]):
 
 class SAI(BaseSAI):
     ''' Same as shared.SAI but when used internally we expect
-        'selection' to be a cre.Fact instead of str, and 'action_type' 
+        'selection' to be a cre.Fact instead of str, and 'action_type'
         to be an ActionType instance instead of str. '''
     def as_tuple(self):
         sel_str = self.selection.id if(isinstance(self.selection,FactProxy)) else self.selection
@@ -83,7 +87,6 @@ class Skill(object):
 
         # with PrintElapse("get_matches"):
         matches = list(self.where_lrn_mech.get_matches(state))
-
 
         # with PrintElapse("iter_matches"):
         for match in matches:
@@ -234,7 +237,7 @@ class CREAgent(BaseDIPLAgent):
                 featurized_state = extra_feature(self, state, featurized_state)
 
             return featurized_state
-        
+
 
     def __init__(self, encode_neighbors=True, **config):
         # Parent defines learning-mechanism classes and args + action_chooser
@@ -297,7 +300,7 @@ class CREAgent(BaseDIPLAgent):
         # Allow for legacy name 'foci_of_attention'
         if(arg_foci is None):
             arg_foci = kwargs.get('foci_of_attention', None)
-        if(arg_foci is None): 
+        if(arg_foci is None):
             return None
         new_arg_foci = []
         wm = self.state.get('working_memory')
@@ -322,7 +325,7 @@ class CREAgent(BaseDIPLAgent):
         skill_apps = self.which_cls.sort(state, skill_apps)
         return skill_apps
 
-    def act(self, state, 
+    def act(self, state,
             return_kind='sai', # 'sai' | 'skill_app'
             json_friendly=False,
             **kwargs):
@@ -337,10 +340,10 @@ class CREAgent(BaseDIPLAgent):
             self.prev_skill_app = skill_app
 
             output = skill_app.sai if(return_kind == 'sai') else skill_app
-                            
+
             if(json_friendly):
                 output = output.get_info()
-                
+
         return output
 
     def act_all(self, state,
@@ -359,20 +362,20 @@ class CREAgent(BaseDIPLAgent):
             skill_apps = skill_apps[:max_return]
 
         output = [sa.sai for sa in skill_apps] if(return_kind == 'sai') else skill_apps
-            
+
         if(json_friendly):
             output = [x.get_info() for x in output]
 
         return output
 
-            
+
 
 
 # -----------------------------------------
 # : Explain Demo
 
     def _skill_subset(self, sai, arg_foci=None, skill_label=None, skill_uid=None):
-        # skill_uid or skill_label can cut down possible skill candidates 
+        # skill_uid or skill_label can cut down possible skill candidates
         # print()
         subset = list(self.skills.values())
         if(skill_uid is not None):
@@ -392,24 +395,24 @@ class CREAgent(BaseDIPLAgent):
         if(arg_foci is not None):
             pass
             # TODO: can probably reduce by matching n_args
-            
-        return subset
-    
 
-    def explain_from_skills(self, state, sai, 
+        return subset
+
+
+    def explain_from_skills(self, state, sai,
         arg_foci=None, skill_label=None, skill_uid=None):
 
         skills_to_try = self._skill_subset(sai, arg_foci, skill_label, skill_uid)
         skill_apps = []
-        
+
         # Try to find an explanation from the existing skills that matches
-        #  the how + where parts. 
+        #  the how + where parts.
         for skill in skills_to_try:
             for candidate in skill.get_applications(state, skip_when=True):
                 if(candidate.sai == sai):
-                    # If foci are given make sure candidate has the 
+                    # If foci are given make sure candidate has the
                     #  same arguments in it's match.
-                    if(arg_foci is not None and 
+                    if(arg_foci is not None and
                         candidate.match[:1] != arg_foci):
                         continue
 
@@ -424,8 +427,8 @@ class CREAgent(BaseDIPLAgent):
                 # Execute how-search to depth 1 with each skill's how-part
                 if(hasattr(skill.how_part,'__call__')):
                     if(arg_foci is not None and skill.how_part.n_args != len(arg_foci)):
-                        continue 
-                    
+                        continue
+
                     explanation_set = self.how_lrn_mech.get_explanations(
                         state, inp, arg_foci, function_set=[skill.how_part],
                         search_depth=1, min_stop_depth=1)
@@ -443,7 +446,7 @@ class CREAgent(BaseDIPLAgent):
                 # For skills with constant how-parts just check equality
                 else:
                     if(skill.how_part == inp):
-                        skill_apps.append(SkillApplication(skill, [sai.selection]))                        
+                        skill_apps.append(SkillApplication(skill, [sai.selection]))
 
             # if(len(skill_apps) > 0): print("EXPL HOW")
         return skill_apps
@@ -452,14 +455,14 @@ class CREAgent(BaseDIPLAgent):
         #     print(best_expl.skill.where_lrn_mech.conds)
         # print("BEST EXPLANATION", best_expl)
         # return best_expl
-    def explain_from_funcs(self, state, sai, 
+    def explain_from_funcs(self, state, sai,
         arg_foci=None, skill_label=None, skill_uid=None):
 
         # TODO: does not currently support multiple inputs per SAI.
         inp_attr, inp = list(sai.inputs.items())[0]
         if(not sai.action_type.get(inp_attr,{}).get('semantic',False)):
             return self.how_lrn_mech.new_explanation_set([(inp, [])])
-            
+
 
         # Use how-learning mechanism to produce a set of candidate how-parts
         explanation_set = self.how_lrn_mech.get_explanations(
@@ -491,7 +494,7 @@ class CREAgent(BaseDIPLAgent):
 
     def explain_demo(self, state, sai, arg_foci=None, skill_label=None, skill_uid=None,
              json_friendly=False, force_use_funcs=False, **kwargs):
-        ''' Explains an action 'sai' first using existing skills then using function_set''' 
+        ''' Explains an action 'sai' first using existing skills then using function_set'''
         state = self.standardize_state(state)
         sai = self.standardize_SAI(sai)
         arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
@@ -534,7 +537,7 @@ class CREAgent(BaseDIPLAgent):
             how_part, explanation_set, args = -1, None, []
 
         # Make new skill.
-        skill = Skill(self, sai.action_type, how_part, input_attr, 
+        skill = Skill(self, sai.action_type, how_part, input_attr,
             label=label, explanation_set=explanation_set)
 
         # print("INDUCE SKILL", skill)
@@ -612,16 +615,16 @@ class CREAgent(BaseDIPLAgent):
         skill_labels = [skill_label] if skill_label is not None else None
         states = [state] if state is not None else None
         return self.get_skills(skill_uids, skill_labels, states, json_friendly, **kwargs)[0]
-    
+
 
 # ------------------------------------------------
 # act_rollout()
 
     def _insert_rollout_skill_app(self, state, next_state, skill_app, states, actions, uid_stack, depth_counts, depth):
         nxt_uid = next_state.get('__uid__')
-        
+
         if(skill_app is not None):
-            uid = state.get('__uid__')    
+            uid = state.get('__uid__')
             action_obj = {
                 "skill_app_uid" : skill_app.uid,
                 "state_uid" : uid,
@@ -640,11 +643,11 @@ class CREAgent(BaseDIPLAgent):
             uid_stack.append(nxt_uid)
             depth_counts[depth] += 1
             return True
-        
+
         if(skill_app is not None):
             state_obj = states[uid]
             out_uids = state_obj.get('out_skill_app_uids', [])
-            out_uids.append(skill_app.uid)            
+            out_uids.append(skill_app.uid)
 
             nxt_state_obj = states[nxt_uid]
             in_uids = state_obj.get('in_skill_app_uids', [])
@@ -653,11 +656,11 @@ class CREAgent(BaseDIPLAgent):
         return False
 
     def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False, **kwargs):
-        ''' 
-        Applies act_all() repeatedly starting from 'state', and fanning out to create at 
-        tree of all action rollouts up to some depth. At each step in this process the agent's 
-        actions produce subsequent states based on the default state change defined by each 
-        action's ActionType object. A list of 'halt_policies' specifies a set of functions that 
+        '''
+        Applies act_all() repeatedly starting from 'state', and fanning out to create at
+        tree of all action rollouts up to some depth. At each step in this process the agent's
+        actions produce subsequent states based on the default state change defined by each
+        action's ActionType object. A list of 'halt_policies' specifies a set of functions that
         when evaluated to false prevent further actions. Returns a tuple (states, action_infos).
         '''
         print("START ACT ROLLOUT")
@@ -691,7 +694,7 @@ class CREAgent(BaseDIPLAgent):
                 # print("---dest---")
                 # print(repr(dest_wm))
                 next_state = self.standardize_state(next_wm)
-                
+
                 self._insert_rollout_skill_app(state, next_state, skill_app,
                                 states, actions, uid_stack, depth_counts, depth)
             # print(uid_stack)
@@ -716,11 +719,11 @@ class CREAgent(BaseDIPLAgent):
 
 
 
-##### Thoughts on optimization for later ##### 
+##### Thoughts on optimization for later #####
 '''
 Time Breakdown:
     52% Act
-        40% predict 
+        40% predict
             34% transform
             65% predict
         12% get_matches
@@ -737,7 +740,7 @@ Time Breakdown:
 
 -Need to make input state update incrementally
 
--Vectorizer: Could avoid re-fetching from dictionaries in Vectorizer by 
+-Vectorizer: Could avoid re-fetching from dictionaries in Vectorizer by
 caching idrecs of the input memset similar to fact_ptrs data
 structure in memset.
     -Note wouldn't help unless featurized state could be made to update incrementally
@@ -749,5 +752,3 @@ Thoughts on what is going on w/ When:
 
 
 '''
-
-
