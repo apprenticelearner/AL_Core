@@ -57,7 +57,7 @@ class BaseWhen(metaclass=ABCMeta):
 # : VectorTransformMixin
 
 class VectorTransformMixin():
-    def __init__(self, skill, encode_relative=True, one_hot=False,
+    def __init__(self, skill, encode_relative=False, one_hot=False,
                 encode_missing=None,
                 starting_state_format='flat_featurized',
                 extra_features=[],

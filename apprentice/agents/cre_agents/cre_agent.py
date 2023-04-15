@@ -4,6 +4,7 @@ from cre import MemSet, CREFunc, UntypedCREFunc, Fact, FactProxy
 from apprentice.agents.base import BaseAgent
 from apprentice.agents.cre_agents.state import State, encode_neighbors
 from apprentice.agents.cre_agents.dipl_base import BaseDIPLAgent
+from apprentice.agents.cre_agents.logger import Logger
 from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEncoder, Vectorizer, Enumerizer
 
 from cre.utils import PrintElapse
@@ -18,7 +19,7 @@ def used_bytes(garbage_collect=True):
     # print(stats)
     return stats.alloc-stats.free
 
-
+logger = Logger().logger
 EMPTY_RESPONSE = {}
 
 class SAI(object):
@@ -97,7 +98,6 @@ class Skill(object):
 
         # with PrintElapse("get_matches"):
         matches = list(self.where_lrn_mech.get_matches(state))
-
 
         # with PrintElapse("iter_matches"):
         for match in matches:
@@ -216,7 +216,8 @@ class CREAgent(BaseDIPLAgent):
         def flat(state):
             wm = state.get('working_memory')
             flattener = state.agent.flattener
-            return flattener(wm)
+            x = flattener(wm)
+            return x
 
         @state.register_transform(is_incremental=len(self.extra_features)==0, prereqs=['flat'])
         def flat_featurized(state):
@@ -300,7 +301,6 @@ class CREAgent(BaseDIPLAgent):
 # : Act
     def get_skill_applications(self, state):
         skill_applications = []
-        # print()
         for skill in self.skills:
             for skill_app in skill.get_applications(state):
                 skill_applications.append(skill_app)
@@ -309,6 +309,7 @@ class CREAgent(BaseDIPLAgent):
         return skill_applications
 
     def act(self, state, add_skill_info=False, n=1, **kwargs):  # -> Returns sai
+        self.prev_skill_app = None
         state = self.standardize_state(state)
         # with PrintElapse("self.get_skill_applications"):
         skill_applications = self.get_skill_applications(state)
@@ -503,7 +504,7 @@ class CREAgent(BaseDIPLAgent):
         # if(self.prev_skill_app != None):
         #     print(self.prev_skill_app.sai, sai, self.prev_skill_app.sai == sai)
         if(self.prev_skill_app != None and self.prev_skill_app.sai == sai):
-            # print("PREV SKILL APP", self.prev_skill_app)
+            print("PREV SKILL APP", self.prev_skill_app)
             skill_app = self.prev_skill_app
         # Demonstration Case : try to explain the sai from existing skills.
         else:
@@ -513,7 +514,7 @@ class CREAgent(BaseDIPLAgent):
         # with PrintElapse("induce_skill"):
         # If existing skills fail then induce a new one with how-learning.
         if(skill_app is None):
-            # print("INDUCE SKILL")
+            print("INDUCE SKILL")
             skill_app = self.induce_skill(state, sai, arg_foci, skill_label)
 
         # print("WM")
