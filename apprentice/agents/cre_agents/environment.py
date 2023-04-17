@@ -1,17 +1,14 @@
 from cre import define_fact, Fact, Conditions
-from cre.default_funcs import CastFloat
+# from cre.default_funcs import CastFloat
 from apprentice.agents.cre_agents.extending import new_register_decorator, new_register_all
-from apprentice.agents.cre_agents.funcs import CastFloat, CastStr
+from .funcs import CastFloat, CastStr
 
 
 # NOTE : env_config might be unecessary
 # Env Config 
 register_env_config = new_register_decorator("env_config", full_descr="environment configuration")
 
-# NOTE : action might be unecessary
-# Action
-register_action = new_register_decorator("action", full_descr="action type")
-register_all_actions = new_register_all("action", types=[], full_descr="action type")
+
 
 # Fact
 register_fact = new_register_decorator("fact", full_descr="fact type")
@@ -107,3 +104,92 @@ def html_constraints(_vars):
     return conds
 
 
+# -------------------------
+#  : ActionType
+# NOTE: work in progress 
+
+class ActionType(object):
+    def __init__(self, name, input_spec, expected_change):
+        self.name = name
+        self.input_spec = input_spec
+        self.expected_change = expected_change
+
+    def predict_change(self, state, sai):
+        return self.expected_change(state,sai)
+
+    def __getitem__(self, attr):
+        return self.input_spec[attr]
+
+    def get(self,attr,default):
+        return self.input_spec.get(attr,default)
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return f"ActionType(name={self.name}, spec={self.input_spec})"
+
+def define_action_type(name, input_spec, *args):
+    def wrapper(expected_change):
+        return ActionType(name, input_spec, expected_change)
+    if(len(args) > 0):
+        return wrapper(*args)
+    else:
+        return wrapper
+
+
+# NOTE : action might be unecessary
+# Action
+register_action_type = new_register_decorator("action_type", full_descr="action type")
+register_all_action_types = new_register_all("action_type", types=[ActionType], full_descr="action type")
+
+# Action Set
+register_action_type_set = new_register_decorator("action_type_set", full_descr='action type set')
+
+
+
+with register_all_action_types as HTML_action_type_set:
+    # NOTE need to 
+
+    @define_action_type("PressButton", {
+        'value' : {'type' : int, "semantic" : False}
+        })
+    def PressButton(wm, sai):
+        pass
+
+    @define_action_type("ButtonPressed", {
+        'value' : {'type' : int, "semantic" : False}
+        })
+    def ButtonPressed(wm, sai):
+        pass
+
+    @define_action_type("UpdateTextArea", {
+        'value' : {'type' : str, "semantic" : True}
+        })
+    def UpdateTextArea(wm, sai):
+        wm.modify(sai.selection, 'value', sai.input['value'])
+        wm.modify(sai.selection, 'locked', True)
+
+    @define_action_type("UpdateTextField", {
+        'value' : {'type' : str, "semantic" : True}
+        })
+    def UpdateTextField(wm, sai):
+        wm.modify(sai.selection, 'value', sai.input['value'])
+        wm.modify(sai.selection, 'locked', True)
+
+    @define_action_type("UpdateField", {
+        'value' : {'type' : str, "semantic" : True}
+        })
+    def UpdateField(wm, sai):
+        wm.modify(sai.selection, 'value', sai.input['value'])
+        wm.modify(sai.selection, 'locked', True)
+
+HTML_action_type_set = {x.name: x for x in HTML_action_type_set}
+# HTML_action_type_set = {
+#     "UpdateTextField" : UpdateTextField,
+#     "UpdateField" : UpdateTextField,
+
+#     "PressButton" : PressButton,
+#     "ButtonPressed" : PressButton,
+# }
+register_action_type_set(name='html')(HTML_action_type_set)

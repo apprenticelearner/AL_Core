@@ -32,60 +32,60 @@ from numba.types import string, f8
 from cre.sc_planner import SetChainingPlanner
 from cre.func import CREFunc
 from .extending import registries
+from .funcs import register_conversion
 
 func_registry = registries['func']
 
 class ExplanationSet():
-    def __init__(self, explanation_tree, arg_foci=None, post_func=None, choice_func=None):
+    def __init__(self, explanation_tree, arg_foci=None,
+                 post_func=None, choice_func=None, max_expls=200):
         self.explanation_tree = explanation_tree
         self.choice_func = choice_func
         self.post_func = post_func
 
         if(explanation_tree is not None):
-            if(arg_foci is not None):
-                self.explanations = []
-                for func_comp, match in explanation_tree:
-                    if(func_comp.n_args == len(arg_foci)):
-                        self.explanations.append((func_comp, match))
+            if(isinstance(explanation_tree, list)):
+                self.explanations = explanation_tree
             else:
-                self.explanations = list(iter(self.explanation_tree))
+                self.explanations = []
+                for i, (func_comp, match) in enumerate(explanation_tree):
+                    if(max_expls != -1 and i >= max_expls-1): break
 
-            # print("ARG FOCI", [f.id for f in arg_foci])
-            def expl_key(tup):
-                func_comp, match = tup
-                tup = (func_comp.depth, abs(func_comp.n_args-len(match)), func_comp.n_funcs)
-                return tup 
+                    # Skip 
+                    if(func_comp.n_args != len(match) or
+                       (arg_foci is not None and func_comp.n_args != len(arg_foci))):
+                        continue
 
-            self.explanations = sorted(self.explanations, key=expl_key)
+                    if(self.post_func is not None):
+                        func_comp = self.post_func(func_comp)
+
+                    self.explanations.append((func_comp, match))
+            
+                # Sort by min depth, degree to which variables match unique values,
+                #  and total funcs in the composition.
+                def expl_key(tup):
+                    func_comp, match = tup
+                    tup = (func_comp.depth, abs(func_comp.n_args-len(match)), func_comp.n_funcs)
+                    return tup 
+                self.explanations = sorted(self.explanations, key=expl_key)
         else:
             self.explanations = []
 
 
     def __len__(self):
-        # TODO: write a way to efficiently estimate the size of an expl 
-        #  tree in CRE
-        # return 1 if self.explanation_tree is not None else 0
         return len(self.explanations)
 
     def choose(self):
-        # if(self.choice_func is not None):
-        # tree_iter = iter(self.explanation_tree)
-        for func, match in self.explanations:
-            if(func.n_args != len(match)):
-                continue
-        # op_comp, match = next(tree_iter)
-            if(self.post_func is not None):
-                func = self.post_func(func)
-                # op_comp = OpComp(self.post_func,op_comp)
-            # with PrintElapse("flatten"):
-            #     op = op_comp.flatten()
-            return func, match
+        if(len(self.explanations) > 0):
+            return self.explanations[0]
         return None, []
+
 
     def __iter__(self):
         for func, match in self.explanations:
             yield (func, match) 
 
+@register_conversion(name="NumericalToStr")
 @CREFunc(signature=string(f8),
     shorthand="s({0})")
 def NumericalToStr(x):
@@ -149,9 +149,7 @@ class SetChaining(BaseHow):
                     flt_val, function_set, search_depth=search_depth, 
                     min_stop_depth=min_stop_depth)
 
-                expl_set = ExplanationSet(explanation_tree, arg_foci)
-                expl_set.post_func = NumericalToStr
-                # print(flt_val, self.function_set, self.search_depth)
+                expl_set = ExplanationSet(explanation_tree, arg_foci, post_func=NumericalToStr)
             except:
                 # with PrintElapse("expl_set_float"):
                 expl_set = ExplanationSet(None, arg_foci)
@@ -165,3 +163,7 @@ class SetChaining(BaseHow):
 
 
         return expl_set
+
+    def new_explanation_set(self, explanations, *args, **kwargs):
+        '''Takes a list of explanations i.e. (func, match) and yields an ExplanationSet object'''
+        return ExplanationSet(explanations,*args, **kwargs)

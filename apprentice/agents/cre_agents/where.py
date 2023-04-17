@@ -66,6 +66,11 @@ class BaseWhere(metaclass=ABCMeta):
 from cre import Conditions, Var
 
 class BaseCREWhere(BaseWhere):
+    def __init__(self, skill):
+        super().__init__(skill)
+        self.conds = None
+        self.fit_record = []
+
     def _ensure_vars(self, match):
         if(not hasattr(self,'vars')):
 
@@ -79,24 +84,41 @@ class BaseCREWhere(BaseWhere):
 
         return self.vars
 
+    def get_info(self,**kwargs):
+        return {
+            "conds" : str(self.conds),
+            "fit_record" : self.fit_record
+        }
+
+
+
 
 @register_where
 class AntiUnify(BaseCREWhere):
     def __init__(self, skill):
         super().__init__(skill)
-        self.conds = None
 
+    def will_learn(self, state, match, reward=1):
+        ''' Returns true if the state match pair will  
+            cause the current pattern to generalize'''
+        wm = state.get("working_memory")
+        return (self.conds and self.conds.check_match(match, wm))
 
     def ifit(self, state, match, reward=1):
-
         # Only fit on positive reward
         if(reward <= 0): return
+        
+        # Skip generalizing if check_match already succeeds.
+        if(self.will_learn(state, match, reward)):
+            return
 
         wm = state.get("working_memory")
 
-        # TODO: For efficiency should really guard with check_match here,
-        #    but need to change check_match so that it will ensure the 
-        #    existence of any guarded unprovided facts, like neighbors.
+        self.fit_record.append({
+            "state_id" : state.get("__uid__"), 
+            "match" : [m.id for m in match]
+        })
+
         _vars = self._ensure_vars(match)
 
         conds = Conditions.from_facts(match, _vars, 
@@ -182,6 +204,11 @@ class MostSpecific(BaseCREWhere):
     def __init__(self, agent):
         super().__init__(agent)
         self.id_sets = set()
+
+    def will_learn(self, state, match, reward=1):
+        if(reward <= 0): return False
+        match_ids = tuple([x.id for x in match])
+        return match_ids not in self.id_sets
 
     def ifit(self, state, match, reward=1):
         # Only fit on positive reward

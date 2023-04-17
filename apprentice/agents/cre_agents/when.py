@@ -48,6 +48,9 @@ class BaseWhen(metaclass=ABCMeta):
         """
         raise NotImplemented()
 
+    def get_info(self, **kwargs):
+        return {}
+
 
 # ------------------------------------------------------------------------
 # : When Learning Mechanisms
@@ -107,7 +110,7 @@ class VectorTransformMixin():
         featurized_state = featurized_state.copy()
         agent = self.skill.agent
 
-
+        
         for extra_feature in self.extra_features:
             featurized_state = extra_feature(self, state, featurized_state, match)
 

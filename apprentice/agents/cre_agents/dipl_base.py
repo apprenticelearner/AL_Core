@@ -1,5 +1,6 @@
 from .extending import new_register_decorator, registries
 from apprentice.agents.cre_agents import registries, register_when
+from apprentice.shared import rand_agent_uid
 
 
 def _config_get(config, registry, covered, names, default):
@@ -37,7 +38,6 @@ class BaseDIPLAgent(object):
 # ------------------------------------------------------------------------
 # : __init__
     def standardize_config(self, config):
-        print(config)
         covered = set()
         config_get = lambda names, default, registry=None : _config_get(config, registry, covered, names, default)
 
@@ -96,6 +96,10 @@ class BaseDIPLAgent(object):
         self.fact_types = config_get(['fact_types','environment', 'env'], default='html',
             registry=registries.get('fact_set',[]))
 
+        self.action_types = config_get(['action_types'], default='html',
+            registry=registries.get('action_type_set',{}))
+        print("<<", self.action_types)
+
         self.action_chooser = config_get("action_chooser",
             default='max_which_utility', registry=registries['skill_app_chooser'])
 
@@ -105,9 +109,14 @@ class BaseDIPLAgent(object):
         self.constraints = config_get(['constraints','environment', 'env'], default='html',
             registry=registries.get('constraint',[]))
 
+        print(registries)
+        self.conversions = list(registries.get('conversion',[]))
+        print(self.conversions)
+
         self.config = {k:v for k,v in config.items() if k not in covered}
 
     def __init__(self, **config):
+        self.uid = rand_agent_uid()
         self.standardize_config(config)
 
     def request(self, *args, **kwargs):
@@ -137,7 +146,5 @@ def min_which_utility(state, skill_apps):
 @register_skill_app_chooser
 def random(state, skill_apps):
     return choice(skill_apps)
-
-
 
 

@@ -30,8 +30,8 @@ def declare_skill_cands(memset, enumerizer, _how_part,
             id_num, match_ptrs, tuple_type, cre_func_type):
     how_part = cast(_how_part, cre_func_type)
     # print("--------------")
-    if(len(match_ptrs) > 10):
-        raise ValueError()
+    # if(len(match_ptrs) > 10):
+    #     raise ValueError()
     for i in range(len(match_ptrs)):
         match_ptr_set = match_ptrs[i].copy()
         match = _struct_tuple_from_pointer_arr(tuple_type, match_ptr_set)

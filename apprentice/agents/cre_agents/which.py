@@ -34,6 +34,9 @@ class BaseWhich(metaclass=ABCMeta):
         """
         raise NotImplemented()
 
+    def get_info(self, **kwargs):
+        return {}
+
 
 @register_which
 class TotalCorrect(BaseWhich):

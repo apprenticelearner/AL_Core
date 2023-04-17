@@ -19,79 +19,110 @@ from django.http import HttpResponseServerError
 from django.http import HttpResponseNotAllowed
 
 from apprentice_learner.models import Agent
-
-# from apprentice.agents.experta_agent import ExpertaAgent
-from apprentice.agents.Stub import Stub
-from apprentice.agents.Memo import Memo
-from apprentice.agents.WhereWhenHowNoFoa import WhereWhenHowNoFoa
-from apprentice.agents.ModularAgent import ModularAgent
-from apprentice.agents.RLAgent import RLAgent
-from apprentice.agents.RHS_LHS_Agent import RHS_LHS_Agent
-from apprentice.agents.cre_agents import CREAgent
-from apprentice.working_memory.representation import Sai
+from apprentice.shared import rand_agent_uid
+import importlib
 
 
-
-# import cProfile
-# pr = cProfile.Profile()
+# from apprentice.working_memory.representation import Sai
 
 log = logging.getLogger('al-django')
 performance_logger = logging.getLogger('al-performance')
 
+class LogElapse():
+    def __init__(self, logger, message):
+        self.logger = logger
+        self.message = message
+    def __enter__(self):
+        self.t0 = time.time_ns()/float(1e6)
+    def __exit__(self,*args):
+        self.t1 = time.time_ns()/float(1e6)
+        self.logger.info(f'{self.message}: {self.t1-self.t0:.6f} ms')
+
 active_agent = None
-active_agent_id = None
+active_agent_uid = None
 dont_save = True
 
+EMPTY_RESPONSE = {}
 
-AGENTS = {
-    "Stub": Stub,
-    "Memo": Memo,
-    "RLAgent": RLAgent,
-    "WhereWhenHowNoFoa": WhereWhenHowNoFoa,
-    "ModularAgent": ModularAgent,
-    # "ExpertaAgent": ExpertaAgent,
-    "RHS_LHS_Agent": RHS_LHS_Agent,
-    "CREAgent": CREAgent,
+
+AGENT_PATHS = {
+    # Format <Name : (module_path, ClassName)>
+    "Stub": ('apprentice.agents.Stub', 'Stub'),
+    "Memo": ('apprentice.agents.Memo', 'Memo'),
+    "WhereWhenHowNoFoa": ('apprentice.agents.WhereWhenHowNoFoa', 'WhereWhenHowNoFoa'),
+    "ModularAgent": ('apprentice.agents.ModularAgent', 'ModularAgent'),
+    "RLAgent": ('apprentice.agents.RLAgent', 'RLAgent'),
+    "RHS_LHS_Agent" : ('apprentice.agents.RHS_LHS_Agent', 'RHS_LHS_Agent'),
+    "CREAgent" : ('apprentice.agents.cre_agents.cre_agent', 'CREAgent'),
 }
 
 last_call_time = time.time_ns()
 
 
-def get_agent_by_id(id):
-    global active_agent, active_agent_id, dont_save
-    if id == active_agent_id:
-        agent = active_agent
-    else:
-        agent = Agent.objects.get(id=id)
-    return agent
+def get_agent_by_uid(uid):
+    global active_agent, active_agent_uid, dont_save
+    # print("active_agent_uid", active_agent_uid)
+    agent_model = None
+    # if uid == active_agent_uid:
+    agent = active_agent
+    # else:
+    #     agent_model = Agent.objects.get(uid=uid)
+    #     agent = agent_model.instance
+    return agent, agent_model
 
+def ensure_field(data, fields, errs=[], default=None):
+    fields = fields if(isinstance(fields, tuple)) else (fields,)    
+    for field in fields:
+        if(field in data):
+            return data[field]
+    if(default is None):
+        missing_str = ' | '.join([repr(f) for f in fields])
+        plural = {'s' if len(fields) else ''}
+        errs.append(f"Request body missing field{plural} {missing_str}.")
+    return default
+
+# --------------------------------------------------------------
+# : List Agents
 
 @csrf_exempt
-def create(http_request):
-    """
-    This is used to create a new agent with the provided configuration.
+def list_agents(http_request):
+    if http_request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
 
-    .. todo:: TODO Ideally there should be a way to create agents both using
-    the browser and via a POST object.
-    """
+    agent_descrs = {}
+    for model in Agent.objects.all():
+        descr  = {
+            "name": model.name,
+            "num_request": model.num_request,
+            "num_train": model.num_train,
+            "num_check": model.num_check,
+            "created": model.created,
+            "updated": model.updated,
+        }
+        agent_descrs[model.uid] = descr
+
+    if(dont_save and active_agent_uid): 
+        agent_descrs[active_agent_uid] = {}
+
+    return agent_descrs
+
+
+# --------------------------------------------------------------
+# : Create
+
+def _standardize_create_data(http_request, errs=[], warns=[]):
     if http_request.method != "POST":
         return HttpResponseNotAllowed(["POST"])
 
     data = json.loads(http_request.body.decode("utf-8"))
 
-    errs = []
-    warns = []
+    agent_type = ensure_field(data, ('agent_type', 'type'), errs)
+    agent_name = ensure_field(data, ('agent_name', 'name'), errs, default='Unnamed Agent')    
 
-    if "agent_type" not in data or data["agent_type"] is None:
-        errs.append("request body missing 'agent_type'")
+    if agent_type and agent_type not in AGENT_PATHS:
+        errs.append(f'Specified agent {agent_type!r} not supported')
 
-    if not errs and data["agent_type"] not in AGENTS:
-        errs.append("Specified agent not supported")
-
-    if "args" not in data:
-        args = {}
-    else:
-        args = data["args"]
+    agent_args = ensure_field(data, ('agent_args', 'args'), errs)
 
     if "no_ops_parse" in data:
         warns.append(
@@ -103,7 +134,7 @@ def create(http_request):
         warns.append(
             "Deprecation Warning: feature_set provided at top level."
             " feature_set is no longer used as a top level parameter."
-            " It should now be included in the args object of a ModularAgent.")
+            " It should now be included in the args object of the agent.")
         if "feature_set" not in args:
             args['feature_set'] = data.pop('feature_set', [])
 
@@ -111,45 +142,47 @@ def create(http_request):
         warns.append(
             "Deprecation Warning: function_set provided at top level."
             " function_set is no longer used as a top level parameter."
-            " It should now be included in the args object of a ModularAgent.")
+            " It should now be included in the args object of the agent.")
         if "function_set" not in args:
             args['function_set'] = data.pop('function_set', [])
 
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        # print("errors:\n {}".format("\n".join(errs)))
-        return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
 
+    return {"type": agent_type, "name": agent_name, "args": agent_args}
 
-    global active_agent, active_agent_id, dont_save
-    try:
-        instance = AGENTS[data["agent_type"]](**args)
-        agent_name = data.get("name", "")
-        agent = Agent(instance=instance, name=agent_name)
-        if(not dont_save):
-            agent.save()
-        else:
-            active_agent = agent
-            agent.id = 0
-            active_agent_id = str(agent.id)
-            print(active_agent_id)
-        ret_data = {"agent_id": str(agent.id)}
+def _make_agent(data, errs=[], warns=[]):
+    global active_agent, active_agent_uid, dont_save
 
-    except Exception as exp:
-        traceback.print_exc()
-        print("Failed to create agent", exp)
+    # Get the path and class_name from AGENT_PATHS
+    path, class_name = AGENT_PATHS.get(data['type'], (None, None))
+    if(path is None):
         return HttpResponseServerError(
-            "Failed to create agent, " "ensure provided args are " "correct."
-        )
+            f"No agent type registered with name {data['type']!r}.")
 
-    if active_agent is not None:
-        active_agent = None
-        active_agent_id = None
-        dont_save = False
+    # Import the agent class, make an agent instance, and give it a new uid.
+    try: 
+        agent_class = getattr(importlib.import_module(path), class_name)
+        agent = agent_class(**data['args'])
+        agent_model = Agent(instance=agent, name=data['name'])
+        agent_uid = getattr(agent, 'uid', rand_agent_uid())
+        agent_model.uid = agent_uid
+
+    # If any of that fails print traceback and send it to the client.
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"Agent creation failed with exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
+    
+    # Garbage collect any previous 'active_agent'.
+    active_agent, active_agent_uid, dont_save = None, None, False
+
     if str(data.get("stay_active", True)).lower() == "true":
         active_agent = agent
-        active_agent_id = str(agent.id)
+        active_agent_uid = agent_uid
         dont_save = str(data.get("dont_save", True)).lower() == "true"
     else:
         warns.append(
@@ -157,299 +190,336 @@ def create(http_request):
             " deserialization of agents is currently not working for most"
             " agent types. Expect Errors.")
 
-    if len(warns) > 0:
-        for warn in warns:
-            log.warning(warn)
-        ret_data["warnings"] = warns
-
-
-    last_call_time = time.time_ns()
-
-    return HttpResponse(json.dumps(ret_data))
-
-
+    return {"agent_uid": str(agent_uid)}
+    
+# ** END POINT ** 
 @csrf_exempt
-def request(http_request, agent_id):
+def create(http_request):
     """
-    Returns an SAI description for a given a problem state according to the
-    current knoweldge base.  Expects an HTTP POST with a json object stored as
-    a utf-8 btye string in the request body.
-    That object should have the following fields:
+    Creates a new agent with the provided 'type', 'name', and 'args'.
     """
-    global last_call_time
-    performance_logger.info("Interface Feedback Time: {} ms".format((time.time_ns()-last_call_time)/1e6))
+    errs, warns = [], []
 
-    # pr.enable()
+    # Ensure request data is valid and in consitent format
+    data = _standardize_create_data(http_request, errs, warns)
+    if(isinstance(data, HttpResponse)): return data
+
+    # Try to instantiate the agent 
+    resp_data = _make_agent(data, errs, warns)
+    if(isinstance(resp_data, HttpResponse)): return resp_data
+
+    # Emit any warnings
+    for w in warns:
+        log.warn(w)
+
+    return HttpResponse(json.dumps(resp_data))
+
+
+# --------------------------------------------------------------
+# : Act
+
+def _standardize_act_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    state = ensure_field(data, "state", errs)
+    agent_uid = ensure_field(data, "agent_uid", errs)
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+
+    # Only require state and agent_uid, but pass data as is since 
+    #  agent+client can conceivably agree on additional fields.
+    return data
+
+def _standardize_act_response(response, return_all, errs=[], warns=[]):
+    # Attempt to convert any agent specifc SAI implementation 
+    #  to a json friendly format in case the agent implementation 
+    #  of act() does not respect json_friendly=True.
+    if(not response): return response
+    actions = response if isinstance(response, list) else [response]
+    if(not all([isinstance(a, dict) for a in actions])):
+        warns.append(
+            "Agent implementation does not respect json_friendly=True. "
+            "Encountered an action which is not an instance of dict. "
+            "Attempting translation..."
+        )
+
+        new_actions = []
+        for a in actions:
+            selection = getattr(a, 'selection')
+            action_type = getattr(a, 'action_type', getattr(a, 'action'))
+            inputs = getattr(a, 'inputs', getattr(a, 'input'))
+
+            if(selection is None or action_type is None):
+                #
+                message = f"Agent response {a} missing selection or action_type fields."
+                return HttpResponseServerError(str(exp))
+
+            new_action = {
+                "selection" : selection,
+                "action_type" : action_type,
+                "inputs" : inputs,
+            }
+            new_actions.append(new_action)
+        actions = new_actions
+
+
+    if(return_all):
+        return actions
+    else:
+        return actions[0]
+
+# ** END POINT ** 
+@csrf_exempt
+def act(http_request):
+    """
+    Takes an 'agent_uid' and 'state', and returns the highest priority next action that 
+    the agent believes it should take next. If the request has return_all=True, then 
+    a list of all next actions are returned instead. Each action should have at least  
+    the fields 'selection', 'action_type', and 'inputs' (i.e. an SAI). The agent implementation
+    is free to add additional action fields. For instance, an extended set of fields might 
+    describe describing how an underlying skill within the agent applied each action
+    (i.e. a SkillApplication).
+    """
+    global dont_save
+    errs, warns = [], []
+
+    # Ensure request data is valid and in consitent format
+    data = _standardize_act_data(http_request, errs, warns)
+    if(isinstance(data, HttpResponse)): return data
+
     try:
-        if http_request.method != "POST":
-            return HttpResponseNotAllowed(["POST"])
-        data = json.loads(http_request.body.decode("utf-8"))
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_act()    
 
-        if "state" not in data or data["state"] is None:
-            log.error("request body missing 'state'")
-            return HttpResponseBadRequest("request body missing 'state'")
+        # Call Act to get the action from the agent 
+        with LogElapse(performance_logger, "act elapse"):
+            response = agent.act(**data, json_friendly=True)
 
-        agent = get_agent_by_id(agent_id)
-        agent.inc_request()
+        # Esnure response is indeed json_friendly
+        ret_all = data.get('return_all', False)
+        response = _standardize_act_response(response, ret_all, errs, warns)
 
-        start_t = time.time_ns()
-        response = agent.instance.request(data["state"],**data.get('kwargs',{}))
-        performance_logger.info("Request Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
+        print(response)
 
-        global dont_save
         if not dont_save:
             log.warning('Agent is being saved! This is probably not working.')
-            agent.save()
+            if(model): model.save()
 
-        # pr.disable()
-        # pr.dump_stats("al.cprof")
-        last_call_time =  time.time_ns()
-
-        if isinstance(response, Sai):
-            temp = {'selection': response.selection,
-                    'action': response.action,
-                    'inputs': response.inputs,
-                    'mapping': {"?sel": response.selection},
-                    'how': "n/a",
-                    'skill_label': 'n/a'}
-            
-            return HttpResponse(
-                    json.dumps({'selection': response.selection,
-                        'action': response.action,
-                        'inputs': response.inputs,
-                        'mapping': {"?sel": response.selection},
-                        'responses': [temp]
-                    }
-            ))
+        # Emit any warnings
+        for w in warns:
+            log.warn(w)
 
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
-        log.exception('ERROR IN REQUEST')
-        log.error('POST data:')
-        log.error(data)
-
-        # pr.disable()
-        # pr.dump_stats("al.cprof")
-        return HttpResponseServerError(str(exp))
+        tb_str = traceback.format_exc()
+        message = f"act() failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
 
 
+# ---------------------------------------------------------------------
+# : Train
+
+def _del_keys(data,keys):
+    for key in keys:
+        if(key in data):
+            del data[key]
+
+def _standardize_train_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    ensure_field(data, "agent_uid", errs)
+    ensure_field(data, "state", errs)
+    selection = ensure_field(data, "selection", errs)
+    action_type = ensure_field(data, ('action_type', 'action'), errs)
+    inputs = ensure_field(data, ('inputs', 'input'), errs)
+    ensure_field(data, 'reward', errs)
+
+    data['sai'] = (selection, action_type, inputs)
+    _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+    return data
+
+# ** END POINT ** 
 @csrf_exempt
-def get_skills(http_request, agent_id):
-    """
-    """
-
-    # pr.enable()
-    try:
-        if http_request.method != "POST":
-            return HttpResponseNotAllowed(["POST"])
-        data = json.loads(http_request.body.decode("utf-8"))
-
-        if "states" not in data or data["states"] is None:
-            log.error("request body missing 'states'")
-            return HttpResponseBadRequest("request body missing 'states'")
-
-        agent = get_agent_by_id(agent_id)
-        agent.inc_request()
-        response = agent.instance.get_skills(data["states"])
-
-        global dont_save
-        if not dont_save:
-            log.warning('Agent is being saved! This is probably not working.')
-            agent.save()
-
-        # pr.disable()
-        # pr.dump_stats("al.cprof")
-
-        return HttpResponse(json.dumps(response))
-
-    except Exception as exp:
-        traceback.print_exc()
-
-        # pr.disable()
-        # pr.dump_stats("al.cprof")
-        return HttpResponseServerError(str(exp))
-
-
-@csrf_exempt
-def request_by_name(http_request, agent_name):
-    """
-    A version of request that can look up an agent by its name. This will
-    generally be slower but it also doesn't expose how the data is stored and
-    might be easier in some cases.
-    """
-    agent = get_list_or_404(Agent, name=agent_name)[0]
-    return request(http_request, agent.id)
-
-
-@csrf_exempt
-def train(http_request, agent_id):
+def train(http_request):
     """
     Trains the Agent with an state annotated with the SAI used / with
     feedback.
     """
-    global last_call_time
-    performance_logger.info("Interface Feedback Time: {} ms".format((time.time_ns()-last_call_time)/1e6))
-    # pr.enable()
+    global dont_save
+    errs, warns = [], []
+
+    data = _standardize_train_data(http_request, errs, warns)
+
     try:
-        if http_request.method != "POST":
-            return HttpResponseNotAllowed(["POST"])
-        data = json.loads(http_request.body.decode("utf-8"))
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_train()
 
-        # print(data)
+        with LogElapse(performance_logger, "train elapse"):
+            response = agent.train(**data)
 
-        errs = []
-
-        if "state" not in data or data["state"] is None:
-            errs.append("request body missing 'state'")
-        if "skill_label" not in data or data["skill_label"] is None:
-            data["skill_label"] = "NO_LABEL"
-        if "foci_of_attention" not in data or data["foci_of_attention"] is None:
-            data["foci_of_attention"] = None
-        if "selection" not in data or data["selection"] is None:
-            errs.append("request body missing 'selection'")
-        if "action" not in data or data["action"] is None:
-            errs.append("request body missing 'action'")
-        if "inputs" not in data or data["inputs"] is None:
-            errs.append("request body missing 'inputs'")
-        if "reward" not in data or data["reward"] is None:
-            if "correct" in data:
-                data["reward"] = 2 * int(data["correct"] == True) - 1
-            else:
-                errs.append("request body missing 'reward'")
-
-        # Linter was complaining about too many returns so I consolidated all
-        # of the errors above
-        if len(errs) > 0:
-            for err in errs:
-                log.error(err)
-            # print("errors: {}".format(",".join(errs)))
-            return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
-
-        agent = get_agent_by_id(agent_id)
-        agent.inc_train()
-
-        sai = Sai(
-            selection=data["selection"],
-            action=data["action"],
-            inputs=data["inputs"],
-        )
-
-        data['sai'] = sai
-        del data['selection']
-        del data['action']
-        del data['inputs']
-
-        # print({k:v for k,v in data.items() if k not in ["state","next_state"]})
-
-        start_t = time.time_ns()
-        response = agent.instance.train(**data)
-        performance_logger.info("Train Elapse Time: {} ms".format((time.time_ns()-start_t)/(1e6)))
-
-        global dont_save
         if not dont_save:
             log.warning('Agent is being saved! This is probably not working.')
-            agent.save()
+            if(model): model.save()
 
-        # pr.disable()
-        # pr.dump_stats("al.cprof")
-        last_call_time =  time.time_ns()
-
-        if(response is not None):
-             return HttpResponse(json.dumps(response))
-        else:
-            return HttpResponse("OK")
+        return HttpResponse(json.dumps(response))
 
     except Exception as exp:
-        log.exception('ERROR IN TRAIN')
-        log.error('POST data:')
-        log.error(data)
-        # log.error(data)
-        # traceback.print_exc()
+        tb_str = traceback.format_exc()
+        message = f"train() failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
 
-        # pr.disable()
-        # pr.dump_stats("al.cprof")
-        return HttpResponseServerError(str(exp))
+# ---------------------------------------------------------------------
+# : Explain Demo
 
+def _standardize_explain_demo_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    ensure_field(data, "agent_uid", errs)
+    ensure_field(data, "state", errs)
+    selection = ensure_field(data, "selection", errs)
+    action_type = ensure_field(data, ('action_type', 'action'), errs)
+    inputs = ensure_field(data, ('inputs', 'input'), errs)
+    ensure_field(data, 'reward', errs)
+
+    data['sai'] = (selection, action_type, inputs)
+    _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
 
 @csrf_exempt
-def train_by_name(http_request, agent_name):
-    """
-    A version of train that can look up an agent by its name. This will
-    generally be slower but it also doesn't expose how the data is stored and
-    might be easier in some cases.
-    """
-    agent = get_list_or_404(Agent, name=agent_name)[0]
-    return train(http_request, agent.id)
+def explain_demo(http_request):
+    errs, warns = [], []
+    data = _standardize_train_data(http_request, errs, warns)
+
+    try:
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_train()
+
+        with LogElapse(performance_logger, "explain_demo elapse"):
+            response = agent.explain_demo(**data, json_friendly=True)
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"explain_demo() failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
 
 
+# ---------------------------------------------------------------------
+# : Check
+
+def _standardize_check_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    ensure_field(data, "agent_uid", errs)
+    ensure_field(data, "state", errs)
+    selection = ensure_field(data, "selection", errs)
+    action_type = ensure_field(data, ('action_type', 'action'), errs)
+    inputs = ensure_field(data, ('inputs', 'input'), errs)
+
+    data['sai'] = (selection, action_type, inputs)
+    _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+    return data
+
+# ** END POINT ** 
 @csrf_exempt
-def check(http_request, agent_id):
+def check(http_request):
     """
     Uses the knoweldge base to check the correctness of an SAI in provided
     state.
     """
+    data = _standardize_check_data(http_request, errs, warns)
+
     try:
-        if http_request.method != "POST":
-            return HttpResponseNotAllowed(["POST"])
-        data = json.loads(http_request.body.decode("utf-8"))
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_check()
 
-        errs = []
+        with LogElapse(performance_logger, "check elapse"):
+            reward = agent.check(**data)
 
-        if "state" not in data:
-            errs.append("request body missing 'state'")
-        if "selection" not in data:
-            errs.append("request body missing 'selection'")
-        if "action" not in data:
-            errs.append("request body missing 'action'")
-        if "inputs" not in data:
-            errs.append("request body missing 'inputs'")
+        return HttpResponse(json.dumps({'reward' : reward}))
 
-        if len(errs) > 0:
-            for err in errs:
-                log.error(err)
-            # print("errors: {}".format(",".join(errs)))
-            return HttpResponseBadRequest("errors: {}".format(",".join(errs)))
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"Check failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
 
-        agent = Agent.objects.get(id=agent_id)
-        agent.inc_check()
-        agent.save()
 
-        response = {}
+# -------------------------------------------------
+# : Get Skills
 
-        sai = Sai(
-            selection=data["selection"],
-            action=data["action"],
-            inputs=data["inputs"],
-        )
+def _standardize_get_skills_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
 
-        data['sai'] = sai
-        del data['selection']
-        del data['action']
-        del data['inputs']
+    agent_uid = ensure_field(data, "agent_uid", errs)
 
-        response["reward"] = agent.instance.check(**data)
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+
+    return data
+
+# ** END POINT ** 
+@csrf_exempt
+def get_skills(http_request):
+    """
+    """
+    try:
+        global dont_save
+        errs, warns = [], []
+
+        data = _standardize_get_skills_data(http_request, errs, warns)
+        if(isinstance(data, HttpResponse)): return data
+
+        agent, model = get_agent_by_uid(data['agent_uid'])
+
+        with LogElapse(performance_logger, "get_skills elapse"):
+            response = agent.get_skills(**data, json_friendly=True)
+
         return HttpResponse(json.dumps(response))
 
     except Exception as exp:
-        log.exception('ERROR IN TRAIN')
-        log.error('POST data:')
-        log.error(data)
-        return HttpResponseServerError(str(exp))
+        tb_str = traceback.format_exc()
+        message = f"Get skills failed with exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
 
 
-@csrf_exempt
-def check_by_name(http_request, agent_name):
-    """
-    A version of check that can look up an agent by its name. This will
-    generally be slower but it also doesn't expose how the data is stored and
-    might be easier in some cases.
-    """
-    agent = get_list_or_404(Agent, name=agent_name)[0]
-    return check(http_request, agent.id)
-
-
-def report(http_request, agent_id):
+# NOTE DEPRICATED
+def report(http_request):
     """
     A simple method for looking up an agent's stats. I've found it to be
     really helpful for looking an agent's idea from its name to speed up
@@ -459,34 +529,34 @@ def report(http_request, agent_id):
     if http_request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
 
-    agent = get_object_or_404(Agent, id=agent_id)
+    model = get_object_or_404(Agent, id=agent_uid)
 
     response = {
-        "id": agent.id,
-        "name": agent.name,
-        "num_request": agent.num_request,
-        "num_train": agent.num_train,
-        "num_check": agent.num_check,
-        "created": agent.created,
-        "updated": agent.updated,
+        "id": model.id,
+        "name": model.name,
+        "num_request": model.num_request,
+        "num_train": model.num_train,
+        "num_check": model.num_check,
+        "created": model.created,
+        "updated": model.updated,
     }
 
     response = {k: str(response[k]) for k in response}
     return HttpResponse(json.dumps(response))
 
 
-def report_by_name(http_request, agent_name):
-    """
-    A version of report that can look up an agent by its name. This will
-    generally be slower but it also doesn't expose how the data is stored and
-    might be easier in some cases.
-    """
-    agent = get_list_or_404(Agent, name=agent_name)[0]
-    return report(http_request, agent.id)
+# def report_by_name(http_request, agent_name):
+#     """
+#     A version of report that can look up an agent by its name. This will
+#     generally be slower but it also doesn't expose how the data is stored and
+#     might be easier in some cases.
+#     """
+#     agent = get_list_or_404(Agent, name=agent_name)[0]
+#     return report(http_request, agent.id)
 
 
-@csrf_exempt
-def test_view(http_request):
-    return render(
-        http_request, "apprentice_learner/tester.html", {"agents": Agent.objects.all()}
-    )
+# @csrf_exempt
+# def test_view(http_request):
+#     return render(
+#         http_request, "apprentice_learner/tester.html", {"agents": Agent.objects.all()}
+#     )

@@ -20,6 +20,9 @@ class Registery():
             raise ValueError(f"No {self.full_descr} registered with name {name!r}.")
         return self.reg_dict[name]
 
+    def __iter__(self):
+        return iter(self.reg_dict.values())
+
     def __setitem__(self, name, val):
         self.reg_dict[name] = val
 
@@ -28,6 +31,11 @@ class Registery():
 
     def __len__(self):
         return len(self.reg_dict)
+
+    def __str__(self):
+        return str(self.reg_dict)
+
+    __repr__ = __str__
 
 def _resolve_name(obj, name_resolver=None):
     if(name_resolver is not None):
