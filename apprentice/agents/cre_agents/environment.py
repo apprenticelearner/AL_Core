@@ -2,6 +2,7 @@ from cre import define_fact, Fact, Conditions
 # from cre.default_funcs import CastFloat
 from apprentice.agents.cre_agents.extending import new_register_decorator, new_register_all
 from .funcs import CastFloat, CastStr
+from copy import copy
 
 
 # NOTE : env_config might be unecessary
@@ -109,13 +110,16 @@ def html_constraints(_vars):
 # NOTE: work in progress 
 
 class ActionType(object):
-    def __init__(self, name, input_spec, expected_change):
+    def __init__(self, name, input_spec, apply_expected_change):
         self.name = name
         self.input_spec = input_spec
-        self.expected_change = expected_change
+        self.apply_expected_change = apply_expected_change
 
-    def predict_change(self, state, sai):
-        return self.expected_change(state,sai)
+    def predict_state_change(self, state, sai):
+        cpy = copy(state)
+        selection = cpy.get_fact(id=sai.selection.id)
+        self.apply_expected_change(cpy, selection, sai.inputs)
+        return cpy
 
     def __getitem__(self, attr):
         return self.input_spec[attr]
@@ -130,8 +134,8 @@ class ActionType(object):
         return f"ActionType(name={self.name}, spec={self.input_spec})"
 
 def define_action_type(name, input_spec, *args):
-    def wrapper(expected_change):
-        return ActionType(name, input_spec, expected_change)
+    def wrapper(apply_expected_change):
+        return ActionType(name, input_spec, apply_expected_change)
     if(len(args) > 0):
         return wrapper(*args)
     else:
@@ -154,35 +158,35 @@ with register_all_action_types as HTML_action_type_set:
     @define_action_type("PressButton", {
         'value' : {'type' : int, "semantic" : False}
         })
-    def PressButton(wm, sai):
+    def PressButton(wm, selection, inputs):
         pass
 
     @define_action_type("ButtonPressed", {
         'value' : {'type' : int, "semantic" : False}
         })
-    def ButtonPressed(wm, sai):
+    def ButtonPressed(wm, selection, inputs):
         pass
 
     @define_action_type("UpdateTextArea", {
         'value' : {'type' : str, "semantic" : True}
         })
-    def UpdateTextArea(wm, sai):
-        wm.modify(sai.selection, 'value', sai.input['value'])
-        wm.modify(sai.selection, 'locked', True)
+    def UpdateTextArea(wm, selection, inputs):
+        wm.modify(selection, 'value', inputs['value'])
+        wm.modify(selection, 'locked', True)
 
     @define_action_type("UpdateTextField", {
         'value' : {'type' : str, "semantic" : True}
         })
-    def UpdateTextField(wm, sai):
-        wm.modify(sai.selection, 'value', sai.input['value'])
-        wm.modify(sai.selection, 'locked', True)
+    def UpdateTextField(wm, selection, inputs):
+        wm.modify(selection, 'value', inputs['value'])
+        wm.modify(selection, 'locked', True)
 
     @define_action_type("UpdateField", {
         'value' : {'type' : str, "semantic" : True}
         })
-    def UpdateField(wm, sai):
-        wm.modify(sai.selection, 'value', sai.input['value'])
-        wm.modify(sai.selection, 'locked', True)
+    def UpdateField(wm, selection, inputs):
+        wm.modify(selection, 'value', inputs['value'])
+        wm.modify(selection, 'locked', True)
 
 HTML_action_type_set = {x.name: x for x in HTML_action_type_set}
 # HTML_action_type_set = {

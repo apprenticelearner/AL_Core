@@ -13,7 +13,7 @@ register_feature_factory = new_register_decorator("feature_factory",
 # : SkillCandidates
 
 from numba import njit, types
-from numba.types import Tuple, i8, TypeRef
+from numba.types import Tuple, i8, TypeRef, unicode_type
 from cre import TF
 from cre.gval import new_gval
 from cre.utils import _struct_tuple_from_pointer_arr, _func_from_address, PrintElapse, _struct_from_ptr
@@ -27,7 +27,7 @@ from cre.transform.enumerizer import EnumerizerType
 # @njit(cache=True)
 @njit(cache=True, locals={"match_ptr_set" : i8[::1]})
 def declare_skill_cands(memset, enumerizer, _how_part,
-            id_num, match_ptrs, tuple_type, cre_func_type):
+            uid, match_ptrs, tuple_type, cre_func_type):
     how_part = cast(_how_part, cre_func_type)
     # print("--------------")
     # if(len(match_ptrs) > 10):
@@ -41,20 +41,20 @@ def declare_skill_cands(memset, enumerizer, _how_part,
         except:
             continue
         # print("VAL@", match[1:], val)
-        head = TF("SkillCand:", cast(how_part, CREFuncType), id_num, *match)
+        head = TF("SkillCand:", cast(how_part, CREFuncType), uid, *match)
         # print(head)
-        nom  = enumerizer.enumerize(val)
+        nom  = enumerizer.to_enum(val)
         # TODO: Should also try to make float
         gval = new_gval(head, val, nom=nom)
         memset.declare(gval)
 
 @njit(cache=True, locals={"match_ptr_set" : i8[::1]})
-def declare_skill_const(memset, how_part, id_num, match_ptrs, tuple_type):
+def declare_skill_const(memset, how_part, uid, match_ptrs, tuple_type):
     for i in range(len(match_ptrs)):
         match_ptr_set = match_ptrs[i]
         match = _struct_tuple_from_pointer_arr(tuple_type, match_ptr_set)
         val = how_part
-        head = TF("SkillCand:", how_part, id_num, *match)
+        head = TF("SkillCand:", how_part, uid, *match)
         gval = new_gval(head, val)
         memset.declare(gval)
 
@@ -66,9 +66,9 @@ def get_declare_skill_cands_impl(how_part):
         return_type = typeof(how_part)
         if(return_type not in _declare_skill_cands_cache):
             tuple_type = Tuple(tuple([TypeRef(CREObjType)]))
-            @njit(types.void(MemSetType, EnumerizerType, return_type, i8, i8[:,::1]), cache=True)
-            def _declare_skill_const(memset, enumerizer, how_part, id_num, match_ptrs):
-                declare_skill_const(memset, how_part, id_num, match_ptrs, tuple_type)
+            @njit(types.void(MemSetType, EnumerizerType, return_type, unicode_type, i8[:,::1]), cache=True)
+            def _declare_skill_const(memset, enumerizer, how_part, uid, match_ptrs):
+                declare_skill_const(memset, how_part, uid, match_ptrs, tuple_type)
             _declare_skill_cands_cache[return_type] = _declare_skill_const
         sig = return_type
     elif(sig not in _declare_skill_cands_cache):
@@ -77,9 +77,9 @@ def get_declare_skill_cands_impl(how_part):
         # call_type = types.FunctionType(sig)#.return_type(i8[::1]))
         # check_type = types.FunctionType(types.boolean(*sig.args))#.return_type(i8[::1]))
         
-        @njit(types.void(MemSetType, EnumerizerType, CREFuncType, i8, i8[:,::1]), cache=True)
-        def _declare_skill_cands(memset, enumerizer, how_part, id_num, match_ptrs):
-            declare_skill_cands(memset, enumerizer, how_part, id_num,
+        @njit(types.void(MemSetType, EnumerizerType, CREFuncType, unicode_type, i8[:,::1]), cache=True)
+        def _declare_skill_cands(memset, enumerizer, how_part, uid, match_ptrs):
+            declare_skill_cands(memset, enumerizer, how_part, uid,
              match_ptrs, tuple_type, cre_func_type)
         
         _declare_skill_cands_cache[sig] = _declare_skill_cands
@@ -95,7 +95,7 @@ def SkillCandidates(agent, state, feat_state):
     # print("*********************")
     # with PrintElapse("\t\t\tSkillCandidates"):
     # print("N SKILLS:", len(agent.skills))
-    for skill in agent.skills:
+    for uid, skill in agent.skills.items():
         # print(">>", skill)
         # Turn the matches into a 2d array of pointers
         # with PrintElapse("\t\t\tget_matches"):
@@ -113,8 +113,8 @@ def SkillCandidates(agent, state, feat_state):
             # with PrintElapse("\t\t\tget_declare"):
             msc = get_declare_skill_cands_impl(skill.how_part)
             # with PrintElapse("\t\t\tcall_declare"):
-            # print(":::", skill.how_part, skill.id_num)
-            msc(feat_state, agent.enumerizer, skill.how_part, skill.id_num, match_ptrs)
+            # print(":::", skill.how_part, skill.uid)
+            msc(feat_state, agent.enumerizer, skill.how_part, skill.uid, match_ptrs)
         # else:
             # print(";;;", skill.how_part)
     return feat_state

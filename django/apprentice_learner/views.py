@@ -23,8 +23,6 @@ from apprentice.shared import rand_agent_uid
 import importlib
 
 
-# from apprentice.working_memory.representation import Sai
-
 log = logging.getLogger('al-django')
 performance_logger = logging.getLogger('al-performance')
 
@@ -216,7 +214,7 @@ def create(http_request):
 
 
 # --------------------------------------------------------------
-# : Act
+# : Act, Act_All, Act_Rollout
 
 def _standardize_act_data(http_request, errs=[], warns=[]):
     if http_request.method != "POST":
@@ -297,14 +295,11 @@ def act(http_request):
         if(model): model.inc_act()    
 
         # Call Act to get the action from the agent 
-        with LogElapse(performance_logger, "act elapse"):
+        with LogElapse(performance_logger, "act() elapse"):
             response = agent.act(**data, json_friendly=True)
 
-        # Esnure response is indeed json_friendly
-        ret_all = data.get('return_all', False)
-        response = _standardize_act_response(response, ret_all, errs, warns)
-
-        print(response)
+        # Ensure response is indeed json_friendly
+        response = _standardize_act_response(response, False, errs, warns)
 
         if not dont_save:
             log.warning('Agent is being saved! This is probably not working.')
@@ -322,9 +317,99 @@ def act(http_request):
         log.error(message)
         return HttpResponseServerError(message)
 
+# ** END POINT ** 
+@csrf_exempt
+def act_all(http_request):
+    """
+    Takes an 'agent_uid' and 'state', and returns the highest priority next action that 
+    the agent believes it should take next. If the request has return_all=True, then 
+    a list of all next actions are returned instead. Each action should have at least  
+    the fields 'selection', 'action_type', and 'inputs' (i.e. an SAI). The agent implementation
+    is free to add additional action fields. For instance, an extended set of fields might 
+    describe describing how an underlying skill within the agent applied each action
+    (i.e. a SkillApplication).
+    """
+    global dont_save
+    errs, warns = [], []
+
+    # Ensure request data is valid and in consitent format
+    data = _standardize_act_data(http_request, errs, warns)
+    if(isinstance(data, HttpResponse)): return data
+
+    try:
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_act()    
+
+        # Call Act to get the action from the agent 
+        with LogElapse(performance_logger, "act_all() elapse"):
+            response = agent.act_all(**data, json_friendly=True)
+
+        # Ensure response is indeed json_friendly
+        response = _standardize_act_response(response, True, errs, warns)
+
+        if not dont_save:
+            log.warning('Agent is being saved! This is probably not working.')
+            if(model): model.save()
+
+        # Emit any warnings
+        for w in warns:
+            log.warn(w)
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"act_all() failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
+
+
+# ** END POINT ** 
+@csrf_exempt
+def act_rollout(http_request):
+    """
+    Applies act_all() repeatedly starting from 'state', and fanning out to create at 
+    tree of all action rollouts up to some depth. At each step in this process the agent's 
+    actions produce subsequent states based on the default state change defined by each 
+    action's ActionType object. A list of 'halt_policies' specifies a set of functions that 
+    when evaluated to false prevent further actions. Returns a tuple (states, action_infos).
+    """
+    global dont_save
+    errs, warns = [], []
+
+    # Ensure request data is valid and in consitent format
+    data = _standardize_act_data(http_request, errs, warns)
+    if(isinstance(data, HttpResponse)): return data
+
+    try:
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_act()    
+
+        # Call Act to get the action from the agent 
+        with LogElapse(performance_logger, "act_rollout() elapse"):
+            response = agent.act_rollout(**data, json_friendly=True)
+
+        print(response)
+
+        if not dont_save:
+            log.warning('Agent is being saved! This is probably not working.')
+            if(model): model.save()
+
+        # Emit any warnings
+        for w in warns:
+            log.warn(w)
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"act_rollout() failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
+
 
 # ---------------------------------------------------------------------
-# : Train
+# : Train, Train_All
 
 def _del_keys(data,keys):
     for key in keys:
@@ -368,7 +453,7 @@ def train(http_request):
         agent, model = get_agent_by_uid(data['agent_uid'])
         if(model): model.inc_train()
 
-        with LogElapse(performance_logger, "train elapse"):
+        with LogElapse(performance_logger, "train() elapse"):
             response = agent.train(**data)
 
         if not dont_save:
@@ -415,7 +500,7 @@ def explain_demo(http_request):
         agent, model = get_agent_by_uid(data['agent_uid'])
         if(model): model.inc_train()
 
-        with LogElapse(performance_logger, "explain_demo elapse"):
+        with LogElapse(performance_logger, "explain_demo() elapse"):
             response = agent.explain_demo(**data, json_friendly=True)
 
         return HttpResponse(json.dumps(response))
@@ -463,7 +548,7 @@ def check(http_request):
         agent, model = get_agent_by_uid(data['agent_uid'])
         if(model): model.inc_check()
 
-        with LogElapse(performance_logger, "check elapse"):
+        with LogElapse(performance_logger, "check() elapse"):
             reward = agent.check(**data)
 
         return HttpResponse(json.dumps({'reward' : reward}))

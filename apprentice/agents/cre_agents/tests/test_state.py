@@ -59,17 +59,18 @@ def test_encode_neighbors():
 
 def test_flatten_featurize():
     agent = object()
-    state = State(agent)
+    state_cls = State(agent)
+
 
     fl = Flattener((Component, Button, TextField, Container))
     fe = FeatureApplier([Equals(unicode_type, unicode_type)])
 
-    @state.register_transform(is_incremental=True, prereqs=['working_memory'])
+    @state_cls.register_transform(is_incremental=True, prereqs=['working_memory'])
     def flat(state):
         wm = state.get('working_memory')
         return fl(wm)
 
-    @state.register_transform(is_incremental=True, prereqs=['flat'])
+    @state_cls.register_transform(is_incremental=True, prereqs=['flat'])
     def flat_featurized(state):
         flat = state.get('flat')
         return fe(flat)
@@ -86,6 +87,7 @@ def test_flatten_featurize():
     wm.declare(c)
     wm.declare(d)
 
+    state = state_cls()
     state.set("working_memory", wm)
     flat = state.get("flat")
     feat = state.get("flat_featurized")
@@ -124,7 +126,7 @@ def test_full_when_pipeline():
     print(py_dicts)
 
     agent = object()
-    state = State(agent)
+    state_cls = State(agent)
 
     fact_types = (Component, Button, TextField, Container)
     val_types = [f8, string, boolean]
@@ -135,16 +137,17 @@ def test_full_when_pipeline():
     re = RelativeEncoder(fact_types)
     ve = Vectorizer(val_types)
 
-    @state.register_transform(is_incremental=True, prereqs=['working_memory'])
+    @state_cls.register_transform(is_incremental=True, prereqs=['working_memory'])
     def flat(state):
         wm = state.get('working_memory')
         return fl(wm)
 
-    @state.register_transform(is_incremental=True, prereqs=['flat'])
+    @state_cls.register_transform(is_incremental=True, prereqs=['flat'])
     def flat_featurized(state):
         flat = state.get('flat')
         return fe(flat)
 
+    state = state_cls()
     py_dicts = encode_neighbors(py_dicts)
     wm = msb(py_dicts)
     state.set("working_memory", wm)
@@ -165,5 +168,5 @@ def test_full_when_pipeline():
 
 
 if __name__ == "__main__":
-    # test_flatten_featurize()
+    test_flatten_featurize()
     test_full_when_pipeline()

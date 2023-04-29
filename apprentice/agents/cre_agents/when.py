@@ -68,20 +68,52 @@ class VectorTransformMixin():
         self.starting_state_format = 'flat_featurized'
         self.encode_relative = encode_relative
         self.extra_features = extra_features
+        self.one_hot = one_hot
+        
         agent = skill.agent
 
         # Encode Missing By Default
         if(encode_missing is None):
-            encode_missing = one_hot
+            self.encode_missing = one_hot
 
 
         # Initialize or retrive vectorizer
         # if(hasattr(agent, 'vectorizer')):
         #     self.vectorizer = agent.vectorizer
         # else:
-        from numba.types import f8, string, boolean
+        from numba.types import f8, i8, string, boolean
         from cre.transform import Vectorizer
-        self.vectorizer = Vectorizer([f8, string, boolean], one_hot, encode_missing)
+        self.vectorizer = Vectorizer([f8, string, boolean], one_hot, self.encode_missing)
+
+
+        if(self.agent.enumerizer):
+
+            # Recovers original keys and values before enumerization and vectorization  
+            def inv_mapper(key_ind, val_nom):
+                from cre import Var, CREFunc
+                from cre.tuple_fact import TupleFactProxy
+                if(self.one_hot):
+                    key, nom = self.vectorizer.unvectorize(key_ind)
+                else:
+                    key, nom = self.vectorizer.unvectorize(key_ind, val_nom)
+
+                if(isinstance(key, TupleFactProxy)):
+                    key_head = key[0]
+                    if(isinstance(key_head, (Var, CREFunc))):
+                        typ = key_head.return_type
+
+                    # TODO: Perhaps there is a less hardcoded way of doing this.
+                    elif(key_head == "SkillCand:"):
+                        typ = key[1].return_type
+                else:
+                    typ = key.return_type
+
+                if((not self.one_hot or self.encode_missing) and nom == 0):
+                    val = "MISSING"
+                else:
+                    val = self.agent.enumerizer.from_enum(nom, typ)
+                return key, val
+            self.inv_mapper = inv_mapper
 
         # if(one_hot):
         #     from sklearn.preprocessing import OneHotEncoder
@@ -159,6 +191,7 @@ class VectorTransformMixin():
             #  to find bug associated with this
             featurized_state = self.relative_encoder.encode_relative_to(
                 featurized_state, [match[0]], [_vars[0]])
+            # print(featurized_state)
             # featurized_state, match, _vars)
 
         # print(shorthand_state_rel(featurized_state))
@@ -184,7 +217,7 @@ class VectorTransformMixin():
 
         #### -------Print mapping------------####
         # print("---------------------------------------")
-        # for (ind, val) in self.vectorizer.get_inv_map().items():
+        # for (ind, val) in self.vectorizer.make_inv_map().items():
         #     print("*", ind, nominal[ind], ind,val)
         # ind_vals = sorted([(ind, str(val)) for (ind, val) in self.vectorizer.get_inv_map().items()],
         #                 key=lambda t : t[1])
@@ -287,7 +320,6 @@ class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
 
 np.set_printoptions(edgeitems=300000, linewidth=10000000)
 
-# Note: Has bugs
 @register_when
 class DecisionTree(BaseWhen, VectorTransformMixin):
     def __init__(self, skill, impl="decision_tree",
@@ -296,7 +328,7 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
         from stand.tree_classifier import TreeClassifier
 
         VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
-        self.classifier = TreeClassifier(impl)
+        self.classifier = TreeClassifier(impl, inv_mapper=self.inv_mapper)
         # self.X = []
         # self.Y = []
 
@@ -312,6 +344,7 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
         # print(Y)
         # with PrintElapse("A"):
         self.classifier.fit(X, None, Y)
+        print(self.classifier)
 
 
 
@@ -334,7 +367,6 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
 from .debug_utils import shorthand_state_rel
 
 
-# Note: Has bugs
 @register_when
 class STAND(BaseWhen, VectorTransformMixin):
     def __init__(self, skill,

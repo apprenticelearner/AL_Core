@@ -46,6 +46,8 @@ def test_cre_agent():
     py_dict = new_mc_addition_state(456,582) 
 
     print(agent.act(py_dict))
+    print(agent.act_all(py_dict))
+    print(agent.act_rollout(py_dict))
 
     print("---------------------------")
 

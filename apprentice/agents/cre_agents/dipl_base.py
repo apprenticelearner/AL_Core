@@ -98,7 +98,6 @@ class BaseDIPLAgent(object):
 
         self.action_types = config_get(['action_types'], default='html',
             registry=registries.get('action_type_set',{}))
-        print("<<", self.action_types)
 
         self.action_chooser = config_get("action_chooser",
             default='max_which_utility', registry=registries['skill_app_chooser'])
@@ -109,9 +108,7 @@ class BaseDIPLAgent(object):
         self.constraints = config_get(['constraints','environment', 'env'], default='html',
             registry=registries.get('constraint',[]))
 
-        print(registries)
         self.conversions = list(registries.get('conversion',[]))
-        print(self.conversions)
 
         self.config = {k:v for k,v in config.items() if k not in covered}
 

@@ -25,27 +25,70 @@ transfrom_registry = registries['transform']
 # A dictionary of to_type : {**from_type : transform_func}
 # registered_transforms = {}
 from cre.utils import PrintElapse
-class State:
-    def clear(self, keep_incr=True):
-        # if("working_memory" in self.state_formats):
-        #     wm = self.state_formats['working_memory'][0]
-        #     print("WM REFS", wm._meminfo.refcount)
-        #     with PrintElapse("free"):
-        #         wm.free()
 
+
+# Usage Note: State is a class factory of itself
+#  It makes a state class bound to an agent
+#    state_cls = State(agent)
+#  Transforms can be registered on it 
+#    @state_cls.register_transform(...)
+#    def my_transform(...):
+#        ...
+#  Individual state instances are created from that class
+#    state = state_cls({"my_format" : ...})
+
+class State():    
+    # ------
+    # : Class Methods
+
+    # When State(agent) is called a new state_cls is created
+    #  on which a set of transforms can be registered
+
+    def __inst_new__(cls, state_formats={}):
+        return object.__new__(cls)
+
+    def __new__(cls, agent):
+        scls = type('State', (State,),{
+            # The agent and registered transforms are class attributes
+            'agent' : agent,
+            'transforms': {},
+
+            # Use default __new__ in subclass 
+            '__new__' : cls.__inst_new__
+        })
+        return scls
+
+    @classmethod
+    def register_transform(cls, *args, name=None, **kwargs):
+        from apprentice.agents.cre_agents.extending import _register
+        if(len(args) >= 1):
+            return _register(args[0], cls.transforms, name, 
+                insert_func=insert_transform, kwargs=kwargs)
+        else:
+            return lambda obj: _register(obj, cls.transforms, name, 
+                insert_func=insert_transform,  kwargs=kwargs)        
+
+    # ------
+    # : Instance Methods
+
+    def __init__(self, state_formats={}):
+        formats = {}
+        for key, val in state_formats.items():
+            if(not isinstance(val, tuple)):
+                formats[key] = (val, {}) 
+            else:
+                formats[key] = val
+        self.state_formats = formats
+
+    # TODO : Instead of cleaning up all old except is_incremental parts 
+    #    should instead do something like join() on the incremental_parts
+    def clear(self, keep_incr=True):
         state_formats = {}
         if(keep_incr):
             for k, (val, config) in self.state_formats.items():
                 if(config.get("is_incremental", False)):
                     state_formats[k] = (val, config)
         self.state_formats = state_formats
-
-
-
-    def __init__(self, agent):
-        self.agent = agent
-        self.state_formats = {}
-        self.transforms = {}
 
     def get_transform(self, frmt):
         if(frmt in self.transforms):
@@ -78,14 +121,6 @@ class State:
         else:
             return val, config
 
-    def register_transform(self, *args, name=None, **kwargs):
-        from apprentice.agents.cre_agents.extending import _register
-        if(len(args) >= 1):
-            return _register(args[0], self.transforms, name, 
-                insert_func=insert_transform, kwargs=kwargs)
-        else:
-            return lambda obj: _register(obj, self.transforms, name, 
-                insert_func=insert_transform,  kwargs=kwargs)        
 
     def __getitem__(self, frmt):
         return self.state_format[frmt]
