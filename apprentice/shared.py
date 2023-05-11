@@ -26,7 +26,10 @@ class SAI(object):
                 selection, action_type, inputs = inp
             elif(isinstance(inp, dict)):
                 selection = inp['selection']
-                action_type = inp.get('action_type', inp['action'])
+                # action_type = inp.get('action_type', inp['action'])
+                action_type = inp.get('action_type', None)
+                if action_type == None:
+                    action_type = inp['action']
                 inputs = inp['inputs']
             else:
                 raise ValueError(f"Unable to translate {inp} to SAI.")

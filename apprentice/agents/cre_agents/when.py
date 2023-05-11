@@ -111,7 +111,10 @@ class VectorTransformMixin():
                 if((not self.one_hot or self.encode_missing) and nom == 0):
                     val = "MISSING"
                 else:
-                    val = self.agent.enumerizer.from_enum(nom, typ)
+                    try:
+                        val = self.agent.enumerizer.from_enum(nom, typ)
+                    except ValueError:
+                        val = "NOENUM"
                 return key, val
             self.inv_mapper = inv_mapper
 
@@ -146,7 +149,7 @@ class VectorTransformMixin():
         for extra_feature in self.extra_features:
             featurized_state = extra_feature(self, state, featurized_state, match)
 
-        # print(featurized_state)
+        # print(featurized_state) NR
         # Add skill app candidates
         # for skill in agent.skills:
         #     for match in skill.where_lrn_mech.get_matches(state):
@@ -191,7 +194,7 @@ class VectorTransformMixin():
             #  to find bug associated with this
             featurized_state = self.relative_encoder.encode_relative_to(
                 featurized_state, [match[0]], [_vars[0]])
-            # print(featurized_state)
+            # print(featurized_state) NR
             # featurized_state, match, _vars)
 
         # print(shorthand_state_rel(featurized_state))

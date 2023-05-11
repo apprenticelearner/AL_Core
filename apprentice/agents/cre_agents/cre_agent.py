@@ -313,6 +313,10 @@ class CREAgent(BaseDIPLAgent):
     def standardize_halt_policy(self, halt_policy):
         pass
 
+# --- NR ----
+
+    def get_skills(self):
+        return self.skills.values()
 
 # ------------------------------------------------
 # : Act, Act_All
@@ -330,6 +334,7 @@ class CREAgent(BaseDIPLAgent):
             json_friendly=False,
             **kwargs):
 
+        self.prev_skill_app = None
         state = self.standardize_state(state)
         skill_apps = self.get_skill_applications(state)
 
@@ -351,6 +356,7 @@ class CREAgent(BaseDIPLAgent):
         return_kind='sai',
         json_friendly=False,
         **kwargs):
+
 
         state = self.standardize_state(state)
         skill_apps = self.get_skill_applications(state)
