@@ -333,7 +333,6 @@ class CREAgent(BaseDIPLAgent):
             return_kind='sai', # 'sai' | 'skill_app'
             json_friendly=False,
             **kwargs):
-
         self.prev_skill_app = None
         state = self.standardize_state(state)
         skill_apps = self.get_skill_applications(state)
