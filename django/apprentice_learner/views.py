@@ -161,7 +161,7 @@ def _make_agent(data, errs=[], warns=[]):
             f"No agent type registered with name {data['type']!r}.")
 
     # Import the agent class, make an agent instance, and give it a new uid.
-    try: 
+    try:
         agent_class = getattr(importlib.import_module(path), class_name)
         agent = agent_class(**data['args'])
         agent_model = Agent(instance=agent, name=data['name'])
@@ -389,7 +389,7 @@ def act_rollout(http_request):
         with LogElapse(performance_logger, "act_rollout() elapse"):
             response = agent.act_rollout(**data, json_friendly=True)
 
-        print(response)
+        # print(response)
 
         if not dont_save:
             log.warning('Agent is being saved! This is probably not working.')
@@ -468,6 +468,63 @@ def train(http_request):
         log.error(message)
         return HttpResponseServerError(message)
 
+def _standardize_train_all_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    # print("STANDARD TRAIN ALL", data)
+    ensure_field(data, "training_set", errs)
+    ensure_field(data, "agent_uid", errs)
+
+    for item in data['training_set']:
+        ensure_field(item, "state", errs)
+        selection = ensure_field(item, "selection", errs)
+        action_type = ensure_field(item, ('action_type', 'action'), errs)
+        inputs = ensure_field(item, ('inputs', 'input'), errs)
+        ensure_field(item, 'reward', errs)
+
+        item['sai'] = (selection, action_type, inputs)
+        _del_keys(item, ['selection', 'action_type', 'action', 'inputs', 'input'])
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+    return data
+
+@csrf_exempt
+def train_all(http_request):
+    """
+    As train but trains examples multiple at once 
+    """
+    global dont_save
+    errs, warns = [], []
+
+    data = _standardize_train_all_data(http_request, errs, warns)
+    print("TRAIN ALL:", data)
+    try:
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_train()
+
+
+        with LogElapse(performance_logger, "train_all() elapse"):
+            response = agent.train_all(**data)
+
+        if not dont_save:
+            log.warning('Agent is being saved! This is probably not working.')
+            if(model): model.save()
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"train_all() failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
+
+
+
 # ---------------------------------------------------------------------
 # : Explain Demo
 
@@ -481,7 +538,6 @@ def _standardize_explain_demo_data(http_request, errs=[], warns=[]):
     selection = ensure_field(data, "selection", errs)
     action_type = ensure_field(data, ('action_type', 'action'), errs)
     inputs = ensure_field(data, ('inputs', 'input'), errs)
-    ensure_field(data, 'reward', errs)
 
     data['sai'] = (selection, action_type, inputs)
     _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
@@ -490,11 +546,12 @@ def _standardize_explain_demo_data(http_request, errs=[], warns=[]):
         for err in errs:
             log.error(err)
         return HttpResponseBadRequest(json.dumps({"errors": errs}))
+    return data
 
 @csrf_exempt
 def explain_demo(http_request):
     errs, warns = [], []
-    data = _standardize_train_data(http_request, errs, warns)
+    data = _standardize_explain_demo_data(http_request, errs, warns)
 
     try:
         agent, model = get_agent_by_uid(data['agent_uid'])
@@ -508,6 +565,29 @@ def explain_demo(http_request):
     except Exception as exp:
         tb_str = traceback.format_exc()
         message = f"explain_demo() failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
+
+# ---------------------------------------------------------------------
+# : Predict Next State
+
+@csrf_exempt
+def predict_next_state(http_request):
+    errs, warns = [], []
+    data = _standardize_explain_demo_data(http_request, errs, warns)
+    
+    try:
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_train()
+
+        with LogElapse(performance_logger, "predict_next_state() elapse"):
+            response = agent.predict_next_state(**data, json_friendly=True)
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"predict_next_state() failed with an exception:\n{tb_str}"
         log.error(message)
         return HttpResponseServerError(message)
 

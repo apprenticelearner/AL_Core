@@ -109,7 +109,7 @@ class VectorTransformMixin():
                     typ = key.return_type
 
                 if((not self.one_hot or self.encode_missing) and nom == 0):
-                    val = "MISSING"
+                    val = None
                 else:
                     val = self.agent.enumerizer.from_enum(nom, typ)
                 return key, val
@@ -189,6 +189,8 @@ class VectorTransformMixin():
             # Featurize state relative to selection
             #  NOTE: Could also use arguments, but there is currently a hard
             #  to find bug associated with this
+            # print(match[0], type(match[0]))
+            # print(featurized_state)
             featurized_state = self.relative_encoder.encode_relative_to(
                 featurized_state, [match[0]], [_vars[0]])
             # print(featurized_state)
@@ -344,7 +346,7 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
         # print(Y)
         # with PrintElapse("A"):
         self.classifier.fit(X, None, Y)
-        print(self.classifier)
+        # print(self.classifier)
 
 
 

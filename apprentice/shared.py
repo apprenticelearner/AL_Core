@@ -25,8 +25,12 @@ class SAI(object):
             elif(isinstance(inp, (list,tuple))):
                 selection, action_type, inputs = inp
             elif(isinstance(inp, dict)):
+                print(inp)
                 selection = inp['selection']
-                action_type = inp.get('action_type', inp['action'])
+
+                action_type = inp.get('action_type', inp.get('action'))
+                if(action_type is None):
+                    raise KeyError("'action_type' | 'action'")
                 inputs = inp['inputs']
             else:
                 raise ValueError(f"Unable to translate {inp} to SAI.")
@@ -48,8 +52,18 @@ class SAI(object):
             other = other.as_tuple()
         return self.as_tuple() == other
 
-    def __getitem__(self, i):
-        return self.as_tuple()[i]
+    def __getitem__(self, item):
+        if(isinstance(item, int)):
+            return self.as_tuple()[item]
+        else:
+            if(item == "selection"):
+                return self.selection
+            elif(item == "action_type" or item == "action"):
+                return self.action_type
+            elif(item == "inputs"):
+                return self.inputs
+            else:
+                raise KeyError(f"SAI has no such member item: {item!r}.")
 
     
     def get_info(self):
@@ -77,10 +91,10 @@ def rand_skill_uid():
     return f"SK_{''.join(sample_w_replacement(alpha_num_chars, k=30))}"
 
 def rand_skill_app_uid():
-    return f"SKA_{''.join(sample_w_replacement(alpha_num_chars, k=30))}"
+    return f"A_{''.join(sample_w_replacement(alpha_num_chars, k=30))}"
 
 def rand_state_uid():
-    return f"ST_{''.join(sample_w_replacement(alpha_num_chars, k=30))}"
+    return f"S_{''.join(sample_w_replacement(alpha_num_chars, k=30))}"
 
 def rand_agent_uid():
     return f"AG_{''.join(sample_w_replacement(alpha_num_chars, k=30))}"

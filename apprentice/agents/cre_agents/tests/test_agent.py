@@ -87,8 +87,40 @@ def test_cre_agent():
 
     print(agent.act(py_dict))
 
+def test_feedback_updating():
+    function_set = ["Add3", "Mod10", "Add", "Div10", "Copy"]
+    # Test no FOCI
+    agent = CREAgent(feature_set=[], function_set=function_set,
+                     where="antiunify")
+
+    py_dict = new_mc_addition_state(567,491) 
+    print(agent.act(py_dict))
+
+    # Same as example above, but add preceeding negative examples that  
+    #  should be overridden.
+    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), -1)
+    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), -1)
+    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), 1)
+    py_dict['0_answer'].update({"value" : '8', "locked" : True})
+
+    agent.train(py_dict, ( "1_answer", "UpdateTextField", {"value": 5} ), 1)
+    py_dict['1_answer'].update({"value" : '5', "locked" : True})
+
+    agent.train(py_dict, ( "2_carry", "UpdateTextField", {"value": 1} ), 1)
+    py_dict['2_carry'].update({"value" : '1', "locked" : True})
+
+    agent.train(py_dict, ( "2_answer", "UpdateTextField", {"value": 0} ), 1)
+    py_dict['2_answer'].update({"value" : '0', "locked" : True})
+
+    agent.train(py_dict, ( "3_carry", "UpdateTextField", {"value": 1} ), 1)
+    py_dict['3_carry'].update({"value" : '1', "locked" : True})
+
+    agent.train(py_dict, ( "3_answer", "UpdateTextField", {"value": 1} ), 1)
+    py_dict['3_answer'].update({"value" : '1', "locked" : True})
+
 
 if __name__ == "__main__":
     import faulthandler; faulthandler.enable()
     # test_init_base_dipl()
-    test_cre_agent()
+    # test_cre_agent()
+    test_feedback_updating()

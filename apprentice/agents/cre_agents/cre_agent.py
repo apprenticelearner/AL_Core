@@ -15,6 +15,8 @@ from copy import copy
 
 from numba.core.runtime.nrt import rtsys
 import gc
+import hashlib
+import base64
 
 def used_bytes(garbage_collect=True):
     # if(garbage_collect): gc.collect()
@@ -57,6 +59,21 @@ class SAI(BaseSAI):
         sel_str = self.selection.id if(isinstance(self.selection,FactProxy)) else self.selection
         at_str = self.action_type.name if(not isinstance(self.action_type, str)) else self.action_type
         return (sel_str, at_str, self.inputs)
+
+    def long_hash(self):
+        # A very explicit long hash, but conflict safe one 
+        #  TODO: consider a fixed-width, perhaps more efficient method.
+        sel = self.selection.id
+        atn = self.action_type.name
+        inp_summary = ",".join([f"{k}:{v}" for k,v in self.inputs.items()])
+        return f'{sel}|{atn}|{inp_summary}'
+
+def action_hash(state, sai):
+    h = hashlib.sha224()
+    h.update(state.get("__uid__", None).encode('utf-8'))
+    h.update(repr(sai).encode('utf-8'))
+    # Limit length to 30 chars to be consistent with other hashes 
+    return f"AC_{base64.b64encode(h.digest(), altchars=b'AB')[:30].decode('utf-8')}"
 
 # -----------------------
 # : Skill
@@ -144,7 +161,7 @@ class Skill(object):
 
     def __str__(self):
         min_str = minimal_func_str(self.how_part, ignore_funcs=self.agent.conversions)
-        return f"Skill_{self.uid[4:9]}({min_str})"
+        return f"Skill_{self.uid[3:8]}({min_str})"
 
 # -----------------------
 # : SkillApplication
@@ -234,6 +251,11 @@ class CREAgent(BaseDIPLAgent):
                 featurized_state = extra_feature(self, state, featurized_state)
 
             return featurized_state
+
+        @state_cls.register_transform(is_incremental=False, prereqs=['working_memory'])
+        def py_dict(state):
+            wm = state.get('working_memory')
+            return wm.as_dict(key_attr='id')
         
 
     def __init__(self, encode_neighbors=True, **config):
@@ -246,6 +268,7 @@ class CREAgent(BaseDIPLAgent):
         self.skills = {}
         self.skills_by_label = {}
         self.prev_skill_app = None
+        self.episodic_memory = {}
 
 
     def standardize_state(self, state, **kwargs):
@@ -267,7 +290,7 @@ class CREAgent(BaseDIPLAgent):
                 raise ValueError(f"Unrecognized State Type: \n{state}")
 
             if(state_uid is None):
-                state_uid = f"ST_{wm.long_hash()}"
+                state_uid = f"S_{wm.long_hash()}"
 
             state = self.state_cls({'__uid__' : state_uid, 'working_memory' : wm})
 
@@ -275,8 +298,15 @@ class CREAgent(BaseDIPLAgent):
         prev_skill_app = getattr(self,'prev_skill_app',None)
         if(prev_skill_app):
             wm = state.get("working_memory")
-            self.prev_skill_app.match =[wm.get_fact(id=m.id) for m in prev_skill_app.match]
 
+            # Try to recover the facts matched by the previous skill app in the new state
+            try:
+                self.prev_skill_app.match =[wm.get_fact(id=m.id) for m in prev_skill_app.match]
+            # However if that is impossible then ignore prev_skill_app
+            except:
+                # print([m.id for m in  prev_skill_app.match])
+                # print(wm)
+                self.prev_skill_app = None
         self.state = state
         return state
 
@@ -340,7 +370,8 @@ class CREAgent(BaseDIPLAgent):
                             
             if(json_friendly):
                 output = output.get_info()
-                
+        
+        # print(action_hash(state, output))
         return output
 
     def act_all(self, state,
@@ -397,7 +428,7 @@ class CREAgent(BaseDIPLAgent):
     
 
     def explain_from_skills(self, state, sai, 
-        arg_foci=None, skill_label=None, skill_uid=None):
+        arg_foci=None, skill_label=None, skill_uid=None, how_help=None):
 
         skills_to_try = self._skill_subset(sai, arg_foci, skill_label, skill_uid)
         skill_apps = []
@@ -427,8 +458,8 @@ class CREAgent(BaseDIPLAgent):
                         continue 
                     
                     explanation_set = self.how_lrn_mech.get_explanations(
-                        state, inp, arg_foci, function_set=[skill.how_part],
-                        search_depth=1, min_stop_depth=1)
+                        state, inp, arg_foci=arg_foci, function_set=[skill.how_part],
+                        how_help=how_help, search_depth=1, min_stop_depth=1)
 
                     for _, match in explanation_set:
                         if(len(match) != skill.how_part.n_args):
@@ -453,7 +484,7 @@ class CREAgent(BaseDIPLAgent):
         # print("BEST EXPLANATION", best_expl)
         # return best_expl
     def explain_from_funcs(self, state, sai, 
-        arg_foci=None, skill_label=None, skill_uid=None):
+        arg_foci=None, skill_label=None, skill_uid=None, how_help=None):
 
         # TODO: does not currently support multiple inputs per SAI.
         inp_attr, inp = list(sai.inputs.items())[0]
@@ -463,7 +494,7 @@ class CREAgent(BaseDIPLAgent):
 
         # Use how-learning mechanism to produce a set of candidate how-parts
         explanation_set = self.how_lrn_mech.get_explanations(
-                state, inp, arg_foci)
+                state, inp, arg_foci=arg_foci, how_help=how_help)
 
         # If failed yield a set with just the how-part as a constant.
         if(len(explanation_set) == 0):
@@ -483,34 +514,71 @@ class CREAgent(BaseDIPLAgent):
                     "args" : [a.id for a in args]
                 })
             func_explanations = _func_expls
-        return {
+
+        out = {
             "skill_explanations" : skill_explanations,
-            "func_explanations" :  func_explanations
+            "func_explanations" :  func_explanations,
         }
+        return out
 
-
-    def explain_demo(self, state, sai, arg_foci=None, skill_label=None, skill_uid=None,
+    def explain_demo(self, state, sai, arg_foci=None, skill_label=None, skill_uid=None, how_help=None,
              json_friendly=False, force_use_funcs=False, **kwargs):
         ''' Explains an action 'sai' first using existing skills then using function_set''' 
         state = self.standardize_state(state)
         sai = self.standardize_SAI(sai)
         arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
 
-        # print("explain_demo:", sai, arg_foci)
+        with PrintElapse("EXPLAIN TIME"):
 
-        func_explanations = None
-        skill_explanations = self.explain_from_skills(state, sai, arg_foci, skill_label, skill_uid)
-        if(force_use_funcs or len(skill_explanations) == 0):
-            func_explanations = self.explain_from_funcs(state, sai, arg_foci, skill_label)
+            func_explanations = None
+            skill_explanations = self.explain_from_skills(state, sai, arg_foci,
+                skill_label, skill_uid, how_help=how_help)
+            if(force_use_funcs or len(skill_explanations) == 0):
+                func_explanations = self.explain_from_funcs(state, sai, arg_foci,
+                 skill_label, how_help=how_help)
 
-        if(json_friendly):
-            return self._as_json_friendly_expls(skill_explanations, func_explanations)
-
-        # returns either how's implmentation of ExplanationSet or a SkillApplicationSet
+            if(json_friendly):
+                return self._as_json_friendly_expls(skill_explanations, func_explanations)
+            
         return skill_explanations, func_explanations
 
 # ------------------------------------------------
+# : Predict Next State
+
+    def predict_next_state(self, state, sai, json_friendly=False, **kwargs):
+        ''' Given a 'state' and 'sai' use the registered ActionType definitions to produce
+             the new state as a result of applying 'sai' on 'state'. '''
+        state = self.standardize_state(state)
+        sai = self.standardize_SAI(sai)
+        at = sai.action_type
+        # print("PREDICT NEXT STATE", sai)
+
+        # Special null state for done
+        if(sai.selection.id == "done"):
+            # print("SEL IS DONE!")
+            next_wm = MemSet()
+            next_state = self.standardize_state(next_wm)
+        # Otherwise standarize the input state
+        else:
+            next_wm = at.predict_state_change(state.get('working_memory'), sai)
+            next_state = self.standardize_state(next_wm)
+        
+        if(json_friendly):
+            state_uid = state.get('__uid__')
+            next_state_uid = next_state.get('__uid__')
+            next_state = {'state_uid' : state_uid, 'next_state_uid' : next_state_uid,
+                          'next_state': next_wm.as_dict(key_attr='id'),
+                         }
+            # print("next_state RESP:", next_state['next_state_uid'])
+            # for _id, d in next_state['next_state'].items():
+            #     print(_id, d.get('value',None))
+        else:
+            next_state = self.standardize_state(next_wm)
+        return next_state
+
+# ------------------------------------------------
 # : Train
+
     def best_skill_explanation(self, state, skill_apps):
         def get_score(skill_app):
             score = skill_app.skill.where_lrn_mech.score_match(state, skill_app.match)
@@ -548,9 +616,8 @@ class CREAgent(BaseDIPLAgent):
 
         return SkillApplication(skill, [sai.selection,*args])
 
-
     def train(self, state, sai=None, reward:float=None,
-              arg_foci=None, skill_label=None, skill_uid=None, mapping=None,
+              arg_foci=None, skill_label=None, skill_uid=None, how_help=None,
               ret_train_expl=False, add_skill_info=False,**kwargs):
         # print("SAI", sai)
         if(skill_label == "NO_LABEL"): skill_label = None
@@ -558,6 +625,7 @@ class CREAgent(BaseDIPLAgent):
         state = self.standardize_state(state)
         sai = self.standardize_SAI(sai)
         arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
+
         skill_apps = None
 
         # print("--TRAIN:", sai.selection.id, sai.inputs['value'])
@@ -568,7 +636,7 @@ class CREAgent(BaseDIPLAgent):
         # Demonstration Case : try to explain the sai from existing skills.
         else:
             skill_explanations, func_explanations = \
-                self.explain_demo(state, sai, arg_foci, skill_label, skill_uid)
+                self.explain_demo(state, sai, arg_foci, skill_label, skill_uid, how_help)
 
             if(len(skill_explanations) > 0):
                 skill_app = self.best_skill_explanation(state, skill_explanations)
@@ -580,6 +648,21 @@ class CREAgent(BaseDIPLAgent):
 
         # Return the unique id of the skill that was updated
         return skill_app.skill.uid
+
+    def train_all(self, training_set, states={}, **kwargs):
+        skill_app_uids = []
+        for example in training_set:
+            state = example['state']
+            del example['state']
+
+            # If 'state' is a uid find it's object from 'states'.
+            if(isinstance(state,str)):
+                state = states[state]
+
+            uid = self.train(state, **example, **kwargs)
+            skill_app_uids.append(uid)
+        return skill_app_uids
+
 
 # -----------------------------------------------
 # get_skills ()
@@ -623,36 +706,43 @@ class CREAgent(BaseDIPLAgent):
         if(skill_app is not None):
             uid = state.get('__uid__')    
             action_obj = {
-                "skill_app_uid" : skill_app.uid,
+                "uid" : skill_app.uid,
                 "state_uid" : uid,
                 "next_state_uid" : nxt_uid,
                 "skill_app" : skill_app,
             }
             actions[skill_app.uid] = action_obj
-        if(nxt_uid not in states):
-            # Ensure Depth Counts long enought
-            while(depth >= len(depth_counts)):
-                depth_counts.append(0)
 
-            depth_index = depth_counts[depth]
+        # Ensure Depth Counts long enought
+        while(depth >= len(depth_counts)):
+            depth_counts.append(0)
+        depth_index = depth_counts[depth]
+
+        if(nxt_uid not in states):
             state_obj = {"state": next_state, "uid" : nxt_uid, "depth" : depth, "depth_index" : depth_index}
             states[nxt_uid] = state_obj
             uid_stack.append(nxt_uid)
             depth_counts[depth] += 1
-            return True
+        else:
+            if(depth > states[nxt_uid]['depth']):
+                states[nxt_uid]['depth'] = depth
+                states[nxt_uid]['depth_index'] = depth_index
+                depth_counts[depth] += 1
         
-        if(skill_app is not None):
-            state_obj = states[uid]
-            out_uids = state_obj.get('out_skill_app_uids', [])
-            out_uids.append(skill_app.uid)            
+        
+        # if(skill_app is not None):
+        #     state_obj = states[uid]
+        #     out_uids = state_obj.get('out_skill_app_uids', [])
+        #     out_uids.append(skill_app.uid)            
+        #     state_obj['out_skill_app_uids'] = out_uids
 
-            nxt_state_obj = states[nxt_uid]
-            in_uids = state_obj.get('in_skill_app_uids', [])
-            in_uids.append(skill_app.uid)
+        #     nxt_state_obj = states[nxt_uid]
+        #     in_uids = state_obj.get('in_skill_app_uids', [])
+        #     in_uids.append(skill_app.uid)
+        #     nxt_state_obj['in_skill_app_uids'] = in_uids
 
-        return False
-
-    def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False, **kwargs):
+    def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False,
+                    base_depth=0, **kwargs):
         ''' 
         Applies act_all() repeatedly starting from 'state', and fanning out to create at 
         tree of all action rollouts up to some depth. At each step in this process the agent's 
@@ -660,53 +750,72 @@ class CREAgent(BaseDIPLAgent):
         action's ActionType object. A list of 'halt_policies' specifies a set of functions that 
         when evaluated to false prevent further actions. Returns a tuple (states, action_infos).
         '''
-        print("START ACT ROLLOUT")
-        state = self.standardize_state(state)
-        print(state.get('working_memory'))
-        halt_policies = [self.standardize_halt_policy(policy) for policy in halt_policies]
+        with PrintElapse("ACT ROLLOUT"):
+            print("\n\t\tSTART ACT ROLLOUT\t\t", base_depth)
+            state = self.standardize_state(state)
+            curr_state_uid = state.get('__uid__')
+            # print(state.get('working_memory'))
+            halt_policies = [self.standardize_halt_policy(policy) for policy in halt_policies]
 
-        states = {}
-        actions = {}
-        uid_stack = []
-        depth_counts = []
-        self._insert_rollout_skill_app(None, state, None,
-                     states, actions, uid_stack, depth_counts, 0)
+            states = {}
+            actions = {}
+            uid_stack = []
+            depth_counts = []
+            self._insert_rollout_skill_app(None, state, None,
+                         states, actions, uid_stack, depth_counts, base_depth)
 
-        print("BEGIN RECRUSE", uid_stack)
-        while(len(uid_stack) > 0):
-            # for _ in range(len(uid_stack)):
-            uid = uid_stack.pop()
-            depth = states[uid]['depth']+1
-            state = states[uid]['state']
-            src_wm = state.get("working_memory")
-            # print("---source---")
-            # print(repr(src_wm))
-            skill_apps = self.act_all(state, return_kind='skill_app')
+            
+            while(len(uid_stack) > 0):
+                print("RECURSE", uid_stack)
+                # for _ in range(len(uid_stack)):
+                uid = uid_stack.pop()
+                depth = states[uid]['depth']+1
+                state = states[uid]['state']
+                src_wm = state.get("working_memory")
+                print("---source---", uid)
+                # print(repr(src_wm))
+                skill_apps = self.act_all(state, return_kind='skill_app')
 
-            for skill_app in skill_apps:
-                at = skill_app.sai.action_type
-                # print("---skill_app :", skill_app)
-                # print("---action_type :", at)
-                next_wm = at.predict_state_change(src_wm, skill_app.sai)
-                # print("---dest---")
-                # print(repr(dest_wm))
-                next_state = self.standardize_state(next_wm)
-                
-                self._insert_rollout_skill_app(state, next_state, skill_app,
-                                states, actions, uid_stack, depth_counts, depth)
-            # print(uid_stack)
+                for skill_app in skill_apps:
+                    at = skill_app.sai.action_type
+                    print("---skill_app :", skill_app)
+                    # print("---action_type :", at)
 
-        from pprint import pprint
+                    next_state = self.predict_next_state(src_wm, skill_app.sai)
+                    # next_wm = at.predict_state_change(src_wm, skill_app.sai)
+                    # print("---dest---")
+                    # print(repr(dest_wm))
+                    # next_state = self.standardize_state(next_wm)
+                    
+                    self._insert_rollout_skill_app(state, next_state, skill_app,
+                                    states, actions, uid_stack, depth_counts, depth)
+                # print(uid_stack)
+            
+            if(json_friendly):
+                for state_obj in states.values():
+                    state_obj['state'] = state_obj['state'].get("py_dict")
+                # states = {uid : state for uid, state in states.items()}
+                for action in actions.values():
+                    action['skill_app'] = action['skill_app'].get_info()
 
-        # pprint(states)
-        for uid, obj in states.items():
-            wm = obj['state'].get('working_memory')
-            print(uid)
-            print(repr(wm))
-        for uid, obj in actions.items():
-            print(uid)
-            pprint(obj)
-        # print(actions.key)
+            from pprint import pprint
+
+            print("curr_state_uid:",  curr_state_uid)
+            # print(states[curr_state_uid])
+            print("\nstates:")
+            for i,(uid, obj) in enumerate(states.items()):
+                print(i, uid) #obj.get('out_skill_app_uids',[]))
+
+            print("\nactions:")
+            for i,(uid, obj) in enumerate(actions.items()):
+                print(i, uid, obj['skill_app'])
+            #     pprint(obj)
+
+            return {"curr_state_uid" :  curr_state_uid, 
+                    "states" : states,
+                    "actions" : actions,
+                    }
+            # print(actions.key)
 
 
 

@@ -13,8 +13,9 @@ urlpatterns = [
     path('act_all/', views.act_all, name="act_all"),
     path('act_rollout/', views.act_rollout, name="act_rollout"),
     path('train/', views.train, name="train"),
-    # path('train_all/', views.train_all, name="train_all"),
+    path('train_all/', views.train_all, name="train_all"),
     path('explain_demo/', views.explain_demo, name="explain_demo"),
+    path('predict_next_state/', views.predict_next_state, name="predict_next_state"),
     path('check/', views.check, name="check"),
     path('get_skills/', views.get_skills, name="get_skills"),
     
