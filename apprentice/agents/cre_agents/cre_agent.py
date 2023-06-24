@@ -17,6 +17,7 @@ from numba.core.runtime.nrt import rtsys
 import gc
 import hashlib
 import base64
+from datetime import datetime
 
 def used_bytes(garbage_collect=True):
     # if(garbage_collect): gc.collect()
@@ -68,7 +69,7 @@ class SAI(BaseSAI):
         inp_summary = ",".join([f"{k}:{v}" for k,v in self.inputs.items()])
         return f'{sel}|{atn}|{inp_summary}'
 
-def action_hash(state, sai):
+def action_uid(state, sai):
     h = hashlib.sha224()
     h.update(state.get("__uid__", None).encode('utf-8'))
     h.update(repr(sai).encode('utf-8'))
@@ -93,24 +94,25 @@ class Skill(object):
         self.when_lrn_mech = agent.when_cls(self,**agent.when_args)
         self.which_lrn_mech = agent.which_cls(self,*agent.which_args)
 
-    def get_applications(self, state, skip_when=False):
-        applications = []
-        # print(self.how_part,":")
+        self.skill_apps = {}
+
+    def get_applications(self, state, skip_when=False):        
+        # print(str(self.how_part),":")
         # print(self.where_lrn_mech.conds)
-
         # with PrintElapse("get_matches"):
-        matches = list(self.where_lrn_mech.get_matches(state))
 
+        applications = []
+        matches = list(self.where_lrn_mech.get_matches(state))
 
         # with PrintElapse("iter_matches"):
         for match in matches:
-            when_predict = 1 if skip_when else self.when_lrn_mech.predict(state, match)
-
-            # print("1" if when_predict else "0",  match[0].id,"\t" , [m.id for m in match][1:], self.id, self.how_part)
-            if(when_predict > 0):
-                skill_app = SkillApplication(self, match)
+            when_pred = 1 if skip_when else self.when_lrn_mech.predict(state, match)                
+            # print(when_pred, match)
+            if(when_pred > 0 or self.agent.suggest_uncert_neg and when_pred != -1.0):
+                skill_app = SkillApplication(self, state, match, when_pred=when_pred)
                 if(skill_app is not None):
                     applications.append(skill_app)
+
         return applications
 
     def get_info(self, where_kwargs={}, when_kwargs={},
@@ -141,14 +143,15 @@ class Skill(object):
         return SAI(match[0], self.action_type, inp)
 
 
-    def ifit(self, state, match, reward):
-        reward = float(reward)
-        # with PrintElapse("fit where"):
-        self.where_lrn_mech.ifit(state, match, reward)
+    def ifit(self, state, skill_app, reward):
+
+        skill_app.skill.skill_apps[skill_app.uid] = skill_app
+
+        self.where_lrn_mech.ifit(state, skill_app.match, reward)
         # with PrintElapse("fit when"):
-        self.when_lrn_mech.ifit(state, match, reward)
+        self.when_lrn_mech.ifit(state, skill_app, reward)
         # with PrintElapse("fit which"):
-        self.which_lrn_mech.ifit(state, match, reward)
+        self.which_lrn_mech.ifit(state, skill_app, reward)
 
         # print("FIT", reward, self, [m.id for m in match])
 
@@ -168,17 +171,49 @@ class Skill(object):
 
 class SkillApplication(object):
     # __slots__ = ("skill", "match", "sai")
-    def __new__(cls, skill, match, uid=None):
+    def __new__(cls, skill, state, match, uid=None, when_pred=None):
         sai = skill(*match)
+
+        # Find the unique id for this skill_app
+        state_uid = state.get("__uid__", None)
+        h = hashlib.sha224()
+        h.update(skill.uid.encode('utf-8'))
+        h.update(state_uid.encode('utf-8'))
+        h.update(",".join([m.id for m in match]).encode('utf-8'))
+        uid = f"A_{base64.b64encode(h.digest(), altchars=b'AB')[:30].decode('utf-8')}"
+
+        # If this skill has been fit with this skill_app then return the previous instance
+        if(uid in skill.skill_apps):
+            self = skill.skill_apps[uid]
+            # If given a prediction probability then overwrite the old one.
+            if(self.when_pred is not None):
+                self.when_pred = when_pred
+            return self
+
         if(sai is None):
             return None
         self = super().__new__(cls)
 
         self.skill = skill
+        self.state_uid = state_uid
         self.match = match
+        self.args = match[1:]
         self.sai = sai
-        self.uid = rand_skill_app_uid() if(uid is None) else uid
+        self.uid = uid
+        self.when_pred = when_pred
+
         return self
+
+    def annotate_train_data(self, reward, arg_foci, skill_label, skill_uid,
+                            how_help, explanation_selected, is_demo=False, **kwargs):
+        self.train_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.reward = reward
+        self.arg_foci = arg_foci
+        self.skill_label = skill_label
+        self.skill_uid = skill_uid
+        self.how_help = how_help
+        self.explanation_selected = explanation_selected
+        self.is_demo = is_demo
 
     def get_info(self):
         sai = self.sai
@@ -190,13 +225,46 @@ class SkillApplication(object):
             'action' :  sai.action_type.name,
             'action_type' :  sai.action_type.name,
             'inputs' :  sai.inputs,
-            'args' : [m.id for m in self.match][1:],
-            # 'mapping' :  {f"arg{i-1}" if i else "sel" : x.id for i,x in enumerate(self.match)}
+            'args' : [m.id for m in self.args],
         }
+        if(hasattr(self, 'train_time')):
+            train_data = {}
+            train_data['train_time'] = getattr(self, 'train_time', None)
+            train_data['reward'] = getattr(self, 'reward', None)
+            train_data['arg_foci'] = getattr(self, 'arg_foci', None)
+            train_data['skill_label'] = getattr(self, 'skill_label', None)
+            train_data['skill_uid'] = getattr(self, 'skill_uid', None)
+            train_data['how_help'] = getattr(self, 'how_help', None)
+            train_data['explanation_selected'] = getattr(self, 'explanation_selected', None)
+            train_data['is_demo'] = getattr(self, 'is_demo', False)
+            train_data = {k:v for k,v in train_data.items() if v is not None}
+            if('arg_foci' in train_data):
+                print("ARG FOCI", train_data['arg_foci'])
+
+                # TODO: Fix whatever causing this to be necessary
+                # arg_foci = train_data['arg_foci']
+                # if(len(arg_foci) > 0 and isinstance(arg_foci[0], list)):
+                #     arg_foci = arg_foci[0]
+                train_data['arg_foci'] = [m.id for m in train_data['arg_foci']]
+            if('reward' in train_data):
+                train_data['confirmed'] = True
+            info.update(train_data)
+
         return info
+
+    def as_train_kwargs(self):
+        return {'sai': BaseSAI(*self.sai.as_tuple()),
+                'arg_foci' : [m.id for m in self.args],
+                'how_str' : "???"}
 
     def __repr__(self):
         return f'{self.skill}({", ".join([m.id for m in self.match])}) -> {self.sai}'
+
+    def __eq__(self, other):
+        return getattr(self, 'uid', None) == getattr(other, 'uid', None)
+
+    def __hash__(self):
+        return hash(self.uid)
 
 # -----------------------
 # : CREAgent
@@ -311,7 +379,10 @@ class CREAgent(BaseDIPLAgent):
         return state
 
     def standardize_SAI(self, sai):
-        if(not isinstance(sai, SAI)):
+        if(isinstance(sai, BaseSAI)):
+            # Always copy the SAI to avoid side effects in the caller
+            sai = SAI(sai.selection, sai.action_type, sai.inputs)
+        else:
             sai = SAI(sai)
         if(isinstance(sai.selection, str)):
             try:
@@ -344,12 +415,30 @@ class CREAgent(BaseDIPLAgent):
 # ------------------------------------------------
 # : Act, Act_All
     def get_skill_applications(self, state):
+        
+
         skill_apps = []
         for skill in self.skills.values():
+            if("Qr9" in self.state.get('__uid__')):
+                if(repr(skill.how_part) == "NumericalToStr(TensDigit(Add3(CastFloat(a.value), CastFloat(b.value), CastFloat(c.value))))"):
+                    print(repr(self.state.get("flat_featurized")))
+                    print(skill.when_lrn_mech.classifier)
+
             for skill_app in skill.get_applications(state):
                 skill_apps.append(skill_app)
 
         skill_apps = self.which_cls.sort(state, skill_apps)
+        print('---')
+        for skill_app in skill_apps:
+            skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
+            when_pred = 1 if when_pred is None else when_pred
+            print(f"{when_pred:.2f} {match[0].id} -> {skill(*match)}",
+                [(m.id,getattr(m, 'value', None)) for m in match][1:], str(skill.how_part))
+
+        skill_apps = self.action_filter(state, skill_apps)
+
+        print("N SKILL APPS", len(skill_apps))
+        print('-^-')
         return skill_apps
 
     def act(self, state, 
@@ -364,6 +453,10 @@ class CREAgent(BaseDIPLAgent):
         output = None
         if(len(skill_apps) > 0):
             skill_app = self.action_chooser(state, skill_apps)
+
+            # Append to Skill 
+            skill_app.skill.skill_apps[skill_app.uid] = skill_app
+            
             self.prev_skill_app = skill_app
 
             output = skill_app.sai if(return_kind == 'sai') else skill_app
@@ -371,7 +464,7 @@ class CREAgent(BaseDIPLAgent):
             if(json_friendly):
                 output = output.get_info()
         
-        # print(action_hash(state, output))
+        # print(action_uid(state, output))
         return output
 
     def act_all(self, state,
@@ -383,11 +476,15 @@ class CREAgent(BaseDIPLAgent):
         state = self.standardize_state(state)
         skill_apps = self.get_skill_applications(state)
 
+        
         # TODO: Not sure if necessary.
         # self.state.clear()
 
         if(max_return >= 0):
             skill_apps = skill_apps[:max_return]
+
+        for skill_app in skill_apps:
+            skill_app.skill.skill_apps[skill_app.uid] = skill_app
 
         output = [sa.sai for sa in skill_apps] if(return_kind == 'sai') else skill_apps
             
@@ -429,6 +526,7 @@ class CREAgent(BaseDIPLAgent):
 
     def explain_from_skills(self, state, sai, 
         arg_foci=None, skill_label=None, skill_uid=None, how_help=None):
+        
 
         skills_to_try = self._skill_subset(sai, arg_foci, skill_label, skill_uid)
         skill_apps = []
@@ -449,6 +547,7 @@ class CREAgent(BaseDIPLAgent):
         # If that doesn't work try to find an explanation from the existing
         #  skills that matches just the how-parts.
         if(len(skill_apps) == 0):
+            # print("EXPLANATION REQUIRES GENERALIZATION")
             input_attr, inp = list(sai.inputs.items())[0]
 
             for skill in skills_to_try:
@@ -459,7 +558,7 @@ class CREAgent(BaseDIPLAgent):
                     
                     explanation_set = self.how_lrn_mech.get_explanations(
                         state, inp, arg_foci=arg_foci, function_set=[skill.how_part],
-                        how_help=how_help, search_depth=1, min_stop_depth=1)
+                        how_help=how_help, search_depth=1, min_stop_depth=1, min_solution_depth=1)
 
                     for _, match in explanation_set:
                         if(len(match) != skill.how_part.n_args):
@@ -467,14 +566,14 @@ class CREAgent(BaseDIPLAgent):
 
                         match = [sai.selection, *match]
                         # print("<<", _, f'[{", ".join([x.id for x in match])}])')
-                        skill_app = SkillApplication(skill, match)
+                        skill_app = SkillApplication(skill, state, match)
                         if(skill_app is not None):
                             skill_apps.append(skill_app)
 
                 # For skills with constant how-parts just check equality
                 else:
                     if(skill.how_part == inp):
-                        skill_apps.append(SkillApplication(skill, [sai.selection]))                        
+                        skill_apps.append(SkillApplication(skill, state, [sai.selection]))                        
 
             # if(len(skill_apps) > 0): print("EXPL HOW")
         return skill_apps
@@ -509,10 +608,20 @@ class CREAgent(BaseDIPLAgent):
         if(func_explanations is not None):
             _func_expls = []
             for func, args in func_explanations:
-                _func_expls.append({
-                    "func" : func_get_info(func,ignore_funcs=self.conversions),
-                    "args" : [a.id for a in args]
-                })
+                expl = {
+                    "func" : func_get_info(func, ignore_funcs=self.conversions),
+                    "args" : [a.id for a in args],
+                }
+
+                # If is not constant add the values that were used 
+                if(isinstance(func, CREFunc)):
+                    head_vals = []
+                    for i, hvs in enumerate(func.head_vars):
+                        hv = hvs[0] #TODO: currently only supports single head for each base var
+                        head_vals.append(args[i].resolve_deref(hv))
+                    expl['head_vals'] = head_vals
+
+                _func_expls.append(expl)
             func_explanations = _func_expls
 
         out = {
@@ -529,19 +638,42 @@ class CREAgent(BaseDIPLAgent):
         arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
 
         with PrintElapse("EXPLAIN TIME"):
-
-            func_explanations = None
             skill_explanations = self.explain_from_skills(state, sai, arg_foci,
                 skill_label, skill_uid, how_help=how_help)
+
+            skill_explanations = self.best_skill_explanations(state, skill_explanations)
+
+            func_explanations = None
             if(force_use_funcs or len(skill_explanations) == 0):
                 func_explanations = self.explain_from_funcs(state, sai, arg_foci,
                  skill_label, how_help=how_help)
 
+            if(skill_explanations):
+                print("--SKILLS--")
+                for sa in skill_explanations:
+                    print(sa.skill.how_part, sa.match[0].id, [m.id for m in sa.match[1:]])
+
+        
+            if(func_explanations):
+                print("--FUNCS--")
+                for f,match in func_explanations:
+                    print(f, [m.id for m in match])
+
+            # import time
+            # time.sleep(5)
+
             if(json_friendly):
                 return self._as_json_friendly_expls(skill_explanations, func_explanations)
             
+        
         return skill_explanations, func_explanations
 
+# ------------------------------------------------
+# : Get state UID
+
+    def get_state_uid(self, state, **kwargs):
+        state = self.standardize_state(state)
+        return state.get('__uid__')
 # ------------------------------------------------
 # : Predict Next State
 
@@ -558,6 +690,7 @@ class CREAgent(BaseDIPLAgent):
             # print("SEL IS DONE!")
             next_wm = MemSet()
             next_state = self.standardize_state(next_wm)
+            next_state.is_done = True
         # Otherwise standarize the input state
         else:
             next_wm = at.predict_state_change(state.get('working_memory'), sai)
@@ -572,14 +705,12 @@ class CREAgent(BaseDIPLAgent):
             # print("next_state RESP:", next_state['next_state_uid'])
             # for _id, d in next_state['next_state'].items():
             #     print(_id, d.get('value',None))
-        else:
-            next_state = self.standardize_state(next_wm)
         return next_state
 
 # ------------------------------------------------
 # : Train
 
-    def best_skill_explanation(self, state, skill_apps):
+    def best_skill_explanations(self, state, skill_apps, alpha=0.1):
         def get_score(skill_app):
             score = skill_app.skill.where_lrn_mech.score_match(state, skill_app.match)
             # print("SCORE", score, skill_app)
@@ -587,23 +718,48 @@ class CREAgent(BaseDIPLAgent):
 
         scored_apps = [x for x in [(get_score(sa), sa) for sa in skill_apps]]# if x[0] > 0.0]
         if(len(scored_apps) > 0):
-            return sorted(scored_apps, key=lambda x: x[0])[-1][1]
+            srted = sorted(scored_apps, key=lambda x: -x[0])
+
+            # Keep only explanations with scores within alpha% of the max.
+            max_score = srted[0][0]
+            thresh = max_score*(1-alpha)
+            k = 1
+            for k in range(1,len(srted)):
+                if(srted[k][0] < thresh):
+                    break
+
+            return [x[1] for x in srted[:k]]
         else:
-            return None
+            return []
 
 
-    def induce_skill(self, sai, explanation_set, label=None):
+    def induce_skill(self, state, sai, explanation_set, label=None, explanation_selected=None):
         # TODO: Make this not CTAT specific
         input_attr = list(sai.inputs.keys())[0]
-        if(sai.selection.id != "done"):
-            # TODO: does not currently support multiple inputs per SAI.
-            how_part, args = explanation_set.choose()
-        else:
+        if(sai.selection.id == "done"):
             how_part, explanation_set, args = -1, None, []
+        else:
+            if(explanation_selected is not None):
+                esd = explanation_selected['data']
+                choice_repr = esd['func']['repr']
+                choice_args = tuple(esd['args'])
+                how_part, args = None, None
+                for func, args in explanation_set:
+                    if(choice_repr == repr(func) and
+                       choice_args == tuple([a.id for a in args])
+                    ):
+                        how_part, args = func, args
+                        break
+                if(how_part is None and args is None):
+                    raise ValueError("")
+            else:
+                # TODO: does not currently support multiple inputs per SAI.
+                how_part, args = explanation_set.choose()
 
         # Make new skill.
         skill = Skill(self, sai.action_type, how_part, input_attr, 
             label=label, explanation_set=explanation_set)
+        print("INDUCE SKILL", skill, skill.how_part)
 
         # print("INDUCE SKILL", skill)
 
@@ -614,36 +770,70 @@ class CREAgent(BaseDIPLAgent):
             label_lst.append(skill)
             self.skills_by_label[label] = label_lst
 
-        return SkillApplication(skill, [sai.selection,*args])
+        return SkillApplication(skill, state, [sai.selection,*args])
 
-    def train(self, state, sai=None, reward:float=None,
-              arg_foci=None, skill_label=None, skill_uid=None, how_help=None,
-              ret_train_expl=False, add_skill_info=False,**kwargs):
+    def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
+              skill_label=None, skill_uid=None, uid=None, explanation_selected=None,
+              ret_train_expl=False, add_skill_info=False, **kwargs):
         # print("SAI", sai)
         if(skill_label == "NO_LABEL"): skill_label = None
-
         state = self.standardize_state(state)
-        sai = self.standardize_SAI(sai)
+        sai = self.standardize_SAI(sai)        
         arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
 
-        skill_apps = None
+        # print("---------------------------")
+        # for fact in state.get('working_memory').get_facts():
+        #     print(repr(fact))
+        # print("---------------------------")
+
+
+        skill_app = None
 
         # print("--TRAIN:", sai.selection.id, sai.inputs['value'])
 
-        # Feedback Case : just train according to the last skill application.
-        if(self.prev_skill_app != None and self.prev_skill_app.sai == sai):
-            skill_app = self.prev_skill_app
-        # Demonstration Case : try to explain the sai from existing skills.
-        else:
-            skill_explanations, func_explanations = \
-                self.explain_demo(state, sai, arg_foci, skill_label, skill_uid, how_help)
+        # Feedback Case : Train according to uid of the previous skill_app        
+        # print("::", skill_uid, uid, kwargs)
+        if(uid is not None):
+            if(skill_uid is not None):
+                skill_app = self.skills[skill_uid].skill_apps[uid]
 
-            if(len(skill_explanations) > 0):
-                skill_app = self.best_skill_explanation(state, skill_explanations)
+            for skill in self.skills.values():
+                if(uid in skill.skill_apps):
+                    skill_app = skill.skill_apps[uid]
+                    break
+
+        if(skill_app is None):
+            # Feedback Case : just train according to the last skill application.
+            if(self.prev_skill_app is not None and self.prev_skill_app.sai == sai):
+
+                skill_app = self.prev_skill_app
+            # Demonstration Case : try to explain the sai from existing skills.
             else:
-                skill_app = self.induce_skill(sai, func_explanations, skill_label)
+                skill_explanations, func_explanations = \
+                    self.explain_demo(state, sai, arg_foci, skill_label, skill_uid, how_help)
 
-        skill_app.skill.ifit(state, skill_app.match, reward)
+                # print("-->", explanation_selected)
+                if(len(skill_explanations) > 0):
+                    if(explanation_selected is not None):
+                        esd = explanation_selected['data']
+                        choice_uid = esd['uid']
+                        choice_args = tuple(esd['args'])
+                        for sa in skill_explanations:
+                            sa_args = tuple([m.id for m in sa.match[1:]])
+                            if(sa.uid == choice_uid and sa_args==choice_args):
+                                skill_app = sa
+                                break
+                    else:
+                        skill_app = skill_explanations[0]
+                else:
+                    skill_app = self.induce_skill(state, sai, func_explanations, skill_label,
+                        explanation_selected=explanation_selected)
+
+        # print("ANNOTATE ARG FOCI:", arg_foci)
+        skill_app.annotate_train_data(reward, arg_foci, skill_label, skill_uid, 
+            how_help, explanation_selected, **kwargs)
+
+        skill_app.skill.ifit(state, skill_app, reward)
         # self.state.clear()
 
         # Return the unique id of the skill that was updated
@@ -718,15 +908,20 @@ class CREAgent(BaseDIPLAgent):
             depth_counts.append(0)
         depth_index = depth_counts[depth]
 
+        
         if(nxt_uid not in states):
             state_obj = {"state": next_state, "uid" : nxt_uid, "depth" : depth, "depth_index" : depth_index}
             states[nxt_uid] = state_obj
             uid_stack.append(nxt_uid)
             depth_counts[depth] += 1
+            if(getattr(next_state, 'is_done', False)):
+                print("--------IS DONE!!!---------", nxt_uid)
+                state_obj['is_done'] = True
         else:
-            if(depth > states[nxt_uid]['depth']):
-                states[nxt_uid]['depth'] = depth
-                states[nxt_uid]['depth_index'] = depth_index
+            state_obj = states[nxt_uid]
+            if(depth > state_obj['depth']):
+                state_obj['depth'] = depth
+                state_obj['depth_index'] = depth_index
                 depth_counts[depth] += 1
         
         
@@ -740,6 +935,73 @@ class CREAgent(BaseDIPLAgent):
         #     in_uids = state_obj.get('in_skill_app_uids', [])
         #     in_uids.append(skill_app.uid)
         #     nxt_state_obj['in_skill_app_uids'] = in_uids
+
+    def annotate_verified(self, states, actions):
+        verified_state_uids = set()
+        certain_state_uids = set()
+
+        verified_state_uids.add(list(states.values())[0]['uid'])
+        certain_state_uids.add(list(states.values())[0]['uid'])
+
+        verified_action_uids = set()
+        certain_action_uids = set()
+        out_uids = {}        
+
+        # Actions should already be in breadth-first order 
+        for a_uid, action in actions.items():
+            state_uid = action['state_uid']
+            next_state_uid = action['next_state_uid']
+            skill_app = action['skill_app']
+
+            out_uids[state_uid] = out_uids.get(state_uid,[])
+            out_uids[state_uid].append(a_uid)
+
+            print(":", state_uid in verified_state_uids, hasattr(skill_app, 'train_time'), getattr(skill_app, 'reward', 0))
+            if(hasattr(skill_app, 'train_time') and
+               getattr(skill_app, 'reward', 0) > 0
+               ):
+                verified_action_uids.add(a_uid)
+                verified_state_uids.add(state_uid)
+                # Don't add done state
+                if(not states[next_state_uid].get('is_done', False)):
+                    verified_state_uids.add(next_state_uid)
+
+                skill_app.skill.ifit(states[action['state_uid']]['state'], skill_app, 1)
+                
+
+            if(getattr(skill_app, 'reward', 0) == 1 or
+               getattr(skill_app, 'when_pred', 0) == 1):
+
+                certain_action_uids.add(a_uid)
+                certain_state_uids.add(state_uid)
+                # Don't add done state
+                if(not states[next_state_uid].get('is_done', False)):
+                    certain_state_uids.add(next_state_uid)
+
+        on_verified_path = copy(verified_action_uids)
+        for s_uid, s_obj in states.items():
+            outs = out_uids.get(s_uid, [])
+            if(s_uid in verified_state_uids and len(outs) == 1):
+                print("Add VERIFIED", actions[outs[0]])
+                on_verified_path.add(outs[0])
+
+
+        # print("VERIFIED:")
+        # print([x[:8] for x in verified_state_uids])
+
+        # print("CERTAIN:")
+        # print([x[:8] for x in certain_state_uids])
+
+        # for a_uid, action in actions.items():
+        #     if(#action['next_state_uid'] not in verified_state_uids and
+        #        action['state_uid'] not in verified_state_uids and
+        #        a_uid not in on_verified_path
+        #         ):
+        #         print("IMPLICIT NEGATIVE", action)
+        #         skill_app = action['skill_app']
+        #         skill_app.skill.ifit(states[action['state_uid']]['state'], skill_app, -1)
+
+
 
     def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False,
                     base_depth=0, **kwargs):
@@ -777,8 +1039,9 @@ class CREAgent(BaseDIPLAgent):
                 skill_apps = self.act_all(state, return_kind='skill_app')
 
                 for skill_app in skill_apps:
+                    skill_app.skill.skill_apps[skill_app.uid] = skill_app
                     at = skill_app.sai.action_type
-                    print("---skill_app :", skill_app)
+                    # print("---skill_app :", skill_app)
                     # print("---action_type :", at)
 
                     next_state = self.predict_next_state(src_wm, skill_app.sai)
@@ -790,32 +1053,139 @@ class CREAgent(BaseDIPLAgent):
                     self._insert_rollout_skill_app(state, next_state, skill_app,
                                     states, actions, uid_stack, depth_counts, depth)
                 # print(uid_stack)
+            # self.annotate_verified(states, actions)
             
             if(json_friendly):
                 for state_obj in states.values():
                     state_obj['state'] = state_obj['state'].get("py_dict")
                 # states = {uid : state for uid, state in states.items()}
                 for action in actions.values():
+                    print("ROLLOUT APP:")
                     action['skill_app'] = action['skill_app'].get_info()
 
             from pprint import pprint
 
-            print("curr_state_uid:",  curr_state_uid)
+            # print("curr_state_uid:",  curr_state_uid)
             # print(states[curr_state_uid])
-            print("\nstates:")
-            for i,(uid, obj) in enumerate(states.items()):
-                print(i, uid) #obj.get('out_skill_app_uids',[]))
+            # print("\nstates:")
+            # for i,(uid, obj) in enumerate(states.items()):
+            #     if(not obj.get('uid',False)):
+            #         print(obj)
+            #         raise ValueError("THIS HAPPENED.... WHY!!")
+            #     print(i, uid) #obj.get('out_skill_app_uids',[]))
 
-            print("\nactions:")
-            for i,(uid, obj) in enumerate(actions.items()):
-                print(i, uid, obj['skill_app'])
+            # print("\nactions:")
+            # for i,(uid, obj) in enumerate(actions.items()):
+            #     print(i, uid, obj['skill_app'])
             #     pprint(obj)
+            # import time
+            # time.sleep(5)
 
             return {"curr_state_uid" :  curr_state_uid, 
                     "states" : states,
                     "actions" : actions,
                     }
             # print(actions.key)
+
+    def gen_completeness_profile(self, start_states, output_file, **kwargs):
+        '''Generates a ground-truth completeness profile. Should be called on agents known 
+            to exhibit a particular definition of model-complete behavior. The profile is
+            generated by building rollouts from each state in the list of given start_states.'''
+            
+        import json, os
+
+        print("WRITING TO", os.path.abspath(output_file))
+        with open(output_file, 'w') as profile:
+            for state in start_states:
+                ro = self.act_rollout(state)
+                states, actions = ro['states'], ro['actions']
+                for state_uid, state_obj in states.items():
+                    if(not state_obj.get('is_done', False)):
+                        sais = []
+                        for a_uid, action in actions.items():
+                            if(action['state_uid'] == state_uid):
+                                sai = action['skill_app'].sai
+                                sais.append(sai.get_info())    
+                        profile.write(json.dumps({'state' : state_obj['state'].get("py_dict"), 'sais' : sais})+"\n")
+        print("PROFILE DONE", os.path.abspath(output_file))
+
+    def eval_completeness(self, profile, partial_credit=False, **kwargs):
+        ''' Evaluates an agent's correctness and completeness against a completeness profile.'''
+        import json, os
+
+        n_correct, total = 0, 0
+        n_first_correct, total_states = 0,0
+        with open(profile, 'r') as profile_f:
+            for line_ind, line in enumerate(profile_f):
+                # Read a line from the profile
+                item = json.loads(line)
+
+                # Print Problem
+                gv = lambda x : item['state'][x]['value']
+                
+                    
+                # Get the ground-truth sais
+                profile_sais = item['sais']
+                state = item['state']
+                agent_sais = self.act_all(state, return_kind='sai')
+
+                # Find the difference of the sets 
+                profile_sai_strs = set([str(s) for s in profile_sais])
+                agent_sai_strs = [str(s.get_info()) for s in agent_sais]
+                diff = profile_sai_strs.symmetric_difference(set(agent_sai_strs))
+                # if(len(diff) > 0):
+                #     print(list(item['state'].keys()))
+                #     print(line_ind+1, ">>",f"{gv('inpA3')}{gv('inpA2')}{gv('inpA1')} + {gv('inpB3')}{gv('inpB2')}{gv('inpB1')}")
+                #     print(list(state.keys()))
+                #     print("----------------------")
+                #     for key, obj in state.items():
+                #         print(key, obj)
+                #     print("AGENT:")
+                #     for x in agent_sai_strs:
+                #         print(x)
+                #     print("TRUTH:")
+                #     for x in profile_sai_strs:
+                #         print(x)
+                #     print("----------------------")
+                #     print()
+
+                # print("LINE", total_states, len(diff) == 0)
+                if(partial_credit):
+                    total += len(profile_sai_strs)
+                    n_correct += max(0, len(profile_sai_strs)-len(diff))
+                else:
+                    total += 1
+                    n_correct += len(diff) == 0
+
+                total_states += 1
+                if(len(agent_sai_strs) > 0 and agent_sai_strs[0] in profile_sai_strs):
+                    n_first_correct += 1
+            
+        completeness = n_correct / total
+        correctness = n_first_correct / total_states
+
+        print(f"Correctness : {correctness*100:.2f}%")
+        print(f"Completeness : {completeness*100:.2f}%")
+        return {"completeness" : completeness, "correctness" : correctness}
+
+
+
+
+
+
+
+
+
+
+
+
+                
+
+
+
+
+
+
 
 
 

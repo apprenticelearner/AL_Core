@@ -14,6 +14,7 @@ register_feature_factory = new_register_decorator("feature_factory",
 
 from numba import njit, types
 from numba.types import Tuple, i8, TypeRef, unicode_type
+from numba.typed import Dict, List
 from cre import TF
 from cre.gval import new_gval
 from cre.utils import _struct_tuple_from_pointer_arr, _func_from_address, PrintElapse, _struct_from_ptr
@@ -32,6 +33,8 @@ def declare_skill_cands(memset, enumerizer, _how_part,
     # print("--------------")
     # if(len(match_ptrs) > 10):
     #     raise ValueError()
+    val_counts = Dict.empty(unicode_type, i8)
+
     for i in range(len(match_ptrs)):
         match_ptr_set = match_ptrs[i].copy()
         match = _struct_tuple_from_pointer_arr(tuple_type, match_ptr_set)
@@ -40,13 +43,24 @@ def declare_skill_cands(memset, enumerizer, _how_part,
             val = how_part(*match[1:])
         except:
             continue
+
+        val_counts[val] = val_counts.get(val, 0)+1
         # print("VAL@", match[1:], val)
+
+        # Declare Each Skill Candidate
         head = TF("SkillCand:", cast(how_part, CREFuncType), uid, *match)
-        # print(head)
         nom  = enumerizer.to_enum(val)
-        # TODO: Should also try to make float
         gval = new_gval(head, val, nom=nom)
         memset.declare(gval)
+
+    # Declare the counts of the values of each skill candidate 
+    for val, count in val_counts.items():
+        head = TF("SkillValueCount:", cast(how_part, CREFuncType), uid)
+        nom  = enumerizer.to_enum(count)
+        gval = new_gval(head, count, nom=nom)
+        memset.declare(gval)
+
+
 
 @njit(cache=True, locals={"match_ptr_set" : i8[::1]})
 def declare_skill_const(memset, how_part, uid, match_ptrs, tuple_type):

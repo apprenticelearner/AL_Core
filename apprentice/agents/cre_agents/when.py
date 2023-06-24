@@ -17,20 +17,23 @@ class BaseWhen(metaclass=ABCMeta):
         self.skill = skill
         self.agent = skill.agent
 
-    def ifit(self, state, match, reward):
+        # Note this line makes it possible to call 
+        super(BaseWhen, self).__init__(skill, **kwargs)
+
+    def ifit(self, state, skill_app, reward):
         """
         
         :param state: 
         """
         raise NotImplemented()
 
-    def fit(self, states, matches, reward):
+    def fit(self, states, skill_apps, reward):
         """
         
         """
         raise NotImplemented()
 
-    def score(self, state, match):
+    def score(self, state, skill_app):
         """
         
         """
@@ -53,18 +56,84 @@ class BaseWhen(metaclass=ABCMeta):
 
 
 # ------------------------------------------------------------------------
-# : When Learning Mechanisms
+# : Helpful mixins for resusing code in when-learning mechanisms
+
+# --------------------------------------------
+# : RefittableMixin
+
+class RefittableMixin():
+    '''A mixin which implements add_example() and remove_example().
+        self.examples maps skill_apps to tuples of (index, reward)
+     '''
+    def __init__(self, skill,**kwargs):
+        self.examples = {}
+
+    def transform(self, state, match):
+        '''Should take in a state and skill_app and return '''
+        raise NotImplemented()
+
+    def insert_transformed(self, transformed_state, skill_app, reward, index):
+        raise NotImplemented()
+
+    def rebase_examples(self):
+        raise NotImplemented()        
+
+    def _assert_skill_app_from_state(self, state, skill_app):
+        assert state.get('__uid__') == skill_app.state_uid, (
+            f"Provided state {state.get('__uid__')} is not associated with skill app: {skill_app}"
+        )
+
+    def add_example(self, state, skill_app, reward):
+        ''' Adds a new training example. Applies transform() and insert_transformed() 
+            from the child class. Checks to see if the example is new or a repeat and 
+            returns the new index or possibly old index for the example and the add 
+            attempt changed the set of training examples.
+        ''' 
+        # self._assert_skill_app_from_state(state, skill_app)
+        did_change = False
+        index, old_reward = self.examples.get(skill_app,(-1,0))
+        if(index != -1): 
+            print("REPLACING FEEDBACK", skill_app, old_reward, "->", reward, "@ index", index)
+        new_index = len(self.examples) if index == -1 else index
+
+        # NOTE: temping to only re-insert on reward changes, but meta-features can make it helpful
+        #  to retrain if possible new feautres. 
+        self.examples[skill_app] = (new_index, reward)
+        transformed_state = self.transform(state, skill_app.match)
+        self.insert_transformed(transformed_state, skill_app, reward, new_index)
+                
+        return new_index
+
+    def remove_example(self, state, skill_app):
+        ''' Attempt to remove a skill_app instance from the training set.
+            Shifts the set of indicies and calls rebase_examples() from the
+            child class.
+        '''
+        # self._assert_skill_app_from_state(state, skill_app)
+        did_change = False
+        index, old_reward = self.examples.get(skill_app,(-1,0))
+        if(index != -1):
+            for skill_app, (ind, reward) in self.examples.items():
+                if(ind > index):
+                    self.examples[skill_app] = (ind-1, reward)
+            del self.examples[skill_app]
+            did_change = True
+            self.rebase_examples()
+
+        return index, did_change
+
 
 
 # --------------------------------------------
 # : VectorTransformMixin
 
-class VectorTransformMixin():
+class VectorTransformMixin(RefittableMixin):
     def __init__(self, skill, encode_relative=True, one_hot=False,
                 encode_missing=None,
                 starting_state_format='flat_featurized',
                 extra_features=[],
                  **kwargs):
+        super().__init__(skill,**kwargs)
         self.starting_state_format = 'flat_featurized'
         self.encode_relative = encode_relative
         self.extra_features = extra_features
@@ -76,15 +145,10 @@ class VectorTransformMixin():
         if(encode_missing is None):
             self.encode_missing = one_hot
 
-
-        # Initialize or retrive vectorizer
-        # if(hasattr(agent, 'vectorizer')):
-        #     self.vectorizer = agent.vectorizer
-        # else:
+        # Initialize Vectorizer
         from numba.types import f8, i8, string, boolean
         from cre.transform import Vectorizer
         self.vectorizer = Vectorizer([f8, string, boolean], one_hot, self.encode_missing)
-
 
         if(self.agent.enumerizer):
 
@@ -103,7 +167,7 @@ class VectorTransformMixin():
                         typ = key_head.return_type
 
                     # TODO: Perhaps there is a less hardcoded way of doing this.
-                    elif(key_head == "SkillCand:"):
+                    elif(key_head == "SkillCand:" or key_head == "SkillValueCount:"):
                         typ = key[1].return_type
                 else:
                     typ = key.return_type
@@ -115,27 +179,16 @@ class VectorTransformMixin():
                 return key, val
             self.inv_mapper = inv_mapper
 
-        # if(one_hot):
-        #     from sklearn.preprocessing import OneHotEncoder
-        #     self.one_hot_encoder = OneHotEncoder(sparse=False)
-
         # Initialize or retrive relative_encoder
         if(encode_relative):
-            # if(hasattr(agent, 'relative_encoder')):
-            #     self.relative_encoder = agent.relative_encoder
-            # else:
             from cre.transform import RelativeEncoder
             # TODO: Backup won't work without fact_types
             self.relative_encoder = RelativeEncoder(agent.fact_types)
 
-        self.X = []
-        self.Y = []
-        self.X_width = 0
-        self.bloop = []
+        self.X_nom = np.empty((0,0), dtype=np.int64)
+        self.Y = np.empty(0, dtype=np.int64)
 
     def transform(self, state, match):
-        from cre import TF
-        from cre.gval import new_gval
         featurized_state = state.get("flat_featurized")
 
         # if(not self.encode_relative):
@@ -146,39 +199,8 @@ class VectorTransformMixin():
         for extra_feature in self.extra_features:
             featurized_state = extra_feature(self, state, featurized_state, match)
 
-        # print(featurized_state)
-        # Add skill app candidates
-        # for skill in agent.skills:
-        #     for match in skill.where_lrn_mech.get_matches(state):
-        #         val = list(skill(*match).inputs.values())[0]
-        #         head = TF("Skill:", skill.how_part, skill.id_num, *match)
-        #         gval = new_gval(head, val)
-        #         featurized_state.declare(gval)
 
-        # Add match
-        # sel_tup = new_gval(TF("Sel:", match[0]), "")
-        # featurized_state.declare(sel_tup)
-        # if(len(match) > 1):
-        #     for m in match[1:]:
-        #         arg_tup = new_gval(TF("arg{}:", m),"")
-        #         featurized_state.declare(arg_tup)
-
-
-
-        # for skill in agent.skills:
-        #     for match in skill.where_lrn_mech.get_matches(state):
-        #         val = list(skill(*match).inputs.values())[0]
-        #         head = TF("Skill:", skill.how_part, skill.id_num, *[m.id for m in match])
-        #         gval = new_gval(head, val)
-                
-
-        # self.bloop.append(featurized_state)
-        # for fact in featurized_state:
-        #     print(repr(fact), hash(fact))
-        # else:
         wm = state.get("working_memory")
-        # print("WM BEF RE RECOUNT", wm._meminfo.refcount)
-        # print(wm)
         if(self.encode_relative):
             self.relative_encoder.set_in_memset(wm)
             _vars = self.skill.where_lrn_mech._ensure_vars(match)
@@ -193,30 +215,18 @@ class VectorTransformMixin():
             # print(featurized_state)
             featurized_state = self.relative_encoder.encode_relative_to(
                 featurized_state, [match[0]], [_vars[0]])
-            # print(featurized_state)
-            # featurized_state, match, _vars)
-
-        # print(shorthand_state_rel(featurized_state))
-            
-        
-        # print("WM AFT RE RECOUNT", wm._meminfo.refcount)            
-
-            # if(self.skill.id_num == 0):
-            #     print(featurized_state)
-
-
-            # print(state.get("flat"))
+        # print("vvvvvvvvvvvvvvvvvvvvvvvvvv")
         # print(featurized_state)
-        # fs = sorted([str(gval) for gval in featurized_state])
-        # for q in fs:
-        #     print(q)
-
+        # print("^^^^^^^^^^^^^^^^^^^^^^^^^^")
+        # if(repr(self.skill.how_part) == "NumericalToStr(TensDigit(Add3(CastFloat(a.value), CastFloat(b.value), CastFloat(c.value))))" and
+        #    "S_Qr9" in state.get('__uid__')):
+            # print('--------------------------------------')
+            # print(self.conds)
+            # print(matches)
+            # print('--------------------------------------')
+            
 
         continuous, nominal = self.vectorizer(featurized_state)
-
-        # print(nominal.shape)
-
-
         #### -------Print mapping------------####
         # print("---------------------------------------")
         # for (ind, val) in self.vectorizer.make_inv_map().items():
@@ -227,73 +237,28 @@ class VectorTransformMixin():
         #     print(ind, ":", nominal[ind], val)
         # print("---------------------------------------")
         #####
-
-
-        #     a = d.get(str(val),[])
-        #     a.append((ind, val)) 
-        #     d[str(val)] = a
-
-        # for a in d.values():
-        #     if(len(a) > 1):
-        #         for ind, val in a:
-        #             try:
-                        
-        #                 di = val.deref_infos
-        #                 print(ind, val, di, val.base_ptr, val.get_ptr())
-        #             except:
-        #                 pass
-        #         break
-                
-        # print(hash(match[0]))
-        # print(nominal)
-
-        # print("nominal", nominal)
-
-        # if(hasattr(self, 'one_hot_encoder')):
-        #     self.one_hot_encoder.ifit(nominal)
-        #     nominal = self.one_hot_encoder.transform([nominal])[0]
-
-        # print("one_hot", nominal)
-
-        #TODO should also have a seperate width for continous
-        
-
         return continuous, nominal
 
-    def append_and_flatten_vecs(self, state, match, reward):
-        # with PrintElapse("\ttransform"):
+    def insert_transformed(self, transformed_state, skill_app, reward, index):
+        continuous, nominal = transformed_state
 
-        continuous, nominal = self.transform(state, match)
+        n, m = self.X_nom.shape
+        new_shape = (max(n, index+1), max(m, len(nominal)))
+        # print("NEW SHAPE", new_shape, n, index+1, m, len(nominal))
+        if(new_shape != self.X_nom.shape):
+            # Copy old data into new matrix
+            new_X_nom = np.zeros(new_shape, dtype=np.int64)
+            new_Y = np.zeros(new_shape[0], dtype=np.int64)
+            new_X_nom[:n, :m] = self.X_nom
+            new_Y[:n] = self.Y
 
+            # Copy old data into new training matrix
+            self.X_nom = new_X_nom
+            self.Y = new_Y
 
-        # with PrintElapse("\tcopy_array"):
-        self.X_width = max(len(nominal),self.X_width)
-        
-        self.X.append(nominal)
-        self.Y.append(1 if reward > 0 else -1)
-
-        X = np.zeros((len(self.X), self.X_width), dtype=np.int64)
-        for i, x in enumerate(self.X):
-            X[i, :len(x)] = x
-
-        # self.bloop.append(state.get("flat_featurized"))
-        # for b in self.bloop:
-        #     print(b)
-
-        
-
-
-
-        # print("X shape:", X.shape)
-
-        Y = np.array(self.Y, dtype=np.int64)
-
-        # for i, (x, y) in enumerate(zip(X, Y)):
-        #     print(x,y)
-        # print(Y)
-        return X, Y
-
-
+        self.X_nom[index] = nominal
+        self.Y[index] = reward
+        # print(self.X_nom,  self.Y)
 
 # --------------------------------------------
 # : SklearnDecisionTree
@@ -307,20 +272,19 @@ class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
 
         VectorTransformMixin.__init__(self, skill, one_hot=True, **kwargs)
         self.classifier = DecisionTreeClassifier()
-        self.X = []
-        self.Y = []
 
-    def ifit(self, state, match, reward):
-        X,Y = self.append_and_flatten_vecs(state, match, reward)
-        self.classifier.fit(X, Y)
+    def ifit(self, state, skill_app, reward):
+        self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+        self.classifier.fit(self.X_nom, self.Y) # Re-fit
 
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
-        prediction = self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0]
+        X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
+        prediction = self.classifier.predict(X_nom_subset)[0]        
         return prediction
 
-
-np.set_printoptions(edgeitems=300000, linewidth=10000000)
+# --------------------------------------------
+# : DecisionTree (i.e. STAND library implementation)
 
 @register_when
 class DecisionTree(BaseWhen, VectorTransformMixin):
@@ -331,43 +295,20 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
 
         VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
         self.classifier = TreeClassifier(impl, inv_mapper=self.inv_mapper)
-        # self.X = []
-        # self.Y = []
 
-    def ifit(self, state, match, reward):
-        X,Y = self.append_and_flatten_vecs(state, match, reward)
-
-        # print("AAAAH")
-        # print("fit", X[-1], reward)
-
-        # print(f"T{self.skill.id_num} {[m.id for m in match]}\t", int(reward), X[-1])
-        
-        # print(X[-1])
-        # print(Y)
-        # with PrintElapse("A"):
-        self.classifier.fit(X, None, Y)
-        # print(self.classifier)
-
-
+    def ifit(self, state, skill_app, reward):
+        self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+        self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
-        prediction = self.classifier.predict(nominal[:self.X_width].reshape(1,-1), None)[0]
-        # if(self.skill.id_num == 4):
-        #     print(f"P{self.skill.id_num} {[m.id for m in match]}\t", prediction, nominal[:self.X_width])
-
-        # print(self.skill, match)
-        # print("predict", nominal[:self.X_width].reshape(1,-1), self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0])
-
+        X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
+        prediction = self.classifier.predict(X_nom_subset, None)[0]        
         return prediction
 
 
-
-
-
-
-from .debug_utils import shorthand_state_rel
-
+# --------------------------------------------
+# : STAND
 
 @register_when
 class STAND(BaseWhen, VectorTransformMixin):
@@ -377,73 +318,34 @@ class STAND(BaseWhen, VectorTransformMixin):
         from stand.stand import STANDClassifier
 
         VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
-        self.classifier = STANDClassifier()
+        self.classifier = STANDClassifier(inv_mapper=self.inv_mapper)
 
-    def ifit(self, state, match, reward):
-        X,Y = self.append_and_flatten_vecs(state, match, reward)
-
-        from stand.fnvhash import hasharray
-
-        
-                
-        
-        # print(X[-1])
-        # print(f"{self.skill.id_num} fit: ", hasharray(X[-1]))
-        # print(shorthand_state_wm(state))
-        # print(shorthand_state_flat(state))
-        # print("AAAAH")
-        # print("fit", X[-1], reward)
-
-        # print(f"T{self.skill.id_num} {[m.id for m in match]}\t", int(reward), X[-1])
-        
-        # print(X)
-        # print(Y)
-        # try:
-        # print("xf", X[-1])
-        print("IA", self.classifier.instance_ambiguity(X[-1], None))
-        # except Exception as e:
-        #     print(self.classifier)
-        #     raise e
-
-        # try:
-        self.classifier.fit(X, None, Y)
+    def ifit(self, state, skill_app, reward):
+        self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+        ia = self.classifier.instance_ambiguity(self.X_nom[-1], None)
+        print("WILL LEARN", ia > 0, ia)
+        self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
         # print(self.classifier)
-        # except Exception as e:
-        #     print(self.classifier)
-        #     raise e
-
+        
 
     def predict(self, state, match):
-        from stand.fnvhash import hasharray
-
-
-        # print([(x.id, get_value(x)) for x in state.get("working_memory").get_facts()])
-        
-
         continuous, nominal = self.transform(state, match)
-        # try:
-        #     print("SKILL", self.skill.id_num)
+        X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
+        # prediction = self.classifier.predict(X_nom_subset, None)[0]
+        ia = self.classifier.instance_ambiguity(X_nom_subset[-1], None)
+        # print("IA", ia)
 
-        
-        # print(nominal)    
-        # print("xp", nominal)
+        probs = self.classifier.predict_prob(X_nom_subset, None)[0]
 
-        prediction = self.classifier.predict(nominal[:self.X_width].reshape(1,-1), None)[0]
+        for a in probs:
+            if(a['y_class']==1):
+                prob = a['prob']
+                if(prob > 0):
+                    return prob
+            elif(a['y_class']==-1):
+                return -a['prob']
+                # return a['y_class']
+        return 1
+        # print(probs)
 
-        # print(shorthand_state_wm(state))
-        # print(shorthand_state_flat(state))
-        # print(f"{self.skill.id_num} {prediction} pred:", hasharray(nominal), [m.id for m in match])
-        
-            # if(prediction > 0):
-        
-            # print()    
-        # except Exception as e:
-        #     print(self.classifier)
-        #     raise e 
-        # if(self.skill.id_num == 4):
-        #     print(f"P{self.skill.id_num} {[m.id for m in match]}\t", prediction, nominal[:self.X_width])
-
-        # print(self.skill, match)
-        # print("predict", nominal[:self.X_width].reshape(1,-1), self.classifier.predict(nominal[:self.X_width].reshape(1,-1))[0])
-
-        return prediction
+        # return prediction

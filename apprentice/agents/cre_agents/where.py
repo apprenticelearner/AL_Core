@@ -126,15 +126,22 @@ class AntiUnify(BaseCREWhere):
             beta_weight=10.0
         )
         # print("vvvvvvvvvvvvvvvvv")
+        # print(repr(wm))
         # print(self.conds)
-        # print(conds)
-        # print("-------------------")
 
         if(self.conds is None):
             self.conds = self._base_conds & conds
         else:
             self.conds = self._base_conds & self.conds.antiunify(conds, fix_same_var=True)
 
+        if(repr(self.skill.how_part) == "NumericalToStr(TensDigit(Add3(CastFloat(a.value), CastFloat(b.value), CastFloat(c.value))))"):
+            print(repr(self.skill.how_part))
+            print('------------------v-------------------')
+            print(self.conds)
+            print('------------------^-------------------')
+
+        # print(self.conds)
+        # print("-------------------")
         # if(not self.check_match(state, match)):
         #     raise ValueError("BAD BAD BAD")
         # print(self.conds)
@@ -178,15 +185,21 @@ class AntiUnify(BaseCREWhere):
         wm = state.get('working_memory')
         # print("WM BEF MATCH RECOUNT", wm._meminfo.refcount)
         
+        
+        matches = []
         if(self.conds is not None):
             # with PrintElapse("get_matches"):
             matches = self.conds.get_matches(wm)
             # print("<<", self.vars)
             matches = [m[:len(self.vars)] for m in matches]
             # print("WM AFT MATCH RECOUNT", wm._meminfo.refcount)
-            return matches
-        else:
-            return []
+        # if(repr(self.skill.how_part) == "NumericalToStr(TensDigit(Add3(CastFloat(a.value), CastFloat(b.value), CastFloat(c.value))))" and
+        #    "S_Qr9" in state.get('__uid__')):
+        #     # print('--------------------------------------')
+            # print(self.conds)
+            # print(matches)
+            # print('--------------------------------------')
+        return matches
 
     def check_match(self, state, match):
         # TODO: implement in CRE

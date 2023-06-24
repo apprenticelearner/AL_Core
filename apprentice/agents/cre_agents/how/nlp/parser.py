@@ -283,22 +283,22 @@ def is_number(x):
 
 # Replaces numbers with specified noun from resources
 # Returns [modified string, indicies of previous numbers]
-def replace_numbers(nlp, text):
-  doc_text = nlp(text)
-  modified_string = ""
-  modified_positions = {}
+# def replace_numbers(nlp, text):
+#   doc_text = nlp(text)
+#   modified_string = ""
+#   modified_positions = {}
 
-  for token in doc_text:
-    if is_number(str(token)):
-      modified_string += noun + " "
-      modified_positions[token.i] = str(token)
-    else:
-      modified_string += str(token) + " "
+#   for token in doc_text:
+#     if is_number(str(token)):
+#       modified_string += noun + " "
+#       modified_positions[token.i] = str(token)
+#     else:
+#       modified_string += str(token) + " "
 
-  returnvalue = dict()
-  returnvalue['modified_string'] = modified_string
-  returnvalue['modified_positions']  = modified_positions
-  return returnvalue
+#   returnvalue = dict()
+#   returnvalue['modified_string'] = modified_string
+#   returnvalue['modified_positions']  = modified_positions
+#   return returnvalue
 
 
 def first_non_empty(arr):
@@ -366,7 +366,8 @@ class TextToPolicyParser():
     self.func_dictionary = d
     # print(self.func_dictionary)
 
-  def replace_code(self, text):
+  def replace_code(self, text, const_operands=None):
+    const_operands = set() if(const_operands is None) else const_operands
     code_sections = find_code_sections(text)
     code_policies = []
     
@@ -398,8 +399,9 @@ class TextToPolicyParser():
       op = self.func_dictionary.get(token.lemma_.lower(),None)
     return op
 
-  def replace_special(self, text, code_policies):
+  def replace_special(self, text, code_policies, const_operands=None):
     special_ops = []
+    const_operands = set() if(const_operands is None) else const_operands
     for pattern, op in self.special_patterns.items():
       # print(pattern)
       matches = list(re.finditer(pattern, text))
@@ -408,6 +410,10 @@ class TextToPolicyParser():
         # print(match)
         g = list(match.groups())
         
+        for val in g:
+          print("SPECIAL CONST", val)
+          if(val not in ["xfunc", "xlick", "xcat"]):
+            const_operands.add(val)        
 
         if('xfunc' in g):
           policy = [[(op, [])]]
@@ -437,20 +443,23 @@ class TextToPolicyParser():
 
     return text, special_ops
 
-  def replace_numbers(self, text):
+  def replace_numbers(self, text, const_operands=None):
     gparse = self.nlp(text)
     arg_inds = {}
     words = []
+    const_operands = set() if const_operands is None else const_operands
     for token in gparse:
       # if token.like_num:# and len(str(token)) == 1:
-      if is_number(str(token)):#token.like_num:# and len(str(token)) == 1:
-
+      token_str = str(token)
+      if is_number(token_str):#token.like_num:# and len(str(token)) == 1:
+        print("SPECIAL NUMBER", token_str)
+        const_operands.add(token_str)
         words.append("cat")
         # words.append(str(token))
         # modified_string += "dog" + " "
         arg_inds[token.i] = token
       else:
-        words.append(str(token))
+        words.append(token_str)
         # modified_string += str(token) + " "
 
     self.arg_inds = arg_inds
@@ -590,7 +599,7 @@ class TextToPolicyParser():
 
 
 
-  def parse(self, text):
+  def parse(self, text, return_consts=False):
     # Lower Case
     text = text.lower()
 
@@ -598,7 +607,8 @@ class TextToPolicyParser():
     # text = text[:-1] + text[-1].translate(str.maketrans("","", string.punctuation))
 
     # Replace Any Code Sections
-    text, code_policies = self.replace_code(text)
+    const_operands = set()
+    text, code_policies = self.replace_code(text, const_operands)
 
     # if(len(code_policies) > 0):
     #   print("code_policies:")
@@ -610,12 +620,18 @@ class TextToPolicyParser():
       _policy = [[]]
       for cp in code_policies:
         _policy = join_policy(cp, _policy)
-      return _policy  
+
+      if(return_consts):
+        return _policy, []  
+      else:
+        return _policy  
 
     # Make special, number and function replacements 
-    text, special_ops = self.replace_special(text, code_policies)
-    text = self.replace_numbers(text)
+    text, special_ops = self.replace_special(text, code_policies, const_operands)
+    text = self.replace_numbers(text, const_operands)
     text = self.replace_funcs(text)
+
+    print("INERN", const_operands)
 
     # Final Grammar Parse + Coreference Resolution
     self.doc = doc = self.nlp(text)
@@ -645,7 +661,11 @@ class TextToPolicyParser():
             covered_inds.add(a.i)
       policy.append(new_dp)
 
-    return policy
+    print("BLARG", const_operands)
+    if(return_consts):
+      return policy, const_operands
+    else:
+      return policy
 
   # Returns [closest word in dictionary, score]
   def get_closest_word(self, word, dic):
@@ -669,8 +689,8 @@ class TextToPolicyParser():
     returnvalue['score']  = max_score
     return returnvalue
 
-  def __call__(self, text):
-    return self.parse(text)
+  def __call__(self, text, *args, **kwargs):
+    return self.parse(text, *args, **kwargs)
 
 # ----------------------------------------------------------------
 # : Test Cases

@@ -98,25 +98,26 @@ def test_feedback_updating():
 
     # Same as example above, but add preceeding negative examples that  
     #  should be overridden.
-    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), -1)
-    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), -1)
-    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), 1)
-    py_dict['0_answer'].update({"value" : '8', "locked" : True})
+    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), 1, arg_foci=["0_upper", '0_lower'])
+    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), -1, arg_foci=["0_upper", '0_lower'])
+    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), -1, arg_foci=["0_upper", '0_lower'])
+    agent.train(py_dict, ( "0_answer", "UpdateTextField", {"value": 8} ), 1, arg_foci=["0_upper", '0_lower'])
+    # py_dict['0_answer'].update({"value" : '8', "locked" : True})
 
-    agent.train(py_dict, ( "1_answer", "UpdateTextField", {"value": 5} ), 1)
-    py_dict['1_answer'].update({"value" : '5', "locked" : True})
+    # agent.train(py_dict, ( "1_answer", "UpdateTextField", {"value": 5} ), 1)
+    # py_dict['1_answer'].update({"value" : '5', "locked" : True})
 
-    agent.train(py_dict, ( "2_carry", "UpdateTextField", {"value": 1} ), 1)
-    py_dict['2_carry'].update({"value" : '1', "locked" : True})
+    # agent.train(py_dict, ( "2_carry", "UpdateTextField", {"value": 1} ), 1)
+    # py_dict['2_carry'].update({"value" : '1', "locked" : True})
 
-    agent.train(py_dict, ( "2_answer", "UpdateTextField", {"value": 0} ), 1)
-    py_dict['2_answer'].update({"value" : '0', "locked" : True})
+    # agent.train(py_dict, ( "2_answer", "UpdateTextField", {"value": 0} ), 1)
+    # py_dict['2_answer'].update({"value" : '0', "locked" : True})
 
-    agent.train(py_dict, ( "3_carry", "UpdateTextField", {"value": 1} ), 1)
-    py_dict['3_carry'].update({"value" : '1', "locked" : True})
+    # agent.train(py_dict, ( "3_carry", "UpdateTextField", {"value": 1} ), 1)
+    # py_dict['3_carry'].update({"value" : '1', "locked" : True})
 
-    agent.train(py_dict, ( "3_answer", "UpdateTextField", {"value": 1} ), 1)
-    py_dict['3_answer'].update({"value" : '1', "locked" : True})
+    # agent.train(py_dict, ( "3_answer", "UpdateTextField", {"value": 1} ), 1)
+    # py_dict['3_answer'].update({"value" : '1', "locked" : True})
 
 
 if __name__ == "__main__":

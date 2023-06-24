@@ -15,9 +15,14 @@ urlpatterns = [
     path('train/', views.train, name="train"),
     path('train_all/', views.train_all, name="train_all"),
     path('explain_demo/', views.explain_demo, name="explain_demo"),
+    path('get_state_uid/', views.get_state_uid, name="get_state_uid"),
     path('predict_next_state/', views.predict_next_state, name="predict_next_state"),
     path('check/', views.check, name="check"),
     path('get_skills/', views.get_skills, name="get_skills"),
+    
+    path('gen_completeness_profile/', views.gen_completeness_profile, name="gen_completeness_profile"),
+    path('eval_completeness/', views.eval_completeness, name="eval_completeness"),
+    
     
     # url(r'^report/(?P<agent_id>[0-9]+)/$', views.report, name="report"),
 

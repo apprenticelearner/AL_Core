@@ -79,6 +79,7 @@ class BaseDIPLAgent(object):
 
         self.should_find_neighbors = config_get(['find_neighbors', 'should_find_neighbors'],
          default=False)
+        self.suggest_uncert_neg = config_get(['suggest_uncert_neg', 'suggest_uncertain_negatives'], default=False)
 
         # Reroute config options that user might define at the agent level
         #  but belong at the learning mechanism level.
@@ -106,6 +107,9 @@ class BaseDIPLAgent(object):
         self.explanation_chooser = config_get("explanation_chooser",
             default='max_which_utility', registry=registries['skill_app_chooser'])
 
+        self.action_filter = config_get("action_filter",
+            default='thresholds', registry=registries['skill_app_filter'])        
+
         self.constraints = config_get(['constraints','environment', 'env'], default='html',
             registry=registries.get('constraint',[]))
 
@@ -121,17 +125,35 @@ class BaseDIPLAgent(object):
         ''' Legacy method name : pipe into act ''' 
         return self.act(*args, **kwargs)
 
+# -------------------------------------------------------------------------
+# : SkillApp Filters
+register_skill_app_filter = new_register_decorator("skill_app_filter", full_descr="skill application filter")
 
+@register_skill_app_filter
+def thresholds(state, skill_apps, thresholds=[.5, 0, -.5, -.999]):
+    n_pos = 0
+    thresh_groups = [[] for _ in range(len(thresholds))]
+    for skill_app in skill_apps:
+        when_pred = getattr(skill_app,'when_pred', None)
+        if(when_pred is None): when_pred = 1
+        for i, thresh in enumerate(thresholds):
+            if(when_pred >= thresh):
+                thresh_groups[i].append(skill_app)
+                break
+    for i, tg in enumerate(thresh_groups):
+        if(len(tg) > 0):
+            return tg
+    return []
 # -------------------------------------------------------------------------
 # : SkillApp Choosers
 
 register_skill_app_chooser = new_register_decorator("skill_app_chooser", full_descr="skill application chooser")
 
 def _get_which_utility(state, skill_app):
-    return skill_app.skill.which_lrn_mech.get_utility(state, skill_app.match)
+    return skill_app.skill.which_lrn_mech.get_utility(state, skill_app)
 
 def _sort_on_utility(state, skill_apps):
-    return sorted(skill_apps,key=lambda sa : _get_which_utility(state,sa))
+    return sorted(skill_apps,key=lambda sa : _get_which_utility(state, sa))
 
 @register_skill_app_chooser
 def max_which_utility(state, skill_apps):

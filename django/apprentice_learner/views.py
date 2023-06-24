@@ -502,7 +502,6 @@ def train_all(http_request):
     errs, warns = [], []
 
     data = _standardize_train_all_data(http_request, errs, warns)
-    print("TRAIN ALL:", data)
     try:
         agent, model = get_agent_by_uid(data['agent_uid'])
         if(model): model.inc_train()
@@ -567,6 +566,42 @@ def explain_demo(http_request):
         message = f"explain_demo() failed with an exception:\n{tb_str}"
         log.error(message)
         return HttpResponseServerError(message)
+
+def _standardize_get_state_uid_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    ensure_field(data, "agent_uid", errs)
+    ensure_field(data, "state", errs)
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+    return data
+
+
+@csrf_exempt
+def get_state_uid(http_request):
+    errs, warns = [], []
+    data = _standardize_get_state_uid_data(http_request, errs, warns)
+    
+    try:
+        agent, model = get_agent_by_uid(data['agent_uid'])
+        if(model): model.inc_train()
+
+        with LogElapse(performance_logger, "get_state_uid() elapse"):
+            response = agent.get_state_uid(**data, json_friendly=True)
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"get_state_uid() failed with an exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
+
 
 # ---------------------------------------------------------------------
 # : Predict Next State
@@ -679,6 +714,90 @@ def get_skills(http_request):
     except Exception as exp:
         tb_str = traceback.format_exc()
         message = f"Get skills failed with exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
+
+def _standardize_gen_completeness_profile_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    agent_uid = ensure_field(data, "agent_uid", errs)
+    ensure_field(data, "start_states", errs)
+    ensure_field(data, "output_file", errs)
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+
+    return data
+
+# -------------------------------------------------------
+# : Generating and Evaluating Completeness Profiles
+
+# ** END POINT ** 
+@csrf_exempt
+def gen_completeness_profile(http_request):
+    """
+    """
+    try:
+        global dont_save
+        errs, warns = [], []
+
+        data = _standardize_gen_completeness_profile_data(http_request, errs, warns)
+        if(isinstance(data, HttpResponse)): return data
+
+        agent, model = get_agent_by_uid(data['agent_uid'])
+
+        with LogElapse(performance_logger, "gen_completeness_profile elapse"):
+            response = agent.gen_completeness_profile(**data)
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"Gen Completeness Profile failed with exception:\n{tb_str}"
+        log.error(message)
+        return HttpResponseServerError(message)
+
+def _standardize_eval_completeness_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    agent_uid = ensure_field(data, "agent_uid", errs)
+    ensure_field(data, "profile", errs)
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+
+    return data
+
+# ** END POINT ** 
+@csrf_exempt
+def eval_completeness(http_request):
+    """
+    """
+    try:
+        global dont_save
+        errs, warns = [], []
+
+        data = _standardize_eval_completeness_data(http_request, errs, warns)
+        if(isinstance(data, HttpResponse)): return data
+
+        agent, model = get_agent_by_uid(data['agent_uid'])
+
+        with LogElapse(performance_logger, "eval_completeness elapse"):
+            response = agent.eval_completeness(**data)
+
+        return HttpResponse(json.dumps(response))
+
+    except Exception as exp:
+        tb_str = traceback.format_exc()
+        message = f"Eval Completeness failed with exception:\n{tb_str}"
         log.error(message)
         return HttpResponseServerError(message)
 

@@ -352,9 +352,7 @@ class NLPSetChaining(BaseHow):
             float_to_str=float_to_str, function_set=self.function_set
             )
         
-        self.declared = {}
-        self.identifiers = {}
-        self.return_phase = None
+        self.clear()
         
         self.verbosity = verbosity
         if(isinstance(max_phase_expls, int)):
@@ -373,8 +371,9 @@ class NLPSetChaining(BaseHow):
         self.declared = {}
         self.identifiers = {}
         self.return_phase = None
+        self.extra_consts = []
 
-    def declare(self, val, var=None):
+    def declare(self, val, var=None, is_const=False):
         if(hasattr(val,'_fact_type')):
             for attr, attr_spec in val._fact_type.filter_spec("semantic").items():
                 attr_val = getattr(val, attr, None)
@@ -392,10 +391,17 @@ class NLPSetChaining(BaseHow):
                 self.identifiers[attr_val] = attr_val
 
         else:
-            
             self.declared[val] = var
             # TODO should probably set this up in a way that generalizes better
             #  than string comparison
+            try:
+                val = float(val)
+            except:
+                pass
+
+            if(is_const):
+                self.extra_consts.append(val)
+
             try:
                 self.identifiers[str(int(val))] = val
             except:
@@ -531,15 +537,17 @@ class NLPSetChaining(BaseHow):
             for op, operands in depth_policy:
                 new_operands = []
                 for operand in operands:
+                    print(operand, self.identifiers)
                     if(operand in self.identifiers):
                         new_operands.append(self.identifiers[operand])
                     else:
                         try:
-                            flt = float(operand)
+                            operand = float(operand)
                         except:
                             continue
-                        if(flt in self.identifiers):
-                            new_operands.append(self.identifiers[flt])
+
+                        if(operand in self.identifiers):
+                            new_operands.append(self.identifiers[operand])
 
                 new_depth_policy.append((op, new_operands))
             new_policy.append(new_depth_policy)
@@ -660,10 +668,19 @@ class NLPSetChaining(BaseHow):
 
         if(func_dictionary is None): func_dictionary = self.func_dictionary
 
-        policy = self.t2p_parser(how_help)
+        policy, const_operands = self.t2p_parser(how_help, return_consts=True)
+
+        print("IDENTIFIERS", self.identifiers)
+        print("const_operands", const_operands)
+        for val in const_operands:
+            if(val not in self.identifiers):
+                self.declare(val, is_const=True)
+        print("extra_consts", self.extra_consts)
+
         policy = self._policy_preprocessing(policy)
         policy = self._valueify_policy(policy)
 
+        
         self.policy = policy
 
         if(self.verbosity > 0):
@@ -674,7 +691,8 @@ class NLPSetChaining(BaseHow):
             if(min_phase <= phase_num):
                 max_phase_expls = self.max_phase_expls.get(phase_num)
 
-                expls = phase_method(self, goal, policy, **sc_kwargs)
+                expls = phase_method(self, goal, policy, 
+                            extra_consts=self.extra_consts, **sc_kwargs)
                 okay = True
                 if(expls is None or 
                    len(expls) == 0 or 
@@ -711,7 +729,7 @@ class NLPSetChaining(BaseHow):
 
             self.state = state
             for fact in facts:
-                self.declare(fact)
+                self.declare(fact, is_const=True)
 
             expls = self._search_for_explanations(goal, how_help, 
                 func_dictionary, min_phase, **sc_kwargs)

@@ -48,6 +48,7 @@ class ExplanationSet():
             else:
                 self.explanations = []
                 for i, (func_comp, match) in enumerate(explanation_tree):
+                    print(func_comp, match)
                     if(max_expls != -1 and i >= max_expls-1): break
 
                     # Skip 
@@ -102,6 +103,7 @@ class SetChaining(BaseHow):
             function_set=[], 
             float_to_str=True, 
             **kwargs):
+        # print("SC", kwargs)
         self.agent = agent
         self.function_set = function_set
         self.search_depth = search_depth
@@ -129,28 +131,33 @@ class SetChaining(BaseHow):
         self.num_forward_inferences = planner.num_forward_inferences
         return explanation_tree
 
-    def get_explanations(self, state, goal, arg_foci=None, float_to_str=None, **kwargs):
+    def get_explanations(self, state, goal, arg_foci=None, float_to_str=None,
+                            extra_consts=[], **kwargs):
         # Prevent from learning too shallow when multiple foci
         if(arg_foci is not None and len(arg_foci) > 1):
-            arg_foci = list(reversed(arg_foci))
+            # arg_foci = list(reversed(arg_foci))
             # Don't allow fallback to constant 
-            # kwargs['min_stop_depth'] = kwargs.get('search_depth',1)
+            kwargs['min_stop_depth'] = kwargs.get('min_stop_depth', kwargs.get('search_depth',getattr(self, 'search_depth', 2)))
+            kwargs['min_solution_depth'] = 1
 
         if(isinstance(state, list)):
             values = state
         else:
             wm = state.get("working_memory")
-            values = wm.get_facts() if arg_foci is None else arg_foci
+            values = list(wm.get_facts()) if arg_foci is None else arg_foci
+
+        values = values + extra_consts
 
         float_to_str = float_to_str if float_to_str is not None else self.float_to_str
 
         try:
             flt_goal = float(goal)
-            
+        except ValueError:
+            explanation_tree = None
+        else:
             explanation_tree = self._search_for_explanations(values, flt_goal, **kwargs)
             post_func = NumericalToStr if (float_to_str) else None
-        except:
-            explanation_tree = None
+        
 
         # Try to find the goal as a string
         if(explanation_tree is None):
@@ -159,9 +166,6 @@ class SetChaining(BaseHow):
             post_func = None
         
         expl_set = ExplanationSet(explanation_tree, arg_foci, post_func=post_func)
-
-        # print("ET1", len(list(explanation_tree)) if explanation_tree else None)
-        # print("ET2", len(list(explanation_tree)) if explanation_tree else None)
 
         # if(expl_set is not None):
         #     for op_comp, match in expl_set:

@@ -113,11 +113,11 @@ def ConvertNumerator(a, b, c):
 
 
 
-@CREFunc(signature=f8(f8), shorthand = '({0}/2)')
+@CREFunc(signature=f8(f8), shorthand = '{0}/2')
 def Half(a):
     return a / 2
 
-@CREFunc(signature=f8(f8), shorthand = '({0}*2)')
+@CREFunc(signature=f8(f8), shorthand = '{0}*2')
 def Double(a):
     return a * 2
 

@@ -10,24 +10,29 @@ class SAI(object):
     take/return this precise type, although doing so is recommended. 
     WARNING: NEVER directly edit or monkey-patch this class, if changes are needed
     make a subclass and use that directly within your agent implementation.
+    Subclasses are free to change the datatypes of seleciton, action_type, 
+    and inputs but must overload as_tuple() so it returns (str, str, dict).
     (e.g. see CREAgent)
     '''
 
     slots = ('selection', 'action_type', 'inputs')
-    def __init__(self, *args):
+    def __new__(cls, *args):
         if(len(args) == 1):
             # Translates from object, list, tuple, or dict.
             inp = args[0]
-            if(hasattr(inp, 'selection')):
+            if(isinstance(inp, SAI)):
+                return inp
+
+            elif(hasattr(inp, 'selection')):
                 selection = inp.selection
-                action_type = getattr(inp, 'action_type', inp.action)
+                action_type = getattr(inp, 'action_type', None)
+                if(action_type is None):
+                    action_type = getattr(inp, 'action', None)
                 inputs = inp.inputs
             elif(isinstance(inp, (list,tuple))):
                 selection, action_type, inputs = inp
             elif(isinstance(inp, dict)):
-                print(inp)
                 selection = inp['selection']
-
                 action_type = inp.get('action_type', inp.get('action'))
                 if(action_type is None):
                     raise KeyError("'action_type' | 'action'")
@@ -37,9 +42,11 @@ class SAI(object):
         else:
             selection, action_type, inputs = args
 
+        self = super().__new__(cls)
         self.selection = selection
         self.action_type = action_type
         self.inputs = inputs
+        return self
     
     def __iter__(self):
         return iter(self.as_tuple())
@@ -50,7 +57,11 @@ class SAI(object):
     def __eq__(self, other):
         if(hasattr(other,'as_tuple')): 
             other = other.as_tuple()
-        return self.as_tuple() == other
+        self_tup = self.as_tuple()
+
+        # Note: Subclasses should gaurentee an as_tuple() representation
+        #  of the form (str, str, dict). Thus this works in general.
+        return self_tup == other
 
     def __getitem__(self, item):
         if(isinstance(item, int)):
@@ -65,6 +76,9 @@ class SAI(object):
             else:
                 raise KeyError(f"SAI has no such member item: {item!r}.")
 
+    def __hash__(self):
+        sel, at, inps = self.as_tuple()
+        return hash((sel, at, tuple(sorted(inps.items()))))
     
     def get_info(self):
         sel_str, at_str, inputs = self.as_tuple()

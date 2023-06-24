@@ -119,7 +119,7 @@ class ActionType(object):
         cpy = copy(state)
         selection = cpy.get_fact(id=sai.selection.id)
         self.apply_expected_change(cpy, selection, sai.inputs)
-        return cpy
+        return copy(cpy)
 
     def __getitem__(self, attr):
         return self.input_spec[attr]

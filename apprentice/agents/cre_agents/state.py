@@ -133,50 +133,68 @@ class State():
 
 
 def encode_neighbors(objs, l_str='left', r_str="right", a_str="above", b_str="below", strip_attrs=["x", "y", "width", "height"]):
-  # objs = list(_objs.values()) if(isinstance(_objs,dict)) else _objs
-  objs_list = list(objs.values())
+    # objs = list(_objs.values()) if(isinstance(_objs,dict)) else _objs
+    objs_list = list(objs.values())
 
-  rel_objs = []
-  for i, obj in enumerate(objs):
-    rel_objs.append({
-      l_str : [],
-      r_str : [], 
-      a_str : [],
-      b_str : [],
-    })
+    rel_objs = []
+    for i, obj in enumerate(objs):
+        rel_objs.append({
+          l_str : [],
+          r_str : [], 
+          a_str : [],
+          b_str : [],
+        })
 
-  for i, a_obj in enumerate(objs_list):
-    for j, b_obj in enumerate(objs_list):
-      if(i != j):
-        if(a_obj['y'] > b_obj['y'] and
-           a_obj['x'] < b_obj['x'] + b_obj['width'] and
-           a_obj['x'] + a_obj['width'] > b_obj['x']):
-            dist = a_obj['y'] - b_obj['y'];
-            rel_objs[i][a_str].append((dist, j));
-            rel_objs[j][b_str].append((dist, i));
 
-        if(a_obj['x'] < b_obj['x'] and
-           a_obj['y'] + a_obj['height'] > b_obj['y'] and
-           a_obj['y'] < b_obj['y'] + b_obj['height']):
-            dist = b_obj['x'] - a_obj['x']
-            rel_objs[i][r_str].append((dist, j));
-            rel_objs[j][l_str].append((dist, i));
 
-  strip_attrs_set = set(strip_attrs)
-  out = {}   
-  for (_id, obj), rel_obj in zip(objs.items(), rel_objs):
-    # print(_id, obj["x"],obj["y"],obj["width"],obj["height"])
-    new_obj = {k:v for k,v in obj.items() if k not in strip_attrs}
-    new_obj[l_str] = objs_list[sorted(rel_obj[l_str])[0][1]]["id"] if len(rel_obj[l_str]) > 0 else ""
-    new_obj[r_str] = objs_list[sorted(rel_obj[r_str])[0][1]]["id"] if len(rel_obj[r_str]) > 0 else ""
-    new_obj[a_str] = objs_list[sorted(rel_obj[a_str])[0][1]]["id"] if len(rel_obj[a_str]) > 0 else ""
-    new_obj[b_str] = objs_list[sorted(rel_obj[b_str])[0][1]]["id"] if len(rel_obj[b_str]) > 0 else ""
-    out[_id] = new_obj
+    skipped = set()
+    for i, a_obj in enumerate(objs_list):
+        if('x' not in a_obj or 'y' not in a_obj):
+            skipped.add(a_obj['id'])
+            continue
 
-  # if(any([obj.get('value',"") != "" and obj.get('value',"")]))  
-  # print()
 
-  return out
+        for j, b_obj in enumerate(objs_list):
+            if(i != j):
+                if('x' not in b_obj or 'y' not in b_obj):
+                    continue
+
+                if(a_obj['y'] > b_obj['y'] and
+                   a_obj['x'] < b_obj['x'] + b_obj['width'] and
+                   a_obj['x'] + a_obj['width'] > b_obj['x']):
+                    dist = a_obj['y'] - b_obj['y'];
+                    rel_objs[i][a_str].append((dist, j));
+                    rel_objs[j][b_str].append((dist, i));
+
+                if(a_obj['x'] < b_obj['x'] and
+                   a_obj['y'] + a_obj['height'] > b_obj['y'] and
+                   a_obj['y'] < b_obj['y'] + b_obj['height']):
+                    dist = b_obj['x'] - a_obj['x']
+                    rel_objs[i][r_str].append((dist, j));
+                    rel_objs[j][l_str].append((dist, i));
+
+
+    strip_attrs_set = set(strip_attrs)
+    out = {}   
+    for (_id, obj), rel_obj in zip(objs.items(), rel_objs):
+        # print(_id, obj["x"],obj["y"],obj["width"],obj["height"])
+        new_obj = {k:v for k,v in obj.items() if k not in strip_attrs}
+        if(_id not in skipped):
+            new_obj[l_str] = objs_list[sorted(rel_obj[l_str])[0][1]]["id"] if len(rel_obj[l_str]) > 0 else None
+            new_obj[r_str] = objs_list[sorted(rel_obj[r_str])[0][1]]["id"] if len(rel_obj[r_str]) > 0 else None
+            new_obj[a_str] = objs_list[sorted(rel_obj[a_str])[0][1]]["id"] if len(rel_obj[a_str]) > 0 else None
+            new_obj[b_str] = objs_list[sorted(rel_obj[b_str])[0][1]]["id"] if len(rel_obj[b_str]) > 0 else None
+        out[_id] = new_obj
+
+      # if(any([obj.get('value',"") != "" and obj.get('value',"")]))  
+      # print()
+      # print(out)
+    # if(len(skipped) == 0):
+    #     print("&&&&&&&&&&&&&&&&&&&")
+    #     for key, obj in out.items():
+    #         print(key, obj)
+
+    return out
 
 if __name__ == "__main__":
     pass
