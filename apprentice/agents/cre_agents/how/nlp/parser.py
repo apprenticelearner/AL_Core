@@ -210,18 +210,21 @@ ast_to_str = {
 }
 
 
-def _ast_to_op_or_const(ast_obj, func_map, var_map, recurse):
+def _ast_to_op_or_const(ast_obj, recurse, *args):
+  func_map, var_map,  const_operands = tuple([*args])
   if(isinstance(ast_obj, ast.Call)):
       op = ast_obj.func.id
-      args = [recurse(a, func_map, var_map) for a in ast_obj.args]
+      args = [recurse(a, *args) for a in ast_obj.args]
   elif(isinstance(ast_obj, ast.UnaryOp)):
       op = ast_to_str[type(ast_obj.op)]
-      args = [recurse(ast_obj.operand, func_map, var_map)]
+      args = [recurse(ast_obj.operand, *args)]
   elif(isinstance(ast_obj, (ast.BinOp, ast.Compare))):
       op = ast_to_str[type(ast_obj.op)]
-      args = [recurse(ast_obj.left, func_map, var_map),
-            recurse(ast_obj.right, func_map, var_map)]
+      args = [recurse(ast_obj.left, *args),
+            recurse(ast_obj.right, *args)]
   elif(isinstance(ast_obj, ast.Constant)):
+      print("dD CONST", ast_obj.value)
+      const_operands.add(ast_obj.value)
       return ast_obj.value
   elif(isinstance(ast_obj, ast.Name)):
     return var_map.get(ast_obj.id, ast_obj.id)
@@ -230,8 +233,9 @@ def _ast_to_op_or_const(ast_obj, func_map, var_map, recurse):
   op = func_map.get(op.lower(), op)
   return op, args
 
-def _ast_to_policy(ast_obj, func_map, var_map):
-    val = _ast_to_op_or_const(ast_obj, func_map, var_map, _ast_to_policy)
+def _ast_to_policy(ast_obj, func_map, var_map, const_operands):
+    val = _ast_to_op_or_const(ast_obj, _ast_to_policy, func_map, var_map, const_operands)
+
     if(not isinstance(val, tuple)):
       return val
 
@@ -249,8 +253,9 @@ def _ast_to_policy(ast_obj, func_map, var_map):
             policy_args.append(arg)
     return policy
 
-def ast_to_policy(ast_parse, func_map={}, var_map={}):
-    return _ast_to_policy(ast_parse.body[0].value, func_map, var_map)
+def ast_to_policy(ast_parse, func_map={}, var_map={}, const_operands=None):
+    const_operands = set() if const_operands is None else const_operands
+    return _ast_to_policy(ast_parse.body[0].value, func_map, var_map, const_operands)
 
 def _ast_to_func(ast_obj, func_map, var_map):
     val = _ast_to_op_or_const(ast_obj, func_map, var_map, _ast_to_func)
@@ -378,7 +383,7 @@ class TextToPolicyParser():
       except Exception:
         continue
 
-      policy = ast_to_policy(ast_parse, self.func_dictionary)
+      policy = ast_to_policy(ast_parse, self.func_dictionary, const_operands=const_operands)
 
       text = f"{text[:s0]}xfunc{text[s1:]}"
       code_policies.append(policy)
@@ -411,7 +416,7 @@ class TextToPolicyParser():
         g = list(match.groups())
         
         for val in g:
-          print("SPECIAL CONST", val)
+          # print("SPECIAL CONST", val)
           if(val not in ["xfunc", "xlick", "xcat"]):
             const_operands.add(val)        
 
@@ -452,7 +457,7 @@ class TextToPolicyParser():
       # if token.like_num:# and len(str(token)) == 1:
       token_str = str(token)
       if is_number(token_str):#token.like_num:# and len(str(token)) == 1:
-        print("SPECIAL NUMBER", token_str)
+        # print("SPECIAL NUMBER", token_str)
         const_operands.add(token_str)
         words.append("cat")
         # words.append(str(token))
@@ -609,7 +614,7 @@ class TextToPolicyParser():
     # Replace Any Code Sections
     const_operands = set()
     text, code_policies = self.replace_code(text, const_operands)
-
+    print("const_operands", const_operands)
     # if(len(code_policies) > 0):
     #   print("code_policies:")
     #   for i, cp in enumerate(code_policies):
@@ -622,7 +627,7 @@ class TextToPolicyParser():
         _policy = join_policy(cp, _policy)
 
       if(return_consts):
-        return _policy, []  
+        return _policy, const_operands
       else:
         return _policy  
 
@@ -631,7 +636,7 @@ class TextToPolicyParser():
     text = self.replace_numbers(text, const_operands)
     text = self.replace_funcs(text)
 
-    print("INERN", const_operands)
+    # print("INERN", const_operands)
 
     # Final Grammar Parse + Coreference Resolution
     self.doc = doc = self.nlp(text)
@@ -661,7 +666,7 @@ class TextToPolicyParser():
             covered_inds.add(a.i)
       policy.append(new_dp)
 
-    print("BLARG", const_operands)
+    print("BLARG const_operands", const_operands)
     if(return_consts):
       return policy, const_operands
     else:

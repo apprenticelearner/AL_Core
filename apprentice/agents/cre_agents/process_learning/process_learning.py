@@ -95,7 +95,7 @@ def replaceExtendedSwaps(edits):
     repl_set = {}
     for i, edit in enumerate(edits):
         if(edit[0] == 'replace'):
-            repl_set[edit[2]] = (edit[1],edit[3],i)
+            repl_set[edit[2]] = (edit[1], edit[3], i)
     covered = set()
     for symA, (frm_ind, symB, e_indA) in repl_set.items():
         tup = repl_set.get(symB, None)
@@ -186,18 +186,16 @@ class RHS:
 
 
 
-symbol_index = 0
+
 class Sym:
-    def __new__(cls, name=None, prods=[]):
+    def __new__(cls, name, prods=[]):
         if(isinstance(name, Sym)):
             return name
 
         self = super().__new__(cls)
         global symbol_index
         self.name = name
-        if(name is None):
-            self.name = chr(65+symbol_index)
-        symbol_index += 1
+        
         self.prods = prods
         return self
 
@@ -292,6 +290,7 @@ class Grammar:
         for symb, prods in self.prods.items():
             new_prods[symb] = [copy(rhs) for rhs in prods]
         new_g.prods = new_prods
+        return new_g
 
     # def annotate_preterminals(self):
     #     for sym, prods in self.prods.items():
@@ -555,7 +554,7 @@ def find_edits(seq0, seq1):
     if(prev_repl is not None):
         filtered_edits.append(prev_repl)
 
-    print(filtered_edits)
+    # print(filtered_edits)
     return filtered_edits
 
 # --------------------------------------------
@@ -647,14 +646,34 @@ def _subsume_unorder_overlaps(non_unorder_edits, unorder_substs):
     return filtered
     # non_unorder_edits = filtered
 
+class SymbolFactory():
+    def __init__(self, sym_ord=65, grammar=None):
+        self.sym_ord = sym_ord
+        self.grammar = grammar
 
-def edits_to_changes(rhs, edits):
+    def __call__(self):
+        while(True):
+            if(self.sym_ord <= 90):
+                name = chr(self.sym_ord)
+            else:
+                name = "NT" + str(self.sym_ord-90)
+            self.sym_ord += 1
+            if(self.grammar is None or 
+                name not in self.grammar.symbols):
+                break
+        return name
+
+
+
+def edits_to_changes(rhs, edits, symbol_factory=None):
     ''' Preprocess a set of edits into a set of RHS changes which can
         consist of fully unordering the parent rhs, direct edits to 
         the 'parent' rhs and substitutions of it's parts with new productions.
     '''
     seq1 = rhs.items
-    sym_char = ord("Q")
+
+    if(symbol_factory is None):
+        symbol_factory = SymbolFactory(ord("T"))
 
     # Look for an unorder edit that spans the whole RHS
     full_unorder = False
@@ -672,10 +691,12 @@ def edits_to_changes(rhs, edits):
         kind = edit[0]
         if(kind in ["unorder", "replace"]):
             s,e = edit[1], edit[2]
-            new_sym = Sym(chr(sym_char))
-            sym_char += 1
-            if(sym_char == ord("S")):
-                sym_char += 1
+
+            new_sym = Sym(symbol_factory())
+            # new_sym = Sym(chr(sym_char))
+            # sym_char += 1
+            # if(sym_char == ord("S")):
+            #     sym_char += 1
 
             # UnorderSubst Case 
             if(kind == "unorder"):
@@ -730,24 +751,31 @@ class RHSChange:
         self.cost = cost
         self.nomatch = nomatch
 
-    def ensure_changes_computed(self):
+    def ensure_changes_computed(self, symbol_factory=None):
         if(not hasattr(self, 'parent_edits')):
             full_unorder, unorder_substs, disjoin_substs, parent_edits = \
-                edits_to_changes(self.rhs, self.edits)
+                edits_to_changes(self.rhs, self.edits, symbol_factory)
             self.full_unorder = full_unorder
             self.unorder_substs = unorder_substs
             self.disjoin_substs = disjoin_substs
             self.parent_edits = parent_edits
 
-    def apply(self, grammar):
-        self.ensure_changes_computed()
+    def apply(self, grammar, symbol_factory=None):
+        self.ensure_changes_computed(symbol_factory)
 
         old_rhs = self.rhs
         new_rhs = apply_rhs_edits(self.rhs, self.parent_edits)
         
-        prod = grammar.prods[old_rhs.symbol]
-        rhs_ind = prod.index(old_rhs)
-        prod[rhs_ind] = new_rhs
+        rhss = grammar.prods[old_rhs.symbol]
+        rhs_ind = -1
+        for i, _rhs in enumerate(rhss):
+            if(str(_rhs) == str(old_rhs)):
+                rhs_ind = i
+                break
+        if(rhs_ind == -1):
+            raise KeyError(f"Grammar does not contain RHS {old_rhs}.")
+        # rhs_ind = prod.index(old_rhs)
+        rhss[rhs_ind] = new_rhs
         
         for (sym, rhss, (s,e)) in [*self.unorder_substs,*self.disjoin_substs]:
             for rhs in rhss:
@@ -1123,6 +1151,7 @@ def get_best_changes(grammar, seq, rhss):
         s0, s1 = best_rc.span
         print(rhs.symbol,"->", rhs, ":", seq[s0:s1], f"{best_rc.cost:.2f}", best_rc.edits)
 
+
         # mp_trees.append(best_mp_tree)
         # print("---")
     return best_changes
@@ -1132,6 +1161,8 @@ def get_best_changes(grammar, seq, rhss):
 def fill_span_holes(changes, seq):
     head, end = 0, len(seq)
     rcs = sorted(changes, key=lambda x:x.span[0])
+
+    print(">>", [rc.span for rc in rcs], len(seq))
     # print("??", [x.span for x in changes], end)
     new_rcs = []
     for i, rc in enumerate(rcs):
@@ -1156,16 +1187,22 @@ def fill_span_holes(changes, seq):
             nxt_rc = rcs[i+1]
             s1 = nxt_rc.span[0]
         else:
+            print("END", e0, end)
             s1 = end
 
         # If hole between spans
         if(e0 < s1):
             # Append "inserts" to end
-            new_edits = rc.edits+[('insert', e0, seq[j]) for j in range(e0,s1)]
+            new_edits = [*rc.edits]
+            for j in range(e0,s1):
+                new_edits.append(('insert', e0, seq[j]))
+                
+            print(new_edits)
             ins_cost = cost_of_edits(rc.rhs, new_edits, s1-head)
-            new_rcs[-1] = RHSChange(rc.rhs, (head,e0), new_edits, ins_cost)
+            new_rcs[-1] = RHSChange(rc.rhs, (head,s1), new_edits, ins_cost)
         
         head = s1
+    print(">>>", [rc.span for rc in new_rcs], len(seq))
     return new_rcs
 
 class ParseTree:
@@ -1273,7 +1310,7 @@ def _bottom_up_recurse(grammar, seq, rhss, seq_trees=[]):
 
 
 def parse_w_changes(grammar, seq):
-    print(seq)
+    # print(seq)
     prods = grammar.prods
     # print(prods)
 
@@ -1343,23 +1380,21 @@ def parse_only_deletes(pt):
             return False
 
     # Check that the deletes are contiguous
-    #  and terminate at end 
-    print(edits)
+    #  and terminate at end of rhs.
     if(len(edits) > 0 and not rc.rhs.unordered):
         d0 = edits[0][1] #First Delete
         k = 1
-        print("d0", d0)
+        # print("d0", d0)
         for i in range(d0+1, len(rc.rhs.items)):
-            print(":", k, len(edits), i, len(rc.rhs.items))
+            # print(":", k, len(edits), i, len(rc.rhs.items))
             if(k >= len(edits)):
                 return False
             if(rc.rhs.is_optional(i)):
                 continue
-            print(edits[k][1], i)
+            # print(edits[k][1], i)
             if(edits[k][1] != i):
                 return False
             k += 1
-
 
     for ct in pt.child_trees:
         if(ct.change.nomatch):
@@ -1399,7 +1434,7 @@ def _test_subseqs_acceptance(g, seq):
         # assert ptx.cost > pt0.cost
 
 
-def test_bottom_up_changes():
+def test_accept_subseq():
 
     # -- Test Basic -- #
     g = Grammar()
@@ -1443,7 +1478,84 @@ def test_bottom_up_changes():
     assert not check_accepts_subseq(g, ["a0", "b0"], ["a1"])
     assert not check_accepts_subseq(g, ["a0", "b0"], ["b1"])
 
+# def apply(self, grammar):
+#         self.ensure_changes_computed()
 
+#         old_rhs = self.rhs
+#         new_rhs = apply_rhs_edits(self.rhs, self.parent_edits)
+        
+#         prod = grammar.prods[old_rhs.symbol]
+#         rhs_ind = prod.index(old_rhs)
+#         prod[rhs_ind] = new_rhs
+        
+#         for (sym, rhss, (s,e)) in [*self.unorder_substs,*self.disjoin_substs]:
+#             for rhs in rhss:
+#                 grammar.add_production(sym, rhs)
+#         return grammar, new_rhs
+
+
+def _new_symbol_name(g, s_ind):
+    while(True):
+        _ord = 65+s_ind
+        if(_ord <= 90):
+            name = chr(_ord)
+        else:
+            name = "NT" + str(_ord-90)
+        s_ind += 1
+        if(name not in g.symbols):
+            break
+    return name
+
+def apply_grammar_changes(g, parse_tree):
+
+    s_ind = 0
+    symbol_factory = SymbolFactory(grammar=g)#lambda : _new_symbol_name(g, s_ind)
+
+    # Collect Changes
+    changes = []
+    pts = [parse_tree]
+    while(len(pts) > 0):
+        new_pts = []
+        for pt in pts:
+            # changes[pt.change.rhs] = pt.change
+            changes.append(pt.change)
+            new_pts += pt.child_trees
+        pts = new_pts
+
+
+    # new_prods = {}
+    # for symb, rhss in g.prods:
+    #     for rhs in rhss:
+    #         rc = changes[rhs]
+
+    new_g = g.__copy__()
+    for rc in changes:
+        # print(rc.rhs.symbol,  rc.edits)
+        rc.apply(new_g, symbol_factory)
+    return new_g
+
+    
+
+
+
+
+def generalize_from_seq(g, seq):
+    pt = parse_w_changes(g, seq)
+    g = apply_grammar_changes(g, pt)
+    return g
+
+def test_bottom_up_changes():
+    g, rhs = _seq_to_initial_grammar(['a20', 'c20', 'a21', 'c21', 'a22', 'c22', 'a03', 'd'])
+    print('\ngrammar:\n', g)
+    g = generalize_from_seq(g, ['c20', 'a20', 'c21', 'a21', 'c22', 'a22', 'a03', 'd'])
+    print('\ngrammar:\n', g)
+    g = generalize_from_seq(g, ['c20', 'a20', 'c21', 'a21', 'c22', 'a22', 'a03', 'd'])
+    print('\ngrammar:\n', g)
+
+    # g = generalize_from_seq(g, ['c30', 'a30', 'c31', 'a31', 'c32', 'a32', 'a03', 'd'])
+    # g = generalize_from_seq(g, ['c0', 'a0','c1','a1', 'c2', 'a2', 'a3', 'd'])
+
+    
     # g = Grammar()
     # g.add_production("S", RHS(["A","B","C"]))
     # g.add_production("A", RHS(["a","b"]))
@@ -1579,12 +1691,14 @@ def test_blarg():
     edits = find_edits("ABC", "AA")
 
 
+
 if(__name__ == "__main__"):
-    test_blarg()
-    test_find_edits()
+    # test_blarg()
+    # test_find_edits()
     # test_find_rhs_change()
     # test_rhs_accept_cost()
-    # test_bottom_up_changes()
+    # test_accept_subseq()
+    test_bottom_up_changes()
     # test_target_domain_changes()
 
 

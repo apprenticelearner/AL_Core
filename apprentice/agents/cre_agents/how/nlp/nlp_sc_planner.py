@@ -222,10 +222,11 @@ def func_to_policy(func, args, conv_funcs=[]):
                 elif(ai_type == ARGINFO_CONST):
                     typ = context.get_type(t_id=ai['t_id'])
                     const = cf.get_const_root_arg(i, typ)
+                    # print("CONST", cf, i, const)
                     if(const not in unq_vars):
                         unq_vars[const] = Var(typ,chr(97+len(unq_vars)), typ)
-                        cf_args.append(const)
-                        depth_vars.append(unq_vars[const])
+                    depth_vars.append(unq_vars[const])
+                    cf_args.append(const)
                     # print("C_ARG", var, const, len(unq_vars), unq_vars[const])
                 elif(ai_type == ARGINFO_FUNC):
                     # TODO: have some format for funcs as args 
@@ -242,6 +243,7 @@ def func_to_policy(func, args, conv_funcs=[]):
                         typ = context.get_type(t_id=ai['t_id'])
                         unq_vars[unq_key] = Var(typ,chr(97+len(unq_vars)), typ)
                         if(cf_ptr in conversion_vals):
+                            # print(conversion_vals)
                             head_val, base_ptr = conversion_vals[cf_ptr]
                             cf_args.append(head_val)
                         
@@ -279,17 +281,19 @@ def search_phase(phase_num):
 class NLPSetChaining(BaseHow):
     def __init__(self, agent=None, func_dictionary=None, special_patterns=None,
                  search_depth=3, min_stop_depth=-1, float_to_str=True,
-                 spacy_model="en_core_web_trf",  verbosity=0,
+                 # spacy_model="en_core_web_trf",
+                 spacy_model="en_core_web_sm",
+                 extract_constants=True,
+                 verbosity=0,
                  max_phase_expls=100, display_parse=False, **kwargs):
         self.agent = agent
-
         if(func_dictionary is None):
             func_dictionary = default_func_dictionary
 
         if(special_patterns is None):
             special_patterns = defualt_special_patterns
 
-        if(kwargs.get('function_set') is not None):
+        if(kwargs.get('function_set', None)):
             # TODO: Use some better way to uniquely id funcs rather than name
             function_set = kwargs['function_set']
             f_names = set(f.name for f in function_set)
@@ -346,6 +350,7 @@ class NLPSetChaining(BaseHow):
         self.min_stop_depth = min_stop_depth
         self.float_to_str = float_to_str
         self.function_set = self.funcs
+        self.extract_constants = extract_constants
         self.sc_planner = SetChaining(agent, 
             fact_types=self.fact_types,
             search_depth=search_depth, min_stop_depth=min_stop_depth,
@@ -371,9 +376,8 @@ class NLPSetChaining(BaseHow):
         self.declared = {}
         self.identifiers = {}
         self.return_phase = None
-        self.extra_consts = []
 
-    def declare(self, val, var=None, is_const=False):
+    def declare(self, val, var=None):
         if(hasattr(val,'_fact_type')):
             for attr, attr_spec in val._fact_type.filter_spec("semantic").items():
                 attr_val = getattr(val, attr, None)
@@ -399,8 +403,6 @@ class NLPSetChaining(BaseHow):
             except:
                 pass
 
-            if(is_const):
-                self.extra_consts.append(val)
 
             try:
                 self.identifiers[str(int(val))] = val
@@ -499,7 +501,7 @@ class NLPSetChaining(BaseHow):
         #  the the remaining bits
         for k in range(k+1, len(func_policy)):
             cnt += len(func_policy[k])
-        print(score / cnt, str(func), func_policy)
+        # print(score / cnt, str(func), func_policy)
         return score / cnt
 
     def _clean_policy(self, policy):
@@ -537,7 +539,7 @@ class NLPSetChaining(BaseHow):
             for op, operands in depth_policy:
                 new_operands = []
                 for operand in operands:
-                    print(operand, self.identifiers)
+                    # print(operand, self.identifiers)
                     if(operand in self.identifiers):
                         new_operands.append(self.identifiers[operand])
                     else:
@@ -648,7 +650,8 @@ class NLPSetChaining(BaseHow):
             
             print("Min Stop Depth:", min_stop_depth)
             sorted_expls = self._score_sort_expls(expls, policy)
-            if(len(sorted_expls) > 0 and sorted_expls[0][0] != 0.0):
+            if(len(sorted_expls) > 0 and 
+                (sorted_expls[0][0] != 0.0 or len(policy) == 0)):
                 break
 
         # if(expls is not None):
@@ -668,19 +671,34 @@ class NLPSetChaining(BaseHow):
 
         if(func_dictionary is None): func_dictionary = self.func_dictionary
 
+        # print(how_help)
+        # print(func_dictionary)
         policy, const_operands = self.t2p_parser(how_help, return_consts=True)
 
-        print("IDENTIFIERS", self.identifiers)
-        print("const_operands", const_operands)
-        for val in const_operands:
-            if(val not in self.identifiers):
-                self.declare(val, is_const=True)
-        print("extra_consts", self.extra_consts)
+        # print("IDENTIFIERS", self.identifiers)
+        # print("const_operands", const_operands)
+
+        # Collect any extra mentioned values as constants
+        extra_consts = []
+        extract_constants = sc_kwargs.get('extract_constants', self.extract_constants)
+        print(const_operands)
+        if(extract_constants):
+            for val in const_operands:
+                if(val not in self.identifiers):
+                    print("SHJOULD ADD")
+                    try:
+                        val = float(val)
+                    except:
+                        pass
+                    if(val == goal or str(val) == str(goal)):
+                        continue
+                    extra_consts.append(val)
+
+        print("extra_consts", extract_constants, extra_consts)
 
         policy = self._policy_preprocessing(policy)
         policy = self._valueify_policy(policy)
 
-        
         self.policy = policy
 
         if(self.verbosity > 0):
@@ -688,11 +706,16 @@ class NLPSetChaining(BaseHow):
 
         # Run all phases
         for phase_num, phase_method in self.phase_methods:
+
+            # Don't any phase but last one if policy is empty
+            if(len(policy) == 0 and phase_num < self.phase_methods[-1][0]): 
+                continue
+
             if(min_phase <= phase_num):
                 max_phase_expls = self.max_phase_expls.get(phase_num)
-
+                # print(">>", how_help)
                 expls = phase_method(self, goal, policy, 
-                            extra_consts=self.extra_consts, **sc_kwargs)
+                            extra_consts=extra_consts, **sc_kwargs)
                 okay = True
                 if(expls is None or 
                    len(expls) == 0 or 
@@ -729,7 +752,7 @@ class NLPSetChaining(BaseHow):
 
             self.state = state
             for fact in facts:
-                self.declare(fact, is_const=True)
+                self.declare(fact)
 
             expls = self._search_for_explanations(goal, how_help, 
                 func_dictionary, min_phase, **sc_kwargs)
@@ -784,43 +807,63 @@ if __name__ == "__main__":
         policy = func_to_policy(cf, [BOOP("7", 7), BOOP("6", 6)])
         print(policy)
 
+    def test_consts():
+        from cre import define_fact, MemSet
+        from numba.types import unicode_type,f8
+        BOOP = define_fact("BOOP", {"A" :unicode_type, 
+            "B" :{"type": unicode_type, }})
+        a, b  = BOOP("A",3.0), BOOP("B",12.0)
+        wm = MemSet()
+        wm.declare(3.0)
+        wm.declare(12.0)
+        state = {"working_memory" : wm}
+        planner = NLPSetChaining()
+        
+        arg_foci = [a,b]
+
+        text = "3 divided by 12 times 100"
+        expls = planner.get_explanations(state, 25.0, text, 
+                    arg_foci=arg_foci, search_depth=2)
+        for expl in expls:
+            print(expl)
 
 
+    def rest():
+        from numba.types import f8
+        from cre.default_funcs import Add, Subtract, Multiply, Divide
 
+        Add = Add(f8,f8)
+        Subtract = Subtract(f8,f8)
+        Multiply = Multiply(f8,f8)
+        Divide = Divide(f8,f8)
 
+        func_dictionary = {
+            "sum" : Add,
+            "add" : Add,
+            "product" : Multiply,
+            "multiply" : Multiply
+        }
 
+        planner = NLPSetChaining(func_dictionary=func_dictionary)    
+        for n in range(5):
+            planner.declare(float(n))
 
+        print("IDENTIFIERS", planner.identifiers)
 
-    from numba.types import f8
-    from cre.default_funcs import Add, Subtract, Multiply, Divide
-    test_arg_info_policy()
-    raise ValueError()
+        text = "Multiply the sum of 1 and 2 with the product of 3 and 4."
 
-    Add = Add(f8,f8)
-    Subtract = Subtract(f8,f8)
-    Multiply = Multiply(f8,f8)
-    Divide = Divide(f8,f8)
+        expls = planner._search_for_explanations(36.0, text, search_depth=2)
 
-    func_dictionary = {
-        "sum" : Add,
-        "add" : Add,
-        "product" : Multiply,
-        "multiply" : Multiply
-    }
+        print(f"Ended at Phase {planner.return_phase}.")
+        for expl in expls:
+            print(expl)
 
-    planner = NLPSetChaining(func_dictionary=func_dictionary)    
-    for n in range(5):
-        planner.declare(float(n))
+    
+    test_consts()
+    # test_arg_info_policy()
+    # rest()
+    # raise ValueError()
 
-    print("IDENTIFIERS", planner.identifiers)
-
-    text = "Multiply the sum of 1 and 2 with the product of 3 and 4."
-
-    expls = planner._search_for_explanations(36.0, text, search_depth=2)
-
-    print(f"Ended at Phase {planner.return_phase}.")
-    for expl in expls:
-        print(expl)
 
 
 

@@ -1,6 +1,9 @@
 from apprentice.agents.cre_agents.how.nlp.nlp_sc_planner import NLPSetChaining, func_to_policy
-from apprentice.agents.cre_agents.funcs import Add, Add3, Subtract, Multiply, OnesDigit, TensDigit, CastFloat
+from apprentice.agents.cre_agents.funcs import (
+    Add, Add3, Subtract, Multiply, OnesDigit, TensDigit, CastFloat,
+    Divide, Multiply)
 from cre import CREFunc, define_fact, MemSet, Var
+from cre.utils import PrintElapse
 from numba.types import f8, unicode_type
 import numpy as np
 
@@ -95,10 +98,52 @@ def test_basic_searches():
     )    
     assert len(expls2) == 1
 
+def test_const_searches():
+    planner = NLPSetChaining(
+        fact_types=(IE,), float_to_str=False
+        )    
+    # If multiple args are stated then expl1 should not include
+    #  any explanations like Add(a,a), only Add(a,b)
+
+    expls1 = planner.get_explanations(
+        state_w_values([3,12]),
+        25.0, 
+        "Divide 3 and 12 and multiply by 100."
+    )
+
+    expls1 = planner.get_explanations(
+        state_w_values([3.0,12.0]),
+        25.0, 
+        "Form a ratio with 3 as the numerator, 12 as the denominator, and convert the decimal into a percent by multiplying 100",
+    )
+
+    # A useless hint... need to ensure ares are not doubled
+    with PrintElapse("elapse"):
+        expls1 = planner.get_explanations(
+            state_w_values([3,4,2,3]),
+            12, 
+            "List out the multiples of denominator 4 and denominator 3 to identify the least common denominator 12"
+        )
+
+def test_code_sections():
+    planner = NLPSetChaining(
+        fact_types=(IE,), float_to_str=False
+        )
+
+    expls1 = planner.get_explanations(
+            state_w_values([3,12]),
+            12, 
+            "(3/12)*100"
+        )
+
+    for expl in expls1:
+        print(expl)
 
 if __name__ == "__main__":
-    test_func_to_policy()
-    test_basic_searches()
+    # test_func_to_policy()
+    # test_basic_searches()
+    # test_const_searches()
+    test_code_sections()
 
 
 

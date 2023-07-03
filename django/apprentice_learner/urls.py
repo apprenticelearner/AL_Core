@@ -9,6 +9,7 @@ app_name = 'apprentice_api'
 urlpatterns = [
     path('list_agents/', views.list_agents, name="list_agents"),
     path('create/', views.create, name="create"),
+    path('get_active_agent/', views.get_active_agent, name="get_active_agent"),
     path('act/', views.act, name="act"),
     path('act_all/', views.act_all, name="act_all"),
     path('act_rollout/', views.act_rollout, name="act_rollout"),

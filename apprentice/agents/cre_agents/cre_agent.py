@@ -280,7 +280,7 @@ class CREAgent(BaseDIPLAgent):
             for _, attr_spec in fact_type.filter_spec("visible").items():
                 # print(attr_spec)
                 val_types.add(attr_spec['type'])
-
+        
         for func in self.feature_set:
             # print(op, type(op), isinstance(op, Op))
             if(isinstance(func, UntypedCREFunc)):
@@ -419,26 +419,26 @@ class CREAgent(BaseDIPLAgent):
 
         skill_apps = []
         for skill in self.skills.values():
-            if("Qr9" in self.state.get('__uid__')):
-                if(repr(skill.how_part) == "NumericalToStr(TensDigit(Add3(CastFloat(a.value), CastFloat(b.value), CastFloat(c.value))))"):
-                    print(repr(self.state.get("flat_featurized")))
-                    print(skill.when_lrn_mech.classifier)
+            # if("Qr9" in self.state.get('__uid__')):
+            #     if(repr(skill.how_part) == "NumericalToStr(TensDigit(Add3(CastFloat(a.value), CastFloat(b.value), CastFloat(c.value))))"):
+            #         print(repr(self.state.get("flat_featurized")))
+            #         print(skill.when_lrn_mech.classifier)
 
             for skill_app in skill.get_applications(state):
                 skill_apps.append(skill_app)
 
         skill_apps = self.which_cls.sort(state, skill_apps)
-        print('---')
+        # print('---')
         for skill_app in skill_apps:
             skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
             when_pred = 1 if when_pred is None else when_pred
-            print(f"{when_pred:.2f} {match[0].id} -> {skill(*match)}",
-                [(m.id,getattr(m, 'value', None)) for m in match][1:], str(skill.how_part))
+            # print(f"{when_pred:.2f} {match[0].id} -> {skill(*match)}",
+            #     [(m.id,getattr(m, 'value', None)) for m in match][1:], str(skill.how_part))
 
         skill_apps = self.action_filter(state, skill_apps)
 
-        print("N SKILL APPS", len(skill_apps))
-        print('-^-')
+        # print("N SKILL APPS", len(skill_apps))
+        # print('-^-')
         return skill_apps
 
     def act(self, state, 
@@ -560,6 +560,7 @@ class CREAgent(BaseDIPLAgent):
                         state, inp, arg_foci=arg_foci, function_set=[skill.how_part],
                         how_help=how_help, search_depth=1, min_stop_depth=1, min_solution_depth=1)
 
+
                     for _, match in explanation_set:
                         if(len(match) != skill.how_part.n_args):
                             continue
@@ -567,6 +568,9 @@ class CREAgent(BaseDIPLAgent):
                         match = [sai.selection, *match]
                         # print("<<", _, f'[{", ".join([x.id for x in match])}])')
                         skill_app = SkillApplication(skill, state, match)
+                        # print(inp, skill.how_part, match)
+                        print("CAND", skill_app.sai, "Target", sai)
+
                         if(skill_app is not None):
                             skill_apps.append(skill_app)
 
@@ -576,6 +580,8 @@ class CREAgent(BaseDIPLAgent):
                         skill_apps.append(SkillApplication(skill, state, [sai.selection]))                        
 
             # if(len(skill_apps) > 0): print("EXPL HOW")
+        # for sa in skill_apps:
+        #     print("::", sa) # TODO
         return skill_apps
         # best_expl = self.choose_best_explanation(state, skill_apps)
         # if(best_expl is not None):
@@ -814,17 +820,19 @@ class CREAgent(BaseDIPLAgent):
 
                 # print("-->", explanation_selected)
                 if(len(skill_explanations) > 0):
+                    skill_app = None
                     if(explanation_selected is not None):
                         esd = explanation_selected['data']
-                        choice_uid = esd['uid']
-                        choice_args = tuple(esd['args'])
+                        choice_args = tuple(esd.get('args',[]))
                         for sa in skill_explanations:
                             sa_args = tuple([m.id for m in sa.match[1:]])
-                            if(sa.uid == choice_uid and sa_args==choice_args):
+                            if( (sa.uid == esd.get('uid',None) or 
+                                 repr(sa.skill.how_part) == esd.get('repr', None)
+                                 ) and sa_args==choice_args):
                                 skill_app = sa
                                 break
-                    else:
-                        skill_app = skill_explanations[0]
+                    if(skill_app is None):
+                        skill_app = skill_explanations[0]                        
                 else:
                     skill_app = self.induce_skill(state, sai, func_explanations, skill_label,
                         explanation_selected=explanation_selected)
@@ -1079,7 +1087,7 @@ class CREAgent(BaseDIPLAgent):
             #     print(i, uid, obj['skill_app'])
             #     pprint(obj)
             # import time
-            # time.sleep(5)
+            # time.sleep(.5)
 
             return {"curr_state_uid" :  curr_state_uid, 
                     "states" : states,
@@ -1094,7 +1102,7 @@ class CREAgent(BaseDIPLAgent):
             
         import json, os
 
-        print("WRITING TO", os.path.abspath(output_file))
+        # print("WRITING TO", os.path.abspath(output_file))
         with open(output_file, 'w') as profile:
             for state in start_states:
                 ro = self.act_rollout(state)
@@ -1107,9 +1115,11 @@ class CREAgent(BaseDIPLAgent):
                                 sai = action['skill_app'].sai
                                 sais.append(sai.get_info())    
                         profile.write(json.dumps({'state' : state_obj['state'].get("py_dict"), 'sais' : sais})+"\n")
-        print("PROFILE DONE", os.path.abspath(output_file))
+        # print("PROFILE DONE", os.path.abspath(output_file))
 
-    def eval_completeness(self, profile, partial_credit=False, **kwargs):
+    def eval_completeness(self, profile, partial_credit=False,
+                          print_diff=True,
+                         **kwargs):
         ''' Evaluates an agent's correctness and completeness against a completeness profile.'''
         import json, os
 
@@ -1120,8 +1130,6 @@ class CREAgent(BaseDIPLAgent):
                 # Read a line from the profile
                 item = json.loads(line)
 
-                # Print Problem
-                gv = lambda x : item['state'][x]['value']
                 
                     
                 # Get the ground-truth sais
@@ -1133,21 +1141,24 @@ class CREAgent(BaseDIPLAgent):
                 profile_sai_strs = set([str(s) for s in profile_sais])
                 agent_sai_strs = [str(s.get_info()) for s in agent_sais]
                 diff = profile_sai_strs.symmetric_difference(set(agent_sai_strs))
-                # if(len(diff) > 0):
-                #     print(list(item['state'].keys()))
-                #     print(line_ind+1, ">>",f"{gv('inpA3')}{gv('inpA2')}{gv('inpA1')} + {gv('inpB3')}{gv('inpB2')}{gv('inpB1')}")
-                #     print(list(state.keys()))
-                #     print("----------------------")
-                #     for key, obj in state.items():
-                #         print(key, obj)
-                #     print("AGENT:")
-                #     for x in agent_sai_strs:
-                #         print(x)
-                #     print("TRUTH:")
-                #     for x in profile_sai_strs:
-                #         print(x)
-                #     print("----------------------")
-                #     print()
+                if(print_diff and len(diff) > 0):
+                    # Print Problem
+                    gv = lambda x : item['state'][x]['value']
+                
+                    # print(list(item['state'].keys()))
+                    print(line_ind+1, ">>",f"{gv('inpA3')}{gv('inpA2')}{gv('inpA1')} + {gv('inpB3')}{gv('inpB2')}{gv('inpB1')}")
+                    # print(list(state.keys()))
+                    # print("----------------------")
+                    # for key, obj in state.items():
+                    #     print(key, obj)
+                    print("AGENT:")
+                    for x in agent_sai_strs:
+                        print(x)
+                    print("TRUTH:")
+                    for x in profile_sai_strs:
+                        print(x)
+                    print("----------------------")
+                    print()
 
                 # print("LINE", total_states, len(diff) == 0)
                 if(partial_credit):

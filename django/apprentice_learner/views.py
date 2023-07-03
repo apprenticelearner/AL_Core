@@ -212,6 +212,14 @@ def create(http_request):
 
     return HttpResponse(json.dumps(resp_data))
 
+@csrf_exempt
+def get_active_agent(http_request):
+    """
+    Returns the uid of the active agent
+    """
+    global active_agent_uid
+    return HttpResponse(json.dumps(active_agent_uid))
+
 
 # --------------------------------------------------------------
 # : Act, Act_All, Act_Rollout
@@ -616,6 +624,8 @@ def predict_next_state(http_request):
         if(model): model.inc_train()
 
         with LogElapse(performance_logger, "predict_next_state() elapse"):
+            print(agent)
+
             response = agent.predict_next_state(**data, json_friendly=True)
 
         return HttpResponse(json.dumps(response))

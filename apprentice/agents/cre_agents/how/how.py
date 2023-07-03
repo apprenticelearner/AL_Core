@@ -114,7 +114,7 @@ class SetChaining(BaseHow):
 "function_set must consist of CREFunc intances for SetChaining how-learning mechanism." 
 
 
-    def _search_for_explanations(self, values, goal, **kwargs):
+    def _search_for_explanations(self, goal, values, extra_consts=[],  **kwargs):
         # Fallback on any parameters set in __init__()
         kwargs['funcs'] = kwargs.get('function_set', self.function_set)
         if('function_set' in kwargs): del kwargs['function_set']
@@ -125,6 +125,9 @@ class SetChaining(BaseHow):
         planner = SetChainingPlanner(self.fact_types)
         for v in values:
             planner.declare(v)
+
+        for v in extra_consts:
+            planner.declare(v,is_const=True)
 
         # Search for explanations
         explanation_tree = planner.search_for_explanations(goal, **kwargs)
@@ -146,8 +149,6 @@ class SetChaining(BaseHow):
             wm = state.get("working_memory")
             values = list(wm.get_facts()) if arg_foci is None else arg_foci
 
-        values = values + extra_consts
-
         float_to_str = float_to_str if float_to_str is not None else self.float_to_str
 
         try:
@@ -155,14 +156,14 @@ class SetChaining(BaseHow):
         except ValueError:
             explanation_tree = None
         else:
-            explanation_tree = self._search_for_explanations(values, flt_goal, **kwargs)
+            explanation_tree = self._search_for_explanations(flt_goal, values, extra_consts, **kwargs)
             post_func = NumericalToStr if (float_to_str) else None
         
 
         # Try to find the goal as a string
         if(explanation_tree is None):
             # TODO: Shouldn't full reset and run a second time here, should just query.
-            explanation_tree = self._search_for_explanations(values, goal, **kwargs)        
+            explanation_tree = self._search_for_explanations(goal, values, extra_consts, **kwargs)        
             post_func = None
         
         expl_set = ExplanationSet(explanation_tree, arg_foci, post_func=post_func)

@@ -1,129 +1,12 @@
 from apprentice.agents.cre_agents.how.nlp.nlp_sc_planner import NLPSetChaining
-from numba.types import f8
-from cre.default_funcs import Add, Subtract, Multiply, Divide, CastFloat
+
+
 from cre import CREFunc, define_fact
+from cre.default_funcs import CastFloat
 
 import numpy as np
 
-# ------------------------------------
-# : Definition of Ops
 
-Add_f8 = Add(f8,f8)
-Subtract_f8 = Subtract(f8,f8)
-Multiply_f8 = Multiply(f8,f8)
-Divide_f8 = Divide(f8,f8)
-
-@CREFunc(signature=f8(f8), shorthand = '({0}/2)')
-def Half(a):
-    return a / 2
-
-@CREFunc(signature=f8(f8), shorthand = '({0}*2)')
-def Double(a):
-    return a * 2
-
-@CREFunc(signature=f8(f8), shorthand = 'Ones({0})')
-def Ones(a):
-    return a % 10
-
-@CREFunc(signature=f8(f8), shorthand = 'Tens({0})')
-def Tens(a):
-    return (a // 10) % 10
-
-@CREFunc(signature=f8(f8), shorthand = '{0}^2')
-def Square(a):
-    return a * a
-
-@CREFunc(signature=f8(f8, f8), shorthand = '{0}^{1}')
-def Power(a, b):
-    return a ** b
-
-@CREFunc(signature=f8(f8), shorthand = '{0}+1')
-def Increment(a):
-    return a + 1
-
-@CREFunc(signature=f8(f8), shorthand = '{0}-1')
-def Decrement(a):
-    return a - 1
-
-@CREFunc(signature=f8(f8), shorthand = 'log2({0})')
-def Log2(a):
-    return np.log2(a)
-
-@CREFunc(signature=f8(f8), shorthand = 'cos({0})')
-def Cos(a):
-    return np.cos(a)
-
-@CREFunc(signature=f8(f8), shorthand = 'sin({0})')
-def Sin(a):
-    return np.sin(a)
-
-func_dictionary = {
-    "sum" : Add_f8,
-    "add" : Add_f8,
-    "plus" : Add_f8,
-
-    "product" : Multiply_f8,
-    "multiply" : Multiply_f8,
-    "times" : Multiply_f8,
-
-    "subtract" : Subtract_f8,
-    "minus" : Subtract_f8,
-    "difference" : Subtract_f8,
-
-    "divide" : Divide_f8,
-    "quotient" : Divide_f8,
-    "ratio" : Divide_f8,
-    "proportion" : Divide_f8,
-
-    "half" : Half,
-
-    "ones" : Ones,
-
-    "tens" : Tens,
-
-    "square" : Square,
-
-    "power" : Power,
-
-    "double" : Double,
-    "twice" : Double,
-
-    "increment" : Increment,
-    "decrement" : Decrement,
-    "log2" : Log2,
-
-    "sin" : Sin,
-    "sine" : Sin,
-
-    "cos" : Cos,
-    "cosine" : Cos,
-}
-
-special_patterns = {
-  r"(\S+)\sdivided\sby\s(\S+)" : Divide_f8,
-  r"(\S+)\sover\s(\S+)" : Divide_f8,
-  r"(\S+)\stimes\s(\S+)" : Multiply_f8,
-  r"(\S+)\sminus\s(\S+)" : Subtract_f8,
-  r"(\S+)\splus\s(\S+)" : Add_f8,
-
-
-  # r"\(*\s*1\s*\/\s*2\s*\)*" : Half,
-
-  # r"(\S+)\s*\/\s*(\S+)" : Divide_f8,
-  # r"(\S+)\s*\*\s*(\S+)" : Multiply_f8,
-  # r"(\S+)\s*-\s*(\S+)" : Subtract_f8,
-  # r"(\S+)\s*\+\s*(\S+)" : Add_f8,
-  
-  r"ones\s(digit|place)" : Ones,
-  r"ones'\s(digit|place)" : Ones,
-  r"one's\s(digit|place)" : Ones,
-  r"last\s(digit|place)" : Ones,
-  r"final\s(digit|place)" : Ones,
-
-  r"tens\s(digit|place)" : Tens,
-  r"tens'\s(digit|place)" : Tens,
-  r"ten's\s(digit|place)" : Tens,
-}
 
 
 IE = define_fact("IE", {
@@ -145,7 +28,6 @@ use_facts=False
 # ------------------------------------
 # : Testing Funcs
 planner = NLPSetChaining(
-    func_dictionary=func_dictionary, special_patterns=special_patterns,
     fact_types=(IE,), verbosity=verbosity, float_to_str=False)    
 
 def float_if_numeric(x):
@@ -270,7 +152,7 @@ class SolutionsProfile(object):
 
 
 
-def do_search(values, goal, hint, all_levels=None, search_depth=3, display_parse=False):
+def do_search(values, goal, hint, all_levels=None, extract_constants=False, search_depth=3, display_parse=False):
     all_levels = do_all_levels if all_levels is None else all_levels 
     planner.clear()
     planner.t2p_parser.display_parse = display_parse
@@ -282,7 +164,8 @@ def do_search(values, goal, hint, all_levels=None, search_depth=3, display_parse
         planner.state.append(v)
 
 
-    expls = planner._search_for_explanations(float_if_numeric(goal), hint, search_depth=search_depth, float_to_str=False)
+    expls = planner._search_for_explanations(float_if_numeric(goal), hint,
+                        search_depth=search_depth, float_to_str=False, extract_constants=extract_constants)
 
     profile = SolutionsProfile(planner.return_phase, goal, hint)
     profile.policy = planner.policy
