@@ -1,4 +1,4 @@
-colorama==0.4.3
+lscolorama==0.4.3
 concept-formation==0.3.4
 Django==2.1.11
 django-flashpolicies==1.10
@@ -22,6 +22,6 @@ multiprocess
 scikit-learn
 dill
 django-cors-headers
-numba>=0.50.1
-numbert @ git+https://github.com/DannyWeitekamp/numbert.git
+numba>=0.57.0
+cre @ git+https://github.com/DannyWeitekamp/Cognitive-Rule-Engine.git
 stand @ git+https://github.com/DannyWeitekamp/STAND.git
