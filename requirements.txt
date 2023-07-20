@@ -23,5 +23,5 @@ scikit-learn
 dill
 django-cors-headers
 numba>=0.57.0
-cre @ git+https://github.com/DannyWeitekamp/Cognitive-Rule-Engine.git
+cre
 stand @ git+https://github.com/DannyWeitekamp/STAND.git

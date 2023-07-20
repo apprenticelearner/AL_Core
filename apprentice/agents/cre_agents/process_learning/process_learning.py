@@ -670,6 +670,7 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
         consist of fully unordering the parent rhs, direct edits to 
         the 'parent' rhs and substitutions of it's parts with new productions.
     '''
+    print("EDITS", edits)
     seq1 = rhs.items
 
     if(symbol_factory is None):
@@ -683,6 +684,9 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
             edits.pop(i)
             break
 
+    any_new_sym = any([edit[0] in ["unorder", "replace"] for edit in edits])
+    prev_end = 0 if any_new_sym else None
+
     # Make new symbols for each 'unorder' and 'replace' edit
     unorder_substs = [] # [(sym, [rhs,...], span),...]
     disjoin_substs = [] # [(sym, [rhs,...], span),...]
@@ -692,11 +696,14 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
         if(kind in ["unorder", "replace"]):
             s,e = edit[1], edit[2]
 
+            # Fill any holes preceeding this edit
+            if(prev_end is not None and prev_end < s):
+                new_sym = Sym(symbol_factory())
+                rhs0 = RHS(seq1[prev_end:s], new_sym)
+                disjoin_substs.append((new_sym, [rhs0], (prev_end,s)))
+            prev_end = e
+
             new_sym = Sym(symbol_factory())
-            # new_sym = Sym(chr(sym_char))
-            # sym_char += 1
-            # if(sym_char == ord("S")):
-            #     sym_char += 1
 
             # UnorderSubst Case 
             if(kind == "unorder"):
@@ -714,13 +721,23 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
 
         non_unorder_edits.append(edit)
 
+    # Fill any holes preceeding this edit
+    print("**", any_new_sym, prev_end, len(seq1))
+    if(any_new_sym and prev_end < len(seq1)):
+        new_sym = Sym(symbol_factory())
+        rhs0 = RHS(seq1[prev_end:len(seq1)], new_sym)
+        disjoin_substs.append((new_sym, [rhs0], (prev_end,len(seq1))))
+
     
     # Apply any edits subsumed by an unorder substitution
     if(len(unorder_substs) > 0):
         non_unorder_edits =_subsume_unorder_overlaps(non_unorder_edits, unorder_substs)
 
+    # Add a replace edit for each new symbol in RHS
     parent_edits = [*non_unorder_edits]
     for (sym, rhss, (s,e)) in unorder_substs:
+        parent_edits.append(('replace', s, e, [sym]))
+    for (sym, rhss, (s,e)) in disjoin_substs:
         parent_edits.append(('replace', s, e, [sym]))
     parent_edits = sorted(parent_edits, key=lambda x:x[1])
 
@@ -1546,13 +1563,18 @@ def generalize_from_seq(g, seq):
 
 def test_bottom_up_changes():
     g, rhs = _seq_to_initial_grammar(['a20', 'c20', 'a21', 'c21', 'a22', 'c22', 'a03', 'd'])
-    print('\ngrammar:\n', g)
-    g = generalize_from_seq(g, ['c20', 'a20', 'c21', 'a21', 'c22', 'a22', 'a03', 'd'])
-    print('\ngrammar:\n', g)
-    g = generalize_from_seq(g, ['c20', 'a20', 'c21', 'a21', 'c22', 'a22', 'a03', 'd'])
-    print('\ngrammar:\n', g)
+    print(f'\ngrammar:\n{g}')
 
-    # g = generalize_from_seq(g, ['c30', 'a30', 'c31', 'a31', 'c32', 'a32', 'a03', 'd'])
+    g = generalize_from_seq(g, ['a20', 'c20', 'a21', 'c21', 'a22', 'c22', 'a03', 'd'])    
+    print(f'\ngrammar:\n{g}')
+
+    g = generalize_from_seq(g, ['c20', 'a20', 'c21', 'a21', 'c22', 'a22', 'a03', 'd'])
+    print(f'\ngrammar:\n{g}')
+    g = generalize_from_seq(g, ['c20', 'a20', 'c21', 'a21', 'c22', 'a22', 'a03', 'd'])
+    print(f'\ngrammar:\n{g}')
+
+    g = generalize_from_seq(g, ['c30', 'a30', 'c31', 'a31', 'c32', 'a32', 'a03', 'd'])
+    print(f'\ngrammar:\n{g}')
     # g = generalize_from_seq(g, ['c0', 'a0','c1','a1', 'c2', 'a2', 'a3', 'd'])
 
     
