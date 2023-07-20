@@ -1,4 +1,4 @@
-lscolorama==0.4.3
+colorama==0.4.3
 concept-formation==0.3.4
 Django==2.1.11
 django-flashpolicies==1.10
