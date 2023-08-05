@@ -61,7 +61,7 @@ class SAI(object):
 
         # Note: Subclasses should gaurentee an as_tuple() representation
         #  of the form (str, str, dict). Thus this works in general.
-        print(self_tup, other, self_tup == other)
+        # print(self_tup, other, self_tup == other)
         return self_tup == other
 
     def __getitem__(self, item):

@@ -306,6 +306,9 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
         prediction = self.classifier.predict(X_nom_subset, None)[0]        
         return prediction
 
+    def __str__(self):
+        return str(self.classifier)
+
 
 # --------------------------------------------
 # : STAND
@@ -318,7 +321,7 @@ class STAND(BaseWhen, VectorTransformMixin):
         from stand.stand import STANDClassifier
 
         VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
-        self.classifier = STANDClassifier(inv_mapper=self.inv_mapper)
+        self.classifier = STANDClassifier(inv_mapper=self.inv_mapper, **kwargs)
 
     def ifit(self, state, skill_app, reward):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
@@ -346,6 +349,9 @@ class STAND(BaseWhen, VectorTransformMixin):
                 return -a['prob']
                 # return a['y_class']
         return 1
+
+    def __str__(self):
+        return str(self.classifier)
         # print(probs)
 
         # return prediction

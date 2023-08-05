@@ -1275,8 +1275,8 @@ def _bottom_up_recurse(grammar, seq, rhss, seq_trees=[]):
     best_changes = get_best_changes(grammar, seq, rhss)
     best_changes = fill_span_holes(best_changes, seq)
 
-    # for rc in best_changes:
-    #     print(rc.rhs.symbol, "HBEST:", f"{rc.cost:.2f}", rc.edits)
+    for rc in best_changes:
+        print(rc.rhs.symbol, "HBEST:", f"{rc.cost:.2f}", rc.edits)
 
     # Organize Changes by their upstream symbol
     # changes_by_symb = {}    

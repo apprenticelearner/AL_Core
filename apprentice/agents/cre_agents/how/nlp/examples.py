@@ -1,4 +1,4 @@
-from apprentice.agents.cre_agents.how.nlp.nlp_sc_planner import NLPSetChaining
+from apprentice.agents.cre_agents.how.nlp.nlp_sc_planner import NLPSetChaining, func_dict
 
 
 from cre import CREFunc, define_fact

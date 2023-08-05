@@ -18,6 +18,12 @@ def Equals(a, b):
 def Add(a, b):
     return a + b
 
+@CREFunc(signature=f8(f8,f8))
+def AddPositive(a, b):
+    if(not (a >= 0 and b >= 0)):
+        raise Exception
+    return a + b
+
 @CREFunc(signature=f8(f8,f8,f8),
     shorthand = '{0} + {1} + {2}',
     commutes=True)
