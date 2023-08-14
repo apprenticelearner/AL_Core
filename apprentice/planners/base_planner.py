@@ -15,6 +15,10 @@ class BasePlanner(object):
 
 
 def get_planner_class(name):
+	print(type(name))
+	# if is class then return
+	if(isinstance(name, type)):
+		return name
 	if(name == "vectorized"):
 		from apprentice.planners.VectorizedPlanner import VectorizedPlanner
 	name = name.lower().replace(' ', '').replace('_', '')

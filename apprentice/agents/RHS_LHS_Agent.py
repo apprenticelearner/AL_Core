@@ -430,8 +430,12 @@ class RHS_LHS_Agent(BaseAgent):
 
         planner_class = get_planner_class(planner)
 
-        self.feature_set = planner_class.resolve_operators(feature_set)
-        self.function_set = planner_class.resolve_operators(function_set)
+        if(hasattr(planner_class, 'resolve_operators')):
+            self.feature_set = planner_class.resolve_operators(feature_set)
+            self.function_set = planner_class.resolve_operators(function_set)
+        else:
+            raise ValueError("RHS LHS doesn't work w/ new stuff.")
+
         self.planner = planner_class(search_depth=search_depth,
                                    function_set=self.function_set,
                                    feature_set=self.feature_set,

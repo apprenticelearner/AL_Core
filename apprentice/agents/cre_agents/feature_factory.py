@@ -18,7 +18,7 @@ from numba.typed import Dict, List
 from cre import TF
 from cre.gval import new_gval
 from cre.utils import _struct_tuple_from_pointer_arr, _func_from_address, PrintElapse, _struct_from_ptr
-from cre.obj import CREObjType
+from cre.obj import CREObjType, cre_obj_get_item
 from cre.func import CREFuncType
 from cre.utils import cast
 from cre.memset import MemSetType
@@ -39,6 +39,11 @@ def declare_skill_cands(memset, enumerizer, _how_part,
         match_ptr_set = match_ptrs[i].copy()
         match = _struct_tuple_from_pointer_arr(tuple_type, match_ptr_set)
 
+        match_str = ""
+        for m_ptr in match_ptr_set:
+            m = cast(m_ptr, CREObjType)
+            match_str += cre_obj_get_item(m, unicode_type, 0) + ","
+
         try:
             val = how_part(*match[1:])
         except:
@@ -48,7 +53,7 @@ def declare_skill_cands(memset, enumerizer, _how_part,
         # print("VAL@", match[1:], val)
 
         # Declare Each Skill Candidate
-        head = TF("SkillCand:", cast(how_part, CREFuncType), uid, *match)
+        head = TF("SkillCand:",  uid, match_str)#*match)
         nom  = enumerizer.to_enum(val)
         gval = new_gval(head, val, nom=nom)
         memset.declare(gval)
@@ -68,7 +73,11 @@ def declare_skill_const(memset, how_part, uid, match_ptrs, tuple_type):
         match_ptr_set = match_ptrs[i]
         match = _struct_tuple_from_pointer_arr(tuple_type, match_ptr_set)
         val = how_part
-        head = TF("SkillCand:", how_part, uid, *match)
+        match_str = ""
+        for m_ptr in match_ptr_set:
+            m = cast(m_ptr, CREObjType)
+            match_str += cre_obj_get_item(m, unicode_type, 0) + ","
+        head = TF("SkillCand:", how_part, uid, match_str)
         gval = new_gval(head, val)
         memset.declare(gval)
 
@@ -141,9 +150,18 @@ def SkillCandidates(agent, state, feat_state):
 @njit(types.void(MemSetType,i8[::1]), cache=True, locals={"match_ptr_set" : i8[::1]})
 def declare_match(memset, match_ptrs):
     if(len(match_ptrs) > 1):
+        sel_ptr = match_ptrs[0]
+        m = _struct_from_ptr(CREObjType, sel_ptr)
+        _id = cre_obj_get_item(m, unicode_type, 0)
+        tup =  TF(f"Sel", _id)
+        arg_tup = new_gval(tup,"")
+        memset.declare(arg_tup)
+
         for i, m_ptr in enumerate(match_ptrs[1:]):
             m = _struct_from_ptr(CREObjType, m_ptr)
-            tup =  TF(f"Arg{i}:", m)
+            _id = cre_obj_get_item(m, unicode_type, 0)
+            # _id = m.get_item(unicode_type, 0)
+            tup =  TF(f"Arg{i}:", _id)
             arg_tup = new_gval(tup,"")
             memset.declare(arg_tup)
 

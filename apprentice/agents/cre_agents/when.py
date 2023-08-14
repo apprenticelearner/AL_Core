@@ -201,9 +201,11 @@ class VectorTransformMixin(RefittableMixin):
 
 
         wm = state.get("working_memory")
+
         if(self.encode_relative):
             self.relative_encoder.set_in_memset(wm)
             _vars = self.skill.where_lrn_mech._ensure_vars(match)
+            # _vars = self.skill.where_lrn_mech._ensure_vars(match)
             # print(":::", self.skill.id_num, "_vars", _vars[0].base_ptr)
 
             # print(featurized_state)
@@ -244,7 +246,7 @@ class VectorTransformMixin(RefittableMixin):
 
         n, m = self.X_nom.shape
         new_shape = (max(n, index+1), max(m, len(nominal)))
-        # print("NEW SHAPE", new_shape, n, index+1, m, len(nominal))
+        print("NEW SHAPE", new_shape, n, index+1, m, len(nominal))
         if(new_shape != self.X_nom.shape):
             # Copy old data into new matrix
             new_X_nom = np.zeros(new_shape, dtype=np.int64)
@@ -299,6 +301,7 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
     def ifit(self, state, skill_app, reward):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
+        # print(self.classifier)
 
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)

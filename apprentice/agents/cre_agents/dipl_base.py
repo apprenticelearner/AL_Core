@@ -153,7 +153,9 @@ def _get_which_utility(state, skill_app):
     return skill_app.skill.which_lrn_mech.get_utility(state, skill_app)
 
 def _sort_on_utility(state, skill_apps):
-    return sorted(skill_apps,key=lambda sa : _get_which_utility(state, sa))
+    # for sa in skill_apps:
+    #     print("WU", _get_which_utility(state, sa), sa)
+    return sorted(skill_apps, key=lambda sa : _get_which_utility(state, sa))
 
 @register_skill_app_chooser
 def max_which_utility(state, skill_apps):

@@ -404,6 +404,7 @@ class CREAgent(BaseDIPLAgent):
         wm = self.state.get('working_memory')
         for fact in arg_foci:
             if(isinstance(fact, str)):
+                # print(fact)
                 fact = wm.get_fact(id=fact)
             new_arg_foci.append(fact)
         return new_arg_foci
