@@ -129,7 +129,7 @@ class RefittableMixin():
 
 class VectorTransformMixin(RefittableMixin):
     def __init__(self, skill, encode_relative=True, one_hot=False,
-                encode_missing=None,
+                encode_missing=False,
                 starting_state_format='flat_featurized',
                 extra_features=[],
                  **kwargs):
@@ -138,12 +138,9 @@ class VectorTransformMixin(RefittableMixin):
         self.encode_relative = encode_relative
         self.extra_features = extra_features
         self.one_hot = one_hot
+        self.encode_missing = encode_missing
         
         agent = skill.agent
-
-        # Encode Missing By Default
-        if(encode_missing is None):
-            self.encode_missing = one_hot
 
         # Initialize Vectorizer
         from numba.types import f8, i8, string, boolean
@@ -270,7 +267,10 @@ class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
         super().__init__(skill,**kwargs)
         from sklearn.tree import DecisionTreeClassifier
 
-        VectorTransformMixin.__init__(self, skill, one_hot=True, **kwargs)
+        # Default to one-hot
+        kwargs['one_hot'] = kwargs.get('one_hot', True)
+
+        VectorTransformMixin.__init__(self, skill, **kwargs)
         self.classifier = DecisionTreeClassifier()
 
     def ifit(self, state, skill_app, reward):
