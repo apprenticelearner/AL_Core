@@ -1,5 +1,6 @@
 from numba.types import f8, string, boolean
 from apprentice.agents.cre_agents.extending import registries, new_register_decorator, new_register_all
+from apprentice.agents.cre_agents.environment import TextField
 from cre import CREFunc
 import numpy as np
 
@@ -112,12 +113,6 @@ def Copy(a):
 def Concatenate(a, b):
     return a + b
 
-@CREFunc(signature=f8(f8,f8,f8),
-    shorthand='({0} / {1}) * {2}')
-def ConvertNumerator(a, b, c):
-    return (a / b) * c
-
-
 
 @CREFunc(signature=f8(f8), shorthand = '{0}/2')
 def Half(a):
@@ -136,22 +131,32 @@ def TensDigit(a):
     return (a // 10) % 10
 
 
+### Special Functions for Fractions 
+###  --typically can be replaced with Multiply
 
+@CREFunc(signature=f8(f8,f8,f8),
+    shorthand='({0} / {1}) * {2}')
+def ConvertNumerator(a, b, c):
+    return (a / b) * c
 
-# --------------
-# : Conversion Functions float/str
+@CREFunc(signature=f8(TextField, TextField),
+    shorthand='Cross({0} * {1})')
+def CrossMultiply(a, b):
+    if('den' in a.id and 'den' in b.id):
+        raise ValueError()
+    if('num' in a.id and 'num' in b.id):
+        raise ValueError()
+    return (float(a.value) * float(b.value))
 
-register_conversion = new_register_decorator("conversion", full_descr="Conversions between types")
+@CREFunc(signature=f8(TextField, TextField),
+    shorthand='Across({0} * {1})')
+def AcrossMultiply(a, b):
+    if('den' in a.id and 'den' not in b.id):
+        raise ValueError()
+    if('num' in a.id and 'num' not in b.id):
+        raise ValueError()
 
-@register_conversion(name="CastFloat")
-@CREFunc(shorthand = 'f8({0})')
-def CastFloat(a):
-    return float(a)
-
-@register_conversion(name="CastStr")
-@CREFunc(shorthand = 'str({0})')
-def CastStr(a):
-    return str(a)
+    return (float(a.value) * float(b.value))
 
 
 ##### Define all CREFuncs above this line #####

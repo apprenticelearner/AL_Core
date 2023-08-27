@@ -1,7 +1,7 @@
 from cre import define_fact, Fact, Conditions
 # from cre.default_funcs import CastFloat
 from apprentice.agents.cre_agents.extending import new_register_decorator, new_register_all
-from .funcs import CastFloat, CastStr
+from .conv_funcs import CastFloat, CastStr
 from copy import copy
 
 

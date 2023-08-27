@@ -212,6 +212,9 @@ class VectorTransformMixin(RefittableMixin):
             # print(featurized_state)
             featurized_state = self.relative_encoder.encode_relative_to(
                 featurized_state, [match[0]], [_vars[0]])
+        # else:
+        #     featurized_state = self.relative_encoder.encode_relative_to(
+        #         featurized_state, [match[0]], [_vars[0]])
         # print("vvvvvvvvvvvvvvvvvvvvvvvvvv")
         # print(featurized_state)
         # print("^^^^^^^^^^^^^^^^^^^^^^^^^^")
@@ -225,6 +228,8 @@ class VectorTransformMixin(RefittableMixin):
 
         continuous, nominal = self.vectorizer(featurized_state)
         #### -------Print mapping------------####
+        # print(self.vectorizer)
+        # print(nominal)
         # print("---------------------------------------")
         # for (ind, val) in self.vectorizer.make_inv_map().items():
         #     print("*", ind, nominal[ind], ind,val)
@@ -289,11 +294,14 @@ class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
 @register_when
 class DecisionTree(BaseWhen, VectorTransformMixin):
     def __init__(self, skill, impl="decision_tree",
+                  one_hot=False,
                 **kwargs):
         super().__init__(skill, **kwargs)
         from stand.tree_classifier import TreeClassifier
 
-        VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
+        kwargs['one_hot'] = kwargs.get('one_hot', one_hot)
+
+        VectorTransformMixin.__init__(self, skill, **kwargs)
         self.classifier = TreeClassifier(impl, inv_mapper=self.inv_mapper)
 
     def ifit(self, state, skill_app, reward):
@@ -316,11 +324,14 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
 @register_when
 class STAND(BaseWhen, VectorTransformMixin):
     def __init__(self, skill,
+                one_hot=False,
                 **kwargs):
         super().__init__(skill, **kwargs)
         from stand.stand import STANDClassifier
 
-        VectorTransformMixin.__init__(self, skill, one_hot=False, **kwargs)
+        kwargs['one_hot'] = kwargs.get('one_hot', one_hot)
+
+        VectorTransformMixin.__init__(self, skill, **kwargs)
         self.classifier = STANDClassifier(inv_mapper=self.inv_mapper, **kwargs)
 
     def ifit(self, state, skill_app, reward):

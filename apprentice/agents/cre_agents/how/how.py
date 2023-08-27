@@ -31,7 +31,7 @@ class BaseHow(metaclass=ABCMeta):
 from numba.types import string, f8
 from cre.sc_planner import SetChainingPlanner
 from cre.func import CREFunc
-from ..funcs import register_conversion
+from ..conv_funcs import register_conversion
 
 func_registry = registries['func']
 

@@ -432,8 +432,8 @@ class CREAgent(BaseDIPLAgent):
         for skill_app in skill_apps:
             skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
             when_pred = 1 if when_pred is None else when_pred
-            # print(f"{when_pred:.2f} {match[0].id} -> {skill(*match)}",
-            #     [(m.id,getattr(m, 'value', None)) for m in match][1:], str(skill.how_part))
+            print(f"{when_pred:.2f} {match[0].id} -> {skill(*match)}",
+                [(m.id,getattr(m, 'value', None)) for m in match][1:], str(skill.how_part))
 
         skill_apps = self.action_filter(state, skill_apps)
 
