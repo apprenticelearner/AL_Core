@@ -144,7 +144,6 @@ class Skill(object):
 
 
     def ifit(self, state, skill_app, reward):
-
         skill_app.skill.skill_apps[skill_app.uid] = skill_app
 
         self.where_lrn_mech.ifit(state, skill_app.match, reward)
@@ -153,7 +152,7 @@ class Skill(object):
         # with PrintElapse("fit which"):
         self.which_lrn_mech.ifit(state, skill_app, reward)
 
-        # print("FIT", reward, self, [m.id for m in match])
+        # print("FIT", reward)
 
         # if(not hasattr(self.how_part,'__call__') and self.how_part == -1):
         #     print("<<", self.how_part, match)
@@ -432,8 +431,8 @@ class CREAgent(BaseDIPLAgent):
         for skill_app in skill_apps:
             skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
             when_pred = 1 if when_pred is None else when_pred
-            print(f"{when_pred:.2f} {match[0].id} -> {skill(*match)}",
-                [(m.id,getattr(m, 'value', None)) for m in match][1:], str(skill.how_part))
+            # print(f"{when_pred:.2f} {match[0].id} -> {skill(*match)}",
+            #     [(m.id,getattr(m, 'value', None)) for m in match][1:], str(skill.how_part))
 
         skill_apps = self.action_filter(state, skill_apps)
 
@@ -569,7 +568,7 @@ class CREAgent(BaseDIPLAgent):
                         # print("<<", _, f'[{", ".join([x.id for x in match])}])')
                         skill_app = SkillApplication(skill, state, match)
                         # print(inp, skill.how_part, match)
-                        print("CAND", skill_app.sai, "Target", sai)
+                        # print("CAND", skill_app.sai, "Target", sai)
 
                         if(skill_app is not None):
                             skill_apps.append(skill_app)
@@ -638,38 +637,44 @@ class CREAgent(BaseDIPLAgent):
 
     def explain_demo(self, state, sai, arg_foci=None, skill_label=None, skill_uid=None, how_help=None,
              json_friendly=False, force_use_funcs=False, **kwargs):
+        print("EXPLAIN DEMO!")
         ''' Explains an action 'sai' first using existing skills then using function_set''' 
         state = self.standardize_state(state)
         sai = self.standardize_SAI(sai)
         arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
+        # arg_foci = list(reversed(arg_foci)) if arg_foci else arg_foci
 
-        with PrintElapse("EXPLAIN TIME"):
-            skill_explanations = self.explain_from_skills(state, sai, arg_foci,
-                skill_label, skill_uid, how_help=how_help)
+        # with PrintElapse("EXPLAIN TIME"):
+        skill_explanations = self.explain_from_skills(state, sai,
+            arg_foci, 
+            # list(reversed(arg_foci)) if arg_foci else arg_foci,
+            skill_label, skill_uid, how_help=how_help)
 
-            skill_explanations = self.best_skill_explanations(state, skill_explanations)
+        skill_explanations = self.best_skill_explanations(state, skill_explanations)
 
-            func_explanations = None
-            if(force_use_funcs or len(skill_explanations) == 0):
-                func_explanations = self.explain_from_funcs(state, sai, arg_foci,
-                 skill_label, how_help=how_help)
+        func_explanations = None
+        if(force_use_funcs or len(skill_explanations) == 0):
+            func_explanations = self.explain_from_funcs(state, sai,
+            arg_foci,
+             # list(reversed(arg_foci)) if arg_foci else arg_foci,
+             skill_label, how_help=how_help)
 
-            if(skill_explanations):
-                print("--SKILLS--")
-                for sa in skill_explanations:
-                    print(sa.skill.how_part, sa.match[0].id, [m.id for m in sa.match[1:]])
+        # if(skill_explanations):
+        #     print("--SKILLS--")
+        #     for sa in skill_explanations:
+        #         print(sa.skill.how_part, sa.match[0].id, [m.id for m in sa.match[1:]])
 
-        
-            if(func_explanations):
-                print("--FUNCS--")
-                for f,match in func_explanations:
-                    print(f, [m.id for m in match])
+    
+        # if(func_explanations):
+        #     print("--FUNCS--")
+        #     for f,match in func_explanations:
+        #         print(f, [m.id for m in match])
 
-            # import time
-            # time.sleep(5)
+        # import time
+        # time.sleep(5)
 
-            if(json_friendly):
-                return self._as_json_friendly_expls(skill_explanations, func_explanations)
+        if(json_friendly):
+            return self._as_json_friendly_expls(skill_explanations, func_explanations)
             
         
         return skill_explanations, func_explanations
@@ -778,27 +783,9 @@ class CREAgent(BaseDIPLAgent):
 
         return SkillApplication(skill, state, [sai.selection,*args])
 
-    def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
-              skill_label=None, skill_uid=None, uid=None, explanation_selected=None,
-              ret_train_expl=False, add_skill_info=False, **kwargs):
-        # print("SAI", sai)
-        if(skill_label == "NO_LABEL"): skill_label = None
-        state = self.standardize_state(state)
-        sai = self.standardize_SAI(sai)        
-        arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
-
-        # print("---------------------------")
-        # for fact in state.get('working_memory').get_facts():
-        #     print(repr(fact))
-        # print("---------------------------")
-
-
+    def _recover_prev_skill_app(self, sai,
+            uid=None, skill_uid=None, **kwargs):
         skill_app = None
-
-        # print("--TRAIN:", sai.selection.id, sai.inputs['value'])
-
-        # Feedback Case : Train according to uid of the previous skill_app        
-        # print("::", skill_uid, uid, kwargs)
         if(uid is not None):
             if(skill_uid is not None):
                 skill_app = self.skills[skill_uid].skill_apps[uid]
@@ -808,34 +795,72 @@ class CREAgent(BaseDIPLAgent):
                     skill_app = skill.skill_apps[uid]
                     break
 
+        # If sai matches prev_skill_app then use that
+        elif(self.prev_skill_app is not None and self.prev_skill_app.sai == sai):
+
+            skill_app = self.prev_skill_app
+        return skill_app
+
+    def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
+              skill_app=None, uid=None, 
+              skill_label=None, skill_uid=None, explanation_selected=None,
+              ret_train_expl=False, add_skill_info=False, **kwargs):
+        # print("SAI", sai, type(sai))
+        if(skill_label == "NO_LABEL"): skill_label = None
+        state = self.standardize_state(state)
+
+        # print("---------------------------")
+        # for fact in state.get('working_memory').get_facts():
+        #     print(repr(fact))
+        # print("---------------------------")
+        # print("<<", sai, type(sai))
+
+        # skill_app = None
+
+        # print("--TRAIN:", sai.selection.id, sai.inputs['value'])
+
+        # Feedback Case : Train according to uid of the previous skill_app        
+        # print("::", skill_uid, uid, kwargs)
+        
+
+        if(skill_app is None):            
+            
+            sai = self.standardize_SAI(sai)        
+            arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
+            # Case: Feedback on Previous Action (as sai or uid)
+            skill_app = self._recover_prev_skill_app(sai, uid, skill_uid, **kwargs)
+        else:
+            # Case: Feedback on Previous Action (as skill_app)
+            pass
+
+
         if(skill_app is None):
-            # Feedback Case : just train according to the last skill application.
-            if(self.prev_skill_app is not None and self.prev_skill_app.sai == sai):
+            # Cases : 1) SAI is a Demo 
+            #             - Explained by existing skills
+            #             - Explained from prior knowledge functions
+            #            or            
+            #         2) SAI which must be re-explained from existing skills             
+            skill_explanations, func_explanations = \
+                self.explain_demo(state, sai, arg_foci, skill_label, skill_uid, how_help)
 
-                skill_app = self.prev_skill_app
-            # Demonstration Case : try to explain the sai from existing skills.
+            # print("-->", explanation_selected)
+            if(len(skill_explanations) > 0):
+                skill_app = None
+                if(explanation_selected is not None):
+                    esd = explanation_selected['data']
+                    choice_args = tuple(esd.get('args',[]))
+                    for sa in skill_explanations:
+                        sa_args = tuple([m.id for m in sa.match[1:]])
+                        if( (sa.uid == esd.get('uid',None) or 
+                             repr(sa.skill.how_part) == esd.get('repr', None)
+                             ) and sa_args==choice_args):
+                            skill_app = sa
+                            break
+                if(skill_app is None):
+                    skill_app = skill_explanations[0]                        
             else:
-                skill_explanations, func_explanations = \
-                    self.explain_demo(state, sai, arg_foci, skill_label, skill_uid, how_help)
-
-                # print("-->", explanation_selected)
-                if(len(skill_explanations) > 0):
-                    skill_app = None
-                    if(explanation_selected is not None):
-                        esd = explanation_selected['data']
-                        choice_args = tuple(esd.get('args',[]))
-                        for sa in skill_explanations:
-                            sa_args = tuple([m.id for m in sa.match[1:]])
-                            if( (sa.uid == esd.get('uid',None) or 
-                                 repr(sa.skill.how_part) == esd.get('repr', None)
-                                 ) and sa_args==choice_args):
-                                skill_app = sa
-                                break
-                    if(skill_app is None):
-                        skill_app = skill_explanations[0]                        
-                else:
-                    skill_app = self.induce_skill(state, sai, func_explanations, skill_label,
-                        explanation_selected=explanation_selected)
+                skill_app = self.induce_skill(state, sai, func_explanations, skill_label,
+                    explanation_selected=explanation_selected)
 
         # print("ANNOTATE ARG FOCI:", arg_foci)
         skill_app.annotate_train_data(reward, arg_foci, skill_label, skill_uid, 
@@ -1141,24 +1166,24 @@ class CREAgent(BaseDIPLAgent):
                 profile_sai_strs = set([str(s) for s in profile_sais])
                 agent_sai_strs = [str(s.get_info()) for s in agent_sais]
                 diff = profile_sai_strs.symmetric_difference(set(agent_sai_strs))
-                if(print_diff and len(diff) > 0):
+                # if(print_diff and len(diff) > 0):
                     # Print Problem
-                    gv = lambda x : item['state'][x]['value']
+                    # gv = lambda x : item['state'][x]['value']
                 
                     # print(list(item['state'].keys()))
-                    print(line_ind+1, ">>",f"{gv('inpA3')}{gv('inpA2')}{gv('inpA1')} + {gv('inpB3')}{gv('inpB2')}{gv('inpB1')}")
+                    #print(line_ind+1, ">>",f"{gv('inpA3')}{gv('inpA2')}{gv('inpA1')} + {gv('inpB3')}{gv('inpB2')}{gv('inpB1')}")
                     # print(list(state.keys()))
                     # print("----------------------")
                     # for key, obj in state.items():
                     #     print(key, obj)
-                    print("AGENT:")
-                    for x in agent_sai_strs:
-                        print(x)
-                    print("TRUTH:")
-                    for x in profile_sai_strs:
-                        print(x)
-                    print("----------------------")
-                    print()
+                    # print("AGENT:")
+                    # for x in agent_sai_strs:
+                    #     print(x)
+                    # print("TRUTH:")
+                    # for x in profile_sai_strs:
+                    #     print(x)
+                    # print("----------------------")
+                    # print()
 
                 # print("LINE", total_states, len(diff) == 0)
                 if(partial_credit):

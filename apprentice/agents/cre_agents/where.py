@@ -66,10 +66,29 @@ class BaseWhere(metaclass=ABCMeta):
 from cre import Conditions, Var
 
 class BaseCREWhere(BaseWhere):
-    def __init__(self, skill):
-        super().__init__(skill)
+    def __init__(self, skill, **kwargs):
+        super().__init__(skill, **kwargs)
         self.conds = None
         self.fit_record = []
+        self.sanity_check = kwargs.get('sanity_check', False)
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        
+        # Inject sanity checks after ifit
+        ifit = cls.ifit
+        def ifit_w_sanity_check(self, state, match, reward):
+            ifit(self, state, match, reward)
+            self.sanity_check_ifit(state, match)
+        setattr(cls, 'ifit', ifit_w_sanity_check)
+
+    def sanity_check_ifit(self, state, match):
+        if(self.sanity_check):
+            if(not self.check_match(state, match)):
+                raise Exception("(Sanity Check Error): Match used"
+                " for generlization fails ")
+
+
 
     def _ensure_vars(self, match):
         if(not hasattr(self,'vars')):
@@ -214,8 +233,8 @@ class AntiUnify(BaseCREWhere):
 
 @register_where
 class MostSpecific(BaseCREWhere):
-    def __init__(self, agent):
-        super().__init__(agent)
+    def __init__(self, agent, **kwargs):
+        super().__init__(agent, **kwargs)
         self.id_sets = set()
 
     def will_learn(self, state, match, reward=1):
@@ -229,10 +248,10 @@ class MostSpecific(BaseCREWhere):
 
         self._ensure_vars(match)
         match_ids = tuple([x.id for x in match])
-        if(match_ids not in self.id_sets):
-            self.id_sets.add(match_ids)
 
-        # print(self.check_match(state, match))
+        if(match_ids not in self.id_sets):
+            print(">>", self.skill, match_ids)
+            self.id_sets.add(match_ids)
             
     def score_match(self, state, match):
         return float(self.check_match(state, match))
@@ -260,9 +279,14 @@ class MostSpecific(BaseCREWhere):
 
     def check_match(self, state, match):
         for id_set in self.id_sets:
+            # print([(x.id, _id) for x,_id in zip(match,id_set)], all([x.id == _id for x,_id in zip(match,id_set)]))
             if(all([x.id == _id for x,_id in zip(match,id_set)])):
                 wm = state.get('working_memory')
                 # print("Base Conds", self._base_conds)
+                # try:
+                #     print("::", match[0].locked, match[1].value, match[2].value, match[3].value, self._base_conds.check_match(match, wm))
+                # except Exception:
+                #     pass
                 if(self._base_conds.check_match(match, wm)):
                     return True
         return False

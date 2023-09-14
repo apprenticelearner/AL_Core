@@ -48,7 +48,7 @@ class ExplanationSet():
             else:
                 self.explanations = []
                 for i, (func_comp, match) in enumerate(explanation_tree):
-                    print(func_comp, match)
+                    #print(func_comp, match)
                     if(max_expls != -1 and i >= max_expls-1): break
 
                     # Skip 
@@ -63,11 +63,25 @@ class ExplanationSet():
             
                 # Sort by min depth, degree to which variables match unique goals,
                 #  and total funcs in the composition.
+                import numpy as np
+                has_foci_match = np.array([0])
                 def expl_key(tup):
+                    # global has_foci_match
                     func_comp, match = tup
+
+                    # Prefer exact matches 
+                    foci_match = False
+                    if(arg_foci is not None):
+                        foci_match = all([a.id == m.id for a,m in zip(arg_foci, match)])
+                        has_foci_match[0] = has_foci_match[0] | foci_match
+                        print("foci_match", foci_match, [m.id for m in match], [a.id for a in arg_foci], func_comp)
+                    # tup = (not foci_match, func_comp.depth, abs(func_comp.n_args-len(match)), func_comp.n_funcs)
+
                     tup = (func_comp.depth, abs(func_comp.n_args-len(match)), func_comp.n_funcs)
                     return tup 
                 self.explanations = sorted(self.explanations, key=expl_key)
+                if(len(self.explanations) > 0):
+                    print("Any FOCI MATCH", not not has_foci_match[0])
         else:
             self.explanations = []
 
@@ -123,7 +137,8 @@ class SetChaining(BaseHow):
         
         # Make a new planner instance and fill it with values 
         planner = SetChainingPlanner(self.fact_types)
-        for v in values:
+        for i, v in enumerate(values):
+            # print(":", i, v, v.value if hasattr(v,'value') else None)
             planner.declare(v)
 
         for v in extra_consts:

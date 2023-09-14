@@ -16,9 +16,29 @@ class BaseWhen(metaclass=ABCMeta):
     def __init__(self, skill,**kwargs):
         self.skill = skill
         self.agent = skill.agent
+        self.sanity_check = kwargs.get('sanity_check', True)
 
         # Note this line makes it possible to call 
         super(BaseWhen, self).__init__(skill, **kwargs)
+
+    def sanity_check_ifit(self, state, skill_app, reward):
+        # SANITY CHECK: Classifier Inconsistencies 
+        if(self.sanity_check):
+            prediction = self.predict(state, skill_app.match)
+            if(reward != prediction):
+                raise Exception("(Sanity Check Error): When-learning mechanism's"+
+                 " .predict() produces different outcome than reward given in" +
+                 " .ifit().")
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        
+        # Inject sanity checks after ifit
+        ifit = cls.ifit
+        def ifit_w_sanity_check(self, state, skill_app, reward):
+            ifit(self, state, skill_app, reward)
+            self.sanity_check_ifit(state, skill_app, reward)
+        setattr(cls, 'ifit', ifit_w_sanity_check)
 
     def ifit(self, state, skill_app, reward):
         """
@@ -100,6 +120,9 @@ class RefittableMixin():
         #  to retrain if possible new feautres. 
         self.examples[skill_app] = (new_index, reward)
         transformed_state = self.transform(state, skill_app.match)
+        
+
+
         self.insert_transformed(transformed_state, skill_app, reward, new_index)
                 
         return new_index
@@ -129,7 +152,7 @@ class RefittableMixin():
 
 class VectorTransformMixin(RefittableMixin):
     def __init__(self, skill, encode_relative=True, one_hot=False,
-                encode_missing=False,
+                encode_missing=True,
                 starting_state_format='flat_featurized',
                 extra_features=[],
                  **kwargs):
@@ -139,7 +162,9 @@ class VectorTransformMixin(RefittableMixin):
         self.extra_features = extra_features
         self.one_hot = one_hot
         self.encode_missing = encode_missing
-        
+
+        print("ENCODE MISSING", self.encode_missing, "ONE HOT", one_hot)
+
         agent = skill.agent
 
         # Initialize Vectorizer
@@ -228,6 +253,7 @@ class VectorTransformMixin(RefittableMixin):
 
         continuous, nominal = self.vectorizer(featurized_state)
         #### -------Print mapping------------####
+        # print(self.skill)
         # print(self.vectorizer)
         # print(nominal)
         # print("---------------------------------------")
@@ -246,8 +272,9 @@ class VectorTransformMixin(RefittableMixin):
 
         n, m = self.X_nom.shape
         new_shape = (max(n, index+1), max(m, len(nominal)))
-        # print("NEW SHAPE", new_shape, n, index+1, m, len(nominal))
+        
         if(new_shape != self.X_nom.shape):
+            # print("NEW SHAPE", new_shape, n, index+1, m, len(nominal))
             # Copy old data into new matrix
             new_X_nom = np.zeros(new_shape, dtype=np.int64)
             new_Y = np.zeros(new_shape[0], dtype=np.int64)
@@ -269,12 +296,11 @@ class VectorTransformMixin(RefittableMixin):
 @register_when
 class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
     def __init__(self, skill, **kwargs):
-        super().__init__(skill,**kwargs)
         from sklearn.tree import DecisionTreeClassifier
 
         # Default to one-hot
         kwargs['one_hot'] = kwargs.get('one_hot', True)
-
+        BaseWhen.__init__(self, skill,**kwargs)
         VectorTransformMixin.__init__(self, skill, **kwargs)
         self.classifier = DecisionTreeClassifier()
 
@@ -294,13 +320,13 @@ class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
 @register_when
 class DecisionTree(BaseWhen, VectorTransformMixin):
     def __init__(self, skill, impl="decision_tree",
-                  one_hot=False,
                 **kwargs):
         super().__init__(skill, **kwargs)
         from stand.tree_classifier import TreeClassifier
 
-        kwargs['one_hot'] = kwargs.get('one_hot', one_hot)
+        kwargs['one_hot'] = kwargs.get('one_hot', False)
 
+        BaseWhen.__init__(self, skill,**kwargs)
         VectorTransformMixin.__init__(self, skill, **kwargs)
         self.classifier = TreeClassifier(impl, inv_mapper=self.inv_mapper)
 
@@ -308,10 +334,16 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
+        # print("CLASSIFIER:", self.skill)
+        # print(self.X_nom)
+        # print(self.vectorizer)
+        # print(self.classifier)
+
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
         X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
         prediction = self.classifier.predict(X_nom_subset, None)[0]        
+
         return prediction
 
     def __str__(self):
@@ -324,13 +356,11 @@ class DecisionTree(BaseWhen, VectorTransformMixin):
 @register_when
 class STAND(BaseWhen, VectorTransformMixin):
     def __init__(self, skill,
-                one_hot=False,
                 **kwargs):
-        super().__init__(skill, **kwargs)
         from stand.stand import STANDClassifier
 
-        kwargs['one_hot'] = kwargs.get('one_hot', one_hot)
-
+        kwargs['one_hot'] = kwargs.get('one_hot', False)
+        BaseWhen.__init__(self, skill,**kwargs)
         VectorTransformMixin.__init__(self, skill, **kwargs)
         self.classifier = STANDClassifier(inv_mapper=self.inv_mapper, **kwargs)
 

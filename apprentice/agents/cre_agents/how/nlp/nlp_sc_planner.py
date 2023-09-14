@@ -103,7 +103,8 @@ defualt_special_patterns = {
 # Place holder value for ignoring particualr keyword arguments 
 IGNORE = None
 
-@njit(unicode_type(ExplanationTreeType,i8), cache=False)
+@njit(cache=False)
+# @njit(unicode_type(ExplanationTreeType, i8), cache=False)
 def tree_str(root,ind=0):
     # print("START STR TREE")
     # if(len(root.children) == 0): return "?"
