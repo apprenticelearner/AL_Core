@@ -185,6 +185,21 @@ class RHS:
         return id(self)
 
 
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, key):
+        # Implement RHS Slicing
+        if(isinstance(key, slice)):
+            subitems = self.items[key]
+            subopt = self.optional_mask[key]
+            new_rhs = RHS(subitems)
+            new_rhs.items = subitems
+            new_rhs.optional_mask = subopt
+            new_rhs.unordered = self.unordered
+            new_rhs.symbol = self.symbol
+            return new_rhs
+        raise NotImplemented()
 
 
 class Sym:
@@ -764,7 +779,7 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
         the 'parent' rhs and substitutions of it's parts with new productions.
     '''
     # print("EDITS", edits)
-    seq1 = rhs.items
+    # seq1 = rhs.items
 
     if(symbol_factory is None):
         symbol_factory = SymbolFactory(ord("T"))
@@ -772,7 +787,7 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
     # Look for an unorder edit that spans the whole RHS
     full_unorder = False
     for i, edit in enumerate(edits):
-        if(edit[0] == 'unorder' and edit[1] == 0 and edit[2] == len(seq1)):
+        if(edit[0] == 'unorder' and edit[1] == 0 and edit[2] == len(rhs)):
             full_unorder = True
             edits.pop(i)
             break
@@ -803,7 +818,8 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
 
             # UnorderSubst Case 
             if(kind == "unorder"):
-                rhs0 = RHS(seq1[s:e], new_sym, unordered=True)
+                rhs0 = rhs[s:e] #RHS(seq1[s:e], new_sym, unordered=True)
+                rhs0.unordered = True
                 unorder_substs.append((new_sym, [rhs0], (s,e)))
                 unorder_edits.append(('replace', s, e, [new_sym]))
 
@@ -811,12 +827,14 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
             # DisjoinSubst Case 
             elif(kind == "replace"):
                 new_seq = edit[3] if isinstance(edit[3], list) else [edit[3]]
-                rhs0 = RHS(seq1[s:e], new_sym, unordered=rhs.unordered)
+                rhs0 = rhs[s:e]
+                rhs0.symbol = new_sym
+                # rhs0 = RHS(seq1[s:e], new_sym, unordered=rhs.unordered)
                 rhs1 = RHS(new_seq, new_sym)
                 # print("0:", rhs0)
                 # print("1:", rhs1)
 
-                if(e-s == len(seq1)):
+                if(e-s == len(rhs)):
                     # print("--ADD--", rhs.symbol, [rhs0, rhs1])
                     disjoin_substs.append((rhs.symbol, [rhs1], (s,e))) 
                 else:
@@ -889,10 +907,10 @@ class RHSChange:
             for edit in self.edits:
                 kind = edit[0]
                 if(kind == "insert"):
-                    cost += 1.0
+                    cost += 1.0 * len(edit[2])
                 elif(kind == "delete"):
                     # High enough that insertions between spans are better than deleting
-                    cost += .65 
+                    cost += .85 
                 elif(kind == "replace"):
                     cost += 1.0 * (edit[2]-edit[1]) + .25*len(edit[3])
                 elif(kind == "unorder"):
@@ -915,7 +933,7 @@ class RHSChange:
     def apply(self, grammar, symbol_factory=None):
         self.ensure_changes_computed(symbol_factory)
 
-        # print("P", self.rhs, self.parent_edits)
+        print("P", self.rhs, self.parent_edits)
         old_rhs = self.rhs
 
         new_rhs = apply_rhs_edits(self.rhs, self.parent_edits, self.full_unorder)
@@ -933,7 +951,7 @@ class RHSChange:
         # rhs_ind = prod.index(old_rhs)
         rhss[rhs_ind] = new_rhs
         
-        for (sym, rhss, (s,e)) in [*self.unorder_substs,*self.disjoin_substs]:
+        for (sym, rhss, (s,e)) in [*self.unorder_substs, *self.disjoin_substs]:
             for rhs in rhss:
                 grammar.add_production(sym, rhs)
         return grammar, new_rhs
@@ -944,6 +962,8 @@ class RHSChange:
 
     def __copy__(self):
         return RHSChange(self.rhs, self.span, self.edits, self.nomatch, self.seq)
+
+
 
     #     rhs = self.rhs
     #     return f"changes({rhs.symbol}->{''.join([str(x) for x in rhs.items])}, {seq2})")
@@ -1289,7 +1309,7 @@ def get_best_changes(grammar, seq, rhss):
                     continue
 
                 rc = find_rhs_change(rhs, subseq, span=(i,j), seq=seq)
-                print(i,j, subseq)
+                # print(i,j, subseq)
                 print(f"{rhs.symbol}->{rhs} : c:{rc.cost:.2f} o:{overlap:.2f} r:{rc.cost/overlap:.2f}", subseq, rc.edits)
                 cost_tup = (rc.cost/overlap, -overlap)
 
@@ -1402,6 +1422,8 @@ class ParseTree:
     def __str__(self):
         s = f"{self.cost:.2f} {self.symbol}->{self.rhs} {self.change.edits}"
         for ct in self.child_trees:
+            if(isinstance(ct, ParseHole)):
+                continue
             if(ct):
                 s += "\n" + str(ct)
         return s
@@ -1505,10 +1527,18 @@ def get_spanning_trees(parse_trees, seq):
                 paths.append(path)
 
       # print "\nResult: %s" % paths
-    print(">>", [[ (pt.symbol, *pt.change.span) for pt in path] for path in paths])
+    print(">>", [(f"{sum([pt.cost for pt in path]):.2f}", [(pt.symbol, *pt.change.span) for pt in path]) for path in paths])
     return paths
 
-
+def filter_spanning_trees(paths):
+    min_path = None
+    min_cost = float('inf')
+    for path in paths:
+        cost = sum([pt.cost for pt in path])
+        if(cost < min_cost):
+            min_path = path
+            min_cost = cost
+    return [min_path]
 
         # print(":", rc.rhs.symbol, rc.span)
 
@@ -1627,8 +1657,8 @@ def _fill_holes_downstream(pt):
                 if(_rc.rhs.unordered):
                     continue
 
-                print("  ###:", rc, f"({rc.seq[rc.span[0]:rc.span[1]]})")
-                print(" :-", hp, "|", hp.prev_pt, "|", hp.next_pt)
+                # print("  ###:", rc, f"({rc.seq[rc.span[0]:rc.span[1]]})")
+                # print(" :-", hp, "|", hp.prev_pt, "|", hp.next_pt)
 
                 _, p_lst, n_lst = holes_spans.get(adj.change.rhs, (None, [],[]))
                 lst = n_lst if is_prev else p_lst
@@ -1642,12 +1672,12 @@ def _fill_holes_downstream(pt):
     # from copy import deepcopy
     # pt = deepcopy(pt)
     
-    print("# HP:", len(holes_spans))
+    # print("# HP:", len(holes_spans))
     replacements = []
     for rhs, (adj, p_lst, n_lst) in holes_spans.items():
         _rc = adj.change
 
-        print(_rc.span)
+        # print(_rc.span)
         prev, nxt = [], []
         if(len(p_lst) > 0):
             prev = [('insert', 0, [hp.symbol for hp in p_lst])]
@@ -1659,9 +1689,9 @@ def _fill_holes_downstream(pt):
         # cost = cost_of_edits(rhs, edits, e-s)
         rc = RHSChange(rhs, (s,e), edits, seq=_rc.seq)
         _pt = ParseTree(rc, child_trees=adj.child_trees)
-        print(" ->", rc.cost, rc)
-        print(_pt)
-        print()
+        # print(" ->", rc.cost, rc)
+        # print(_pt)
+        # print()
         replacements.append((adj, _pt))
 
     pt = pt._deep_copy(replacements)
@@ -1689,32 +1719,32 @@ def _bottom_up_recurse(grammar, seq, rhss=None, seq_trees=None):
     # Turn each partial parse into a parse tree 
     parse_trees = []
     for rc in best_changes:
-        print(seq_trees, rc.span)
         child_trees = [seq_trees[j] if seq_trees else None for j in range(*rc.span)]
         pt = ParseTree(rc, child_trees)
         #  If an insertion is required use ParseHoles to move it
         #   to the lowest possible section of the parse. 
-        print("BEF", pt.change.span)
         pt = _fill_holes_downstream(pt)
-        print("AFT", pt.change.span)
         parse_trees.append(pt)    
 
-    for k, tree_seq in enumerate(get_spanning_trees(parse_trees, seq)):
-        for i, pt in enumerate(tree_seq):
-            rc = pt.change
-            print((k,i), ":::", rc.rhs.symbol, rc.span, f"{rc.cost:0.2f}", rc.edits)
-
-    for k, tree_seq in enumerate(get_spanning_trees(parse_trees, seq)):
-        print("----<", seq)
+    # for k, tree_seq in enumerate(get_spanning_trees(parse_trees, seq)):
+    #     for i, pt in enumerate(tree_seq):
+    #         rc = pt.change
+    #         print((k,i), ":::", rc.rhs.symbol, rc.span, f"{rc.cost:0.2f}", rc.edits)
+    sp_trees = get_spanning_trees(parse_trees, seq)
+    # sp_trees = filter_spanning_trees(sp_trees)
+    for k, tree_seq in enumerate(sp_trees):
+        # print("----<", seq)
         # change_seq = fill_span_holes(change_seq, seq)
-        for i, pt in enumerate(tree_seq):
-            rc = pt.change
-            print( (k, i), ":", rc.rhs.symbol, rc.span, f"{rc.cost:0.2f}", rc.edits)
+        # for i, pt in enumerate(tree_seq):
+        #     rc = pt.change
+        #     print( (k, i), ":", rc.rhs.symbol, rc.span, f"{rc.cost:0.2f}", rc.edits)
 
         # Make the new sequence by replacing each RHS parse
         #  with its upstream symbol. Keep track of any ParseHoles. 
         new_trees, new_seq = _make_seq_and_holes(tree_seq, seq, seq_trees)
         out += _bottom_up_recurse(grammar, new_seq, seq_trees=new_trees)
+
+
     return out
 
 def parse_w_changes(grammar, seq):
@@ -1731,7 +1761,7 @@ def parse_w_changes(grammar, seq):
 
     print("\n  parse_trees:")
     for pt in parse_trees:
-        print(":", pt.cost)
+        print(f": {pt.cost:.2f}", )
         print(pt)
 
     parse_tree = sorted(parse_trees, key=lambda x:x.cost)[0]
@@ -2028,12 +2058,13 @@ def test_bottom_up_changes():
         [d, a20, c20, c31, a31, c32, a32, cp3, d],
         [d, a20, c20, c31, a31, c32, a32, d],
         [d, a20, c20, a31, c31, a32, c32, cp3, d],
-        # [a20, c20, a21, c21, a32, c32, d],
+        [d, a20, c20, a21, c21, a32, c32, d],
     ]
     from random import shuffle
-    # order = list(range(len(seqs)))
+    order = list(range(len(seqs)))
     # shuffle(order)
-    order =  [3, 1, 4, 0, 2]
+    order = [3, 2, 0, 1, 4, 5]
+    # order =  [3, 1, 4, 0, 2]
     # order = [2, 1, 0, 4, 3, 5]
     # order = [3, 4, 0, 2, 1]
     # order = [2, 3, 1, 4, 0]
