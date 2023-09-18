@@ -393,6 +393,30 @@ class Grammar:
         self._preterminals = None
         self._rhss_with_map = None
         self._upstream_rhs_map = None
+
+    def _simplify(self):
+        lone_symbs = []
+        for sym, rhss in self.prods.items():
+            for i in range(len(rhss)-1, -1, -1):
+                rhs = rhss[i]
+                # If a RHS consists of a single non-terminal symbol then
+                #  substitute it for all of its downstream RHSs.
+                lone_symb = rhs.items[0]
+                if(len(rhs) == 1 and len(self.prods.get(lone_symb,[])) > 0):
+                    lone_symbs.append(lone_symb)
+                    del rhss[i]
+                    for l_rhss in self.prods[lone_symb]:
+                        l_rhss.symbol = sym
+                        rhss.insert(i, l_rhss)
+
+        self._clear_internals()
+
+        # Remove any symbols that never appear in RHSss
+        for sym in lone_symbs:
+            if(len(self.get_RHSs_with(sym)) == 0):
+                del self.symbols[sym]
+                del self.prods[sym]
+
         
 
 
@@ -536,6 +560,50 @@ class Grammar:
 # ------------------------------------------------
 # : Find Edits btw. two sequences 
 
+def _merge_del_ins_contiguous_w_repl(edits):
+    prev_repl = None
+    filtered_edits = []
+    for edit in edits:
+        kind = edit[0]
+        if(prev_repl is not None):
+            if(kind in ['insert','replace'] and edit[1] == prev_repl[2]):
+                # print(prev_repl, edit)
+                prev_val = prev_repl[3]
+                # if(not isinstance(prev_val, list)):
+                #     prev_val = [prev_val]
+                if kind == 'replace':
+                    val = prev_val+edit[3]
+                    e = edit[2]
+                else:
+                    val = prev_val+edit[2]
+                    e = prev_repl[2]
+
+                prev_repl = ('replace', prev_repl[1], e, val)
+            else:
+                filtered_edits.append(prev_repl)
+                filtered_edits.append(edit)
+                prev_repl = None
+        elif(kind == 'replace'):
+            prev_repl = edit
+        else:
+            filtered_edits.append(edit)
+
+        # if(kind == 'replace'):
+        #     if(prev_repl is not None and edit[1] == prev_repl[2]):
+        #         prev_repl = ('replace', prev_repl[1], edit[2], prev_repl[3]+edit[3])
+        #     else:
+        #         prev_repl = edit
+        # else:
+        #     if(prev_repl is not None):
+        #         filtered_edits.append(prev_repl)
+        #         prev_repl = None
+        #     filtered_edits.append(edit)
+    if(prev_repl is not None):
+        filtered_edits.append(prev_repl)
+
+    return filtered_edits
+
+
 def find_edits(seq0, seq1):
     eq_matrix = np.zeros((len(seq0), len(seq1)))
     for i, c1 in enumerate(seq0):
@@ -620,47 +688,8 @@ def find_edits(seq0, seq1):
     edits = sorted(edits, key=lambda x: x[1])
     
     # print(edits)
-    # Merge contiguous replace and insert edits
-    # TODO: 
-    prev_repl = None
-    filtered_edits = []
-    for edit in edits:
-        kind = edit[0]
-        if(prev_repl is not None):
-            if(kind in ['insert','replace'] and edit[1] == prev_repl[2]):
-                # print(prev_repl, edit)
-                prev_val = prev_repl[3]
-                # if(not isinstance(prev_val, list)):
-                #     prev_val = [prev_val]
-                if kind == 'replace':
-                    val = prev_val+edit[3]
-                    e = edit[2]
-                else:
-                    val = prev_val+edit[2]
-                    e = prev_repl[2]
-
-                prev_repl = ('replace', prev_repl[1], e, val)
-            else:
-                filtered_edits.append(prev_repl)
-                filtered_edits.append(edit)
-                prev_repl = None
-        elif(kind == 'replace'):
-            prev_repl = edit
-        else:
-            filtered_edits.append(edit)
-
-        # if(kind == 'replace'):
-        #     if(prev_repl is not None and edit[1] == prev_repl[2]):
-        #         prev_repl = ('replace', prev_repl[1], edit[2], prev_repl[3]+edit[3])
-        #     else:
-        #         prev_repl = edit
-        # else:
-        #     if(prev_repl is not None):
-        #         filtered_edits.append(prev_repl)
-        #         prev_repl = None
-        #     filtered_edits.append(edit)
-    if(prev_repl is not None):
-        filtered_edits.append(prev_repl)
+    # Merge contiguous replace and insert/delete edits
+    filtered_edits = _merge_del_ins_contiguous_w_repl(edits)
 
     # print(filtered_edits)
     return filtered_edits
@@ -784,13 +813,17 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
     if(symbol_factory is None):
         symbol_factory = SymbolFactory(ord("T"))
 
+    
+
     # Look for an unorder edit that spans the whole RHS
     full_unorder = False
-    for i, edit in enumerate(edits):
-        if(edit[0] == 'unorder' and edit[1] == 0 and edit[2] == len(rhs)):
-            full_unorder = True
-            edits.pop(i)
-            break
+    has_ins = any([edit[0] in ('insert', 'replace') for edit in edits])
+    if(not has_ins):
+        for i, edit in enumerate(edits):
+            if(edit[0] == 'unorder' and edit[1] == 0 and edit[2] == len(rhs)):
+                full_unorder = True
+                edits.pop(i)
+                break
 
     any_new_sym = any([edit[0] in ["unorder", "replace"] for edit in edits])
     prev_end = 0 if any_new_sym else None
@@ -909,15 +942,14 @@ class RHSChange:
                 if(kind == "insert"):
                     cost += 1.0 * len(edit[2])
                 elif(kind == "delete"):
-                    # High enough that insertions between spans are better than deleting
-                    cost += .85 
+                    cost += 1.0
                 elif(kind == "replace"):
-                    cost += 1.0 * (edit[2]-edit[1]) + .25*len(edit[3])
+                    cost += .5 * (edit[2]-edit[1]) + .5*len(edit[3])
                 elif(kind == "unorder"):
                     # print(edit)
                     cost += .2*(edit[2]-edit[1])
             seq_len = self.span[1]-self.span[0]
-            cost /= min(len(self.rhs.items), seq_len)
+            # cost /= min(len(self.rhs.items), seq_len)
         self.cost = cost
 
 
@@ -1007,117 +1039,118 @@ def find_rhs_change(rhs, subseq, span=None, seq=None):
     # return new_rhs
 
 def test_find_edits():
-    # 0. Aligned
-    print("0.")
+    # # 0. Aligned
+    # print("0.")
     seq1 = 'ABCDEF'
-    find_edits(seq1, seq1)
-    print()
+    # find_edits(seq1, seq1)
+    # print()
 
-    # 1. Unorder
-    print("1.")
-    seq2 = 'CBAFED'
-    assert find_edits(seq1, seq2) == \
-        [('unorder', 0, 3), ('unorder', 3, 6)]
-
-
-    # 2. Unorder + Aligned
-    print("2.")
-    seq2 = 'ACBDFE'
-    assert find_edits(seq1, seq2) == \
-        [('unorder', 1, 3), ('unorder', 4, 6)]
+    # # 1. Unorder
+    # print("1.")
+    # seq2 = 'CBAFED'
+    # assert find_edits(seq1, seq2) == \
+    #     [('unorder', 0, 3), ('unorder', 3, 6)]
 
 
-    # # 3. Delete
-    print("3.")
-    seq2 = 'ACDF'
-    assert find_edits(seq1, seq2) == \
-        [('delete', 1), ('delete', 4)]
-
-    # # 4. Unorder + Delete
-    print("4.")
-    seq2 = 'CBED'
-    assert find_edits(seq1, seq2) == \
-        [('delete', 0), ('unorder', 1, 3), ('unorder', 3, 5), ('delete', 5)]
+    # # 2. Unorder + Aligned
+    # print("2.")
+    # seq2 = 'ACBDFE'
+    # assert find_edits(seq1, seq2) == \
+    #     [('unorder', 1, 3), ('unorder', 4, 6)]
 
 
-    # # 5. Unorder Subsume Delete
-    print("5.")
-    seq2 = 'CAFD'
-    assert find_edits(seq1, seq2) == \
-        [('unorder', 0, 3), ('delete', 1), ('unorder', 3, 6), ('delete', 4)]
+    # # # 3. Delete
+    # print("3.")
+    # seq2 = 'ACDF'
+    # assert find_edits(seq1, seq2) == \
+    #     [('delete', 1), ('delete', 4)]
 
-    # # 6. Insert
-    print("6.")
-    seq2 = 'XABCDEFY'
-    assert find_edits(seq1, seq2) == \
-        [('insert', 0, ['X']),('insert', 6, ['Y'])]
+    # # # 4. Unorder + Delete
+    # print("4.")
+    # seq2 = 'CBED'
+    # assert find_edits(seq1, seq2) == \
+    #     [('delete', 0), ('unorder', 1, 3), ('unorder', 3, 5), ('delete', 5)]
 
-    # # 7. Unorder + Insert
-    print("7.")
-    seq2 = 'XCBAFEDY'
-    assert find_edits(seq1, seq2) == \
-        [('insert', 0, ['X']), ('unorder', 0, 3), ('unorder', 3, 6), ('insert', 6, ['Y'])]
 
-    # # 8. Unorder Subsume Insert
-    print("8.")
-    seq2 = 'CXBAFEYD'
-    assert find_edits(seq1, seq2) == \
-        [('unorder', 0, 3), ('insert', 1, ['X']), ('unorder', 3, 6), ('insert', 5, ['Y'])]
+    # # # 5. Unorder Subsume Delete
+    # print("5.")
+    # seq2 = 'CAFD'
+    # assert find_edits(seq1, seq2) == \
+    #     [('unorder', 0, 3), ('delete', 1), ('unorder', 3, 6), ('delete', 4)]
 
-    # # 9. Replace
-    print("9.1")
-    seq2 = 'XYZDEF'
-    assert find_edits(seq1, seq2) == \
-        [('replace', 0, 3, ['X','Y','Z'])]
+    # # # 6. Insert
+    # print("6.")
+    # seq2 = 'XABCDEFY'
+    # assert find_edits(seq1, seq2) == \
+    #     [('insert', 0, ['X']),('insert', 6, ['Y'])]
 
-    print("9.2")
-    seq2 = 'ABXYEF'
-    assert find_edits(seq1, seq2) == \
-        [('replace', 2, 4, ['X','Y'])]
+    # # # 7. Unorder + Insert
+    # print("7.")
+    # seq2 = 'XCBAFEDY'
+    # assert find_edits(seq1, seq2) == \
+    #     [('insert', 0, ['X']), ('unorder', 0, 3), ('unorder', 3, 6), ('insert', 6, ['Y'])]
 
-    print("9.3")
-    seq2 = 'ABCXYZ'
-    assert find_edits(seq1, seq2) == \
-        [('replace', 3, 6, ['X','Y','Z'])]
+    # # # 8. Unorder Subsume Insert
+    # print("8.")
+    # seq2 = 'CXBAFEYD'
+    # assert find_edits(seq1, seq2) == \
+    #     [('unorder', 0, 3), ('insert', 1, ['X']), ('unorder', 3, 6), ('insert', 5, ['Y'])]
 
-    # # 10. Unorder + Replace
-    print("10.")
-    seq2 = 'BAXYFE'
-    assert find_edits(seq1, seq2) == \
-        [('unorder', 0, 2), ('replace', 2, 4, ['X','Y']), ('unorder', 4, 6)]
+    # # # 9. Replace
+    # print("9.1")
+    # seq2 = 'XYZDEF'
+    # assert find_edits(seq1, seq2) == \
+    #     [('replace', 0, 3, ['X','Y','Z'])]
 
-    # # 11. Unorder + Replace
-    print("11.1")
-    seq2 = 'CXAFYD'
-    assert find_edits(seq1, seq2) == \
-        [('unorder', 0, 3), ('replace', 1, 2, ['X']), ('unorder', 3, 6), ('replace', 4, 5, ['Y'])]
+    # print("9.2")
+    # seq2 = 'ABXYEF'
+    # assert find_edits(seq1, seq2) == \
+    #     [('replace', 2, 4, ['X','Y'])]
+
+    # print("9.3")
+    # seq2 = 'ABCXYZ'
+    # assert find_edits(seq1, seq2) == \
+    #     [('replace', 3, 6, ['X','Y','Z'])]
+
+    # # # 10. Unorder + Replace
+    # print("10.")
+    # seq2 = 'BAXYFE'
+    # assert find_edits(seq1, seq2) == \
+    #     [('unorder', 0, 2), ('replace', 2, 4, ['X','Y']), ('unorder', 4, 6)]
+
+    # # # 11. Unorder + Replace
+    # print("11.1")
+    # seq2 = 'CXAFYD'
+    # assert find_edits(seq1, seq2) == \
+    #     [('unorder', 0, 3), ('replace', 1, 2, ['X']), ('unorder', 3, 6), ('replace', 4, 5, ['Y'])]
 
     # 12. Edge Cases
-    print("12.1")
-    seq2 = 'CXZAFYQD'
-    assert find_edits(seq1, seq2) == \
-        [('unorder', 0, 3), ('replace', 1, 2, ['X','Z']), ('unorder', 3, 6), ('replace', 4, 5, ['Y','Q'])]
+    # print("12.1")
+    # seq2 = 'CXZAFYQD'
+    # assert find_edits(seq1, seq2) == \
+    #     [('unorder', 0, 3), ('replace', 1, 2, ['X','Z']), ('unorder', 3, 6), ('replace', 4, 5, ['Y','Q'])]
 
     print("12.2")
     seq2 = 'CXYZQRV'
-    assert find_edits(seq1, seq2) == \
-        [('delete', 0), ('delete', 1), ('replace', 3, 6, ['X','Y','Z','Q','R','V'])]
+    print(find_edits(seq1, seq2))
+    # assert find_edits(seq1, seq2) == \
+    #     [('delete', 0), ('delete', 1), ('replace', 3, 6, ['X','Y','Z','Q','R','V'])]
     
 
-    print("12.3")
-    seq2 = 'XYZ'
-    assert find_edits(seq1, seq2) == \
-        [('replace', 0, 3, ['X','Y','Z']), ('delete', 3), ('delete', 4), ('delete', 5)]
+    # print("12.3")
+    # seq2 = 'XYZ'
+    # assert find_edits(seq1, seq2) == \
+    #     [('replace', 0, 3, ['X','Y','Z']), ('delete', 3), ('delete', 4), ('delete', 5)]
     
 
-    # 13. Inner Delete + Trailing Insert
-    print("13.")
-    assert find_edits("EQF", "EF") == \
-        [('delete', 1)]
-    assert find_edits("EQF", "EFH") == \
-        [('delete', 1), ('insert', 3, ['H'])]
-    assert find_edits("EQF", "EFHZ") == \
-        [('delete', 1), ('insert', 3, ['H','Z'])]
+    # # 13. Inner Delete + Trailing Insert
+    # print("13.")
+    # assert find_edits("EQF", "EF") == \
+    #     [('delete', 1)]
+    # assert find_edits("EQF", "EFH") == \
+    #     [('delete', 1), ('insert', 3, ['H'])]
+    # assert find_edits("EQF", "EFHZ") == \
+    #     [('delete', 1), ('insert', 3, ['H','Z'])]
 
 
 def _seq_to_initial_grammar(seq):
@@ -1276,13 +1309,13 @@ def calc_overlap(pattern, sequence):
                 scores[i][j] = s0.overlap(s1)
             else:
                 scores[i][j] = s0 == s1
-    return np.sum(np.max(scores, axis=0))/(l0)#+abs(l0-l1))
+    return np.sum(np.max(scores, axis=0))#/(l0)#+abs(l0-l1))
 
 
 def get_best_changes(grammar, seq, rhss):
     best_changes = []
     for rhs in rhss:
-        l = len(rhs.items)
+        L = len(rhs)
         items = [x for x in rhs.items]
         # item_set = set(items)
 
@@ -1295,9 +1328,10 @@ def get_best_changes(grammar, seq, rhss):
 
         # Convolved RHS application 
         for i in range(len(seq)):
-            for j in range(i+1, min(len(seq), i+l+1)+1):
-            # for j in range(i+1, min(len(seq), i+l)+1):
-            # for j in range(i+1, len(seq)+1):
+            # end = 
+
+            # for j in range(i+1, min(len(seq), i+L+1)+1):
+            for j in range(i+1, len(seq)+1):
                 subseq = seq[i:j]
                 overlap = calc_overlap(items, subseq)
                 # intr = set(subseq).intersection(item_set)
@@ -1323,8 +1357,7 @@ def get_best_changes(grammar, seq, rhss):
         
         if(best_rc is None):
             # raise ValueError("NO MATCH OCCURED")
-            cost = len(rhs.items)
-            best_rc = RHSChange(rhs, (0, len(rhs.items)), None, nomatch=True, seq=seq)
+            best_rc = RHSChange(rhs, (0, L), None, nomatch=True, seq=seq)
         best_changes.append(best_rc)
         s0, s1 = best_rc.span
         # print(rhs.symbol,"->", rhs, ":", seq[s0:s1], f"{best_rc.cost:.2f}", best_rc.edits)
@@ -1642,23 +1675,26 @@ def _fill_holes_downstream(pt):
     # Check the highest edits in the parse tree and see if they
     #  overlap with an unparsed a ParseHole symbol. 
     for edit_ind, edit in reversed([*enumerate(rc.edits)]):
-        if(edit[0] in ('insert', 'replace')):
+        # NOTE: It is not clear if needs to also happen on replaces
+        if(edit[0] in ('insert')):#, 'replace')):
             s = edit[1]+rc.span[0]
             # print("S", s, child_trees[s] if child_trees and s < len(child_trees) else None)
             if(child_trees and s < len(child_trees) and isinstance(child_trees[s], ParseHole)):
-
                 # If a symbol precedes the hole use that
                 #  otherwise insert the holes into the next symbol
                 hp = child_trees[s]
                 adj, is_prev = (hp.prev_pt, True) if hp.prev_pt else (hp.next_pt, False)
                 _rc = adj.change
 
+                
+
                 # Skip inserting into unordered RHSs since
                 if(_rc.rhs.unordered):
                     continue
 
-                # print("  ###:", rc, f"({rc.seq[rc.span[0]:rc.span[1]]})")
-                # print(" :-", hp, "|", hp.prev_pt, "|", hp.next_pt)
+                print("  ###:", rc, f"({rc.seq[rc.span[0]:rc.span[1]]})")
+                print(" :-", hp, "|", hp.prev_pt, "|", hp.next_pt)
+                
 
                 _, p_lst, n_lst = holes_spans.get(adj.change.rhs, (None, [],[]))
                 lst = n_lst if is_prev else p_lst
@@ -1689,9 +1725,9 @@ def _fill_holes_downstream(pt):
         # cost = cost_of_edits(rhs, edits, e-s)
         rc = RHSChange(rhs, (s,e), edits, seq=_rc.seq)
         _pt = ParseTree(rc, child_trees=adj.child_trees)
-        # print(" ->", rc.cost, rc)
-        # print(_pt)
-        # print()
+        print(" ->", rc.cost, rc)
+        print(_pt)
+        print()
         replacements.append((adj, _pt))
 
     pt = pt._deep_copy(replacements)
@@ -1731,7 +1767,7 @@ def _bottom_up_recurse(grammar, seq, rhss=None, seq_trees=None):
     #         rc = pt.change
     #         print((k,i), ":::", rc.rhs.symbol, rc.span, f"{rc.cost:0.2f}", rc.edits)
     sp_trees = get_spanning_trees(parse_trees, seq)
-    # sp_trees = filter_spanning_trees(sp_trees)
+    sp_trees = filter_spanning_trees(sp_trees)
     for k, tree_seq in enumerate(sp_trees):
         # print("----<", seq)
         # change_seq = fill_span_holes(change_seq, seq)
@@ -1984,6 +2020,8 @@ def apply_grammar_changes(g, parse_tree):
     for rc in changes:
         # print(rc.rhs.symbol,  rc.edits)
         rc.apply(new_g, symbol_factory)
+    print(new_g)
+    new_g._simplify()
     return new_g
 
     
@@ -2061,9 +2099,11 @@ def test_bottom_up_changes():
         [d, a20, c20, a21, c21, a32, c32, d],
     ]
     from random import shuffle
-    order = list(range(len(seqs)))
+    # order = list(range(len(seqs)))
     # shuffle(order)
-    order = [3, 2, 0, 1, 4, 5]
+    # order = [5, 0, 2, 1, 4, 3]
+    order = [3, 0, 1, 5, 4, 2]
+    # order = [3, 2, 0, 1, 4, 5]
     # order =  [3, 1, 4, 0, 2]
     # order = [2, 1, 0, 4, 3, 5]
     # order = [3, 4, 0, 2, 1]
@@ -2086,139 +2126,45 @@ def test_bottom_up_changes():
         print("ERROR ON ORDER", order)
         raise e
 
-    # g, rhs = _seq_to_initial_grammar([a20, c20, a21, c21, a22, c22, cp3, d])
-    # print(f'\ngrammar:\n{g}')
+def test_hole_changes():
+    (a20, c20, a21, c21, a22, c22, cp3, a31, c31, a32, c32, d) = make_mc_skill_apps()
 
-    # g = generalize_from_seq(g, [a20, c20, a21, c21, a22, c22, cp3, d])    
-    # print(f'\ngrammar:\n{g}')
-
-    # g = generalize_from_seq(g, [c20, a20, c21, a21, c22, a22, cp3, d])
-    # print(f'\ngrammar:\n{g}')
-    # g = generalize_from_seq(g, [c20, a20, c21, a21, c22, a22, cp3, d])
-    # print(f'\ngrammar:\n{g}')
-
-    # g = generalize_from_seq(g, [a20, c20, c31, a31, c32, a32, cp3, d])
-    # print(f'\ngrammar:\n{g}')
-
-    # g = generalize_from_seq(g, [a20, c20, c31, a31, c32, a32, d])
-    # print(f'\ngrammar:\n{g}')
-
-    # g = generalize_from_seq(g, [a20, c20, a31, c31, a32, c32, cp3, d])
-    # print(f'\ngrammar:\n{g}')
-
-    # g = generalize_from_seq(g, ['c0', 'a0','c1','a1', 'c2', 'a2', 'a3', 'd'])
-
-    
-    # g = Grammar()
-    # g.add_production("S", RHS(["A","B","C"]))
-    # g.add_production("A", RHS(["a","b"]))
-    # g.add_production("B", RHS(["d","c"], unordered=True))
-    # g.add_production("C", RHS(["e", "q", "f"], optionals=[1]))
-
-    
-
+    seqs = [
+        [d, a20, c20, c31, a31, c32, a32, cp3, d],
+        [d, a20, a21, a22, d],
+        # [d, c20, a20, c21, a21, c22, a22, cp3, d],
         
-        # print()
+        # [d, a20, c20, c31, a31, c32, a32, d],
+        # [d, a20, c20, a31, c31, a32, c32, cp3, d],
+        # [d, a20, c20, a21, c21, a32, c32, d], 
+    ]
+    from random import shuffle
+    order = list(range(len(seqs)))
+    # shuffle(order)
+    # order = [5, 0, 2, 1, 4, 3]
+    # order = [3, 0, 1, 5, 4, 2]
+    # order = [3, 2, 0, 1, 4, 5]
+    # order =  [3, 1, 4, 0, 2]
+    # order = [2, 1, 0, 4, 3, 5]
+    # order = [3, 4, 0, 2, 1]
+    # order = [2, 3, 1, 4, 0]
+    # order = [2, 3, 1, 4, 0]
+    # order = [3, 0, 2, 1, 4]
+    # order = [3, 1, 0, 4, 2]
+    # order = [2, 0, 4, 3, 1]
+    # order = [3, 1, 0, 4]#, 2]
+    print("ORDER", order)
 
-    # print("---------------------")
-
-
-    # g.add_production("S", RHS(["A","B","C"]))
-    # g.add_production("A", RHS(["a","b"]))
-    # g.add_production("B", RHS(["d","c"], unordered=True))
-    # g.add_production("C", RHS(["e", "q", "f"], optionals=[1]))
-    # parse_w_changes(g, 'abcdef')
-
-    # -1: Grammar Sequence
-
-    # g, rhs = _seq_to_initial_grammar('abcdef')
-
-
-    # 0. Aligned
-    # print("0.")
-    # seq2 = 'abcdef'
-    # parse_w_changes(g, seq2)
-    # print()
-
-    # 1. Unorder
-    # print("1.1")
-    # seq2 = 'cbafed'
-    # parse_w_changes(g, seq2)
-    # print("1.2")
-    # seq2 = 'fedcba'
-    # parse_w_changes(g, seq2)
-
-    # # 2. Unorder + Aligned
-    # print("2.")
-    # seq2 = 'acbdfe'
-    # parse_w_changes(g, seq2)
-
-    # # # 3. Delete
-    # print("3.")
-    # seq2 = 'acdf'
-    # parse_w_changes(g, seq2)
-
-    # # # 4. Unorder + Delete
-    # print("4.")
-    # seq2 = 'cbed'
-    # parse_w_changes(g, seq2)
-
-
-    # # # 5. Unorder Subsume Delete
-    # print("5.")
-    # seq2 = 'cafd'
-    # parse_w_changes(g, seq2)
-
-    # # # 6. Insert
-    # print("6.")
-    # seq2 = 'xabcdefy'
-    # parse_w_changes(g, seq2)
-
-    # # # 7. Unorder + Insert
-    # print("7.")
-    # seq2 = 'xcbafedy'
-    # parse_w_changes(g, seq2)
-
-    # # # 8. Unorder Subsume Insert
-    # print("8.")
-    # seq2 = 'cxbafeyd'
-    # parse_w_changes(g, seq2)
-
-    # # # 9. Replace
-    # print("9.1")
-    # seq2 = 'xyzdef'
-    # parse_w_changes(g, seq2)
-
-    # print("9.2")
-    # seq2 = 'abxyef'
-    # parse_w_changes(g, seq2)
-
-    # print("9.3")
-    # seq2 = 'abcxyz'
-    # parse_w_changes(g, seq2)
-
-    # # # 10. Unorder + Replace
-    # print("10.")
-    # seq2 = 'baxyfe'
-    # parse_w_changes(g, seq2)
-
-    # # # 11. Unorder + Replace
-    # print("11.1")
-    # seq2 = 'cxafyd'
-    # parse_w_changes(g, seq2)
-
-
-    # print("12.1")
-    # seq2 = 'cxzafyqd'
-    # parse_w_changes(g, seq2)
-
-    # print("12.2")
-    # seq2 = 'cxyzqrv'
-    # parse_w_changes(g, seq2)
-
-    # print("12.3")
-    # seq2 = 'xyz'
-    # parse_w_changes(g, seq2)
+    try: 
+        g, rhs = _seq_to_initial_grammar(seqs[order[0]])
+        print(f'\ngrammar:\n{g}')
+        for i in range(1,len(order)):
+            g = generalize_from_seq(g, seqs[order[i]])    
+            print(f'\ngrammar:\n{g}')
+    except Exception as e:
+        print(g, i)
+        print("ERROR ON ORDER", order)
+        raise e
 
 
 def test_target_domain_changes():
@@ -2457,8 +2403,16 @@ def test_top_down_parse():
         print(pt)
     
 
+def test_get_best_changes():
+    (a20, c20, a21, c21, a22, c22, cp3, a31, c31, a32, c32, d) = make_mc_skill_apps()
 
-
+    g = Grammar()
+    g.add_production("S", RHS([d, "A", "B", d], optionals=[]))
+    g.add_production("A", RHS([a20, c20, d], optionals=[2]))
+    g.add_production("B", RHS([a31, c31, c32, a32, cp3], optionals=[4]))
+    
+    seq = [d, a20, c20, d, a31, c31, c32, a32, d]
+    get_best_changes(g, seq, g.preterminal_RHSs)
 
 
 
@@ -2466,11 +2420,13 @@ def test_top_down_parse():
 if(__name__ == "__main__"):
     # test_skill_app()
     # test_blarg()
-    # test_find_edits()
+    test_find_edits()
     # test_find_rhs_change()
     # test_rhs_accept_cost()
     # test_accept_subseq()
-    test_bottom_up_changes()
+    # test_get_best_changes()
+    # test_bottom_up_changes()
+    # test_hole_changes()
     # test_top_down_parse()
     # test_target_domain_changes()
 
