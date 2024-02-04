@@ -117,6 +117,15 @@ class BaseDIPLAgent(object):
 
         self.config = {k:v for k,v in config.items() if k not in covered}
 
+        self.error_on_bottom_out = config_get("error_on_bottom_out",
+            default=True)
+
+        self.one_skill_per_match = config_get("one_skill_per_match",
+            default=False)
+
+        self.bottomout_exceptions = config_get("bottomout_exceptions",
+            default=[('done', None, None)])
+
     def __init__(self, **config):
         self.uid = rand_agent_uid()
         self.standardize_config(config)
@@ -124,6 +133,15 @@ class BaseDIPLAgent(object):
     def request(self, *args, **kwargs):
         ''' Legacy method name : pipe into act ''' 
         return self.act(*args, **kwargs)
+
+    def is_bottom_out_exception(self, sai):
+        s, a, i = sai
+        for (ex_s, ex_a, ex_i) in self.bottomout_exceptions:            
+            if((ex_s is None or s == ex_s) and
+               (ex_a is None or a == ex_a)
+               (ex_i is None or tuple(ex_i.items()) == tuple(i.items()))):
+                return True
+        return False
 
 # -------------------------------------------------------------------------
 # : SkillApp Filters

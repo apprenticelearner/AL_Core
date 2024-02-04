@@ -169,6 +169,14 @@ def SkillCandidates(agent, state, feat_state):
 @njit(types.void(MemSetType,GenericFlattenerType, i8[::1]), cache=True, locals={"match_ptr_set" : i8[::1]})
 def declare_match(memset, flattener, match_ptrs):
     if(len(match_ptrs) > 1):
+
+        m = _struct_from_ptr(CREObjType, match_ptrs[0])
+        t_id, _, _ = decode_idrec(m.idrec)
+        var = flattener.get_base_var(t_id, cre_obj_get_item(m, unicode_type,0))
+        tup =  TF(f"Sel:", var)
+        arg_tup = new_gval(tup,"")
+        memset.declare(arg_tup)
+
         for i, m_ptr in enumerate(match_ptrs[1:]):
             m = _struct_from_ptr(CREObjType, m_ptr)
             t_id, _, _ = decode_idrec(m.idrec)

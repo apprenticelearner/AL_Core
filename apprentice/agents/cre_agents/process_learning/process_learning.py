@@ -118,19 +118,19 @@ def replaceExtendedSwaps(edits):
 # -------------------------------------
 # : Grammar
 
-
+# class Lit:
+#     def __init__(self, )
 
 class RHS:
     def __new__(cls, items, symbol=None, unordered=None, optionals=None):
-        
         if(isinstance(items, RHS)):
             self = items.__copy__()
             if(symbol is not None):
                 self.symbol = symbol
-            if(unordered is not None):
-                self.unordered = unordered
+
+            self.unordered = False if not unordered else unordered
             if(optionals is not None):
-                self.optional_mask = np.zeros(len(items))
+                self.optional_mask = np.zeros(len(items), dtype=np.bool_)
                 self.optional_mask[optionals] = 1
         else:
             # print([type(x) for x in items])
@@ -138,37 +138,35 @@ class RHS:
             
             self.unordered = False if not unordered else unordered
             self.symbol = symbol
-            self.optional_mask = np.zeros(len(items))
+            self.optional_mask = np.zeros(len(items), dtype=np.bool_)
             if(optionals is not None):
                 self.optional_mask[optionals] = 1
 
             # Make equality literals
             self.items = []#][Sym(x) if isinstance(x, str) else x for x in items]
-            self.eq_toks = []#][Sym(x) if isinstance(x, str) else x for x in items]
+            self.rel_lits = []#][Sym(x) if isinstance(x, str) else x for x in items]
             for i, item in enumerate(items):
-                if(isinstance(item, (Sym,str))):
+                if(isinstance(item, (Sym, str))):
                     self.items.append(Sym(item))
                 elif(isinstance(item, SkillApp)):
                     # toks = self.eq_toks[i] = []
                     for j in range(i, len(items)):
-                        it_j = items[j]
-                        if(not isinstance(it_j, SkillApp)):
+                        item_j = items[j]
+                        if(not isinstance(item_j, SkillApp)):
                             continue
                         for k, arg_k in enumerate(item.args):
-                            for u, arg_u in enumerate(it_j.args):
-                                if(arg_k == arg_u and (i != j or u != k)):
-                                    self.eq_toks.append((i, j, k, u))
+                            for u, arg_u in enumerate(item_j.args):
+                                rel = arg_k.get_relation(arg_u)
+                                # if(arg_k == arg_u and (i != j or u != k)):
+                                if(rel is not None and (i != j or u != k)):
+                                    # print(item, k, item_j, u, rel)
+                                    self.rel_lits.append((rel, i, j, k, u))
 
 
                     self.items.append(item.skill)
                 elif(isinstance(item, Skill)):
                     self.items.append(item)
-            # print(self.items, self.eq_toks)
-
-
-                    
-                
-
+            # print(self.items, self.rel_lits)
         return self
 
 
@@ -185,8 +183,9 @@ class RHS:
     def __copy__(self):
         new_rhs = RHS([*self.items], symbol=self.symbol, unordered=self.unordered)
         new_rhs.optional_mask = self.optional_mask.copy()
-        new_rhs.eq_toks = copy(self.eq_toks)
+        new_rhs.rel_lits = copy(self.rel_lits)
         return new_rhs
+
 
     def __str__(self):
         item_strs = []
@@ -239,21 +238,22 @@ class RHS:
             s,e = key.start, key.stop
             s = 0 if s is None else s
             e = len(self.items)-1 if e is None else e
-            new_rhs.eq_toks = [(o0-s,o1-s,a0,a1) for o0,o1,a0,a1 in self.eq_toks 
+            new_rhs.rel_lits = [(r, o0-s,o1-s,a0,a1) for r, o0,o1,a0,a1 in self.rel_lits 
                                 if (o0 >= s and o1 >= s and o0 < e and o1 < e)]
             # print(s, e,)# [(o0 >= s, o1 >= s, o0 < e, o1 < e) for o0,o1,a0,a1 in self.eq_toks ])
-            # print(self.eq_toks)
+            # print("NEW")                                 
+            # print(self, self.rel_lits)
             # print("SLICE", new_rhs.eq_toks)
 
 
             return new_rhs
-        raise NotImplemented()
+        raise NotImplemented
 
     def insert(self, i, val, optional=False):
         self.items.insert(i, val)
-        self.optional_mask = np.insert(self.optional_mask, i, optional)
-        self.eq_toks += [(o0+1 if o0 >= i else o0, o1+1 if o1 >= i else o1, a0, a1)
-                         for o0,o1,a0,a1 in self.eq_toks]
+        self.optional_mask = np.insert(self.optional_mask, i, bool(optional))
+        self.rel_lits += [(r, o0+1 if o0 >= i else o0, o1+1 if o1 >= i else o1, a0, a1)
+                         for r,o0,o1,a0,a1 in self.rel_lits]
 
     def __add__(self, other):
         s = len(self)
@@ -261,16 +261,17 @@ class RHS:
         new_rhs = copy(self)
         new_rhs.items += other.items
 
-        new_rhs.optional_mask = np.zeros(len(new_rhs.items))
+        new_rhs.optional_mask = np.zeros(len(new_rhs.items),dtype=np.bool_)
         optionals = self.optional_mask.nonzero()[0]
         optionals += s + other.optional_mask.nonzero()[0]
-        new_rhs.optional_mask[optionals] = 1
+        new_rhs.optional_mask[optionals] = True
 
-        new_rhs.eq_toks = self.eq_toks
-        new_rhs.eq_toks += [(o0+s,o1+s,a0,a1) for o0,o1,a0,a1 in other.eq_toks]
+        new_rhs.rel_lits = self.rel_lits
+        new_rhs.rel_lits += [(r, o0+s,o1+s,a0,a1) for r,o0,o1,a0,a1 in other.rel_lits]
 
 
         return new_rhs
+
 
 class Sym:
     def __new__(cls, name, prods=[]):
@@ -646,6 +647,7 @@ def _merge_contiguous(edits):
     if(len(edits) == 0):
         return edits
 
+    # print("BEF EDITS", edits)
     merged_edits = []
     contig_ins_dels = []
 
@@ -662,7 +664,13 @@ def _merge_contiguous(edits):
 
             # If delete and contiguous w/ prev (delete/replace)
             if(kind == "delete"):
-                # Extend deletion region
+                # NOTE: Should probably delete this exception
+                # Skip merge of replace, delete
+                # if(kind == "delete"):
+                #     merged_edits.append(pe) 
+                #     pe = e
+                # else:
+                    # Extend deletion region (MAIN PART)
                 pe = (pe_kind, pe[1], e[2], *pe[3:])
 
             # If insert and contiguous w/ prev (insert/replace)
@@ -674,9 +682,11 @@ def _merge_contiguous(edits):
                 pe = (pe_kind, pe[1], pe[2], pe[3]+e[3])
 
             # If replace and contiguous w/ prev (insert/delete/replace)
-            elif(kind == "replace"):
+            elif(kind == "replace"):                
                 ins_vals = [] if pe_kind == "delete" else pe[-1]
                 pe = ('replace', pe[1], e[2], ins_vals+e[3])
+                
+
         else:
             merged_edits.append(pe) 
             pe = e
@@ -685,10 +695,23 @@ def _merge_contiguous(edits):
     return merged_edits
 
 
-def find_edits(seq0, seq1):
+def find_edits(seq0, seq1, alignment=None, return_align=False):
     eq_matrix = np.zeros((len(seq0), len(seq1)))
-    for i, c1 in enumerate(seq0):
-        for j, c2 in enumerate(seq1):
+
+    # print(seq0)
+    # print(seq1)
+    if(alignment is None):
+        for i, c1 in enumerate(seq0):
+            for j, c2 in enumerate(seq1):
+                if((hasattr(c1, 'skill_eq') and c1.skill_eq(c2)) or
+                    c1 == c2):
+                    eq_matrix[i][j] = 1
+    else:
+        for i, j in enumerate(alignment):
+            if(j == -1):
+                continue
+            c1, c2 = seq0[i], seq1[j]
+            # print(c1,c2, c1.skill_eq(c2))
             if((hasattr(c1, 'skill_eq') and c1.skill_eq(c2)) or
                 c1 == c2):
                 eq_matrix[i][j] = 1
@@ -700,6 +723,7 @@ def find_edits(seq0, seq1):
     s0 = s1 = 0
     e0 = e1 = 1
     spanning = False
+    alignment = -1*np.ones(len(seq0), dtype=np.int64)
     for _ in range(max(len(seq0),len(seq1))):
         # print(f's0={s0} e0={e0} s1={s1} e1={e1}, c={c}')
         # Note: printing a copy with +.1 added to the span of s0:e1,s1:e1
@@ -707,6 +731,9 @@ def find_edits(seq0, seq1):
         # eq_copy = eq_matrix.copy()
         # eq_copy[s0:e0,s1:e1] += .1
         # print(eq_copy)
+        # print(e0-1, s1, e0 <= len(seq0), eq_matrix[e0-1,s1:])
+        # print(s0 ,e1-1, e1 <= len(seq1), eq_matrix[s0:,e1-1])
+        # print(eq_copy[s0:e0,s1:e1])
 
         is_del = e0 <= len(seq0) and np.sum(eq_matrix[e0-1,s1:]) == 0
         is_ins = e1 <= len(seq1) and np.sum(eq_matrix[s0:,e1-1]) == 0
@@ -717,12 +744,16 @@ def find_edits(seq0, seq1):
                 # print(('replace', e0-1))
                 
                 edits.append(('replace', e0-1, e0, [seq1[e1-1]]))
+                alignment[e0-1:e0] = e1-1
             elif(is_del):
                 # print(('delete', s0))
                 edits.append(('delete', e0-1, e0))
             else:
                 # print(('insert', s0))
                 edits.append(('insert', e0-1, e0-1, [seq1[e1-1]]))
+
+            # print("edit", s0, s1)
+            
 
             if(is_del):
                 s0 += not spanning
@@ -738,7 +769,10 @@ def find_edits(seq0, seq1):
         if(eq_matrix[s0,s1]):
             # Move on if in-place character
             # print("skip", s0)
+            # print("==", s0, e0)
+            alignment[s0] = s1
             s0, s1 = e0, e1
+            
 
             if(e0 >= len(seq0) or e1 >= len(seq1)):
                 break
@@ -749,6 +783,15 @@ def find_edits(seq0, seq1):
         # Otherwise check for out order span
         if(np.sum(eq_matrix[s0:e0, s1:e1]) == e0-s0-c):
             # print(('unorder', s0, e0))
+            # print(eq_matrix[s0:e0, s1:e1])
+            # print(np.nonzero(eq_matrix[s0:e0, s1:e1]))
+            # print(np.nonzero(eq_matrix[s0:e0, s1:e1])[1]+s1)
+            # print("unorder", (s0,e0), np.nonzero(eq_matrix[s0:e0, s1:e1])[1]+s1)
+            for k, row in enumerate(eq_matrix[s0:e0, s1:e1]):
+                nz = np.nonzero(row)[0]
+                if(len(nz) > 0):
+                    alignment[s0+k] = nz[0]+s1
+
             edits.append(('unorder', s0, e0))
             s0, s1 = e0, e1
             spanning = False
@@ -775,13 +818,20 @@ def find_edits(seq0, seq1):
     # Merge contiguous replace and insert/delete edits
     filtered_edits = _merge_contiguous(edits)
 
+    # print(seq1, edits)
+    # print(alignment)
+    # assert -1 not in alignment
+    if(return_align):
+        return filtered_edits, alignment
+    else:
     # print(filtered_edits)
-    return filtered_edits
+        return filtered_edits
 
 # --------------------------------------------
 # : Modify RHS from Edits
 
 def apply_rhs_edits(rhs, edits, unorder=False):
+    # print("EDITS", edits)
     new_rhs = copy(rhs)
 
     delete_edits = [edit for edit in edits if edit[0]=='delete']
@@ -813,7 +863,7 @@ def apply_rhs_edits(rhs, edits, unorder=False):
         new_rhs.items = items
         new_rhs.optional_mask = optional_mask
         
-
+    # print("UNORDER", unorder)
     if(unorder):
         new_rhs.unordered = True
 
@@ -892,7 +942,7 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
         consist of fully unordering the parent rhs, direct edits to 
         the 'parent' rhs and substitutions of it's parts with new productions.
     '''
-    # print("EDITS", edits)
+    print("--EDITS", edits)
     # seq1 = rhs.items
 
     if(symbol_factory is None):
@@ -989,6 +1039,67 @@ def edits_to_changes(rhs, edits, symbol_factory=None):
     parent_edits = sorted(parent_edits, key=lambda x:x[1])
     return (full_unorder, unorder_substs, disjoin_substs, parent_edits)
 
+def generalize_rhs(rhs, subseq, edits, alignment, lit_match_ids=None):
+    new_rhs = copy(rhs)
+
+    
+    # Alignment with -1 for bit that become part of disjoint RHSs
+    merge_alignment = alignment.copy()
+    # Alignment with -1 for bit that are replaced with non-terminals
+    retain_alignment = alignment.copy()
+    # The amount by which other conditions need be shifted to be retained
+    shift = np.zeros(len(rhs), dtype=np.int64)
+    for edit in reversed(edits):
+        kind = edit[0]
+        if(kind == "replace"):
+            merge_alignment[edit[1]:edit[2]] = -1
+            retain_alignment[edit[1]:edit[2]] = -1
+            shift[edit[2]:] += (edit[2]-edit[1])-1
+        elif(kind == "unorder"):
+            shift[edit[2]:] += (edit[2]-edit[1])-1
+            retain_alignment[edit[1]:edit[2]] = -1
+        # elif(kind == "delete"):
+        #     retain_alignment[edit[1]:edit[2]] = np.arange(edit[1], edit[2])
+
+    new_rel_lits = []
+    if(lit_match_ids is None):
+        lit_match_ids, _ = _check_rel_lit_matches(rhs, subseq, alignment)
+
+    # print(rhs.rel_lits)
+    for m_id in lit_match_ids:
+        r, o0, o1, a0, a1 = rhs.rel_lits[m_id]
+        if(retain_alignment[o0] == -1 or retain_alignment[o1] == -1):
+            continue
+
+        _o0, _o1 = o0 - shift[o0], o1 - shift[o1]
+        # print(o0, o1 ,"->", _o0, _o1)
+        if(_o0 < 0 or  _o1 < 0):
+            continue
+        new_rel_lits.append((r, _o0, _o1, a0, a1))
+    new_rhs.rel_lits = new_rel_lits
+    # print(subseq)
+    # if(isinstance(subseq, RHS)):
+    #     new_rhs.rel_lits = list(set(rhs.rel_lits).intersection(subseq.rel_lits))
+    # else:
+    #     # Select subset of relative literals that match 
+    #     rel_lits = []
+    #     for rel_lit in rhs.rel_lits:
+    #         if(rel_lit_match(rel_lit, subseq)):
+    #             rel_lits.append(rel_lit)
+    #     new_rhs.rel_lits = rel_lits
+
+    # Apply where-part anti-unification 
+    _subseq = subseq.items if isinstance(subseq, RHS) else subseq
+    new_items = [*rhs.items]
+    for i, (ind, old_item) in enumerate(zip(merge_alignment, rhs.items)):
+        if(isinstance(old_item, Skill) and ind != -1):
+            new_items[i] = old_item.merge(_subseq[ind])
+    new_rhs.items = new_items                
+
+    # new_rhs = RHS(new_items, symbol=self.symbol, unordered=self.unordered)
+    # new_rhs.optional_mask = self.optional_mask.copy()
+    return new_rhs
+
 
 class RHSChange:
     ''' Instantiates a candidate grammar change and its edit cost and span.
@@ -1007,14 +1118,25 @@ class RHSChange:
          7. DisjoinMerge (Replaces every instance of a disjunction S-> A | B with a sequence of 
                 optionals A*B*. Occurs if multiple options of a disjoint non-terminal occur in sequence)
     '''
-    def __init__(self, rhs, span, edits=[], nomatch=False, seq=None):
+    def __init__(self, rhs, span, subseq=[], edits=[], alignment=None, lit_matches=None, gen_penl=0.0, nomatch=False):
         self.rhs = rhs
         self.span = span
+        self.subseq = subseq
         self.edits = edits
-        # self.cost = cost
+        self.alignment = np.arange(len(subseq)) if alignment is None else alignment
+        self.lit_matches = lit_matches
+        self.gen_penl = gen_penl
         self.nomatch = nomatch
-        self.seq = seq
         self.recalc_cost()
+
+    def __str__(self):
+        return f"{self.rhs.symbol}->{self.rhs} {'nomatch' if self.nomatch else self.edits}"
+
+    __repr__ = __str__
+
+    def __copy__(self):
+        return RHSChange(self.rhs, self.span, self.subseq, self.edits, self.alignment,
+                          self.lit_matches, self.gen_penl, self.nomatch)
 
     def recalc_cost(self):
         if(self.nomatch):
@@ -1034,8 +1156,7 @@ class RHSChange:
                     cost += .2*(edit[2]-edit[1])
             seq_len = self.span[1]-self.span[0]
             # cost /= min(len(self.rhs.items), seq_len)
-        self.cost = cost
-
+        self.cost = self.gen_penl + cost
 
     def ensure_changes_computed(self, symbol_factory=None):
         if(not hasattr(self, 'parent_edits')):
@@ -1046,7 +1167,7 @@ class RHSChange:
             self.disjoin_substs = disjoin_substs
             self.parent_edits = parent_edits
 
-    def apply(self, grammar=None, symbol_factory=None):
+    def apply(self, grammar=None, symbol_factory=None, old_rhs=None):
         # if(grammar and len(self.edits) == 0):
         #     print("COPY")
         #     return grammar, self.rhs 
@@ -1054,9 +1175,12 @@ class RHSChange:
         self.ensure_changes_computed(symbol_factory)
 
         # print("P", self.rhs, self.parent_edits)
-        old_rhs = self.rhs
-        new_rhs = apply_rhs_edits(self.rhs, self.parent_edits, self.full_unorder)
-
+        old_rhs = self.rhs if(old_rhs is None) else old_rhs
+        new_rhs = generalize_rhs(old_rhs, self.subseq, self.edits, self.alignment, self.lit_matches)
+        # print("NEW RHS", new_rhs, self.full_unorder)
+        # print("P EDITS", self.parent_edits)
+        new_rhs = apply_rhs_edits(new_rhs, self.parent_edits, self.full_unorder)
+        # print("After Edits", new_rhs)        
         if(grammar is None):
             return None, new_rhs 
 
@@ -1079,28 +1203,153 @@ class RHSChange:
         return grammar, new_rhs
 
 
-    def __str__(self):
-        return f"{self.rhs.symbol}->{self.rhs} {'nomatch' if self.nomatch else self.edits}"
-
-    __repr__ = __str__
-
-    def __copy__(self):
-        return RHSChange(self.rhs, self.span, self.edits, self.nomatch, self.seq)
+    
 
 
 
     #     rhs = self.rhs
     #     return f"changes({rhs.symbol}->{''.join([str(x) for x in rhs.items])}, {seq2})")
 
+# def _count_item_rels(rhs, rel_lits):
+#     counts = np.ones(len(rhs), dtype=np.int64)
+#     for r, o0, o1, a0, a1 in rhs.rel_lits:
+#         counts[o0] += 1
+#         counts[o1] += 1
+#     return counts
+
+def _align_rels(rel_lits, alignment):
+    aligned_rel_lits = []
+    for r, o0, o1, a0, a1 in rel_lits:
+        o0 = alignment[o0]
+        o1 = alignment[o1]
+        if(o0 != -1 and o1 != -1):
+            aligned_rel_lits.append((r, o0, o1, a0, a1))
+        else:
+            aligned_rel_lits.append(None)
+            # pres[o0] = 1
+            # pres[o1] = 1
+    return aligned_rel_lits
+
+def rel_lit_match(rel_lit, seq):
+    r, o0, o1, a0, a1 = rel_lit
+    item0 = seq[o0]
+    item1 = seq[o1]
+    if(hasattr(item0, 'args') and hasattr(item1, 'args') and
+        a0 < len(item0.args) and a1 < len(item1.args)):
+        arg0 = item0.args[a0]
+        arg1 = item1.args[a1]
+        rel = arg0.get_relation(arg1)
+        return r == rel
+    return False
 
 
-def find_rhs_change(rhs, subseq, span=None, seq=None):
+def _check_rel_lit_matches(rhs, subseq, alignment):
+    # print(rhs, rhs.rel_lits)
+
+    # a_lst = list(alignment)
+    # inv_align = -np.ones(len(subseq), dtype=np.int64)
+    # for i,ind in enumerate(alignment):
+    #     inv_align[ind] = i
+    # inv_align = np.array(inv_align, dtype=np.int64)
+    # print("align", alignment)
+    # print("inv_align", inv_align)
+
+    # print([np.where(alignment==ind)[0][0] for ind in range(len(alignment))])
+    # alignment = np.array([np.where(alignment==ind)[0] for ind in range(len(alignment))], dtype=np.int64)
+    # rel_lits = rhs.rel_lits
+    # print("BEF", rhs.rel_lits)
+    rel_lits = _align_rels(rhs.rel_lits, alignment)
+    # print("AFT", rel_lits)
+    match_inds = []
+    total = np.ones(len(subseq), dtype=np.int64)
+    match_w = np.ones(len(subseq), dtype=np.int64)
+    # _a = alignment[np.where(alignment!=-1)]
+    # match_w[_a] = 0
+    # match_w[np.where(alignment==-1)] = 0
+    # print("ALIGN", alignment)
+    if(isinstance(subseq, RHS)):
+        # print("A")
+        for i, rel_lit in enumerate(rel_lits):
+            if(rel_lit is None): continue
+            r, o0, o1, a0, a1 = rel_lit
+            
+            # o0, o1 = alignment[o0], alignment[o1]
+            total[o0] += 1
+            total[o1] += 1    
+            if((r, o0, o1, a0, a1) in subseq.rel_lits):
+                match_inds.append(i)
+                match_w[o0] += 1
+                match_w[o1] += 1
+    else:
+        # print("B")
+        for i, rel_lit in enumerate(rel_lits):
+            if(rel_lit is None): continue
+            r, o0, o1, a0, a1 = rel_lit
+            # o0, o1 = alignment[o0], alignment[o1]
+            total[o0] += 1
+            total[o1] += 1
+            if(rel_lit_match(rel_lit, subseq)):
+                match_inds.append(i)
+                match_w[o0] += 1
+                match_w[o1] += 1
+    # print(match_w, total)
+    # print(alignment, rhs.optional_mask)
+    gen_penl = np.sum((alignment == -1) & ~rhs.optional_mask) + len(subseq) - np.sum(match_w / total)
+    return match_inds, gen_penl
+
+
+# def _check_rels(rhs, seq, rel_lits):
+#     total = np.ones(len(seq), dtype=np.int64)
+#     matches = np.ones(len(seq), dtype=np.int64)
+#     for rel_lit in rel_lits:
+#         r, o0, o1, a0, a1 = rel_lit
+        
+#         total[o0] += 1
+#         total[o1] += 1
+
+#         if(rel_lit_match(rel_lit, seq)):
+#             matches[o0] += 1
+#             matches[o1] += 1
+#     # print(rel_lits)
+#     # print("!!!", matches / total, len(matches) - np.sum(matches / total))
+#     return len(matches) - np.sum(matches / total)
+
+# def _calc_gen_penalty(rhs, subseq, edits, alignment):
+#     # print(rhs, "...", subseq)
+#     # if(len(rhs.rel_lits) > 0):
+#     #     print()
+#     rel_lits = _align_rels(rhs.rel_lits, alignment)
+
+#     # print("RT:", rel_lits, alignment, edits)
+#     if(isinstance(subseq, RHS)):
+#         intr = set(rel_lits).intersection(subseq.rel_lits)
+#         # print(intr)
+#         total = _count_item_rels(rhs, rel_lits)
+#         shared = _count_item_rels(rhs, intr)
+#         return len(shared) - np.sum(shared / total)
+#         # print("!!!", shared / total, len(shared) - np.sum(shared / total))
+#     else:
+#         return _check_rels(rhs, subseq, rel_lits)
+
+
+
+    
+            # print(item0, item1, r, rel)
+
+
+
+
+
+
+def find_rhs_change(rhs, subseq, alignment=None, span=None, seq=None):
     # print(f"changes({rhs.symbol}->{''.join([str(x) for x in rhs.items])}, {seq2})")
 
     seq1 = rhs.items
     seq2 = subseq.items if isinstance(subseq, RHS) else subseq
-    edits = find_edits(seq1, seq2)
-    # print(edits)
+    edits, alignment = find_edits(seq1, seq2, alignment, return_align=True)
+
+    lit_matches, gen_penl = _check_rel_lit_matches(rhs, subseq, alignment)
+    # print("align", seq1, seq2, edits, alignment)
 
     # Filter out any edits that are redundant with 
     #  the exiting unorder / optionals of the RHS
@@ -1113,41 +1362,11 @@ def find_rhs_change(rhs, subseq, span=None, seq=None):
             continue
         filtered_edits.append(edit)
 
-    
-    # cost = cost_of_edits(rhs, filtered_edits, len(subseq))
-
-    # print("****:", rhs, subseq, cost, edits)
-
-    # print("COST", cost)
     if(span is None):
         span = (0, len(seq1))
-    change = RHSChange(rhs, span, filtered_edits, seq=seq)
-
-    if(isinstance(subseq, RHS)):
-        change.cost += len(rhs.eq_toks)-len(set(rhs.eq_toks).intersection(subseq.eq_toks))
-        print("COST+", len(rhs.eq_toks), len(set(rhs.eq_toks).intersection(subseq.eq_toks)))
-    else:
-        if(len(rhs.eq_toks) > 0):
-            before_cost = change.cost
-            for o0, o1, a0, a1 in rhs.eq_toks:
-                if( o0 < len(subseq) and o1 < len(subseq)):
-                    okay = False
-                    sa0, sa1 = subseq[o0], subseq[o1]
-                    if(isinstance(sa0,SkillApp) and isinstance(sa1, SkillApp) 
-                        and a0 < len(sa0.args) and a1 < len(sa1.args)):
-                        # print(sa0.args[a0])
-                        # print(sa1.args[a1])
-                        okay = sa0.args[a0] == sa1.args[a1]
-                    if(not okay):
-                        change.cost += 1.1 # >1 Seems to overcome edge cases 
-
-            print("COST-", change.cost-before_cost)
-
-                # print(subseq[o0])
-                # print(subseq[o1])
-                # change.cost +=
-                # print(o0, o1, subseq[o0].args[a0], subseq[o1].args[a1])
-        
+    change = RHSChange(rhs, span, subseq, 
+                    filtered_edits, alignment=alignment,
+                    lit_matches=lit_matches, gen_penl=gen_penl)
     
     return change
     # g = Grammar()
@@ -1161,6 +1380,17 @@ def test_find_edits():
     # # 0. Aligned
     # print("0.")
     seq1 = 'ABCDEF'
+    seq2 = 'XCBAFEDY'
+    edits, align = find_edits(seq1, seq2, True)
+    print(edits)
+    print(seq2)
+    print(align)
+
+    edits, align = find_edits(seq1, seq1, True)
+    print(align)
+
+    # raise ValueError()
+
     find_edits(seq1, seq1)
     print()
 
@@ -1428,18 +1658,29 @@ def test_find_rhs_change():
 #         self.children = children
 
 def calc_overlap(pattern, sequence, skip_penalty=0.1):
-    # print(pattern, sequence)
     l0, l1 = len(pattern), len(sequence)
-    scores = np.zeros((l0, l1), dtype=np.float64)
+    scores = np.zeros((l0, l1), dtype=np.float64)    
     for i, s0 in enumerate(pattern):
         for j, s1 in enumerate(sequence):
+            # print(":", s0, s1)
             if(hasattr(s0,'overlap')):
                 scores[i][j] = s0.overlap(s1)
             else:
                 scores[i][j] = s0 == s1
-    mx = np.max(scores, axis=0)
+    # print(scores)
+    alignment = np.argmax(scores, axis=1)
+    assert(len(alignment) == len(pattern))
+
+    mx = np.max(scores, axis=1)
+    assert(len(mx) == len(pattern))
+
+    alignment[mx==0.0] = -1
+    
     mx = [-skip_penalty if x == 0 else x for x in mx]
-    return max(np.sum(mx),0)#/(l0)#+abs(l0-l1))
+    overlap = np.sum(mx)
+    if(len(sequence) > len(pattern)):
+        overlap -= skip_penalty*(len(sequence)-len(pattern))
+    return max(overlap,0), alignment#/(l0)#+abs(l0-l1))
 
 
 def greedy_span_rcs(rcs):
@@ -1481,22 +1722,31 @@ def get_best_changes(grammar, seq, rhss):
         # Convolved RHS application 
         for i in range(len(seq)):
             best_rc = None
+            # best_rc_cost_tup = float('inf')#(float('inf'), 0)
             best_rc_cost_tup = (float('inf'), 0)
 
             # for j in range(i+1, min(len(seq), i+L+1)+1):
             for j in range(i+1, len(seq)+1):
                 subseq = seq[i:j]
-                overlap = calc_overlap(items, subseq)
+
+                
+
+                overlap, alignment = calc_overlap(items, subseq)
+                rc = find_rhs_change(rhs, subseq, alignment, span=(i,j), seq=seq)
 
                 # print("OV", overlap, rhs, subseq)
+
+                
+                # print(i,j, subseq)
+                # print(f" {rhs.symbol}->{rhs} : c:{rc.cost:.2f} g:{rc.gen_penl:.2f} o:{overlap:.2f} r:{rc.cost/overlap if overlap else float('inf'):.2f}", subseq, rc.edits)
                 
                 # Skip if there is no overlap  
                 if(overlap == 0):
                     continue
 
-                rc = find_rhs_change(rhs, subseq, span=(i,j), seq=seq)
-                # print(i,j, subseq)
-                print(f" {rhs.symbol}->{rhs} : c:{rc.cost:.2f} o:{overlap:.2f} r:{rc.cost/overlap if overlap else float('inf'):.2f}", subseq, rc.edits)
+                
+                # print(f"   {rhs.symbol}->{rhs} : c:{rc.cost:.2f} g:{rc.gen_penl:.2f}", subseq, rc.edits)
+                # cost_tup = rc.cost#(rc.cost/overlap, -overlap)
                 cost_tup = (rc.cost/overlap, -overlap)
 
 
@@ -1507,7 +1757,8 @@ def get_best_changes(grammar, seq, rhss):
 
                 # print(rc.cost)
             if(best_rc):
-                print(f"{rhs.symbol}->{rhs} : {best_rc.span} c:{best_rc.cost:.2f} o:{-best_rc_cost_tup[1]:.2f} r:{best_rc.cost/overlap if overlap else float('inf'):.2f}", best_rc.seq[best_rc.span[0]:best_rc.span[1]], best_rc.edits)
+                # print(f"{rhs.symbol}->{rhs} : {best_rc.span} c:{best_rc.cost:.2f} g:{rc.gen_penl:.2f} o:{-best_rc_cost_tup[1]:.2f} r:{best_rc.cost/overlap if overlap else float('inf'):.2f}", best_rc.subseq, best_rc.edits)
+                # print(f"{rhs.symbol}->{rhs} : {best_rc.span} c:{best_rc.cost:.2f} g:{best_rc.gen_penl:.2f}", best_rc.subseq, best_rc.edits)
                 best_rcs.append(best_rc)
         
         # print([(x.cost,x.span) for x in best_rcs])
@@ -1568,7 +1819,7 @@ def fill_span_holes(changes, seq):
             new_edits += rc.edits
             # ins_cost = cost_of_edits(rc.rhs, new_edits, e0-s0)
             # Prepend any uncovered symbols to beginning
-            rc = RHSChange(rc.rhs, (head,e0), new_edits, seq=seq)
+            rc = RHSChange(rc.rhs, (head,e0), edits=new_edits)
             new_rcs.append(rc)
 
         elif(e0 <= head):
@@ -1599,7 +1850,7 @@ def fill_span_holes(changes, seq):
                 
             # print(new_edits)
             # ins_cost = cost_of_edits(rc.rhs, new_edits, s1-head)
-            new_rcs[-1] = RHSChange(rc.rhs, (head,s1), new_edits, seq=seq)
+            new_rcs[-1] = RHSChange(rc.rhs, (head,s1), edits=new_edits)
             
         head = max(s1,e0)
     # print(">>>", [(rc.span, rc.edits) for rc in new_rcs], len(seq))
@@ -1619,7 +1870,8 @@ class ParseTree:
 
 
     def recalc_cost(self):
-        self.cost = self.change.cost + sum([rc.cost for rc in self.child_trees if rc])
+        # self.cost = self.change.cost + sum([rc.cost for rc in self.child_trees if rc])
+        self.cost = sum([rc.cost for rc in self.changes if rc])
 
     def __str__(self):
         s = f"{self.cost:.2f} {self.symbol}->{self.rhs} {self.change.edits}"
@@ -1666,7 +1918,7 @@ class ParseTree:
                 for i, pt in enumerate(pts):
                     if(not pt or isinstance(pt, ParseHole)):
                         continue
-                    print("CHANGE", depth, i, pt.change.cost, pt.change.rhs.symbol, "->", pt.change.rhs, pt.change.edits, )
+                    # print("CHANGE", depth, i, pt.change.cost, pt.change.rhs.symbol, "->", pt.change.rhs, pt.change.edits, )
                     # tree_iter[pt.change.rhs] = pt.change
                     tree_iter.append(pt)
                     # yield pt
@@ -1683,37 +1935,46 @@ class ParseTree:
                 self._changes.append(pt.change)
         return self._changes
 
+    @property
+    def joined_changes(self):
+        if(not hasattr(self, '_joined_changes')):
+            joined_changes
+            rhs_to_pts = {}
 
-    def join_changes(self, other=None):
-        rhs_to_pts = {}
-        covered = set()
-
-        itrs = [self.iter_trees()] 
-        if(other is not None):
-            itrs += [other.iter_trees()]
-
-        for itr in itrs:
-            for pt in itr:
+            for pt in self.iter_trees():
                 if(len(pt.change.edits) == 0 or 
                    id(pt) in covered):
                     continue
-                lst = rhs_to_pts.get(pt.change.rhs, [])
+                _, lst = joined_changes.get(pt.change.rhs, [])
                 lst.append(pt)
-                rhs_to_pts[pt.change.rhs] = lst
+                joined_changes[pt.change.rhs] = (None, lst)
                 covered.add(id(pt))
 
-        for rhs, pts in rhs_to_pts.items():
-            edits = set()
-            for pt in pts:
-                for edit in pt.change.edits:
-                    edits.add(edit)
-            edits = sorted(list(edits),key=lambda x: x[1])
+            for rhs, (_,pts) in [*joined_changes.items()]:
 
-            for pt in pts:
-                pt.change.edits = edits
-                orig_cost = pt.change.cost
-                pt.change.recalc_cost()
-                pt.cost += pt.change.cost-orig_cost
+                if(len(pts) > 1):
+                    _edits = []
+                    for pt in pts:
+                        for edit in pt.change.edits:
+                            if(edit not in _edits):
+                                _edits.append(edit)
+                    # Combine
+                    edits = sorted(list(_edits),key=lambda x: x[1])
+                    RHSChange()
+                else:
+                    rc = pts[0].rc
+
+
+                for pt in pts:
+                    pt.change.edits = edits
+                    orig_cost = pt.change.cost
+                    pt.change.recalc_cost()
+                    pt.cost += pt.change.cost-orig_cost
+            self._joined_changes = 'TOTODOO'
+
+
+    # def _join_changes(self, other=None):
+        
 
 
         # Then update trees
@@ -1977,7 +2238,7 @@ def _fill_holes_downstream(pt):
         
         s,e = _rc.span[0]-len(p_lst), _rc.span[1]+len(n_lst)
         # cost = cost_of_edits(rhs, edits, e-s)
-        rc = RHSChange(rhs, (s,e), edits, seq=_rc.seq)
+        rc = RHSChange(rhs, (s,e), edits=edits)
         _pt = ParseTree(rc, child_trees=adj.child_trees)
         # print(" ->", rc.cost, rc)
         # print(_pt)
@@ -1992,6 +2253,7 @@ def _fill_holes_downstream(pt):
 
 def join_edits(edits0, edits1):
     # TODO: Make fancier when more test examples
+
     return list(set(edits0).intersection(set(edits1)))
 
 def _parse_recursions(trees, seq):
@@ -2021,14 +2283,14 @@ def _parse_recursions(trees, seq):
                 pt.change.span = (pt.change.span[0], pt.change.span[1]+1)
                 pt.child_trees.append(prev_pt)
 
-                pt.join_changes(prev_pt)
+                # pt.join_changes(prev_pt)
                 # pt.change.edits = join_edits(pt.change.edits, prev_pt.change.edits)
                 # print(pt.change.edits)
-                prev_pt.change.cost = 0
-                prev_pt.change.edits = []
-                prev_pt.cost = 0.0
-                prev_pt = pt
-                pt.recalc_cost()
+                # prev_pt.change.cost = 0
+                # prev_pt.change.edits = []
+                # prev_pt.cost = 0.0
+                # prev_pt = pt
+                # pt.recalc_cost()
 
                 
                 # pt = ParseTree( pt.parse_trees[])
@@ -2048,8 +2310,8 @@ def _only_least_cost(changes):
         if(rc.cost < min_cost):
             min_cost = rc.cost
             min_rc = rc
-
-    return [rc for rc in changes if rc.rhs == min_rc.rhs or rc.cost == min_cost]
+    print("MIN RC", min_rc.cost, min_rc)
+    return [rc for rc in changes if rc.rhs.symbol == min_rc.rhs.symbol or rc.cost == min_cost]
 
 
 
@@ -2079,7 +2341,7 @@ def _bottom_up_recurse(grammar, seq, rhss=None, seq_trees=None):
 
     # Try to parse using each rhs
     best_changes = get_best_changes(grammar, seq, rhss)
-    print("best_changes", [(rc, rc.span) for rc  in best_changes])
+    print("best_changes", [(rc, f"{rc.cost:.2f}", rc.span) for rc  in best_changes])
     best_changes = _only_least_cost(best_changes)
 
     
@@ -2087,7 +2349,7 @@ def _bottom_up_recurse(grammar, seq, rhss=None, seq_trees=None):
     # Turn each partial parse into a parse tree 
     parse_trees = []
     for rc in best_changes:
-        print(":", rc, rc.span, seq[rc.span[0]:rc.span[1]])
+        print(":", rc, rc.span, rc.cost, rc.gen_penl, seq[rc.span[0]:rc.span[1]])
         child_trees = [seq_trees[j] if seq_trees else None for j in range(*rc.span)]
         pt = ParseTree(rc, child_trees)
         #  If an insertion is required use ParseHoles to move it
@@ -2226,6 +2488,8 @@ def parse_only_deletes(pt):
             return False
     return True
 
+from proclrn.parse import parse_only_deletes
+
 def check_accepts_subseq(g, seq, item):
     # pt = parse_w_changes(g, seq + item)
     # return is_subseq_parse(pt)
@@ -2335,18 +2599,32 @@ def apply_grammar_changes(g, parse_tree):
     symbol_factory = SymbolFactory(grammar=g)#lambda : _new_symbol_name(g, s_ind)
 
     changes = parse_tree.changes
+
+    rhs_to_rcs = {}
+    for rc in changes:
+        lst = rhs_to_rcs.get(rc.rhs,[])
+        lst.append(rc)
+        rhs_to_rcs[rc.rhs] = lst
+
     # new_prods = {}
     # for symb, rhss in g.prods:
     #     for rhs in rhss:
     #         rc = changes[rhs]
 
     new_g = g.__copy__()
-    covered = set()
-    for rc in changes:
-        if(rc.rhs not in covered):
-        # print(rc.rhs.symbol,  rc.edits)
-            rc.apply(new_g, symbol_factory)
-            covered.add(rc.rhs)
+    # for rc in changes:
+    #     rc.apply(new_g, symbol_factory)
+
+    for rhs, rcs in rhs_to_rcs.items():
+        # rc = rcs[0]
+        for rc in rcs:
+            _, rhs = rc.apply(new_g, symbol_factory, old_rhs=rhs)
+        # for i in range(1, len(rcs)):
+            # print('>>', rc.edits, rcs[i].edits)
+            # rc.edits = join_edits(rc.edits, rcs[i].edits)
+        
+
+
     print(new_g)
     new_g._simplify()
     return new_g
@@ -2356,8 +2634,10 @@ def generalize_from_seq(g, seq):
     print("----", seq, "-----")
     pt = parse_w_changes(g, seq)
     g = apply_grammar_changes(g, pt)
+    for rhss in g.prods.values():
+        for rhs in rhss:
+            print(">", [(x.how_part, x.where_matches, x.skill_apps) for x in rhs.items if isinstance(x,Skill)])
     return g
-
 
 class IE():
     def __init__(self, name):
@@ -2368,17 +2648,27 @@ class IE():
         self.relations[other] = kind
         self.relations[kind] = other
 
+    def get_relation(self, other):
+        if(self == other):
+            return '='
+        return self.relations.get(other,None)
+
     def __eq__(self, other):
         return self.name == getattr(other, 'name', other)
 
     def __hash__(self):
         return hash(self.name)
 
+    def __str__(self):
+        return self.name
+
+    __repr__ = __str__ 
+
 
 def newSA(hp, sel, args, short_name=None):
     if(short_name is None):
         short_name = f"{hp}({sel})"
-    skill = Skill(how_part=hp)
+    skill = PrimSkill(how_part=hp)
     return SkillApp(skill, sel, args, short_name=short_name)    
 
 def make_mc_skill_apps():
@@ -2524,11 +2814,13 @@ def test_bottom_up_changes():
         [a20, c20, c31, a31, c32, a32, d],
         [a20, c20, a31, c31, a32, c32, cp3, d],
         [a20, c20, a21, c21, a32, c32, d],
+        [a20, c20, a21, c21, a32, d],
+        # [a20, c20, a21, c21, a32, c32, d],
     ]
     from random import shuffle
-    seqs = [[a20, c20, a31, c31, a22, c22, cp3, d],
-            [c20, a20, a21, c22, a22, cp3, d]]
-    order = list(range(len(seqs)))
+    # seqs = [[a20, c20, a31, c31, a22, c22, cp3, d],
+    #         [c20, a20, a21, c22, a22, cp3, d]]
+    order = list(range(len(seqs)))#[:6]
     # shuffle(order)
     # order = [3, 0, 1, 2]#, 5]#, 4]
     # order = [5, 0, 2, 1, 4, 3]
@@ -2553,12 +2845,12 @@ def test_bottom_up_changes():
     try:
         print("INITIAL SEQ:", seqs[order[0]]) 
         g, rhs = _seq_to_initial_grammar(seqs[order[0]])
-        g = find_recursion(g)
+        # g = find_recursion(g)
         print(f'\ngrammar:\n{g}')
         for i in range(1,len(order)):
             seq = seqs[order[i]]
             g = generalize_from_seq(g, seq)    
-            g = find_recursion(g)
+            # g = find_recursion(g)
             pt = parse_w_changes(g, seq)
             # assert pt.cost == 0.0
             print(f'\ngrammar:\n{g}')
@@ -2644,21 +2936,32 @@ def test_blarg():
 #     def __init__(self):
 #         self.skill_apps = []
 
-class Skill(object):
-    def __init__(self, how_part=None):
-        self.how_part = how_part
-        self.skill_apps = set()
-        self.where_matches = []
+class SkillBase(object):
+    def __init__(self, _id):
+        self._id = _id
+
+    def __str__(self):
+        return self._id
+
+    __repr__ = __str__
+
+    def merge(self, other):
+        new_skill = copy(new_skill)
+         
+        if(isinstance(other, Skill)):
+            skill_apps = other.skill_apps
+            where_matches = other.where_matches
+        else:
+            skill_apps = [other]
+            where_matches = [(other.sel, *other.args)]
+        
+        new_skill.skill_apps = self.skill_apps.union(set(skill_apps))
+        new_skill.where_matches = self.where_matches + where_matches
+        return new_skill
 
     def add_app(self, skill_app):
         self.skill_apps.add(skill_app)
         self.where_matches.append((skill_app.sel, *skill_app.args))
-
-    def join(self, other):
-        print("JOIN")
-        new_skill = self.how_part
-        new_skill.skill_apps = self.skill_apps + other.skill_apps
-        new_skill.where_matches = self.where_matches + other.where_matches
 
     def arg_overlap(self, other):
         skill_apps = getattr(other, 'skill_apps', [other])
@@ -2667,12 +2970,20 @@ class Skill(object):
             v = max([x.arg_overlap(sa) for x in self.skill_apps])
             if(v > m):
                 m = v
-        return m
+        return m    
 
-    def __str__(self):
-        return self.how_part
+
+class PrimSkill(object):
+    def __init__(self, how_part=None):
+        self.how_part = how_part
+        self.skill_apps = set()
+        self.where_matches = []
+        super(self).__init__(self, how_part)
 
     def skill_eq(self, other):
+        if(not isinstance(other, PrimSkill)):
+            return False
+
         h_b = other
         if(hasattr(other, 'how_part')):
             h_b = other.how_part
@@ -2683,16 +2994,20 @@ class Skill(object):
     def overlap(self, other):
         # if(isinstance(other, SkillApp)):
         skill_apps = getattr(other, 'skill_apps', [other])
-
+        # print("->", self.skill_apps, skill_apps)
         m = 0.0
         for sa in skill_apps:
+            # print("->", sa)
             v = max([x.overlap(sa) for x in self.skill_apps])
             if(v > m):
                 m = v
         return m
 
 
-    __repr__ = __str__
+
+
+    # def __copy__(self):
+    #     return Skill(self.how_part)
 
 
 class SkillApp(object):
@@ -2711,16 +3026,20 @@ class SkillApp(object):
             return 0.0
 
         s_a, s_b = set(self.args), set(other.args)
+        if(len(s_a) == 0 and  len(s_b) == 0):
+            return 1.0
+
         denom = max(len(s_a),len(s_b))
         if(denom == 0):
             return 0.0
         return len(s_a.intersection(s_b)) / denom
 
     def sel_overlap(self, other):
+        # print(self.sel, other.sel, self, other)
         return float(self.sel == other.sel)
 
-    def skill_overlap(self, other):
-        if(isinstance(self.skill, Skill)):
+    def how_overlap(self, other):
+        if(isinstance(self.skill, PrimSkill)):
             return float(self.skill.how_part == other.skill.how_part)
         else:
             return float(self.skill == other.skill)
@@ -2730,7 +3049,9 @@ class SkillApp(object):
     def overlap(self, other):
         if(not isinstance(other, SkillApp)):
             return 0.0
-        return (self.skill_overlap(other) +
+        # print("H", self.how_overlap(other), "S", self.sel_overlap(other), "A", self.arg_overlap(other))
+        # print(self.sel_overlap(other), self.sel_overlap(other), self.arg_overlap(other))
+        return (self.how_overlap(other) +
                 self.sel_overlap(other) +
                 self.arg_overlap(other)) / 3
 
@@ -2792,6 +3113,7 @@ def top_down_parse(g, sym, seq):
 
 import itertools        
 def _top_down_parse(g, rhs, seq):
+    # print(g)
     parse_trees = []
     # for rhs in g.prods[sym]:
     s, e = 0, len(seq)
@@ -2802,50 +3124,57 @@ def _top_down_parse(g, rhs, seq):
     #  This could produce a full match or an edit.
     are_term = [_is_term(x,g) for x in rhs.items]
     if(all(are_term)):
-        rc = get_best_changes(g, seq, [rhs])[0]
-        print("::", rc.rhs.symbol, rc.span, rc.cost)
-        return rc.span, [ParseTree(rc)]
+        best_changes = get_best_changes(g, seq, [rhs])
+        print(">>", seq, [rhs], best_changes)
+        if(len(best_changes) > 0):
+            rc = best_changes[0]
+            print(rc)
+            print("::", rc.rhs.symbol, rc.span, rc.cost)
+            return rc.span, [ParseTree(rc)]
     
-    first_nt = are_term.index(False)   
-    last_nt = len(are_term) - 1 - are_term[::-1].index(False)   
+    if(False in are_term):
+        first_nt = are_term.index(False)   
+        last_nt = len(are_term) - 1 - are_term[::-1].index(False)   
+
+        for i in range(0, first_nt):
+            print("**", seq[i], rhs.items[i])
+            if(rhs.items[i].overlap(seq[i]) != 1.0):
+                break
+            s = i+1
+
+        for i in range(0, last_nt):
+            j = -i-1
+            print("**", seq[j], rhs.items[j])
+            if(rhs.items[j].overlap(seq[j]) != 1.0):
+                break
+            e = len(seq)+j
 
 
-    for i in range(0, first_nt):
-        if(seq[i] != rhs.items[i]):
-            break
-        s = i+1
-
-    for i in range(0, last_nt):
-        j = -i-1
-        if(seq[j] != rhs.items[j]):
-            break
-        e = len(seq)+j
-
-
-    print("NT", s, e, first_nt, last_nt)
+        print("NT", s, e, first_nt, last_nt)
     
-    # If not all terminal see how far can get left and right
-    if(not rhs.unordered):
-        # Otherwise return
-        for i in range(first_nt, last_nt+1):
-            # print(rhs.items, i)
-            item = rhs.items[i]
-            # print(rhs.symbol, ">>", item, s)
-            print("RECURSE", item, seq[s:e])
-            child_trees = []
-            for _rhs in g.prods[item]:
-                (s0, e0), pts = _top_down_parse(g, _rhs, seq[s:e])
-                print("s0", "e0", s0, e0, (s,e))
-                # if(s0 == 0):
-                s += e0
-                child_trees.append(pts)
-                # else:
-                #     raise ValueError("Subproblem")
-            # print(child_trees)
-            for cts in itertools.product(*child_trees):
-                # print(cts)
-                pt = ParseTree(RHSChange(rhs, (0, len(seq))), child_trees=cts, seq=seq)
-                parse_trees.append(pt)
+        # If not all terminal see how far can get left and right
+        if(not rhs.unordered):
+            # Otherwise return
+            for i in range(first_nt, last_nt+1):
+                # print(rhs.items, i)
+                item = rhs.items[i]
+                # print(rhs.symbol, ">>", item, s)
+                print("RECURSE", item, seq[s:e])
+                child_trees = []
+                for _rhs in g.prods[item]:
+                    (s0, e0), pts = _top_down_parse(g, _rhs, seq[s:e])
+                    print("s0", "e0", s0, e0, (s,e))
+                    # if(s0 == 0):
+                    s += e0
+                    child_trees.append(pts)
+                    # else:
+                    #     raise ValueError("Subproblem")
+                # print(child_trees)
+                for cts in itertools.product(*child_trees):
+                    # print(cts)
+                    # rhs, span, subseq=[], edits=[]
+                    pt = ParseTree(RHSChange(rhs, (0, len(seq)), seq), child_trees=cts)
+                    parse_trees.append(pt)
 
 
             # If terminal increment s
@@ -2859,25 +3188,13 @@ def _top_down_parse(g, rhs, seq):
             #         return (s, e), []
             # # If non-terminal recurse
             # else:
-            
-
     else:
         pass
-
-
-    
-
-
     return (s, e), parse_trees
-
-        # print(s)
-
-
-
-
 
 
 def test_top_down_parse():
+    print("START")
     (a20, c20, a21, c21, a22, c22, cp3, a31, c31, a32, c32, d) = make_mc_skill_apps()
 
     # grammar:
@@ -2950,9 +3267,9 @@ def test_get_best_changes():
     # seq = [d, a20, c20, a31, c31, c32, a32, d]
     seq = [d, c20, a20, c21, a21, c22, a22, d]
     rcs = get_best_changes(g, seq, g.RHSs)
-    print(rcs)
-    for rc in rcs:
-        print(rc)
+    # print(rcs)
+    # for rc in rcs:
+    #     print(rc)
     
 
 
@@ -3010,7 +3327,7 @@ def find_recursion(g):
             g.add_production(rec_sym, RHS([act_sym, rec_sym], optionals=[1]))
 
             for i in range(0, len(part_slices)):
-                s,e = part_slices[i]
+                s, e = part_slices[i]
                 if(i == 0):
                     recRHS = rhs[s:e]
                     recRHS.symbol = act_sym
@@ -3250,6 +3567,172 @@ def test_recursion():
     print(find_recursion(make_g(seq)))
 
     
+def test_merge_rhs():
+    (a20, c20, a21, c21, a22, c22, cp3, a31, c31, a32, c32, d) = make_mc_skill_apps()
+
+    r2_0 = RHS([a20, c20])
+    print(r2_0.rel_lits)
+    print([x.skill_apps for x in r2_0.items])
+
+    edits, align = find_edits(r2_0.items, [a21, c21], True)
+
+    print("ALIGN", align)
+    r2_01 = generalize_rhs(r2_0, [a21, c21], align)
+    print(r2_01.rel_lits)
+    print([x.skill_apps for x in r2_01.items])
+
+def test_g_cost():
+    (a20, c20, a21, c21, a22, c22, cp3, a31, c31, a32, c32, d) = make_mc_skill_apps()
+
+    r2_0 = RHS([a20, c20])
+    print(_check_rel_lit_matches(r2_0, [a21], np.array([0,-1])))
+
+    # 
+    print(_check_rel_lit_matches(r2_0, [a21, c21], np.array([0,-1])))
+
+def test_rel_toks_on_gen():
+    (a20, c20, a21, c21, a22, c22, cp3, a31, c31, a32, c32, d) = make_mc_skill_apps()
+
+    g, rhs = _seq_to_initial_grammar([c20, a20, c21, a21, c22, a22, cp3, d])
+    sequence = subseq = [a20, c20, c31, a31, a22, cp3, d]
+    print("****", a21.skill_eq(a31), a31.skill_eq(a21))
+    print("****", c22.skill_eq(a22), a22.skill_eq(c22))
+    # g, rhs = _seq_to_initial_grammar([c21, a21, c22, a22, d])
+    # sequence = subseq = [c31, a31, a22, cp3, d]
+
+    overlap, alignment = calc_overlap(rhs.items, subseq)
+    print(":", alignment)
+    edits, alignment = find_edits(rhs.items, subseq, alignment, True)
+    print(edits)
+    # raise ValueError()
+    # edits = [("unorder", 0, 2), ("replace", 2, 4, [a31, c31]), ("delete", 5, 6), ("insert", 6, 7, ["cp3"])]
+    # alignment = np.array([1,2, 3,4, -1, ])
+
+    lit_matches, gen_penl = _check_rel_lit_matches(rhs, subseq, alignment)
+    rc = RHSChange(rhs, (0, len(subseq)), subseq, 
+                    edits, alignment=alignment,
+                    lit_matches=lit_matches, gen_penl=gen_penl)
+
+    g, rhs = rc.apply(g)
+    print(g)
+
+    Srhs = g.prods['S'][0]
+    c2a2_0 = g.prods['T'][0]
+    c2a2_1 = g.prods['U'][0]
+    c3a3 = g.prods['U'][1]
+
+    print(Srhs, Srhs.rel_lits)
+    print(c2a2_0, c2a2_0.rel_lits)
+    print(c2a2_1, c2a2_1.rel_lits)
+    print(c3a3, c3a3.rel_lits)
+    
+
+
+def make_frac_skill_apps():
+    '''
+    no0  opo  no1
+    -          -
+    do0       do1
+    x "..."
+    nc0  opc nc1   na
+    -         -  = -
+    dc0      dc1   da
+    d
+    '''
+    no0 = IE("no0")
+    do0 = IE("do0")
+    no1 = IE("no1")
+    do1 = IE("do1")
+    opo = IE("opo")
+    x = IE("x")
+    nc0 = IE("nc0")
+    dc0 = IE("dc0")
+    nc1 = IE("nc1")
+    dc1 = IE("dc1")
+    opc = IE("opc")
+    na = IE("na")
+    da = IE("da")
+    done = IE("done")
+
+    do0.add_relation("a", no0)
+    no0.add_relation("b", do0)
+    do1.add_relation("a", no1)
+    no1.add_relation("b", do1)
+
+    no0.add_relation("r", opo)
+    opo.add_relation("l", no0)
+    opo.add_relation("r", no1)
+    no1.add_relation("l", opo)
+
+    x.add_relation("a", do0)
+    do0.add_relation("b", x)
+
+    nc0.add_relation("a", x)
+    x.add_relation("b", nc0)
+
+    dc0.add_relation("a", nc0)
+    nc0.add_relation("b", dc0)
+    dc1.add_relation("a", nc1)
+    nc1.add_relation("b", dc1)
+
+    nc0.add_relation("r", opc)
+    opc.add_relation("l", nc0)
+    opc.add_relation("r", nc1)
+    nc1.add_relation("l", opc)
+
+    da.add_relation("a", na)
+    na.add_relation("b", da)
+
+    # Multiply
+    mno = newSA('m', na, [no0, no1], short_name='mno')
+    mdo = newSA('m', da, [do0, do1], short_name='mdo')
+
+    # Add Same
+    ano = newSA('a', na, [no0, no1], short_name='ano')
+    cpo = newSA('cp', da, [do1], short_name='cpo')
+
+    # Add Different
+    mc0 = newSA('m', na, [no0, do1], short_name='mc0')
+    mc1 = newSA('m', da, [no1, do0], short_name='mc1')
+    mdc = newSA('m', dc0, [do0, do1], short_name='mdc')
+    cpc = newSA('cp', dc1, [dc0], short_name='cpo')
+    anc = newSA('a', na, [nc0, nc1], short_name='anc')
+
+    d = newSA('d', done, [], short_name='d')
+
+    return (mno, mdo, ano, cpo, mc0, mc1, mdc, cpc, anc, d)
+
+
+def test_fractions():
+    (mno, mdo, ano, cpo, mc0, mc1, mdc, cpc, anc, d) = make_frac_skill_apps()
+
+    seqs = [
+        [mno, mdo, d],
+        [ano, cpo, d],
+        [cpo, mc0, mc1, mdc, cpc, anc, d],
+    ]
+
+    order = list(range(len(seqs)))
+    
+    print("ORDER", order)
+
+    try: 
+        g, rhs = _seq_to_initial_grammar(seqs[order[0]])
+        # g = find_recursion(g)
+        print(f'\ngrammar:\n{g}')
+        for i in range(1,len(order)):
+            seq = seqs[order[i]]
+            g = generalize_from_seq(g, seq)    
+            # g = find_recursion(g)
+            pt = parse_w_changes(g, seq)
+            assert pt.cost == 0.0
+            print(f'\ngrammar:\n{g}')
+    except Exception as e:
+        print(g, i)
+        print("ERROR ON ORDER", order)
+        raise e
+
+
 
 if(__name__ == "__main__"):
     # test_skill_app()
@@ -3265,6 +3748,10 @@ if(__name__ == "__main__"):
     # test_target_domain_changes()
     # test_subtract()
     # test_recursion()
+    # test_merge_rhs()
+    # test_g_cost()
+    # test_rel_toks_on_gen()
+    # test_fractions()
 
     # _temp_test()
 
@@ -3300,4 +3787,25 @@ TODO list:
 
 1) Recurse -> modify grammer
 2) Ensure recursive grammars can parse/modify
+'''
+
+'''
+Thinking thoughts:
+
+-Symbols need to be parametrized
+-Need a sort of top-down parse hole structure
+-Needs to match up with bottom up
+  - But how do we know what to connect with what?
+-Where does parameterization start?
+-Does it apply to the root symbol?
+
+
+When I instantiate a new RHS the variables need to be apparent
+
+TODOs:
+1) Need to restore parse holes 
+2) Need way of deciding when recursion is good idea
+    -Having the user verify the recursion would be a good idea
+    -A good way to do this would be to 
+
 '''

@@ -74,7 +74,7 @@ class ExplanationSet():
                     if(arg_foci is not None):
                         foci_match = all([a.id == m.id for a,m in zip(arg_foci, match)])
                         has_foci_match[0] = has_foci_match[0] | foci_match
-                        print("foci_match", foci_match, [m.id for m in match], [a.id for a in arg_foci], func_comp)
+                        # print("foci_match", foci_match, [m.id for m in match], [a.id for a in arg_foci], func_comp)
                     # tup = (not foci_match, func_comp.depth, abs(func_comp.n_args-len(match)), func_comp.n_funcs)
 
                     tup = (func_comp.depth, abs(func_comp.n_args-len(match)), func_comp.n_funcs)
@@ -134,7 +134,6 @@ class SetChaining(BaseHow):
         if('function_set' in kwargs): del kwargs['function_set']
         kwargs['search_depth'] = kwargs.get('search_depth', self.search_depth)
         
-        
         # Make a new planner instance and fill it with values 
         planner = SetChainingPlanner(self.fact_types)
         for i, v in enumerate(values):
@@ -151,12 +150,14 @@ class SetChaining(BaseHow):
 
     def get_explanations(self, state, goal, arg_foci=None, float_to_str=None,
                             extra_consts=[], **kwargs):
+        # print("arg_foci", arg_foci)
         # Prevent from learning too shallow when multiple foci
         if(arg_foci is not None and len(arg_foci) > 1):
             # arg_foci = list(reversed(arg_foci))
             # Don't allow fallback to constant 
             kwargs['min_stop_depth'] = kwargs.get('min_stop_depth', kwargs.get('search_depth',getattr(self, 'search_depth', 2)))
             kwargs['min_solution_depth'] = 1
+
 
         if(isinstance(state, list)):
             values = state
@@ -178,6 +179,7 @@ class SetChaining(BaseHow):
         # Try to find the goal as a string
         if(explanation_tree is None):
             # TODO: Shouldn't full reset and run a second time here, should just query.
+            # print("GOAL", goal)
             explanation_tree = self._search_for_explanations(goal, values, extra_consts, **kwargs)        
             post_func = None
         

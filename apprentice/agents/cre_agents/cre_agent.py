@@ -171,6 +171,7 @@ class Skill(object):
 class SkillApplication(object):
     # __slots__ = ("skill", "match", "sai")
     def __new__(cls, skill, state, match, uid=None, when_pred=None):
+        # print(skill, [m.id for m in match])
         sai = skill(*match)
 
         # Find the unique id for this skill_app
@@ -225,6 +226,7 @@ class SkillApplication(object):
             'action_type' :  sai.action_type.name,
             'inputs' :  sai.inputs,
             'args' : [m.id for m in self.args],
+            'when_pred' : self.when_pred
         }
         if(hasattr(self, 'train_time')):
             train_data = {}
@@ -257,7 +259,7 @@ class SkillApplication(object):
                 'how_str' : "???"}
 
     def __repr__(self):
-        return f'{self.skill}({", ".join([m.id for m in self.match])}) -> {self.sai}'
+        return f'{self.skill}({", ".join([m.id for m in self.args])}) -> {self.sai}'
 
     def __eq__(self, other):
         return getattr(self, 'uid', None) == getattr(other, 'uid', None)
@@ -431,8 +433,7 @@ class CREAgent(BaseDIPLAgent):
         for skill_app in skill_apps:
             skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
             when_pred = 1 if when_pred is None else when_pred
-            # print(f"{when_pred:.2f} {match[0].id} -> {skill(*match)}",
-            #     [(m.id,getattr(m, 'value', None)) for m in match][1:], str(skill.how_part))
+            print(f"{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
 
         skill_apps = self.action_filter(state, skill_apps)
 
@@ -452,6 +453,7 @@ class CREAgent(BaseDIPLAgent):
         output = None
         if(len(skill_apps) > 0):
             skill_app = self.action_chooser(state, skill_apps)
+            print(">>", skill_app)
 
             # Append to Skill 
             skill_app.skill.skill_apps[skill_app.uid] = skill_app
@@ -463,7 +465,7 @@ class CREAgent(BaseDIPLAgent):
             if(json_friendly):
                 output = output.get_info()
         
-        # print(action_uid(state, output))
+        
         return output
 
     def act_all(self, state,
@@ -600,8 +602,14 @@ class CREAgent(BaseDIPLAgent):
         explanation_set = self.how_lrn_mech.get_explanations(
                 state, inp, arg_foci=arg_foci, how_help=how_help)
 
-        # If failed yield a set with just the how-part as a constant.
+        # If failed bottom-out with a constant how-part.
         if(len(explanation_set) == 0):
+            if(self.error_on_bottom_out and not self.is_bottom_out_exception(sai)):
+                raise RuntimeError(f"No explanation found for demonstration:\n" +
+                     f"\tsai={sai}\n" +
+                    (f"\targ_foci={[a.id for a in arg_foci]}\n" if arg_foci is not None else "") +
+                    f"Set error_on_bottom_out=False in agent config to remove this message"
+                    )
             explanation_set = self.how_lrn_mech.new_explanation_set([(inp, [])])
 
         return explanation_set
@@ -623,7 +631,7 @@ class CREAgent(BaseDIPLAgent):
                     head_vals = []
                     for i, hvs in enumerate(func.head_vars):
                         hv = hvs[0] #TODO: currently only supports single head for each base var
-                        head_vals.append(args[i].resolve_deref(hv))
+                        head_vals.append(hv(args[i]))#.resolve_deref())
                     expl['head_vals'] = head_vals
 
                 _func_expls.append(expl)
@@ -637,13 +645,14 @@ class CREAgent(BaseDIPLAgent):
 
     def explain_demo(self, state, sai, arg_foci=None, skill_label=None, skill_uid=None, how_help=None,
              json_friendly=False, force_use_funcs=False, **kwargs):
-        print("EXPLAIN DEMO!")
+        
         ''' Explains an action 'sai' first using existing skills then using function_set''' 
         state = self.standardize_state(state)
         sai = self.standardize_SAI(sai)
         arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
         # arg_foci = list(reversed(arg_foci)) if arg_foci else arg_foci
 
+        print("EXPLAIN DEMO!", sai['selection'], sai['inputs'], [m.id for m in arg_foci] if arg_foci else arg_foci)
         # with PrintElapse("EXPLAIN TIME"):
         skill_explanations = self.explain_from_skills(state, sai,
             arg_foci, 
@@ -730,9 +739,15 @@ class CREAgent(BaseDIPLAgent):
         scored_apps = [x for x in [(get_score(sa), sa) for sa in skill_apps]]# if x[0] > 0.0]
         if(len(scored_apps) > 0):
             srted = sorted(scored_apps, key=lambda x: -x[0])
+            max_score = srted[0][0]
+
+            # If this is turned on then only accept skill explanations
+            #  which are 100% matches. This causes the agent induce
+            #  more skills, which can avoid cross attribution of examples.
+            if(self.one_skill_per_match and max_score < 1.0):
+                return []
 
             # Keep only explanations with scores within alpha% of the max.
-            max_score = srted[0][0]
             thresh = max_score*(1-alpha)
             k = 1
             for k in range(1,len(srted)):
@@ -948,7 +963,7 @@ class CREAgent(BaseDIPLAgent):
             uid_stack.append(nxt_uid)
             depth_counts[depth] += 1
             if(getattr(next_state, 'is_done', False)):
-                print("--------IS DONE!!!---------", nxt_uid)
+                # print("--------IS DONE!!!---------", nxt_uid)
                 state_obj['is_done'] = True
         else:
             state_obj = states[nxt_uid]
@@ -1037,7 +1052,7 @@ class CREAgent(BaseDIPLAgent):
 
 
     def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False,
-                    base_depth=0, **kwargs):
+                    base_depth=0, ret_avg_certainty=True, **kwargs):
         ''' 
         Applies act_all() repeatedly starting from 'state', and fanning out to create at 
         tree of all action rollouts up to some depth. At each step in this process the agent's 
@@ -1045,80 +1060,94 @@ class CREAgent(BaseDIPLAgent):
         action's ActionType object. A list of 'halt_policies' specifies a set of functions that 
         when evaluated to false prevent further actions. Returns a tuple (states, action_infos).
         '''
-        with PrintElapse("ACT ROLLOUT"):
-            print("\n\t\tSTART ACT ROLLOUT\t\t", base_depth)
-            state = self.standardize_state(state)
-            curr_state_uid = state.get('__uid__')
-            # print(state.get('working_memory'))
-            halt_policies = [self.standardize_halt_policy(policy) for policy in halt_policies]
+        # with PrintElapse("ACT ROLLOUT"):
+        # print("\n\t\tSTART ACT ROLLOUT\t\t", base_depth)
+        state = self.standardize_state(state)
+        curr_state_uid = state.get('__uid__')
+        # print(state.get('working_memory'))
+        halt_policies = [self.standardize_halt_policy(policy) for policy in halt_policies]
 
-            states = {}
-            actions = {}
-            uid_stack = []
-            depth_counts = []
-            self._insert_rollout_skill_app(None, state, None,
-                         states, actions, uid_stack, depth_counts, base_depth)
+        states = {}
+        actions = {}
+        uid_stack = []
+        depth_counts = []
+        self._insert_rollout_skill_app(None, state, None,
+                     states, actions, uid_stack, depth_counts, base_depth)
 
-            
-            while(len(uid_stack) > 0):
-                print("RECURSE", uid_stack)
-                # for _ in range(len(uid_stack)):
-                uid = uid_stack.pop()
-                depth = states[uid]['depth']+1
-                state = states[uid]['state']
-                src_wm = state.get("working_memory")
-                print("---source---", uid)
-                # print(repr(src_wm))
-                skill_apps = self.act_all(state, return_kind='skill_app')
+        
+        while(len(uid_stack) > 0):
+            # print("RECURSE", uid_stack)
+            # for _ in range(len(uid_stack)):
+            uid = uid_stack.pop()
+            depth = states[uid]['depth']+1
+            state = states[uid]['state']
+            src_wm = state.get("working_memory")
+            # print("---source---", uid)
+            # print(repr(src_wm))
+            skill_apps = self.act_all(state, return_kind='skill_app')
 
-                for skill_app in skill_apps:
-                    skill_app.skill.skill_apps[skill_app.uid] = skill_app
-                    at = skill_app.sai.action_type
-                    # print("---skill_app :", skill_app)
-                    # print("---action_type :", at)
+            for skill_app in skill_apps:
+                skill_app.skill.skill_apps[skill_app.uid] = skill_app
+                at = skill_app.sai.action_type
+                # print("---skill_app :", skill_app)
+                # print("---action_type :", at)
 
-                    next_state = self.predict_next_state(src_wm, skill_app.sai)
-                    # next_wm = at.predict_state_change(src_wm, skill_app.sai)
-                    # print("---dest---")
-                    # print(repr(dest_wm))
-                    # next_state = self.standardize_state(next_wm)
-                    
-                    self._insert_rollout_skill_app(state, next_state, skill_app,
-                                    states, actions, uid_stack, depth_counts, depth)
-                # print(uid_stack)
-            # self.annotate_verified(states, actions)
-            
-            if(json_friendly):
-                for state_obj in states.values():
-                    state_obj['state'] = state_obj['state'].get("py_dict")
-                # states = {uid : state for uid, state in states.items()}
-                for action in actions.values():
-                    print("ROLLOUT APP:")
-                    action['skill_app'] = action['skill_app'].get_info()
+                next_state = self.predict_next_state(src_wm, skill_app.sai)
+                # next_wm = at.predict_state_change(src_wm, skill_app.sai)
+                # print("---dest---")
+                # print(repr(dest_wm))
+                # next_state = self.standardize_state(next_wm)
+                
+                self._insert_rollout_skill_app(state, next_state, skill_app,
+                                states, actions, uid_stack, depth_counts, depth)
+            # print(uid_stack)
+        # self.annotate_verified(states, actions)
 
-            from pprint import pprint
+        if(ret_avg_certainty):
+            avg_certainty = 0.0
+            for action in actions.values():
+                when_pred = getattr(action['skill_app'],'when_pred', None)
+                cert = abs(when_pred if when_pred is not None else 1.0)
+                avg_certainty += cert
+        avg_certainty = 0.0 if len(actions) == 0 else avg_certainty / len(actions)
+        
+        if(json_friendly):
+            for state_obj in states.values():
+                state_obj['state'] = state_obj['state'].get("py_dict")
+            # states = {uid : state for uid, state in states.items()}
+            for action in actions.values():
+                # print("ROLLOUT APP:")
+                action['skill_app'] = action['skill_app'].get_info()
 
-            # print("curr_state_uid:",  curr_state_uid)
-            # print(states[curr_state_uid])
-            # print("\nstates:")
-            # for i,(uid, obj) in enumerate(states.items()):
-            #     if(not obj.get('uid',False)):
-            #         print(obj)
-            #         raise ValueError("THIS HAPPENED.... WHY!!")
-            #     print(i, uid) #obj.get('out_skill_app_uids',[]))
+        from pprint import pprint
 
-            # print("\nactions:")
-            # for i,(uid, obj) in enumerate(actions.items()):
-            #     print(i, uid, obj['skill_app'])
-            #     pprint(obj)
-            # import time
-            # time.sleep(.5)
+        out = {"curr_state_uid" :  curr_state_uid, 
+                "states" : states,
+                "actions" : actions,
+                }
 
-            return {"curr_state_uid" :  curr_state_uid, 
-                    "states" : states,
-                    "actions" : actions,
-                    }
-            # print(actions.key)
+        if(ret_avg_certainty):
+            out['avg_certainty'] = avg_certainty
+
+        # print("curr_state_uid:",  curr_state_uid)
+        # print(states[curr_state_uid])
+        # print("\nstates:")
+        # for i,(uid, obj) in enumerate(states.items()):
+        #     if(not obj.get('uid',False)):
+        #         print(obj)
+        #         raise ValueError("THIS HAPPENED.... WHY!!")
+        #     print(i, uid) #obj.get('out_skill_app_uids',[]))
+
+        # print("\nactions:")
+        # for i,(uid, obj) in enumerate(actions.items()):
+        #     print(i, uid, obj['skill_app'])
+        #     pprint(obj)
+        # import time
+        # time.sleep(.5)
+
+
+        return out
+        # print(actions.key)
 
     def gen_completeness_profile(self, start_states, output_file, **kwargs):
         '''Generates a ground-truth completeness profile. Should be called on agents known 
@@ -1143,29 +1172,42 @@ class CREAgent(BaseDIPLAgent):
         # print("PROFILE DONE", os.path.abspath(output_file))
 
     def eval_completeness(self, profile, partial_credit=False,
-                          print_diff=True,
+                          print_diff=True, return_diffs=False,
                          **kwargs):
         ''' Evaluates an agent's correctness and completeness against a completeness profile.'''
         import json, os
 
         n_correct, total = 0, 0
         n_first_correct, total_states = 0,0
+        diffs = []
         with open(profile, 'r') as profile_f:
             for line_ind, line in enumerate(profile_f):
                 # Read a line from the profile
                 item = json.loads(line)
-
                 
-                    
                 # Get the ground-truth sais
-                profile_sais = item['sais']
+                profile_sais = [SAI(x) for x in item['sais']]
                 state = item['state']
                 agent_sais = self.act_all(state, return_kind='sai')
 
                 # Find the difference of the sets 
-                profile_sai_strs = set([str(s) for s in profile_sais])
-                agent_sai_strs = [str(s.get_info()) for s in agent_sais]
-                diff = profile_sai_strs.symmetric_difference(set(agent_sai_strs))
+                # profile_sai_strs = set([str(s) for s in profile_sais])
+                # agent_sai_strs = [str(s.get_info()) for s in agent_sais]
+                set_agent_sais = set(agent_sais)
+                set_profile_sais = set(profile_sais)
+                missing = set_profile_sais - set_agent_sais
+                extra = set_agent_sais - set_profile_sais
+                n_diff = len(missing) + len(extra)
+                # diff = profile_sai_strs.symmetric_difference(set_agent_sai_strs)
+                if(return_diffs):
+                    diffs.append({"problem": item['problem'], "-": list(missing),"+": list(extra)})
+                    # dp, da = [], []
+                    # for d in diff:
+                    #     if(d in profile_sais):
+                    #         dp.append(json.loads(d))
+                    #     elif(d in set_agent_sai_strs):
+                    #         da.append(json.loads(d))
+                    
                 # if(print_diff and len(diff) > 0):
                     # Print Problem
                     # gv = lambda x : item['state'][x]['value']
@@ -1187,22 +1229,37 @@ class CREAgent(BaseDIPLAgent):
 
                 # print("LINE", total_states, len(diff) == 0)
                 if(partial_credit):
-                    total += len(profile_sai_strs)
-                    n_correct += max(0, len(profile_sai_strs)-len(diff))
+                    total += len(set_profile_sais)
+                    n_correct += max(0, len(set_profile_sais)-n_diff)
                 else:
                     total += 1
-                    n_correct += len(diff) == 0
+                    n_correct += n_diff == 0
 
                 total_states += 1
-                if(len(agent_sai_strs) > 0 and agent_sai_strs[0] in profile_sai_strs):
+                if(len(agent_sais) > 0 and agent_sais[0] in set_profile_sais):
                     n_first_correct += 1
-            
+        
+        if(print_diff):
+            for diff in diffs:
+                if(len(diff['-']) == 0 and len(diff['+']) == 0):
+                    continue
+                print(f"--DIFF: {diff['problem']} --")
+                for m in diff['-']:
+                    print("  -", m['selection'], m['inputs']['value'])
+                for m in diff['+']:
+                    print("  +", m['selection'], m['inputs']['value'])
+
         completeness = n_correct / total
         correctness = n_first_correct / total_states
 
         print(f"Correctness : {correctness*100:.2f}%")
         print(f"Completeness : {completeness*100:.2f}%")
-        return {"completeness" : completeness, "correctness" : correctness}
+        out = {"completeness" : completeness, "correctness" : correctness}
+        # print("return_diffs", return_diffs)
+        # print(diffs)
+        if(return_diffs):
+            out['diffs'] = diffs
+        return out
 
 
 

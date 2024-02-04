@@ -16,19 +16,23 @@ class BaseWhen(metaclass=ABCMeta):
     def __init__(self, skill,**kwargs):
         self.skill = skill
         self.agent = skill.agent
-        self.sanity_check = kwargs.get('sanity_check', True)
+        # print("$$$$", kwargs, kwargs.get('check_sanity', True))
+        self.check_sanity = kwargs.get('check_sanity', True)
 
         # Note this line makes it possible to call 
         super(BaseWhen, self).__init__(skill, **kwargs)
 
     def sanity_check_ifit(self, state, skill_app, reward):
         # SANITY CHECK: Classifier Inconsistencies 
-        if(self.sanity_check):
+        if(self.check_sanity):
             prediction = self.predict(state, skill_app.match)
             if(reward != prediction):
-                raise Exception("(Sanity Check Error): When-learning mechanism's"+
-                 " .predict() produces different outcome than reward given in" +
-                 " .ifit().")
+                raise Exception(f"(Sanity Check Error): When-learning mechanism's"+
+                 f" .predict() produces different outcome ({prediction:.2f}) than reward given in" +
+                 f" .ifit() ({reward:.2f}). This most likely indicates 1) that the agent" +
+                 " requires additional feature prior knowledge to distinguish between two"+
+                 " now indistinguishable situations. Alternatively 2) this may indicate an error in the "+
+                 " when-learning mechanism or in the preparation of the state representation.")
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -152,7 +156,7 @@ class RefittableMixin():
 
 class VectorTransformMixin(RefittableMixin):
     def __init__(self, skill, encode_relative=True, one_hot=False,
-                encode_missing=True,
+                encode_missing=True, rel_enc_min_sources=None,
                 starting_state_format='flat_featurized',
                 extra_features=[],
                  **kwargs):
@@ -162,8 +166,7 @@ class VectorTransformMixin(RefittableMixin):
         self.extra_features = extra_features
         self.one_hot = one_hot
         self.encode_missing = encode_missing
-
-        print("ENCODE MISSING", self.encode_missing, "ONE HOT", one_hot)
+        self.rel_enc_min_sources = rel_enc_min_sources
 
         agent = skill.agent
 
@@ -235,8 +238,15 @@ class VectorTransformMixin(RefittableMixin):
             #  to find bug associated with this
             # print(match[0], type(match[0]))
             # print(featurized_state)
+            sources = match
+            if(self.rel_enc_min_sources is not None):
+                # Note: setting rel_enc_min_sources = 1 only uses 
+                #  the first variable, which is typically the selection.
+               sources = sources[:self.rel_enc_min_sources]
+               _vars = _vars[:self.rel_enc_min_sources]
+
             featurized_state = self.relative_encoder.encode_relative_to(
-                featurized_state, [match[0]], [_vars[0]])
+                featurized_state, sources, _vars)
         # else:
         #     featurized_state = self.relative_encoder.encode_relative_to(
         #         featurized_state, [match[0]], [_vars[0]])
@@ -367,7 +377,7 @@ class STAND(BaseWhen, VectorTransformMixin):
     def ifit(self, state, skill_app, reward):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
         ia = self.classifier.instance_ambiguity(self.X_nom[-1], None)
-        print("WILL LEARN", ia > 0, ia)
+        # print("WILL LEARN", ia > 0, ia)
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
         # print(self.classifier)
         
