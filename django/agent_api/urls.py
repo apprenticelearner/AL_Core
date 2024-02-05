@@ -13,15 +13,16 @@ Including another URLconf
     1. Import the include() function: from django.conf.urls import url, include
     2. Add a URL to urlpatterns:  url(r'^blog/', include('blog.urls'))
 """
-from django.conf.urls import url
-from django.conf.urls import include
-from django.contrib import admin
-from flashpolicies.views import simple
+from django.urls import include, re_path
+# from django.conf.urls import url
+# from django.conf.urls import include
+# from django.contrib import admin
+# from flashpolicies.views import simple
 
 urlpatterns = [
-    url(r'^',include('apprentice_learner.urls',namespace='apprentice_learner')),
-    url(r'^admin/', admin.site.urls),
-    url(r'^crossdomain.xml$', simple,
-        {'domains': ['*']}),
+    re_path(r'^',include('apprentice_learner.urls',namespace='apprentice_learner')),
+    # url(r'^admin/', admin.site.urls),
+    # url(r'^crossdomain.xml$', simple,
+    #     {'domains': ['*']}),
 ]
 

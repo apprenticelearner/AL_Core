@@ -1,4 +1,5 @@
-from django.urls import path
+# from django.urls import path
+from django.urls import include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -7,22 +8,22 @@ from apprentice_learner import views
 
 app_name = 'apprentice_api'
 urlpatterns = [
-    path('list_agents/', views.list_agents, name="list_agents"),
-    path('create/', views.create, name="create"),
-    path('get_active_agent/', views.get_active_agent, name="get_active_agent"),
-    path('act/', views.act, name="act"),
-    path('act_all/', views.act_all, name="act_all"),
-    path('act_rollout/', views.act_rollout, name="act_rollout"),
-    path('train/', views.train, name="train"),
-    path('train_all/', views.train_all, name="train_all"),
-    path('explain_demo/', views.explain_demo, name="explain_demo"),
-    path('get_state_uid/', views.get_state_uid, name="get_state_uid"),
-    path('predict_next_state/', views.predict_next_state, name="predict_next_state"),
-    path('check/', views.check, name="check"),
-    path('get_skills/', views.get_skills, name="get_skills"),
+    re_path('list_agents/', views.list_agents, name="list_agents"),
+    re_path('create/', views.create, name="create"),
+    re_path('get_active_agent/', views.get_active_agent, name="get_active_agent"),
+    re_path('act/', views.act, name="act"),
+    re_path('act_all/', views.act_all, name="act_all"),
+    re_path('act_rollout/', views.act_rollout, name="act_rollout"),
+    re_path('train/', views.train, name="train"),
+    re_path('train_all/', views.train_all, name="train_all"),
+    re_path('explain_demo/', views.explain_demo, name="explain_demo"),
+    re_path('get_state_uid/', views.get_state_uid, name="get_state_uid"),
+    re_path('predict_next_state/', views.predict_next_state, name="predict_next_state"),
+    re_path('check/', views.check, name="check"),
+    re_path('get_skills/', views.get_skills, name="get_skills"),
     
-    path('gen_completeness_profile/', views.gen_completeness_profile, name="gen_completeness_profile"),
-    path('eval_completeness/', views.eval_completeness, name="eval_completeness"),
+    re_path('gen_completeness_profile/', views.gen_completeness_profile, name="gen_completeness_profile"),
+    re_path('eval_completeness/', views.eval_completeness, name="eval_completeness"),
     
     
     # url(r'^report/(?P<agent_id>[0-9]+)/$', views.report, name="report"),
