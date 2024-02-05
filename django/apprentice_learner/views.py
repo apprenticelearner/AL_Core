@@ -164,9 +164,9 @@ def _make_agent(data, errs=[], warns=[]):
     try:
         agent_class = getattr(importlib.import_module(path), class_name)
         agent = agent_class(**data['args'])
-        agent_model = Agent(instance=agent, name=data['name'])
+        # agent_model = Agent(instance=agent, name=data['name'])
         agent_uid = getattr(agent, 'uid', rand_agent_uid())
-        agent_model.uid = agent_uid
+        # agent_model.uid = agent_uid
 
     # If any of that fails print traceback and send it to the client.
     except Exception as exp:

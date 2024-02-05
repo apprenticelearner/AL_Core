@@ -1,9 +1,9 @@
 from django.db import models
-from picklefield.fields import PickledObjectField
-from django.core.exceptions import ValidationError
-from django.utils.translation import ugettext_lazy as _
+# from picklefield.fields import PickledObjectField
+# from django.core.exceptions import ValidationError
+# from django.utils.translation import ugettext_lazy as _
 
-from apprentice.planners.fo_planner import Operator as Opp
+# from apprentice.planners.fo_planner import Operator as Opp
 
 
 class Agent(models.Model):
@@ -11,7 +11,7 @@ class Agent(models.Model):
     Agents are the meat of the Apprentice Learner API that instantiate the
     various learning mechanisms.
     """
-    instance = PickledObjectField()
+    # instance = PickledObjectField()
     uid = models.CharField(max_length=50, primary_key=True)
     name = models.CharField(max_length=200, blank=True)
     num_act = models.IntegerField(default=0)
@@ -29,8 +29,8 @@ class Agent(models.Model):
     def inc_check(self):
         self.num_check = self.num_check + 1
 
-    def __str__(self):
-        return str(self.instance)
+    # def __str__(self):
+    #     return str(self.instance)
     #     skills = {}
 
     #     try:
