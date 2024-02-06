@@ -10,6 +10,7 @@ app_name = 'apprentice_api'
 urlpatterns = [
     re_path('list_agents/', views.list_agents, name="list_agents"),
     re_path('create/', views.create, name="create"),
+    re_path('verify/', views.verify, name="verify"),
     re_path('get_active_agent/', views.get_active_agent, name="get_active_agent"),
     re_path('act/', views.act, name="act"),
     re_path('act_all/', views.act_all, name="act_all"),

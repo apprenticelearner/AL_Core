@@ -196,6 +196,7 @@ def create(http_request):
     """
     Creates a new agent with the provided 'type', 'name', and 'args'.
     """
+    print("Create Agent Recieved")
     errs, warns = [], []
 
     # Ensure request data is valid and in consitent format
@@ -211,6 +212,39 @@ def create(http_request):
         log.warn(w)
 
     return HttpResponse(json.dumps(resp_data))
+
+# ** END POINT ** 
+@csrf_exempt
+def verify(http_request):
+    """
+    Creates a new agent with the provided 'type', 'name', and 'args'.
+    """
+    global dont_save
+    errs, warns = [], []
+
+    # Ensure request data is valid and in consitent format
+    data = _standardize_act_data(http_request, errs, warns)
+    if(isinstance(data, HttpResponse)): return data
+
+    try:
+        agent, model = get_agent_by_uid(data['agent_uid'])
+    except Exception as e:
+        errs.append(str(e))
+        pass
+
+    if(not agent):
+        return HttpResponse(json.dumps({
+            "agent_uid" : data,
+            "status": "error",
+            "errors" : errs,
+            "warnings" : warns})
+        )
+
+    # Emit any warnings
+    for w in warns:
+        log.warn(w)
+
+    return HttpResponse(json.dumps({"agent_uid" : data, "status": "okay"}))
 
 @csrf_exempt
 def get_active_agent(http_request):
