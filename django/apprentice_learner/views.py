@@ -213,6 +213,16 @@ def create(http_request):
 
     return HttpResponse(json.dumps(resp_data))
 
+
+def _standardize_verify_data(http_request, errs=[], warns=[]):
+    data = json.loads(http_request.body.decode("utf-8"))
+    agent_uid = ensure_field(data, "agent_uid", errs)
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    return data
+
+
 # ** END POINT ** 
 @csrf_exempt
 def verify(http_request):
@@ -223,7 +233,8 @@ def verify(http_request):
     errs, warns = [], []
 
     # Ensure request data is valid and in consitent format
-    data = _standardize_act_data(http_request, errs, warns)
+    data = _standardize_verify_data(http_request, errs, warns)
+    
     if(isinstance(data, HttpResponse)): return data
 
     try:
