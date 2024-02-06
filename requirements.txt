@@ -1,8 +1,7 @@
 colorama==0.4.3
 concept-formation==0.3.4
 Django>=4.2.9
-django-flashpolicies==1.10
-django-extensions==2.2.8
+django-extensions>=3.2.3
 django-picklefield @ git+https://github.com/eharpste/django-picklefield.git
 munkres==1.0.12
 numpy>=1.16.0
