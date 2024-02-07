@@ -802,8 +802,9 @@ class CREAgent(BaseDIPLAgent):
             uid=None, skill_uid=None, **kwargs):
         skill_app = None
         if(uid is not None):
-            if(skill_uid is not None):
+            if(skill_uid is not None and skill_uid in self.skills):
                 skill_app = self.skills[skill_uid].skill_apps[uid]
+                return skill_app
 
             for skill in self.skills.values():
                 if(uid in skill.skill_apps):
