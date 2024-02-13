@@ -258,8 +258,12 @@ class SkillApplication(object):
                 'arg_foci' : [m.id for m in self.args],
                 'how_str' : "???"}
 
-    def __repr__(self):
-        return f'{self.skill}({", ".join([m.id for m in self.args])}) -> {self.sai}'
+    def __repr__(self, add_sai=True):
+        app_str = f'{self.skill}({", ".join([m.id for m in self.args])})'
+        if(add_sai): 
+            return f'{app_str} -> {self.sai}'
+        else:
+            return app_str
 
     def __eq__(self, other):
         return getattr(self, 'uid', None) == getattr(other, 'uid', None)
@@ -430,10 +434,10 @@ class CREAgent(BaseDIPLAgent):
 
         skill_apps = self.which_cls.sort(state, skill_apps)
         # print('---')
-        for skill_app in skill_apps:
-            skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
-            when_pred = 1 if when_pred is None else when_pred
-            print(f"{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
+        # for skill_app in skill_apps:
+        #     skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
+        #     when_pred = 1 if when_pred is None else when_pred
+        #     print(f"{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
 
         skill_apps = self.action_filter(state, skill_apps)
 
@@ -453,7 +457,7 @@ class CREAgent(BaseDIPLAgent):
         output = None
         if(len(skill_apps) > 0):
             skill_app = self.action_chooser(state, skill_apps)
-            print(">>", skill_app)
+            # print(">>", skill_app)
 
             # Append to Skill 
             skill_app.skill.skill_apps[skill_app.uid] = skill_app
@@ -607,7 +611,7 @@ class CREAgent(BaseDIPLAgent):
             if(self.error_on_bottom_out and not self.is_bottom_out_exception(sai)):
                 raise RuntimeError(f"No explanation found for demonstration:\n" +
                      f"\tsai={sai}\n" +
-                    (f"\targ_foci={[a.id for a in arg_foci]}\n" if arg_foci is not None else "") +
+                    (f"\targ_foci={[a.id for a in arg_foci]} with values {[a.value for a in arg_foci]} \n" if arg_foci is not None else "") +
                     f"Set error_on_bottom_out=False in agent config to remove this message"
                     )
             explanation_set = self.how_lrn_mech.new_explanation_set([(inp, [])])
@@ -1200,8 +1204,9 @@ class CREAgent(BaseDIPLAgent):
                 extra = set_agent_sais - set_profile_sais
                 n_diff = len(missing) + len(extra)
                 # diff = profile_sai_strs.symmetric_difference(set_agent_sai_strs)
-                if(return_diffs):
-                    diffs.append({"problem": item['problem'], "-": list(missing),"+": list(extra)})
+                # if(return_diffs):
+                # print()
+                diffs.append({"problem": item['problem'], "-": list(missing),"+": list(extra)})
                     # dp, da = [], []
                     # for d in diff:
                     #     if(d in profile_sais):
@@ -1253,7 +1258,7 @@ class CREAgent(BaseDIPLAgent):
         completeness = n_correct / total
         correctness = n_first_correct / total_states
 
-        print(f"Correctness : {correctness*100:.2f}%")
+        print(f"Correctness : {correctness*100:.2f}%",print_diff)
         print(f"Completeness : {completeness*100:.2f}%")
         out = {"completeness" : completeness, "correctness" : correctness}
         # print("return_diffs", return_diffs)
