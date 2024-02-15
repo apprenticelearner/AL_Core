@@ -356,6 +356,9 @@ class CREAgent(BaseDIPLAgent):
                 state_uid = state.get("__uid__", None) if(state_uid is None) else state_uid
                 if self.should_find_neighbors:
                     state = encode_neighbors(state)
+                    # print()
+                    # for _id, obj in state.items():
+                    #     print(obj)
                 wm = self.memset_builder(state, MemSet())
             elif(isinstance(state, MemSet)):
                 wm = state
@@ -1181,6 +1184,7 @@ class CREAgent(BaseDIPLAgent):
                          **kwargs):
         ''' Evaluates an agent's correctness and completeness against a completeness profile.'''
         import json, os
+        print("START EVAL COMPLETENESS")
 
         n_correct, total = 0, 0
         n_first_correct, total_states = 0,0
