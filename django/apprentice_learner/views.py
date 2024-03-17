@@ -507,7 +507,8 @@ def train(http_request):
         if(model): model.inc_train()
 
         with LogElapse(performance_logger, "train() elapse"):
-            response = agent.train(**data)
+            skill_app = agent.train(**data)
+            response = {"skill_app_uid": skill_app.uid, "skill_uid" : skill_app.skill.uid}
 
         if not dont_save:
             log.warning('Agent is being saved! This is probably not working.')

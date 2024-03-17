@@ -121,9 +121,12 @@ class State():
         else:
             return val, config
 
+    @property
+    def uid(self):
+        return self.state_formats['__uid__'][0]
 
     def __getitem__(self, frmt):
-        return self.state_format[frmt]
+        return self.state_formats[frmt]
 
     def __contains__(self, frmt):
         return (frmt in self.state_formats)

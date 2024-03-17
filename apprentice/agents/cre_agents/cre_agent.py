@@ -271,6 +271,13 @@ class SkillApplication(object):
     def __hash__(self):
         return hash(self.uid)
 
+# ----------------------
+# : AppGroupAnnotation
+class AppGroupAnnotation():
+    def __init__(self, app_group, kind):
+        self.app_group = app_group
+        self.kind = kind
+
 # -----------------------
 # : CREAgent
 
@@ -342,33 +349,39 @@ class CREAgent(BaseDIPLAgent):
         self.skills_by_label = {}
         self.prev_skill_app = None
         self.episodic_memory = {}
+        self.group_annotations = []
 
 
     def standardize_state(self, state, **kwargs):
         if(not isinstance(state, self.state_cls)):
-            state_uid = kwargs.get('state_uid', None)
-            if(isinstance(state, dict)):
-                for k,obj in state.items():
-                    if('contentEditable' in obj):
-                        obj['locked'] = not obj['contentEditable']
-                        del obj['contentEditable']
-
-                state_uid = state.get("__uid__", None) if(state_uid is None) else state_uid
-                if self.should_find_neighbors:
-                    state = encode_neighbors(state)
-                    # print()
-                    # for _id, obj in state.items():
-                    #     print(obj)
-                wm = self.memset_builder(state, MemSet())
-            elif(isinstance(state, MemSet)):
-                wm = state
+            if(isinstance(state, State)):
+                state = self.state_cls(state.state_formats)
             else:
-                raise ValueError(f"Unrecognized State Type: \n{state}")
+                state_uid = kwargs.get('state_uid', None)
+                if(isinstance(state, dict)):
 
-            if(state_uid is None):
-                state_uid = f"S_{wm.long_hash()}"
+                    # NOTE This is a fix for legacy attribute 'contentEditable'
+                    for k,obj in state.items():
+                        if('contentEditable' in obj):
+                            obj['locked'] = not obj['contentEditable']
+                            del obj['contentEditable']
 
-            state = self.state_cls({'__uid__' : state_uid, 'working_memory' : wm})
+                    state_uid = state.get("__uid__", None) if(state_uid is None) else state_uid
+                    if self.should_find_neighbors:
+                        state = encode_neighbors(state)
+                        # print()
+                        # for _id, obj in state.items():
+                        #     print(obj)
+                    wm = self.memset_builder(state, MemSet())
+                elif(isinstance(state, MemSet)):
+                    wm = state
+                else:
+                    raise ValueError(f"Unrecognized State Type: \n{state}")
+
+                if(state_uid is None):
+                    state_uid = f"S_{wm.long_hash()}"
+
+                state = self.state_cls({'__uid__' : state_uid, 'working_memory' : wm})
 
         # Ensure if prev_skill_app references current state's working_memory
         prev_skill_app = getattr(self,'prev_skill_app',None)
@@ -805,7 +818,7 @@ class CREAgent(BaseDIPLAgent):
 
         return SkillApplication(skill, state, [sai.selection,*args])
 
-    def _recover_prev_skill_app(self, sai,
+    def _recover_prev_skill_app(self, sai=None,
             uid=None, skill_uid=None, **kwargs):
         skill_app = None
         if(uid is not None):
@@ -892,23 +905,43 @@ class CREAgent(BaseDIPLAgent):
         skill_app.skill.ifit(state, skill_app, reward)
         # self.state.clear()
 
-        # Return the unique id of the skill that was updated
-        return skill_app.skill.uid
+        # Return the skill_app that was updated
+        return skill_app
 
     def train_all(self, training_set, states={}, **kwargs):
-        skill_app_uids = []
+        skill_apps = []
         for example in training_set:
             state = example['state']
-            del example['state']
+
+            example = {k:example[k] for k in example.keys() - {'state'}}
+            # del example['state']
 
             # If 'state' is a uid find it's object from 'states'.
             if(isinstance(state,str)):
                 state = states[state]
 
-            uid = self.train(state, **example, **kwargs)
-            skill_app_uids.append(uid)
-        return skill_app_uids
+            skill_app = self.train(state, **example, **kwargs)
+            skill_apps.append(skill_app)
+        return skill_apps
 
+# ----------------------------------------------
+#  annotate_group()
+
+    def annotate_group(self, skill_app_group, kind):
+        group = []
+        for sa in skill_app_group:
+            if(isinstance(sa, str)):
+                sa = self._recover_prev_skill_app(uid=sa)
+            group.append(sa)
+
+        ann = AppGroupAnnotation(skill_app_group, kind)
+
+        if(kind == "no_others"):
+            state_uid = group[0].state_uid
+            for i in range(1, len(group)):
+                assert group[i].state_uid == state_uid
+
+        self.group_annotations.append(ann)
 
 # -----------------------------------------------
 # get_skills ()
@@ -1110,6 +1143,16 @@ class CREAgent(BaseDIPLAgent):
                                 states, actions, uid_stack, depth_counts, depth)
             # print(uid_stack)
         # self.annotate_verified(states, actions)
+
+        for state_obj in states.values():
+            state_obj['out_skill_app_uids'] = []
+            state_obj['in_skill_app_uids'] = []
+
+        for uid, action in actions.items():
+            s_obj = states[action['state_uid']];
+            s_obj['out_skill_app_uids'].append(uid)
+            ns_obj = states[action['next_state_uid']];
+            ns_obj['in_skill_app_uids'].append(uid)
 
         if(ret_avg_certainty):
             avg_certainty = 0.0

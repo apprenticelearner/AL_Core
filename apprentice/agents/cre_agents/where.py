@@ -419,10 +419,10 @@ class Generalize(BaseCREWhere):
                                v_ind1 >= len(match))
 
                 if(kind == WN_VAR_TYPE):
-                    raise NotImplemented
-                    # Should try to upcast type 
+                    raise NotImplementedError("VAR TYPE")
+                    # Should try to upcast type here
                 elif(kind == WN_BAD_DEREF):
-                    raise NotImplemented
+                    raise NotImplementedError("BAD DEREF")
 
                 elif(kind == WN_INFER_UNPROVIDED):
                     # print("REMOVE VAR", obj, wn)
