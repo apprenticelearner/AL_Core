@@ -51,6 +51,8 @@ class BaseDIPLAgent(object):
             default='sklearndecisiontree', registry=registries["when"])
         self.which_cls = config_get(['which_type','which_cls','which','which_learner'], 
             default='proportion_correct', registry=registries["which"])
+        self.process_cls = config_get(['process_type','process_cls','process','process_learner'], 
+            default=None, registry=registries["process"])
         
         
         # Standardize arguments for mechanisms.
@@ -58,6 +60,7 @@ class BaseDIPLAgent(object):
         self.where_args = config_get(['where_args'], {})
         self.how_args = config_get(['how_args','planner_args'], {})
         self.which_args = config_get(['which_args'], {})
+        self.process_args = config_get(['process_args'], {})
 
         # print(registries['feature_factory'])
 
@@ -80,6 +83,7 @@ class BaseDIPLAgent(object):
         self.should_find_neighbors = config_get(['find_neighbors', 'should_find_neighbors'],
          default=False)
         self.suggest_uncert_neg = config_get(['suggest_uncert_neg', 'suggest_uncertain_negatives'], default=False)
+        self.track_rollout_preseqs = config_get(['track_rollout_preseqs'], default=False)
 
         # Reroute config options that user might define at the agent level
         #  but belong at the learning mechanism level.

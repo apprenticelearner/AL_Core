@@ -106,10 +106,10 @@ class Skill(object):
 
         # with PrintElapse("iter_matches"):
         for match in matches:
-            when_pred = 1 if skip_when else self.when_lrn_mech.predict(state, match)                
+            when_pred = 1 if skip_when else self.when_lrn_mech.predict(state, match)
             # print(when_pred, match)
             if(when_pred > 0 or self.agent.suggest_uncert_neg and when_pred != -1.0):
-                skill_app = SkillApplication(self, state, match, when_pred=when_pred)
+                skill_app = SkillApplication(self, match, state, when_pred=when_pred)
                 if(skill_app is not None):
                     applications.append(skill_app)
 
@@ -168,9 +168,18 @@ class Skill(object):
 # -----------------------
 # : SkillApplication
 
+
+# TODO: Need to think about whether it makes sense for SkillApps
+#  to keep a reference to their states and next_states,
+#  is a possible memory leak opportunity.
+KEEP_STATE_REFS = True
+
+
 class SkillApplication(object):
     # __slots__ = ("skill", "match", "sai")
-    def __new__(cls, skill, state, match, uid=None, when_pred=None):
+    def __new__(cls, skill, match, state, uid=None,
+                next_state=None, prob_uid=None, short_name=None,
+                when_pred=None):
         # print(skill, [m.id for m in match])
         sai = skill(*match)
 
@@ -182,13 +191,19 @@ class SkillApplication(object):
         h.update(",".join([m.id for m in match]).encode('utf-8'))
         uid = f"A_{base64.b64encode(h.digest(), altchars=b'AB')[:30].decode('utf-8')}"
 
+        agent = getattr(skill,'agent', None)
+
         # If this skill has been fit with this skill_app then return the previous instance
-        if(uid in skill.skill_apps):
-            self = skill.skill_apps[uid]
-            # If given a prediction probability then overwrite the old one.
-            if(self.when_pred is not None):
-                self.when_pred = when_pred
-            return self
+        # if(uid in skill.skill_apps):
+        #     self = skill.skill_apps[uid]
+        if(agent):
+            if(agent and uid in agent.skill_apps_by_uid):
+                self = agent.skill_apps_by_uid[uid]
+                # If given a prediction probability then overwrite the old one.
+                if(self.when_pred is not None):
+                    self.when_pred = when_pred
+                return self
+            
 
         if(sai is None):
             return None
@@ -200,7 +215,26 @@ class SkillApplication(object):
         self.args = match[1:]
         self.sai = sai
         self.uid = uid
-        self.when_pred = when_pred
+        
+
+        if(not hasattr(self, "when_pred") or when_pred is not None):
+            self.when_pred = when_pred
+        if(not hasattr(self, "prob_uid") or prob_uid is not None):
+            self.prob_uid = prob_uid
+
+        if(KEEP_STATE_REFS):
+            self.state = state
+            self.next_state = next_state
+
+        if(agent):
+            agent.skill_apps_by_uid[uid] = self        
+            if(hasattr(agent, 'rollout_preseq_tracker')):
+                if(next_state is None):
+                    self.next_state = agent.predict_next_state(state, sai)
+                    # print("NEXT STATE", self.sai[0], self.sai[2]['value'], self.next_state.get('__uid__')[:5])
+                    # print(repr(self.next_state.get("working_memory")))
+                # print("THIS IS START", state.is_start, getattr(state,'is_start', None))
+                agent.rollout_preseq_tracker.add_skill_app(self, getattr(state,'is_start', None))#, do_update=False)
 
         return self
 
@@ -240,7 +274,7 @@ class SkillApplication(object):
             train_data['is_demo'] = getattr(self, 'is_demo', False)
             train_data = {k:v for k,v in train_data.items() if v is not None}
             if('arg_foci' in train_data):
-                print("ARG FOCI", train_data['arg_foci'])
+                # print("ARG FOCI", train_data['arg_foci'])
 
                 # TODO: Fix whatever causing this to be necessary
                 # arg_foci = train_data['arg_foci']
@@ -270,6 +304,15 @@ class SkillApplication(object):
 
     def __hash__(self):
         return hash(self.uid)
+
+    def add_implicit_neg(self, other):
+        if(not hasattr(self, "implicit_negs")):
+            self.implicit_negs = set()
+        self.implicit_negs.add(other)
+
+    def ensure_when_pred(self):
+        self.when_pred = self.skill.when_lrn_mech.predict(self.state, self.match)
+
 
 # ----------------------
 # : AppGroupAnnotation
@@ -343,16 +386,26 @@ class CREAgent(BaseDIPLAgent):
         super().__init__(**config)
 
         self.how_lrn_mech = self.how_cls(self, **self.how_args)
+
+        self.process_lrn_mech = None
+        if(self.process_cls):
+            self.process_lrn_mech = self.process_cls(self, **self.process_args)
+            if(self.track_rollout_preseqs):
+                from .learning_mechs.process.process import PreseqTracker
+                self.rollout_preseq_tracker = PreseqTracker()
+
         self.working_memory = MemSet()
         self.init_processesors()
         self.skills = {}
+        self.skill_apps_by_uid = {}
+        self.implicit_negs = {}
         self.skills_by_label = {}
         self.prev_skill_app = None
         self.episodic_memory = {}
         self.group_annotations = []
 
 
-    def standardize_state(self, state, **kwargs):
+    def standardize_state(self, state, is_start=None, **kwargs):
         if(not isinstance(state, self.state_cls)):
             if(isinstance(state, State)):
                 state = self.state_cls(state.state_formats)
@@ -397,6 +450,8 @@ class CREAgent(BaseDIPLAgent):
                 # print(wm)
                 self.prev_skill_app = None
         self.state = state
+        if(getattr(state, 'is_start',None) is None):
+            state.is_start = is_start 
         return state
 
     def standardize_SAI(self, sai):
@@ -409,7 +464,7 @@ class CREAgent(BaseDIPLAgent):
             try:
                 sai.selection = self.state.get('working_memory').get_fact(id=sai.selection)
             except KeyError:
-                print(self.state.get('working_memory'))
+                # print(self.state.get('working_memory'))
                 raise KeyError(f"Bad SAI: Element {sai.selection!r} not found in state.")
         if(isinstance(sai.action_type, str)):
             sai.action_type = self.action_types[sai.action_type]
@@ -435,18 +490,134 @@ class CREAgent(BaseDIPLAgent):
 
 # ------------------------------------------------
 # : Act, Act_All
-    def get_skill_applications(self, state):
+    def get_skill_applications(self, state, prob_uid=None):
+        skill_apps = []
+
+        
+        # print("\nGET SKILL APPS", state.get('__uid__')[:5])
+        
         
 
-        skill_apps = []
-        for skill in self.skills.values():
-            # if("Qr9" in self.state.get('__uid__')):
-            #     if(repr(skill.how_part) == "NumericalToStr(TensDigit(Add3(CastFloat(a.value), CastFloat(b.value), CastFloat(c.value))))"):
-            #         print(repr(self.state.get("flat_featurized")))
-            #         print(skill.when_lrn_mech.classifier)
+        # If there is a process learning mechanism then use it
+        #  to determine which skill applications are in-process
+        if(self.process_lrn_mech):
+            
+            preseq_tracker = getattr(self,'rollout_preseq_tracker', None)
+            # try:
+            #     preseq = preseq_tracker.get_good_preseq(state)
+            #     print("--", preseq)
+            # except RuntimeError as e:
+            #     print("--FAIL")
+            in_process_grps = self.process_lrn_mech.get_next_skill_apps(
+                state, preseq_tracker,
+                prob_uid=prob_uid, group_by_depends=True)
+            filtered_skill_apps = []
 
-            for skill_app in skill.get_applications(state):
-                skill_apps.append(skill_app)
+            for i, grp in enumerate(in_process_grps):
+                for skill_app in grp:
+                    skill_app.in_process = True
+                    skill_app.ensure_when_pred()
+                    # if(prob_uid is not None):
+                    #     skill_app.prob_uid = prob_uid
+
+            def path_prefix(path):
+                pp = []
+                for i, (macro, meth_ind, item_ind, cov) in enumerate(path.steps):
+                    if(cov is not None):
+                        item_ind = 0
+                        cov = tuple(sorted([x for x in cov]))
+                    pp.append((macro._id, meth_ind, item_ind, cov))
+                return tuple(pp)
+
+            if(len(in_process_grps) == 0):
+                print("NOT IN PROCESS")
+                # print(self.rollout_preseq_tracker.get_good_preseq(state))
+            if(len(in_process_grps) > 1):
+                # print("in_process_grps", in_process_grps)
+                for i, grp in enumerate(in_process_grps):
+                    # print("<<", i)
+                    prefix_groups = {}
+                    for sa in grp:
+                        prefix = path_prefix(sa.path)
+                        # print(sa, type(sa))
+                        # print("\t", sa.path)
+                        # print("\t", path_prefix(sa.path))
+
+                        # real_sas = [_sa for _sa in skill_apps if _sa == sa]
+                        # if(len(real_sas) > 0):
+                        pre_grp = prefix_groups.get(prefix, [])
+                        # print("REAL", type(real_sas[0]), real_sas[0] is sa)
+                        pre_grp.append(sa)
+                        prefix_groups[prefix] = pre_grp
+
+                    L = len(prefix_groups)
+                    pg_items = list(prefix_groups.items())
+                    for j in range(L):
+                        pre_a, pre_grp_a = pg_items[j]
+                        for k in range(j+1,L):
+                            pre_b, pre_grp_b = pg_items[k]
+                            for a in pre_grp_a:
+                                for b in pre_grp_b:
+                                    # print("This doesn't go with this:")
+                                    # print("\t", a)
+                                    # print("\t", b)
+                                    # a_negs = self.implicit_negs.get(a,set())
+                                    # a_negs.add(b)
+                                    # self.implicit_negs[a] = a_negs
+
+                                    # b_negs = self.implicit_negs.get(b,set())
+                                    # b_negs.add(a)
+                                    # self.implicit_negs[b] = b_negs
+
+                                    a.add_implicit_neg(b)
+                                    b.add_implicit_neg(a)
+                                    pass
+
+            if(len(in_process_grps) >= 1):
+                best_grp_pred = -2
+                best_grp_ind = -1
+                for i, in_process_apps in enumerate(in_process_grps):
+                    if(len(in_process_apps) == 0):
+                        continue
+                    total = 0
+                    for skill_app in in_process_apps:
+                        val = getattr(skill_app, 'reward', None)
+                        if(val is None):
+                            val = getattr(skill_app, 'when_pred', None)
+                        total += val
+                        # if(reward != -1):
+                        #     filtered_skill_apps.append(skill_app)
+                    avg = total / len(in_process_apps)
+                    if(avg > best_grp_pred):
+                        best_grp_pred = avg
+                        best_grp_ind = i
+
+                # if(best_grp_pred > 0):
+                # print("BEST GRP IND", best_grp_ind, "/", len(in_process_grps), best_grp_pred)
+                if(best_grp_ind >= 0):
+                    skill_apps = list(in_process_grps[best_grp_ind])
+            # if(len(filtered_skill_apps) > 0):
+            #     # if(len(in_process_grps) > 1):
+            #         # print("<<", filtered_skill_apps)
+            #     skill_apps = filtered_skill_apps
+            # skills = {sa.skill for sa in in_process_apps}
+            # for skill in skills:    
+            #     for skill_app in skill.get_applications(state):
+            #         if(skill_app in in_process_apps):
+            #             path = in_process_apps[skill_app]
+            #             skill_app.path = path
+            #             skill_apps.append(skill_app)
+
+
+        if(len(skill_apps) == 0):
+            # print("BACKUP")
+            for skill in self.skills.values():
+                for skill_app in skill.get_applications(state):
+                    skill_apps.append(skill_app)
+                    if(prob_uid is not None):
+                        skill_app.prob_uid = prob_uid
+
+        # print("N APPS", len(skill_apps))
 
         skill_apps = self.which_cls.sort(state, skill_apps)
         # print('---')
@@ -464,10 +635,16 @@ class CREAgent(BaseDIPLAgent):
     def act(self, state, 
             return_kind='sai', # 'sai' | 'skill_app'
             json_friendly=False,
+            is_start=None,
+            prob_uid=None,
             **kwargs):
 
-        state = self.standardize_state(state)
-        skill_apps = self.get_skill_applications(state)
+        state = self.standardize_state(state, is_start)
+        skill_apps = self.get_skill_applications(state, prob_uid=prob_uid)
+
+        # if(self.track_rollout_preseqs):
+        #     for skill_app in skill_apps:
+                
 
         # Apply action_chooser to pick from conflict set
         output = None
@@ -492,11 +669,16 @@ class CREAgent(BaseDIPLAgent):
         max_return=-1,
         return_kind='sai',
         json_friendly=False,
+        is_start=None,
+        prob_uid=None,
         **kwargs):
 
-        state = self.standardize_state(state)
-        skill_apps = self.get_skill_applications(state)
+        state = self.standardize_state(state, is_start)
+        skill_apps = self.get_skill_applications(state, prob_uid=prob_uid)
 
+        # if(self.track_rollout_preseqs):
+        #     for skill_app in skill_apps:
+        #         self.rollout_preseq_tracker.add_skill_app(skill_app, is_start)#, do_update=False)
         
         # TODO: Not sure if necessary.
         # self.state.clear()
@@ -588,7 +770,7 @@ class CREAgent(BaseDIPLAgent):
 
                         match = [sai.selection, *match]
                         # print("<<", _, f'[{", ".join([x.id for x in match])}])')
-                        skill_app = SkillApplication(skill, state, match)
+                        skill_app = SkillApplication(skill, match, state)
                         # print(inp, skill.how_part, match)
                         # print("CAND", skill_app.sai, "Target", sai)
 
@@ -598,7 +780,7 @@ class CREAgent(BaseDIPLAgent):
                 # For skills with constant how-parts just check equality
                 else:
                     if(skill.how_part == inp):
-                        skill_apps.append(SkillApplication(skill, state, [sai.selection]))                        
+                        skill_apps.append(SkillApplication(skill, [sai.selection], state))                        
 
             # if(len(skill_apps) > 0): print("EXPL HOW")
         # for sa in skill_apps:
@@ -735,10 +917,13 @@ class CREAgent(BaseDIPLAgent):
         else:
             next_wm = at.predict_state_change(state.get('working_memory'), sai)
             next_state = self.standardize_state(next_wm)
+            next_state.is_done = False
         
+        # print("PNS", state.get('__uid__')[:5], next_state.get('__uid__')[:5])
         if(json_friendly):
             state_uid = state.get('__uid__')
             next_state_uid = next_state.get('__uid__')
+
             next_state = {'state_uid' : state_uid, 'next_state_uid' : next_state_uid,
                           'next_state': next_wm.as_dict(key_attr='id'),
                          }
@@ -780,6 +965,8 @@ class CREAgent(BaseDIPLAgent):
 
 
     def induce_skill(self, state, sai, explanation_set, label=None, explanation_selected=None):
+        # print("INDUCE STATE IS START", state.is_start)
+
         # TODO: Make this not CTAT specific
         input_attr = list(sai.inputs.keys())[0]
         if(sai.selection.id == "done"):
@@ -805,7 +992,7 @@ class CREAgent(BaseDIPLAgent):
         # Make new skill.
         skill = Skill(self, sai.action_type, how_part, input_attr, 
             label=label, explanation_set=explanation_set)
-        print("INDUCE SKILL", skill, skill.how_part)
+        # print("INDUCE SKILL", skill, skill.how_part)
 
         # print("INDUCE SKILL", skill)
 
@@ -816,7 +1003,7 @@ class CREAgent(BaseDIPLAgent):
             label_lst.append(skill)
             self.skills_by_label[label] = label_lst
 
-        return SkillApplication(skill, state, [sai.selection,*args])
+        return SkillApplication(skill, [sai.selection,*args], state)
 
     def _recover_prev_skill_app(self, sai=None,
             uid=None, skill_uid=None, **kwargs):
@@ -840,10 +1027,13 @@ class CREAgent(BaseDIPLAgent):
     def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
               skill_app=None, uid=None, 
               skill_label=None, skill_uid=None, explanation_selected=None,
-              ret_train_expl=False, add_skill_info=False, **kwargs):
+              ret_train_expl=False, add_skill_info=False,
+              is_start=None,
+               **kwargs):
         # print("SAI", sai, type(sai))
         if(skill_label == "NO_LABEL"): skill_label = None
-        state = self.standardize_state(state)
+        state = self.standardize_state(state, is_start)
+        # print("TRAIN IS START", is_start, state.is_start)
 
         # print("---------------------------")
         # for fact in state.get('working_memory').get_facts():
@@ -876,6 +1066,7 @@ class CREAgent(BaseDIPLAgent):
             #             - Explained from prior knowledge functions
             #            or            
             #         2) SAI which must be re-explained from existing skills             
+            # print("-ITRAIN IS START", is_start, state.is_start)
             skill_explanations, func_explanations = \
                 self.explain_demo(state, sai, arg_foci, skill_label, skill_uid, how_help)
 
@@ -895,6 +1086,7 @@ class CREAgent(BaseDIPLAgent):
                 if(skill_app is None):
                     skill_app = skill_explanations[0]                        
             else:
+                # print("ITRAIN IS START", is_start, state.is_start)
                 skill_app = self.induce_skill(state, sai, func_explanations, skill_label,
                     explanation_selected=explanation_selected)
 
@@ -903,6 +1095,22 @@ class CREAgent(BaseDIPLAgent):
             how_help, explanation_selected, **kwargs)
 
         skill_app.skill.ifit(state, skill_app, reward)
+
+        if(self.process_lrn_mech):
+            next_state = None
+            if(getattr(skill_app, 'next_state', None) is None):
+                wm = state.get("working_memory")
+                next_state = self.predict_next_state(wm, skill_app.sai)
+                skill_app.next_state = next_state
+            self.process_lrn_mech.ifit(skill_app, is_start=is_start, reward=reward)
+
+        if(reward > 0 and hasattr(skill_app, "implicit_negs")):
+
+            for imp_neg_sa in skill_app.implicit_negs:
+                if(getattr(imp_neg_sa, "reward", 0) == 0):
+                    print("IMPLICIT NEGATIVE", imp_neg_sa)
+                    self.train(imp_neg_sa.state, reward=-1, skill_app=imp_neg_sa)
+
         # self.state.clear()
 
         # Return the skill_app that was updated
@@ -1093,7 +1301,9 @@ class CREAgent(BaseDIPLAgent):
 
 
     def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False,
-                    base_depth=0, ret_avg_certainty=True, **kwargs):
+                    base_depth=0, ret_avg_certainty=True, is_start=None, prob_uid=None,
+                     **kwargs):
+        # print("IS START", is_start)
         ''' 
         Applies act_all() repeatedly starting from 'state', and fanning out to create at 
         tree of all action rollouts up to some depth. At each step in this process the agent's 
@@ -1103,8 +1313,12 @@ class CREAgent(BaseDIPLAgent):
         '''
         # with PrintElapse("ACT ROLLOUT"):
         # print("\n\t\tSTART ACT ROLLOUT\t\t", base_depth)
-        state = self.standardize_state(state)
+        curr_state = state = self.standardize_state(state, is_start)
         curr_state_uid = state.get('__uid__')
+        if(is_start):
+            prob_uid = curr_state_uid 
+            curr_state.is_start = is_start
+
         # print(state.get('working_memory'))
         halt_policies = [self.standardize_halt_policy(policy) for policy in halt_policies]
 
@@ -1125,15 +1339,22 @@ class CREAgent(BaseDIPLAgent):
             src_wm = state.get("working_memory")
             # print("---source---", uid)
             # print(repr(src_wm))
-            skill_apps = self.act_all(state, return_kind='skill_app')
+            skill_apps = self.act_all(state, return_kind='skill_app', prob_uid=prob_uid)
 
             for skill_app in skill_apps:
                 skill_app.skill.skill_apps[skill_app.uid] = skill_app
+
+                if(is_start):
+                    skill_app.prob_uid = curr_state_uid
+
                 at = skill_app.sai.action_type
                 # print("---skill_app :", skill_app)
                 # print("---action_type :", at)
 
                 next_state = self.predict_next_state(src_wm, skill_app.sai)
+                skill_app.next_state = next_state
+
+                    
                 # next_wm = at.predict_state_change(src_wm, skill_app.sai)
                 # print("---dest---")
                 # print(repr(dest_wm))
@@ -1144,6 +1365,8 @@ class CREAgent(BaseDIPLAgent):
             # print(uid_stack)
         # self.annotate_verified(states, actions)
 
+
+
         for state_obj in states.values():
             state_obj['out_skill_app_uids'] = []
             state_obj['in_skill_app_uids'] = []
@@ -1153,6 +1376,26 @@ class CREAgent(BaseDIPLAgent):
             s_obj['out_skill_app_uids'].append(uid)
             ns_obj = states[action['next_state_uid']];
             ns_obj['in_skill_app_uids'].append(uid)
+
+
+        if(self.track_rollout_preseqs and is_start):
+            start_sa_uids = states[curr_state_uid]['out_skill_app_uids']
+            if(len(start_sa_uids) > 0):
+                print(start_sa_uids)
+                start_sa = actions[start_sa_uids[0]]['skill_app']
+                prob_uid = self.rollout_preseq_tracker.resolve_prob_uid(start_sa, is_start=is_start)
+                # self.rollout_preseq_tracker.update_subseqs(prob_uid)
+
+                print(">----------------<")
+                print(self.process_lrn_mech.grammar)
+                print()
+                last_state_obj = list(states.values())[-1]
+                last_state = last_state_obj['state']
+                last_state_uid = last_state_obj['uid']
+                print(prob_uid[:5], last_state_uid[:5])
+                print(self.rollout_preseq_tracker.get_preseqs(last_state, prob_uid))
+                print(">----------------<")
+
 
         if(ret_avg_certainty):
             avg_certainty = 0.0
@@ -1223,7 +1466,7 @@ class CREAgent(BaseDIPLAgent):
         # print("PROFILE DONE", os.path.abspath(output_file))
 
     def eval_completeness(self, profile, partial_credit=False,
-                          print_diff=True, return_diffs=False,
+                          print_diff=True, print_correct=False, return_diffs=False,
                          **kwargs):
         ''' Evaluates an agent's correctness and completeness against a completeness profile.'''
         import json, os
@@ -1232,6 +1475,7 @@ class CREAgent(BaseDIPLAgent):
         n_correct, total = 0, 0
         n_first_correct, total_states = 0,0
         diffs = []
+        prob_uid = None
         with open(profile, 'r') as profile_f:
             for line_ind, line in enumerate(profile_f):
                 # Read a line from the profile
@@ -1240,7 +1484,16 @@ class CREAgent(BaseDIPLAgent):
                 # Get the ground-truth sais
                 profile_sais = [SAI(x) for x in item['sais']]
                 state = item['state']
-                agent_sais = self.act_all(state, return_kind='sai')
+                is_start = len(item['hist'])==0
+                if(is_start):
+                    prob_uid = self.standardize_state(state).get("__uid__")
+                    # print()
+                    # print("prob_uid", prob_uid)
+                # print("IS START", len(item['hist'])==0)
+                
+
+                # print(item['state'])
+                agent_sais = self.act_all(state, return_kind='sai', is_start=is_start, prob_uid=prob_uid)
 
                 # Find the difference of the sets 
                 # profile_sai_strs = set([str(s) for s in profile_sais])
@@ -1249,11 +1502,27 @@ class CREAgent(BaseDIPLAgent):
                 set_profile_sais = set(profile_sais)
                 missing = set_profile_sais - set_agent_sais
                 extra = set_agent_sais - set_profile_sais
+                correct = set_agent_sais.intersection(set_profile_sais)
                 n_diff = len(missing) + len(extra)
+
+                if(n_diff > 0):
+                    print("\t",item['problem'], item['hist'], n_diff)
+                    apps = self.act_all(state, return_kind='skill_app', is_start=is_start, prob_uid=prob_uid)
+                    for app in apps:
+                        when_pred = getattr(app, 'when_pred', None)
+                        print(f"{app.when_pred:.2f}" if when_pred is not None else None, app)
+
                 # diff = profile_sai_strs.symmetric_difference(set_agent_sai_strs)
                 # if(return_diffs):
-                # print()
-                diffs.append({"problem": item['problem'], "-": list(missing),"+": list(extra)})
+            # print()
+                diffs.append({"problem": item['problem'], 'hist' : item['hist'], "-": list(missing),"+": list(extra), "=" : list(correct)})
+                # if(len(item['hist']) == 0):
+                uid = self.standardize_state(state).uid
+                # print("\t",item['problem'], item['hist'], n_diff)
+                # print("OUTS", self.rollout_preseq_tracker.states[uid].get('outs',[]))
+                # if(n_diff == 0):
+                #     print("INS", self.rollout_preseq_tracker.states[uid].get('ins',[]))
+                
                     # dp, da = [], []
                     # for d in diff:
                     #     if(d in profile_sais):
@@ -1294,13 +1563,19 @@ class CREAgent(BaseDIPLAgent):
         
         if(print_diff):
             for diff in diffs:
-                if(len(diff['-']) == 0 and len(diff['+']) == 0):
-                    continue
-                print(f"--DIFF: {diff['problem']} --")
-                for m in diff['-']:
-                    print("  -", m['selection'], m['inputs']['value'])
-                for m in diff['+']:
-                    print("  +", m['selection'], m['inputs']['value'])
+                n_diffs = len(diff['-']) + len(diff['+'])
+                
+                if(n_diffs != 0):
+                    print(f"--DIFF: {diff['problem']} {diff['hist']} --")
+                    for m in diff['-']:
+                        print("  -", m['selection'], m['inputs']['value'])
+                    for m in diff['+']:
+                        print("  +", m['selection'], m['inputs']['value'])
+                if(print_correct == True or 
+                   print_correct=="when_diff" and n_diffs > 0):
+                    for m in diff['=']:
+                        print("  =", m['selection'], m['inputs']['value'])    
+
 
         completeness = n_correct / total
         correctness = n_first_correct / total_states

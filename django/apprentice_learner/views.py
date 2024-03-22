@@ -507,8 +507,7 @@ def train(http_request):
         if(model): model.inc_train()
 
         with LogElapse(performance_logger, "train() elapse"):
-            skill_app = agent.train(**data)
-            response = {"skill_app_uid": skill_app.uid, "skill_uid" : skill_app.skill.uid}
+            response = agent.train(**data)
 
         if not dont_save:
             log.warning('Agent is being saved! This is probably not working.')
@@ -562,7 +561,8 @@ def train_all(http_request):
 
 
         with LogElapse(performance_logger, "train_all() elapse"):
-            response = agent.train_all(**data)
+            _ = agent.train_all(**data)
+            response = True # Note: In future might want to return more info 
 
         if not dont_save:
             log.warning('Agent is being saved! This is probably not working.')
@@ -670,8 +670,6 @@ def predict_next_state(http_request):
         if(model): model.inc_train()
 
         with LogElapse(performance_logger, "predict_next_state() elapse"):
-            print(agent)
-
             response = agent.predict_next_state(**data, json_friendly=True)
 
         return HttpResponse(json.dumps(response))
