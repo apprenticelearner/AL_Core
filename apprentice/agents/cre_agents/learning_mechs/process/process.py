@@ -633,7 +633,8 @@ class HTNLearner:
         L0, L1 = self._expand()
 
         # with PrintElapse("Matrix Pass"):
-        self.update_matricies_pass(seq, item_inds)
+        m_change = self.update_matricies_pass(seq, item_inds)
+        did_change = m_change or L0 != L1
 
         # with np.printoptions(precision=2, linewidth=10000):
             # print("O")
@@ -645,12 +646,13 @@ class HTNLearner:
             # print("D")
             # print(self.D)
         # with PrintElapse("Reorder Pass"):
-        self.reorder_pass(L0)
-        # with PrintElapse("Method Pass"):
-        if(not skip_method_pass):
-            self.method_pass()
+        if(did_change):
+            self.reorder_pass(L0)
+            # with PrintElapse("Method Pass"):
+            if(not skip_method_pass):
+                self.method_pass()
 
-        return True
+        return did_change
 
     def _expand(self):
         L0, L1 = len(self.O), len(self.item_skills)
@@ -671,6 +673,14 @@ class HTNLearner:
             
 
     def update_matricies_pass(self, seq, item_inds):
+        
+        old_A_min = self.A_min.copy()
+        old_A_max = self.A_max.copy()
+        old_O = self.O.copy()
+        old_C = self.C.copy()
+        old_D = self.D.copy()
+        old_P = self.P.copy()
+
         # start with adjacency
         for i, (ind_i, sa_i) in enumerate(zip(item_inds, seq)):
             for j, (ind_j, sa_j) in enumerate(zip(item_inds, seq)):
@@ -697,6 +707,15 @@ class HTNLearner:
                     # self.D[ind_j, ind_i] &= ~j_occured
                 self.P[ind_j] &= j_occured
 
+        did_change = (
+            np.any(old_A_min != self.A_min) or
+            np.any(old_A_max != self.A_max) or
+            np.any(old_O != self.O) or
+            np.any(old_C != self.C) or
+            np.any(old_D != self.D) or
+            np.any(old_P != self.P)
+        )
+        return did_change
         # for ind_i, skill_i in enumerate(self.item_skills):
         #     i_occured = ind_i in item_inds
         #     if(i_occured)
@@ -1549,9 +1568,7 @@ def parse_state_from_tracker(grammar, state, preseq_tracker, prob_uid=None):
 
     target_uid = state.get("__uid__")
 
-    if(target_uid not in preseq_tracker.states):
-        print("FAIL PARSE")
-        return False, []
+    
 
     if(getattr(preseq_tracker, 'curr_grammar', None) is grammar):
         # tar_info = getattr(preseq_tracker, "prim_paths", None)#.states[target_uid]
@@ -1561,7 +1578,7 @@ def parse_state_from_tracker(grammar, state, preseq_tracker, prob_uid=None):
 
     # If grammar changed then reset prim_paths caches
     else:
-        print("NEW GRAMMAR")
+        # print("NEW GRAMMAR")
         preseq_tracker.curr_grammar = grammar
         preseq_tracker.prim_path_cache = {}
 
@@ -1571,26 +1588,35 @@ def parse_state_from_tracker(grammar, state, preseq_tracker, prob_uid=None):
     cov = set() if root.methods[0].unordered else None
     path = ParsePath([(root, 0, 0, cov)])
     prim_paths = resolve_prim_paths([path])
-    tar_info = preseq_tracker.states[target_uid]
-    targ_ins = tar_info.get('ins', [])
+    
 
+    
+    if(target_uid == prob_uid):
+    #     preseq_tracker.prim_path_cache[target_uid] = prim_paths        
+        return True, prim_paths
+    # elif(target_uid not in preseq_tracker.states):
+    #     # print("FAIL PARSE")
+    #     return False, []
+    # else:
+    begin_uid = prob_uid 
     begin_s_info = preseq_tracker.states[prob_uid]
 
-    if(target_uid == prob_uid):
-        preseq_tracker.prim_path_cache[target_uid] = prim_paths        
-        return True, prim_paths
-    elif(len(targ_ins) > 0):
-        for sa in targ_ins:
-            s_uid = sa.state.get("__uid__")
-            if(s_uid in preseq_tracker.prim_path_cache):
-                begin_s_info = preseq_tracker.states[s_uid]
-                prim_paths = preseq_tracker.prim_path_cache[s_uid]
-                break
-                
+        # tar_info = preseq_tracker.states[target_uid]
+        # targ_ins = tar_info.get('ins', [])    
+        # if(len(targ_ins) > 0):
+        #     for sa in targ_ins:
+        #         s_uid = sa.state.get("__uid__")
+        #         if(s_uid in preseq_tracker.prim_path_cache):
+        #             begin_uid = s_uid
+        #             begin_s_info = preseq_tracker.states[begin_uid]
+        #             prim_paths = preseq_tracker.prim_path_cache[begin_uid]
+        #             print("BEGIN ", s_uid[:5])
+        #             break
+                    
     next_items_paths = {sa:prim_paths for sa in begin_s_info.get('outs', [])}
     target_prim_paths = set()
     did_cover = True
-    covered_state_uids = {prob_uid}
+    # covered_state_uids = {begin_uid}
     while(len(next_items_paths) > 0):
         _new_items_paths = {}
         # print()
@@ -1613,8 +1639,8 @@ def parse_state_from_tracker(grammar, state, preseq_tracker, prob_uid=None):
                 
                 n_uid = next_state.get("__uid__")
                 # print(n_uid)
-                if(n_uid in covered_state_uids):
-                    continue
+                # if(n_uid in covered_state_uids):
+                #     continue
 
                 if(n_uid == target_uid):
                     # print(">>", prim_paths)
@@ -1639,7 +1665,7 @@ def parse_state_from_tracker(grammar, state, preseq_tracker, prob_uid=None):
                         else:
                             _new_items_paths[n_sa] = set(prim_paths)
 
-                covered_state_uids.add(n_uid)
+                # covered_state_uids.add(n_uid)
 
         if(len(_new_items_paths) == 0):
             break
@@ -1658,8 +1684,8 @@ def parse_state_from_tracker(grammar, state, preseq_tracker, prob_uid=None):
         # print(target_prim_paths)
         return True, list(target_prim_paths)
     else:
-        print("PARSE FAILED")#, " ".join([str(x) for x in seq[:seq_ind]]), f"\033[9m{' '.join([str(x) for x in seq[seq_ind:]])}\033[0m")
-        print(next_items_paths)
+        # print("PARSE FAILED")#, " ".join([str(x) for x in seq[:seq_ind]]), f"\033[9m{' '.join([str(x) for x in seq[seq_ind:]])}\033[0m")
+        # print(next_items_paths)
         return False, []
 
     
