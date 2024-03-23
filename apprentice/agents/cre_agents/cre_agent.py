@@ -527,28 +527,18 @@ class CREAgent(BaseDIPLAgent):
         for i, disj_grps in enumerate(mut_excl_grps):
             L = len(disj_grps)
 
-            # for j, grp in enumerate(disj_grps):
-
-
             for j, grp in enumerate(disj_grps):
-
-                # Fix 
-                for sa_a in grp:
-                    pass
-
                 # Add implicit negatives between skill_apps
                 #  that are part of disjoint groups.
-                for k, other_grp in enumerate(disj_grps):
-                    if(i == k):
-                        continue
-                    # other_grp = disj_grps[k]
+                for k in range(j+1,L):
+                    other_grp = disj_grps[k]
                     for sa_a in grp:
                         for sa_b in other_grp:
                             # print("This doesn't go with this:")
                             # print("\t", a)
                             # print("\t", b)
                             sa_a.add_implicit_neg(sa_b)
-                            # sa_b.add_implicit_neg(sa_a)
+                            sa_b.add_implicit_neg(sa_a)
 
                 # Add implicit negatives for all skill_apps preceeding
                 #  those in the current group.
