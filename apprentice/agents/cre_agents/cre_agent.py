@@ -215,6 +215,7 @@ class SkillApplication(object):
         self.args = match[1:]
         self.sai = sai
         self.uid = uid
+        self.implicit_rewards = {}
         
 
         if(not hasattr(self, "when_pred") or when_pred is not None):
@@ -305,10 +306,25 @@ class SkillApplication(object):
     def __hash__(self):
         return hash(self.uid)
 
-    def add_implicit_neg(self, other):
-        if(not hasattr(self, "implicit_negs")):
-            self.implicit_negs = set()
-        self.implicit_negs.add(other)
+    def add_implicit_reward(self, other, reward):
+        self.implicit_rewards[other] = reward
+
+    def clear_implicit_rewards(self, clear_fit=True):
+        if(clear_fit):
+            for sa, reward in self.implicit_rewards.items():
+                sa.skill.ifit(sa.state, sa, None)
+        old_implicit_rewards = self.implicit_rewards
+        self.implicit_rewards = {}
+        return old_implicit_rewards
+
+    def apply_implicit_rewards(self, old_implicit_rewards={}):
+        for sa, reward in self.implicit_rewards.items():
+            if(old_implicit_rewards.get(sa, None) == reward):
+                continue
+            # if(getattr(imp_neg_sa, "reward", 0) == 0):
+            sa.skill.ifit(sa.state, sa, reward)
+                # self.train(imp_neg_sa.state, reward=-1, skill_app=imp_neg_sa)
+
 
     def ensure_when_pred(self):
         self.when_pred = self.skill.when_lrn_mech.predict(self.state, self.match)
@@ -398,7 +414,7 @@ class CREAgent(BaseDIPLAgent):
         self.init_processesors()
         self.skills = {}
         self.skill_apps_by_uid = {}
-        self.implicit_negs = {}
+        # self.implicit_negs = {}
         self.skills_by_label = {}
         self.prev_skill_app = None
         self.episodic_memory = {}
@@ -522,38 +538,55 @@ class CREAgent(BaseDIPLAgent):
             mut_excl_grps.append(me_grp)
         return mut_excl_grps
 
-    def _add_implicit_negatives(self, mut_excl_grps):
+    def _add_implicit_rewards(self, mut_excl_grps):
+        # for i, disj_grps in enumerate(mut_excl_grps):
+        #     for j, grp in enumerate(disj_grps):
+        #         # Reset implicit rewards of this skill app on other
+        #         #  skill apps
+        #         for sa_a in grp:
+        #             sa_a.clear_implicit_rewards()
+
         apps_so_far = []
         for i, disj_grps in enumerate(mut_excl_grps):
-            L = len(disj_grps)
-
             for j, grp in enumerate(disj_grps):
+                
                 # Add implicit negatives between skill_apps
                 #  that are part of disjoint groups.
-                for k in range(j+1,L):
-                    other_grp = disj_grps[k]
+                for k, other_grp in enumerate(disj_grps):
+                    if(j == k):
+                        continue
+                    # other_grp = disj_grps[k]
                     for sa_a in grp:
                         for sa_b in other_grp:
                             # print("This doesn't go with this:")
                             # print("\t", a)
                             # print("\t", b)
-                            sa_a.add_implicit_neg(sa_b)
-                            sa_b.add_implicit_neg(sa_a)
+                            sa_a.add_implicit_reward(sa_b, -1)
 
-                # Add implicit negatives for all skill_apps preceeding
-                #  those in the current group.
+                
                 for sa_a in grp:
-                    # print(apps_so_far)
+                    # Add implicit negatives for all skill_apps preceeding
+                    #  those in the current group, and for each of the 
+                    #  preceeding skill_apps add implicit no reward on
                     for sa_b in apps_so_far:
-                        sa_a.add_implicit_neg(sa_b)
+                        sa_a.add_implicit_reward(sa_b, -1)
+                        # sa_b.add_implicit_reward(sa_a, None)                        
 
-                # Add implicit no reward for all skill_apps 
             # print("DISJ", disj_grps)
             # print("CHAIN", list(chain(disj_grps)))
             apps_so_far += chain(*disj_grps)
 
+        # for i, disj_grps in enumerate(mut_excl_grps):
+        #     for j, grp in enumerate(disj_grps):
+        #         # If a skill app already has reward == 1 then
+        #         #  apply it's implicit rewards.
+        #         for sa_a in grp:
+        #             if(getattr(sa_a, 'reward', 0) == 1):
+        #                 sa_a.apply_implicit_rewards()
 
-    def get_skill_applications(self, state, prob_uid=None):
+
+    def get_skill_applications(self, state,
+            prob_uid=None, eval_mode=False):
         skill_apps = []
 
         
@@ -583,7 +616,7 @@ class CREAgent(BaseDIPLAgent):
             #  assuming items0 and items1 are part of disjoint methods that share a macro and items2
             #  are another set of items contiguous with those.
             mut_excl_grps = self._organize_mutl_excl(in_process_grps)
-            self._add_implicit_negatives(mut_excl_grps)
+            self._add_implicit_rewards(mut_excl_grps)
         
             apps_in_process = len(in_process_grps) > 0
             
@@ -659,6 +692,11 @@ class CREAgent(BaseDIPLAgent):
                 if(val > best_val):
                     best_val = val
 
+                # When in eval mode just apply the first skill_app group
+                #   which has positive reward
+                if(eval_mode and val > 0):
+                    break
+
 
 
             # if(len(in_process_grps) >= 1):
@@ -728,10 +766,12 @@ class CREAgent(BaseDIPLAgent):
             json_friendly=False,
             is_start=None,
             prob_uid=None,
+            eval_mode=False,
             **kwargs):
 
         state = self.standardize_state(state, is_start)
-        skill_apps = self.get_skill_applications(state, prob_uid=prob_uid)
+        skill_apps = self.get_skill_applications(state, 
+            prob_uid=prob_uid, eval_mode=eval_mode)
 
         # if(self.track_rollout_preseqs):
         #     for skill_app in skill_apps:
@@ -762,10 +802,12 @@ class CREAgent(BaseDIPLAgent):
         json_friendly=False,
         is_start=None,
         prob_uid=None,
+        eval_mode=False,
         **kwargs):
 
         state = self.standardize_state(state, is_start)
-        skill_apps = self.get_skill_applications(state, prob_uid=prob_uid)
+        skill_apps = self.get_skill_applications(state,
+            prob_uid=prob_uid, eval_mode=eval_mode)
 
         # if(self.track_rollout_preseqs):
         #     for skill_app in skill_apps:
@@ -1195,12 +1237,12 @@ class CREAgent(BaseDIPLAgent):
                 skill_app.next_state = next_state
             self.process_lrn_mech.ifit(skill_app, is_start=is_start, reward=reward)
 
-        if(reward > 0 and hasattr(skill_app, "implicit_negs")):
-
-            for imp_neg_sa in skill_app.implicit_negs:
-                if(getattr(imp_neg_sa, "reward", 0) == 0):
-                    print("IMPLICIT NEGATIVE", imp_neg_sa)
-                    self.train(imp_neg_sa.state, reward=-1, skill_app=imp_neg_sa)
+        if(reward > 0):
+            skill_app.apply_implicit_rewards()
+            # for imp_neg_sa in skill_app.implicit_negs:
+                # if(getattr(imp_neg_sa, "reward", 0) == 0):
+                #     print("IMPLICIT NEGATIVE", imp_neg_sa)
+                #     self.train(imp_neg_sa.state, reward=-1, skill_app=imp_neg_sa)
 
         # self.state.clear()
 
@@ -1585,7 +1627,8 @@ class CREAgent(BaseDIPLAgent):
 
                 # print(item['state'])
                 # print("\t",item['problem'], item['hist'], prob_uid[:5])
-                agent_sais = self.act_all(state, return_kind='sai', is_start=is_start, prob_uid=prob_uid)
+                agent_sais = self.act_all(state, return_kind='sai',
+                 is_start=is_start, prob_uid=prob_uid, eval_mode=True)
 
                 # Find the difference of the sets 
                 # profile_sai_strs = set([str(s) for s in profile_sais])
