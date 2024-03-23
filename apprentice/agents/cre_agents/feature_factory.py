@@ -126,6 +126,25 @@ def get_declare_skill_cands_impl(how_part):
         _declare_skill_cands_cache[sig] = _declare_skill_cands
     return _declare_skill_cands_cache[sig]
 
+@register_feature_factory(level='when')
+def SkillValue(when_mech, state, feat_state, match):
+    skill = when_mech.skill
+    agent = when_mech.agent
+    match_ptrs = np.empty((1,len(match)),dtype=np.int64)
+    # for i, match in enumerate(matches):
+        # print("<<", [m.id for m in match])
+    for j, fact in enumerate(match):
+        match_ptrs[0][j] = fact.get_ptr()
+
+    # with PrintElapse("\t\t\tget_declare"):
+    msc = get_declare_skill_cands_impl(skill.how_part)
+    # with PrintElapse("\t\t\tcall_declare"):
+    # print(":::", skill.how_part, skill.uid)
+    msc(feat_state, agent.enumerizer, agent.flattener,
+            skill.how_part, skill.uid, match_ptrs)
+
+    return feat_state
+
 
 @register_feature_factory(level='agent')
 def SkillCandidates(agent, state, feat_state):

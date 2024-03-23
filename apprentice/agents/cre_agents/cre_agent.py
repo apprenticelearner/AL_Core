@@ -490,6 +490,79 @@ class CREAgent(BaseDIPLAgent):
 
 # ------------------------------------------------
 # : Act, Act_All
+
+    def _organize_mutl_excl(self, in_process_grps):
+        def path_prefix(path):
+            pp = []
+            for i, (macro, meth_ind, item_ind, cov) in enumerate(path.steps):
+                if(cov is not None):
+                    item_ind = 0
+                    cov = tuple(sorted([x for x in cov]))
+                pp.append((macro._id, meth_ind, item_ind, cov))
+            return tuple(pp)
+
+        mut_excl_grps = []
+        for i, grp in enumerate(in_process_grps):
+            # print("<<", i)
+            prefix_groups = {}
+            for sa in grp:
+                sa.in_process = True
+                sa.ensure_when_pred()
+                prefix = path_prefix(sa.path)
+                # print(sa, type(sa))
+                # print("\t", sa.path)
+                # print("\t", path_prefix(sa.path))
+
+                pre_grp = prefix_groups.get(prefix, [])
+                pre_grp.append(sa)
+                prefix_groups[prefix] = pre_grp
+            me_grp = []
+            for pre_grp in prefix_groups.values():
+                me_grp.append(pre_grp)
+            mut_excl_grps.append(me_grp)
+        return mut_excl_grps
+
+    def _add_implicit_negatives(self, mut_excl_grps):
+        apps_so_far = []
+        for i, disj_grps in enumerate(mut_excl_grps):
+            L = len(disj_grps)
+
+            # for j, grp in enumerate(disj_grps):
+
+
+            for j, grp in enumerate(disj_grps):
+
+                # Fix 
+                for sa_a in grp:
+                    pass
+
+                # Add implicit negatives between skill_apps
+                #  that are part of disjoint groups.
+                for k, other_grp in enumerate(disj_grps):
+                    if(i == k):
+                        continue
+                    # other_grp = disj_grps[k]
+                    for sa_a in grp:
+                        for sa_b in other_grp:
+                            # print("This doesn't go with this:")
+                            # print("\t", a)
+                            # print("\t", b)
+                            sa_a.add_implicit_neg(sa_b)
+                            # sa_b.add_implicit_neg(sa_a)
+
+                # Add implicit negatives for all skill_apps preceeding
+                #  those in the current group.
+                for sa_a in grp:
+                    # print(apps_so_far)
+                    for sa_b in apps_so_far:
+                        sa_a.add_implicit_neg(sa_b)
+
+                # Add implicit no reward for all skill_apps 
+            # print("DISJ", disj_grps)
+            # print("CHAIN", list(chain(disj_grps)))
+            apps_so_far += chain(*disj_grps)
+
+
     def get_skill_applications(self, state, prob_uid=None):
         skill_apps = []
 
@@ -498,8 +571,9 @@ class CREAgent(BaseDIPLAgent):
         
         
 
-        # If there is a process learning mechanism then use it
-        #  to determine which skill applications are in-process
+        # If there is a process learning mechanism then use it to 
+        #  generate "in-process" skill applications from its grammar.
+        apps_in_process = False 
         if(self.process_lrn_mech):
             
             preseq_tracker = getattr(self,'rollout_preseq_tracker', None)
@@ -508,94 +582,121 @@ class CREAgent(BaseDIPLAgent):
             #     print("--", preseq)
             # except RuntimeError as e:
             #     print("--FAIL")
+            # print("PROB UID", prob_uid)
             in_process_grps = self.process_lrn_mech.get_next_skill_apps(
                 state, preseq_tracker,
                 prob_uid=prob_uid, group_by_depends=True)
             filtered_skill_apps = []
 
-            for i, grp in enumerate(in_process_grps):
-                for skill_app in grp:
-                    skill_app.in_process = True
-                    skill_app.ensure_when_pred()
-                    # if(prob_uid is not None):
-                    #     skill_app.prob_uid = prob_uid
-
-            def path_prefix(path):
-                pp = []
-                for i, (macro, meth_ind, item_ind, cov) in enumerate(path.steps):
-                    if(cov is not None):
-                        item_ind = 0
-                        cov = tuple(sorted([x for x in cov]))
-                    pp.append((macro._id, meth_ind, item_ind, cov))
-                return tuple(pp)
-
-            if(len(in_process_grps) == 0):
+            # Regroup in_process_grps into mut_excl_grps of form
+            #  [ [[...skill_apps for items0],[...skill_apps for items1]] , [...skill_apps for items2] ] 
+            #  assuming items0 and items1 are part of disjoint methods that share a macro and items2
+            #  are another set of items contiguous with those.
+            mut_excl_grps = self._organize_mutl_excl(in_process_grps)
+            self._add_implicit_negatives(mut_excl_grps)
+        
+            apps_in_process = len(in_process_grps) > 0
+            
+            if(not apps_in_process):
                 print("NOT IN PROCESS")
                 # print(self.rollout_preseq_tracker.get_good_preseq(state))
-            if(len(in_process_grps) > 1):
+            # if(len(in_process_grps) > 1):
                 # print("in_process_grps", in_process_grps)
-                for i, grp in enumerate(in_process_grps):
-                    # print("<<", i)
-                    prefix_groups = {}
-                    for sa in grp:
-                        prefix = path_prefix(sa.path)
-                        # print(sa, type(sa))
-                        # print("\t", sa.path)
-                        # print("\t", path_prefix(sa.path))
 
-                        # real_sas = [_sa for _sa in skill_apps if _sa == sa]
-                        # if(len(real_sas) > 0):
-                        pre_grp = prefix_groups.get(prefix, [])
-                        # print("REAL", type(real_sas[0]), real_sas[0] is sa)
-                        pre_grp.append(sa)
-                        prefix_groups[prefix] = pre_grp
+            # Find the best skill_apps in each disjunction and record the
+            #  maximum value among them.
+            vals = [-2]*len(mut_excl_grps)
+            contig_grps = [None]*len(mut_excl_grps)
+            for i, disj_grps in enumerate(mut_excl_grps):
+                
+                # Find the best group among disj_grps on the basis of the
+                #  maximum skill_app reward (or predicted reward) in the group.
+                best_d_ind = -1
+                best_d_val = -2
+                
+                disj_apps = []
+                for j, grp in enumerate(disj_grps):
 
-                    L = len(prefix_groups)
-                    pg_items = list(prefix_groups.items())
-                    for j in range(L):
-                        pre_a, pre_grp_a = pg_items[j]
-                        for k in range(j+1,L):
-                            pre_b, pre_grp_b = pg_items[k]
-                            for a in pre_grp_a:
-                                for b in pre_grp_b:
-                                    # print("This doesn't go with this:")
-                                    # print("\t", a)
-                                    # print("\t", b)
-                                    # a_negs = self.implicit_negs.get(a,set())
-                                    # a_negs.add(b)
-                                    # self.implicit_negs[a] = a_negs
+                    # Prefer to compute val on basis of the non-optional
+                    #  members of the group
+                    # def is_optional(sa):
+                    #     macro, meth_ind, item_ind, _ = sa.path.steps[-1]
+                    #     return macro.methods[meth_ind].optional_mask[item_ind]
 
-                                    # b_negs = self.implicit_negs.get(b,set())
-                                    # b_negs.add(a)
-                                    # self.implicit_negs[b] = b_negs
+                    # if(any([not is_optional(sa) for sa in grp])):
+                    #     print("ONLY NO OPTS")
+                    #     itr_grp = [sa for sa in grp if not is_optional(sa)]
+                    # else:
+                    #     itr_grp = grp
 
-                                    a.add_implicit_neg(b)
-                                    b.add_implicit_neg(a)
-                                    pass
-
-            if(len(in_process_grps) >= 1):
-                best_grp_pred = -2
-                best_grp_ind = -1
-                for i, in_process_apps in enumerate(in_process_grps):
-                    if(len(in_process_apps) == 0):
-                        continue
-                    total = 0
-                    for skill_app in in_process_apps:
+                    max_val = -1
+                    for skill_app in grp:
                         val = getattr(skill_app, 'reward', None)
                         if(val is None):
                             val = getattr(skill_app, 'when_pred', None)
-                        total += val
-                        # if(reward != -1):
-                        #     filtered_skill_apps.append(skill_app)
-                    avg = total / len(in_process_apps)
-                    if(avg > best_grp_pred):
-                        best_grp_pred = avg
-                        best_grp_ind = i
+                        else:
+                            # Prefer verified skill_apps over predictions
+                            val *= 2 
+                        max_val = max(val, max_val)
 
-                # if(best_grp_pred > 0):
-                # print("BEST GRP IND", best_grp_ind, "/", len(in_process_grps), best_grp_pred)
-                if(best_grp_ind >= 0):
-                    skill_apps = list(in_process_grps[best_grp_ind])
+                    # If max_val is not that different than the best one
+                    #  then keep skill_apps from both disjoint groups so
+                    #  that the user can resolve the ambiguity. 
+                    diff = max_val-best_d_val
+                    if(abs(diff) < .25):
+                        disj_apps += grp
+                    elif(diff > 0):
+                        disj_apps = [*grp]
+
+                    if(max_val > best_d_val):
+                        best_d_val = max_val
+                        best_d_ind = j
+                vals[i] = best_d_val
+                contig_grps[i] = disj_apps
+
+            # Determine the subset of skill_apps which should be presented
+            #  present just the highest prediction group unless there is
+            #  some ambiguity (i.e. delta_val < .25) as to which group is best. 
+            best_val = -2
+            skill_apps = []
+            for i, val in enumerate(vals):
+                diff = val-best_val
+                if(abs(val) < .25):
+                    skill_apps += contig_grps[i]
+                elif(diff > 0):
+                    skill_apps = [*contig_grps[i]]
+
+                if(val > best_val):
+                    best_val = val
+
+
+
+            # if(len(in_process_grps) >= 1):
+            #     best_grp_pred = -2
+            #     best_grp_ind = -1
+            #     for i, in_process_apps in enumerate(in_process_grps):
+            #         if(len(in_process_apps) == 0):
+            #             continue
+            #         total = 0
+            #         for skill_app in in_process_apps:
+            #             val = getattr(skill_app, 'reward', None)
+            #             if(val is None):
+            #                 val = getattr(skill_app, 'when_pred', None)
+            #             total += val
+            #             # if(reward != -1):
+            #             #     filtered_skill_apps.append(skill_app)
+            #         avg = total / len(in_process_apps)
+            #         if(avg > best_grp_pred):
+            #             best_grp_pred = avg
+            #             best_grp_ind = i
+
+            #     # if(best_grp_pred > 0):
+            #     # print("BEST GRP IND", best_grp_ind, "/", len(in_process_grps), best_grp_pred)
+            #     if(best_grp_ind >= 0):
+            #         skill_apps = list(in_process_grps[best_grp_ind])
+
+
+
             # if(len(filtered_skill_apps) > 0):
             #     # if(len(in_process_grps) > 1):
             #         # print("<<", filtered_skill_apps)
@@ -625,8 +726,8 @@ class CREAgent(BaseDIPLAgent):
         #     skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
         #     when_pred = 1 if when_pred is None else when_pred
         #     print(f"{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
-
-        skill_apps = self.action_filter(state, skill_apps)
+        # if(not apps_in_process):
+        skill_apps = self.action_filter(state, skill_apps, **self.action_filter_args)
 
         # print("N SKILL APPS", len(skill_apps))
         # print('-^-')
@@ -1493,6 +1594,7 @@ class CREAgent(BaseDIPLAgent):
                 
 
                 # print(item['state'])
+                # print("\t",item['problem'], item['hist'], prob_uid[:5])
                 agent_sais = self.act_all(state, return_kind='sai', is_start=is_start, prob_uid=prob_uid)
 
                 # Find the difference of the sets 
@@ -1518,7 +1620,7 @@ class CREAgent(BaseDIPLAgent):
                 diffs.append({"problem": item['problem'], 'hist' : item['hist'], "-": list(missing),"+": list(extra), "=" : list(correct)})
                 # if(len(item['hist']) == 0):
                 uid = self.standardize_state(state).uid
-                # print("\t",item['problem'], item['hist'], n_diff)
+                
                 # print("OUTS", self.rollout_preseq_tracker.states[uid].get('outs',[]))
                 # if(n_diff == 0):
                 #     print("INS", self.rollout_preseq_tracker.states[uid].get('ins',[]))

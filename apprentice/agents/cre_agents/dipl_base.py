@@ -114,6 +114,8 @@ class BaseDIPLAgent(object):
         self.action_filter = config_get("action_filter",
             default='thresholds', registry=registries['skill_app_filter'])        
 
+        self.action_filter_args = config_get("action_filter_args", {})
+
         self.constraints = config_get(['constraints','environment', 'env'], default='html',
             registry=registries.get('constraint',[]))
 
