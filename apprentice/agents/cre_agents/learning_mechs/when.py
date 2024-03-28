@@ -22,7 +22,7 @@ class BaseWhen(metaclass=ABCMeta):
 
     def sanity_check_ifit(self, state, skill_app, reward):
         # SANITY CHECK: Classifier Inconsistencies 
-        if(self.check_sanity):
+        if(self.check_sanity and reward is not None):
             prediction = self.predict(state, skill_app.match)
             if(reward != prediction):
                 print(self)
@@ -99,7 +99,7 @@ class RefittableMixin():
     def insert_transformed(self, transformed_state, skill_app, reward, index):
         raise NotImplemented()
 
-    def rebase_examples(self):
+    def remove_index(self):
         raise NotImplemented()        
 
     def _assert_skill_app_from_state(self, state, skill_app):
@@ -119,10 +119,11 @@ class RefittableMixin():
         if(index != -1): 
             print("REPLACING FEEDBACK", skill_app, old_reward, "->", reward, "@ index", index)
 
+        new_index = index
         if(reward is None and index != -1):
             self.remove_example(state, skill_app)
-            return None
-        else:
+            return -1
+        elif(reward is not None):
             new_index = len(self.examples) if index == -1 else index
 
             # NOTE: temping to only re-insert on reward changes, but meta-features can make it helpful
@@ -141,8 +142,8 @@ class RefittableMixin():
             Shifts the set of indicies and calls rebase_examples() from the
             child class.
         '''
-        print("REMOVE EXAMPLE")
-        raise ValueError("REMOVE EXAMPLE")
+        # print("REMOVE EXAMPLE")
+        # raise ValueError("REMOVE EXAMPLE")
         # self._assert_skill_app_from_state(state, skill_app)
         did_change = False
         index, old_reward = self.examples.get(skill_app,(-1,0))
@@ -152,7 +153,8 @@ class RefittableMixin():
                     self.examples[skill_app] = (ind-1, reward)
             del self.examples[skill_app]
             did_change = True
-            self.rebase_examples()
+            self.remove_index(index)
+            # self.rebase_examples()
 
         return index, did_change
 
@@ -307,6 +309,11 @@ class VectorTransformMixin(RefittableMixin):
         self.Y[index] = reward
         # print(self.X_nom,  self.Y)
 
+    def remove_index(self, index):
+        self.X_nom = np.concatenate([self.X_nom[:index], self.X_nom[index+1:]])
+        self.Y = np.concatenate([self.Y[:index], self.Y[index+1:]])
+
+
 # --------------------------------------------
 # : SklearnDecisionTree
 
@@ -383,8 +390,9 @@ class STAND(BaseWhen, VectorTransformMixin):
         self.classifier = STANDClassifier(inv_mapper=self.inv_mapper, **kwargs)
 
     def ifit(self, state, skill_app, reward):
-        self.add_example(state, skill_app, reward) # Insert into X_nom, Y
-        ia = self.classifier.instance_ambiguity(self.X_nom[-1], None)
+        index = self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+        if(index != -1):
+            ia = self.classifier.instance_ambiguity(self.X_nom[index], None)
         # print("WILL LEARN", ia > 0, ia)
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
         # print(self.classifier)
@@ -393,10 +401,14 @@ class STAND(BaseWhen, VectorTransformMixin):
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
         X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
+        # print(X_nom_subset)
+        if(len(self.X_nom) == 0):
+            return 1
         # prediction = self.classifier.predict(X_nom_subset, None)[0]
         ia = self.classifier.instance_ambiguity(X_nom_subset[-1], None)
         # print("IA", ia)
-
+        
+                
         probs = self.classifier.predict_prob(X_nom_subset, None)[0]
 
         for a in probs:

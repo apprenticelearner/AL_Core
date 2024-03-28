@@ -10,6 +10,7 @@ from cre.transform import MemSetBuilder, Flattener, FeatureApplier, RelativeEnco
 from cre.utils import PrintElapse
 from cre import TF
 from cre.gval import new_gval
+import itertools
 from itertools import chain
 from copy import copy
 
@@ -18,6 +19,7 @@ import gc
 import hashlib
 import base64
 from datetime import datetime
+
 
 def used_bytes(garbage_collect=True):
     # if(garbage_collect): gc.collect()
@@ -144,6 +146,11 @@ class Skill(object):
 
 
     def ifit(self, state, skill_app, reward):
+        if(reward is None and skill_app.uid in skill_app.skill.skill_apps):
+            del skill_app.skill.skill_apps[skill_app.uid]
+            if(len(skill_app.skill.skill_apps) == 0):
+                self.agent.remove_skill(skill_app.skill)
+            return
         skill_app.skill.skill_apps[skill_app.uid] = skill_app
 
         self.where_lrn_mech.ifit(state, skill_app.match, reward)
@@ -227,15 +234,8 @@ class SkillApplication(object):
             self.state = state
             self.next_state = next_state
 
-        if(agent):
-            agent.skill_apps_by_uid[uid] = self        
-            if(hasattr(agent, 'rollout_preseq_tracker')):
-                if(next_state is None):
-                    self.next_state = agent.predict_next_state(state, sai)
-                    # print("NEXT STATE", self.sai[0], self.sai[2]['value'], self.next_state.get('__uid__')[:5])
-                    # print(repr(self.next_state.get("working_memory")))
-                # print("THIS IS START", state.is_start, getattr(state,'is_start', None))
-                agent.rollout_preseq_tracker.add_skill_app(self, getattr(state,'is_start', None))#, do_update=False)
+        # if(track and agent):
+            
 
         return self
 
@@ -243,12 +243,37 @@ class SkillApplication(object):
                             how_help, explanation_selected, is_demo=False, **kwargs):
         self.train_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.reward = reward
+        self.explicit_reward = reward
         self.arg_foci = arg_foci
         self.skill_label = skill_label
         self.skill_uid = skill_uid
         self.how_help = how_help
         self.explanation_selected = explanation_selected
         self.is_demo = is_demo
+
+    def add_tracking(self):
+        agent = self.skill.agent
+        if(agent and self.uid not in agent.skill_apps_by_uid):
+            agent.skill_apps_by_uid[self.uid] = self     
+            by_s_uid = agent.skill_apps_by_state_uid.get(self.state_uid,set())   
+            by_s_uid.add(self)
+            agent.skill_apps_by_state_uid[self.state_uid] = by_s_uid        
+            if(hasattr(agent, 'rollout_preseq_tracker')):
+                # print(self)
+                if(self.next_state is None):
+                    # If cannot predict next state or skill_app doesn't change the state
+                    #  then don't keep
+                    try:
+                        self.next_state = agent.predict_next_state(self.state, self.sai)
+                    except:
+                        print("DID FAIL", self)
+                        return False
+
+                    # print("NEXT STATE", self.sai[0], self.sai[2]['value'], self.next_state.get('__uid__')[:5])
+                    # print(repr(self.next_state.get("working_memory")))
+                # print("THIS IS START", state.is_start, getattr(state,'is_start', None))
+                agent.rollout_preseq_tracker.add_skill_app(self, getattr(self.state,'is_start', None), do_update=False)
+        return True
 
     def get_info(self):
         sai = self.sai
@@ -266,6 +291,7 @@ class SkillApplication(object):
         if(hasattr(self, 'train_time')):
             train_data = {}
             train_data['train_time'] = getattr(self, 'train_time', None)
+            train_data['explicit_reward'] = getattr(self, 'explicit_reward', None)
             train_data['reward'] = getattr(self, 'reward', None)
             train_data['arg_foci'] = getattr(self, 'arg_foci', None)
             train_data['skill_label'] = getattr(self, 'skill_label', None)
@@ -282,7 +308,7 @@ class SkillApplication(object):
                 # if(len(arg_foci) > 0 and isinstance(arg_foci[0], list)):
                 #     arg_foci = arg_foci[0]
                 train_data['arg_foci'] = [m.id for m in train_data['arg_foci']]
-            if('reward' in train_data):
+            if('explicit_reward' in train_data):
                 train_data['confirmed'] = True
             info.update(train_data)
 
@@ -312,6 +338,8 @@ class SkillApplication(object):
     def clear_implicit_rewards(self, clear_fit=True):
         if(clear_fit):
             for sa, reward in self.implicit_rewards.items():
+                if(hasattr(sa, 'explicit_reward')):
+                    continue
                 sa.skill.ifit(sa.state, sa, None)
         old_implicit_rewards = self.implicit_rewards
         self.implicit_rewards = {}
@@ -319,6 +347,9 @@ class SkillApplication(object):
 
     def apply_implicit_rewards(self, old_implicit_rewards={}):
         for sa, reward in self.implicit_rewards.items():
+            # Don't override explicit rewards
+            if(hasattr(sa, 'explicit_reward')):
+                continue
             if(old_implicit_rewards.get(sa, None) == reward):
                 continue
             # if(getattr(imp_neg_sa, "reward", 0) == 0):
@@ -414,6 +445,7 @@ class CREAgent(BaseDIPLAgent):
         self.init_processesors()
         self.skills = {}
         self.skill_apps_by_uid = {}
+        self.skill_apps_by_state_uid = {}
         # self.implicit_negs = {}
         self.skills_by_label = {}
         self.prev_skill_app = None
@@ -522,6 +554,11 @@ class CREAgent(BaseDIPLAgent):
             # print("<<", i)
             prefix_groups = {}
             for sa in grp:
+
+                # Weh
+                if(not sa.skill.where_lrn_mech.check_match(sa.state, sa.match)):
+                    continue
+
                 sa.in_process = True
                 sa.ensure_when_pred()
                 prefix = path_prefix(sa.path)
@@ -538,7 +575,7 @@ class CREAgent(BaseDIPLAgent):
             mut_excl_grps.append(me_grp)
         return mut_excl_grps
 
-    def _add_implicit_rewards(self, mut_excl_grps):
+    def _add_process_implicit_rewards(self, mut_excl_grps):
         # for i, disj_grps in enumerate(mut_excl_grps):
         #     for j, grp in enumerate(disj_grps):
         #         # Reset implicit rewards of this skill app on other
@@ -570,7 +607,7 @@ class CREAgent(BaseDIPLAgent):
                     #  preceeding skill_apps add implicit no reward on
                     for sa_b in apps_so_far:
                         sa_a.add_implicit_reward(sa_b, -1)
-                        # sa_b.add_implicit_reward(sa_a, None)                        
+                        sa_b.add_implicit_reward(sa_a, None)                        
 
             # print("DISJ", disj_grps)
             # print("CHAIN", list(chain(disj_grps)))
@@ -587,7 +624,7 @@ class CREAgent(BaseDIPLAgent):
 
     def get_skill_applications(self, state,
             prob_uid=None, eval_mode=False):
-        skill_apps = []
+        skill_apps = set()
 
         
         # print("\nGET SKILL APPS", state.get('__uid__')[:5])
@@ -616,12 +653,13 @@ class CREAgent(BaseDIPLAgent):
             #  assuming items0 and items1 are part of disjoint methods that share a macro and items2
             #  are another set of items contiguous with those.
             mut_excl_grps = self._organize_mutl_excl(in_process_grps)
-            self._add_implicit_rewards(mut_excl_grps)
+            if("process" in self.implicit_reward_kinds):
+                self._add_process_implicit_rewards(mut_excl_grps)
         
             apps_in_process = len(in_process_grps) > 0
             
             if(not apps_in_process):
-                print("NOT IN PROCESS")
+                print("NOT IN PROCESS", state.get("__uid__")[:5], f"PROB={prob_uid[:5] if prob_uid else prob_uid}")
                 # print(self.rollout_preseq_tracker.get_good_preseq(state))
             # if(len(in_process_grps) > 1):
                 # print("in_process_grps", in_process_grps)
@@ -681,13 +719,13 @@ class CREAgent(BaseDIPLAgent):
             #  present just the highest prediction group unless there is
             #  some ambiguity (i.e. delta_val < .25) as to which group is best. 
             best_val = -2
-            skill_apps = []
+            skill_apps = set()
             for i, val in enumerate(vals):
                 diff = val-best_val
                 if(abs(val) < .25):
-                    skill_apps += contig_grps[i]
+                    skill_apps = skill_apps.intersection(contig_grps[i])
                 elif(diff > 0):
-                    skill_apps = [*contig_grps[i]]
+                    skill_apps = set([*contig_grps[i]])
 
                 if(val > best_val):
                     best_val = val
@@ -742,20 +780,37 @@ class CREAgent(BaseDIPLAgent):
             # print("BACKUP")
             for skill in self.skills.values():
                 for skill_app in skill.get_applications(state):
-                    skill_apps.append(skill_app)
+                    skill_apps.add(skill_app)
                     if(prob_uid is not None):
                         skill_app.prob_uid = prob_uid
-
-        # print("N APPS", len(skill_apps))
-
-        skill_apps = self.which_cls.sort(state, skill_apps)
+        
         # print('---')
         # for skill_app in skill_apps:
         #     skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
         #     when_pred = 1 if when_pred is None else when_pred
         #     print(f"{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
         # if(not apps_in_process):
-        skill_apps = self.action_filter(state, skill_apps, **self.action_filter_args)
+        skill_apps = set(self.action_filter(state, skill_apps, **self.action_filter_args))
+
+        s_uid = state.get('__uid__')
+        known_sas = self.skill_apps_by_state_uid.get(s_uid, [])
+        for skill_app in known_sas:
+            rew = getattr(skill_app, 'reward', 0)
+            if(rew is None):
+                if(skill_app in skill_apps):
+                    skill_apps.remove(skill_app)    
+                continue
+            # Always show skill apps which have positive reward
+            if(rew > 0):
+                skill_apps.add(skill_app)
+            # Don't keep skill apps which have negative reward
+            elif(rew < 0 and
+                 skill_app in skill_apps):
+                skill_apps.remove(skill_app)
+
+        skill_apps = self.which_cls.sort(state, skill_apps)
+
+        skill_apps = [sa for sa in skill_apps if sa.add_tracking()]
 
         # print("N SKILL APPS", len(skill_apps))
         # print('-^-')
@@ -1052,6 +1107,9 @@ class CREAgent(BaseDIPLAgent):
             next_state = self.standardize_state(next_wm)
             next_state.is_done = False
         
+        if(state.get('__uid__') == next_state.get('__uid__')):
+            print(sai)
+            raise ValueError("BAD ACTION")
         # print("PNS", state.get('__uid__')[:5], next_state.get('__uid__')[:5])
         if(json_friendly):
             state_uid = state.get('__uid__')
@@ -1155,7 +1213,7 @@ class CREAgent(BaseDIPLAgent):
         elif(self.prev_skill_app is not None and self.prev_skill_app.sai == sai):
 
             skill_app = self.prev_skill_app
-        return skill_app
+        return skill_app    
 
     def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
               skill_app=None, uid=None, 
@@ -1223,6 +1281,8 @@ class CREAgent(BaseDIPLAgent):
                 skill_app = self.induce_skill(state, sai, func_explanations, skill_label,
                     explanation_selected=explanation_selected)
 
+        skill_app.add_tracking()
+        print("TRAIN", skill_app, reward)
         # print("ANNOTATE ARG FOCI:", arg_foci)
         skill_app.annotate_train_data(reward, arg_foci, skill_label, skill_uid, 
             how_help, explanation_selected, **kwargs)
@@ -1235,19 +1295,57 @@ class CREAgent(BaseDIPLAgent):
                 wm = state.get("working_memory")
                 next_state = self.predict_next_state(wm, skill_app.sai)
                 skill_app.next_state = next_state
+            # print("IS START", is_start)
             self.process_lrn_mech.ifit(skill_app, is_start=is_start, reward=reward)
 
         if(reward > 0):
             skill_app.apply_implicit_rewards()
-            # for imp_neg_sa in skill_app.implicit_negs:
-                # if(getattr(imp_neg_sa, "reward", 0) == 0):
-                #     print("IMPLICIT NEGATIVE", imp_neg_sa)
-                #     self.train(imp_neg_sa.state, reward=-1, skill_app=imp_neg_sa)
-
-        # self.state.clear()
+        elif(reward is None or reward <= 0):
+            skill_app.clear_implicit_rewards()
 
         # Return the skill_app that was updated
         return skill_app
+
+    def _add_unorderd_group_implicit_rewards(self, state, skill_apps, **kwargs):
+        print("START UNORDER GRP")
+        pos_skill_apps = []
+        for sa in skill_apps:
+            if(getattr(sa,"reward", 0) > 0):
+                pos_skill_apps.append(sa)
+
+        pos_skill_apps = tuple(pos_skill_apps)
+        start_state = state
+        new_skill_apps = set()
+        print("POS", pos_skill_apps)
+
+        if(len(pos_skill_apps) <= 1):
+            return 
+
+        prob_uid = pos_skill_apps[0].prob_uid
+        print("PROB UID", prob_uid)
+        for order in itertools.permutations(pos_skill_apps):
+            # print(order)
+            state = start_state
+            for i, sa in enumerate(order):
+                if(i == 0):
+                    next_state = self.predict_next_state(state, sa.sai) 
+                else:
+                    wm = state.get("working_memory")
+                    match = [wm.get_fact(id=m.id) for m in sa.match]
+                    # print(match)
+                    sa = SkillApplication(sa.skill, match, state, prob_uid=prob_uid)
+                    next_state = self.predict_next_state(state, sa.sai) 
+                    if(sa not in new_skill_apps):
+                        new_skill_apps.add(sa)
+                state = next_state
+        kwargs = {**kwargs}
+        if('is_start' in kwargs):
+            del kwargs['is_start']
+        for sa in new_skill_apps:
+            print("\t", sa)
+            self.train(state, skill_app=sa, reward=1)
+        # print(new_skill_apps)
+        print("-----------")
 
     def train_all(self, training_set, states={}, **kwargs):
         skill_apps = []
@@ -1263,6 +1361,17 @@ class CREAgent(BaseDIPLAgent):
 
             skill_app = self.train(state, **example, **kwargs)
             skill_apps.append(skill_app)
+
+        if("unordered_groups" in self.implicit_reward_kinds):
+            apps_by_state = {}            
+            for sa in skill_apps:
+                uid = sa.state.get("__uid__")
+                _, arr = apps_by_state.get(uid, (sa.state,[]))
+                arr.append(sa)
+                apps_by_state[uid] = (sa.state, arr)
+            for uid, (state,apps) in apps_by_state.items():
+                self._add_unorderd_group_implicit_rewards(state, skill_apps, **kwargs)
+
         return skill_apps
 
 # ----------------------------------------------
@@ -1472,6 +1581,8 @@ class CREAgent(BaseDIPLAgent):
             src_wm = state.get("working_memory")
             # print("---source---", uid)
             # print(repr(src_wm))
+            if(getattr(state,"is_done", False) == True):
+                continue 
             skill_apps = self.act_all(state, return_kind='skill_app', prob_uid=prob_uid)
 
             for skill_app in skill_apps:
@@ -1484,8 +1595,11 @@ class CREAgent(BaseDIPLAgent):
                 # print("---skill_app :", skill_app)
                 # print("---action_type :", at)
 
-                next_state = self.predict_next_state(src_wm, skill_app.sai)
-                skill_app.next_state = next_state
+                if(hasattr(skill_app, 'next_state')):
+                    next_state = skill_app.next_state
+                else:
+                    next_state = self.predict_next_state(src_wm, skill_app.sai)
+                    skill_app.next_state = next_state
 
                     
                 # next_wm = at.predict_state_change(src_wm, skill_app.sai)
@@ -1510,24 +1624,26 @@ class CREAgent(BaseDIPLAgent):
             ns_obj = states[action['next_state_uid']];
             ns_obj['in_skill_app_uids'].append(uid)
 
+        if(hasattr(self, "process_lrn_mech")):
+            print()
+            print(self.process_lrn_mech.grammar)
+        # if(self.track_rollout_preseqs and is_start):
+        #     start_sa_uids = states[curr_state_uid]['out_skill_app_uids']
+        #     if(len(start_sa_uids) > 0):
+        #         print(start_sa_uids)
+        #         start_sa = actions[start_sa_uids[0]]['skill_app']
+        #         prob_uid = self.rollout_preseq_tracker.resolve_prob_uid(start_sa, is_start=is_start)
+        #         # self.rollout_preseq_tracker.update_subseqs(prob_uid)
 
-        if(self.track_rollout_preseqs and is_start):
-            start_sa_uids = states[curr_state_uid]['out_skill_app_uids']
-            if(len(start_sa_uids) > 0):
-                print(start_sa_uids)
-                start_sa = actions[start_sa_uids[0]]['skill_app']
-                prob_uid = self.rollout_preseq_tracker.resolve_prob_uid(start_sa, is_start=is_start)
-                # self.rollout_preseq_tracker.update_subseqs(prob_uid)
-
-                print(">----------------<")
-                print(self.process_lrn_mech.grammar)
-                print()
-                last_state_obj = list(states.values())[-1]
-                last_state = last_state_obj['state']
-                last_state_uid = last_state_obj['uid']
-                print(prob_uid[:5], last_state_uid[:5])
-                print(self.rollout_preseq_tracker.get_preseqs(last_state, prob_uid))
-                print(">----------------<")
+        #         print(">----------------<")
+        #         print(self.process_lrn_mech.grammar)
+        #         print()
+        #         last_state_obj = list(states.values())[-1]
+        #         last_state = last_state_obj['state']
+        #         last_state_uid = last_state_obj['uid']
+        #         print(prob_uid[:5], last_state_uid[:5])
+        #         print(self.rollout_preseq_tracker.get_preseqs(last_state, prob_uid))
+        #         print(">----------------<")
 
 
         if(ret_avg_certainty):
@@ -1642,7 +1758,7 @@ class CREAgent(BaseDIPLAgent):
 
                 if(n_diff > 0):
                     print("\t",item['problem'], item['hist'], n_diff)
-                    apps = self.act_all(state, return_kind='skill_app', is_start=is_start, prob_uid=prob_uid)
+                    apps = self.act_all(state, return_kind='skill_app', is_start=is_start, prob_uid=prob_uid, eval_mode=True)
                     for app in apps:
                         when_pred = getattr(app, 'when_pred', None)
                         print(f"{app.when_pred:.2f}" if when_pred is not None else None, app)
@@ -1723,6 +1839,21 @@ class CREAgent(BaseDIPLAgent):
         if(return_diffs):
             out['diffs'] = diffs
         return out
+
+    def remove_skill(self, skill_or_uid):
+        uid = None
+        if(isinstance(skill_or_uid, str)):
+            if(skill_or_uid in self.skills):
+                uid = self.skills[skill_or_uid]
+        else:
+            uid = skill_or_uid.uid
+
+        if(uid in self.skills):
+            print("REMOVE SKILL", uid)
+            del self.skills[uid]
+        else:
+            print("NO SUCH SKILL", uid)
+
 
 
 

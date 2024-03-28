@@ -84,6 +84,7 @@ class BaseDIPLAgent(object):
          default=False)
         self.suggest_uncert_neg = config_get(['suggest_uncert_neg', 'suggest_uncertain_negatives'], default=False)
         self.track_rollout_preseqs = config_get(['track_rollout_preseqs'], default=False)
+        self.implicit_reward_kinds = set(config_get(['implicit_reward_kinds'], default=[]))
 
         # Reroute config options that user might define at the agent level
         #  but belong at the learning mechanism level.

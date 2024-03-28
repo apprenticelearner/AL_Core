@@ -78,8 +78,8 @@ class BaseCREWhere(BaseWhere):
         
         # Inject sanity checks after ifit
         ifit = cls.ifit
-        def ifit_w_sanity_check(self, state, match, reward=1, **kwargs):
-            ifit(self, state, match, reward, **kwargs)
+        def ifit_w_sanity_check(self, state, match, reward=1, *args, **kwargs):
+            ifit(self, state, match, reward, *args, **kwargs)
             self.sanity_check_ifit(state, match)
             self.fit_count += 1
         setattr(cls, 'ifit', ifit_w_sanity_check)
@@ -229,6 +229,14 @@ class BaseCREWhere(BaseWhere):
             return new_mech, remap_info
         return new_mech
 
+    def remove_match(self, match):
+        match_ids = tuple([getattr(m, 'id', None) for m in match])
+
+        if(match_ids in self.id_sets):
+            del self.id_sets[match_ids]
+            for args in self.id_sets.values():
+                self.ifit(*args)
+
 
 
 
@@ -263,6 +271,9 @@ class AntiUnify(BaseCREWhere):
         _vars = self._ensure_vars(match, var_names=var_names)
         if(len(_vars) == 0):
             return 
+
+        match_ids = tuple([getattr(m, 'id', None) for m in match])
+        self.id_sets[match_ids] = (state, match, reward, var_names)
 
         # print(match, _vars)
         conds = Conditions.from_facts(match, _vars, 
@@ -369,6 +380,7 @@ class AntiUnify(BaseCREWhere):
 class Generalize(BaseCREWhere):
     def __init__(self, skill):
         super().__init__(skill)
+        self.id_sets = {}
 
     # def will_learn(self, state, match, reward=1):
     #     ''' Returns true if the state match pair will  
@@ -378,7 +390,10 @@ class Generalize(BaseCREWhere):
 
     def ifit(self, state, match, reward=1, var_names=None):
         # Only fit on positive reward
-        if(reward <= 0): return
+        if(reward is None or reward <= 0):
+            self.remove_match(match)
+            return
+
             
         wm = state.get("working_memory")
 
@@ -394,6 +409,9 @@ class Generalize(BaseCREWhere):
         _vars = self._ensure_vars(match, var_names=var_names)
         if(len(_vars) == 0):
             return 
+
+        match_ids = tuple([getattr(m, 'id', None) for m in match])
+        self.id_sets[match_ids] = (state, match, reward, var_names)
 
         if(self.conds is None):
             conds = Conditions.from_facts(match, _vars, 
@@ -512,7 +530,7 @@ class Generalize(BaseCREWhere):
 class MostSpecific(BaseCREWhere):
     def __init__(self, agent, **kwargs):
         super().__init__(agent, **kwargs)
-        self.id_sets = set()
+        self.id_sets = {}
 
     def will_learn(self, state, match, reward=1):
         if(reward <= 0): return False
@@ -521,14 +539,15 @@ class MostSpecific(BaseCREWhere):
 
     def ifit(self, state, match, reward=1):
         # Only fit on positive reward
-        if(reward <= 0): return
-
-        self._ensure_vars(match)
         match_ids = tuple([x.id for x in match])
+        if(reward is None or reward <= 0):
+            if(match_ids in self.id_sets):
+                del self.id_sets[match_ids]    
 
         if(match_ids not in self.id_sets):
+            self._ensure_vars(match)
             print(">>", self.skill, match_ids)
-            self.id_sets.add(match_ids)
+            self.id_sets[match_ids] = (state, match, reward)
             
     def score_match(self, state, match):
         return float(self.check_match(state, match))
@@ -555,15 +574,14 @@ class MostSpecific(BaseCREWhere):
         return matches
 
     def check_match(self, state, match):
+        match_ids = [x.id for x in match]
+        okay = False
         for id_set in self.id_sets:
             # print([(x.id, _id) for x,_id in zip(match,id_set)], all([x.id == _id for x,_id in zip(match,id_set)]))
-            if(all([x.id == _id for x,_id in zip(match,id_set)])):
-                wm = state.get('working_memory')
-                # print("Base Conds", self._base_conds)
-                # try:
-                #     print("::", match[0].locked, match[1].value, match[2].value, match[3].value, self._base_conds.check_match(match, wm))
-                # except Exception:
-                #     pass
-                if(self._base_conds.check_match(match, wm)):
-                    return True
+            if(all([id0 == id1 for id0, id1 in zip(match_ids,id_set)])):
+                okay = True
+
+        wm = state.get('working_memory')
+        if(okay and self._base_conds.check_match(match, wm)):
+            return True
         return False

@@ -25,7 +25,7 @@ from cre.utils import _struct_tuple_from_pointer_arr, _func_from_address, PrintE
 from cre.obj import CREObjType
 from cre.func import CREFuncType
 from cre.utils import cast, decode_idrec
-from cre.memset import MemSetType
+from cre.memset import MemSet, MemSetType
 from numba.core.typing.typeof import typeof
 from cre.transform.enumerizer import EnumerizerType
 from cre.transform.flattener import GenericFlattenerType
@@ -145,6 +145,10 @@ def SkillValue(when_mech, state, feat_state, match):
 
     return feat_state
 
+
+@register_feature_factory(level='agent')
+def RemoveAll(agent, state, feat_state):
+    return MemSet()
 
 @register_feature_factory(level='agent')
 def SkillCandidates(agent, state, feat_state):

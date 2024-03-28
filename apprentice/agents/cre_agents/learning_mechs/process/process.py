@@ -6,6 +6,7 @@ from numba import njit
 from cre.utils import PrintElapse
 from ..registers import register_process
 from apprentice.agents.cre_agents.cre_agent import SkillApplication
+from copy import copy
 
 class DummySkill:
     def __init__(self,):
@@ -323,7 +324,14 @@ def _ensure_convert_skill_app(sa):
     if(type(sa) is SkillApplication):
         # TODO: (FIX HACKYNESS) Find way to merge cre_agent.SkillApplication
         #   with SkillApp and Skill with PrimSkill
-        prim_skill = PrimSkill(str(sa.skill.how_part), sa.skill)
+
+        
+        try:
+            conv_funcs = sa.skill.agent.conversions
+            how_str = sa.skill.how_part.minimal_str(ignore_funcs=conv_funcs)
+        except:
+            how_str = str(sa.skill.how_part)
+        prim_skill = PrimSkill(how_str, sa.skill)
 
         sa = SkillApp(prim_skill, sa.match, sa.state, 
                       getattr(sa, 'next_state', None),
@@ -460,6 +468,8 @@ class PreseqTracker:
             for sa in next_sas:
                 next_state = sa.next_state
                 s_uid, n_uid = sa.state.get('__uid__'), next_state.get('__uid__')
+                # if(s_uid == n_uid):
+                #     raise RuntimeError()
 
                 if(s_uid in pre_seqs):
                     if(n_uid not in pre_seqs):
@@ -559,7 +569,7 @@ class HTNLearner:
         if(prob_uid is None):
             prob_uid = pst.resolve_prob_uid(sa, is_start)
 
-        if(reward > 0):
+        if(reward is not None and reward > 0):
             pst.add_skill_app(sa, is_start)
             done_uid = pst.done_uids.get(prob_uid, None)
         else:
@@ -573,13 +583,13 @@ class HTNLearner:
         # print(pst.done_uids)
         if(done_uid is not None):
             # print("NOT NONE", prob_uid)
-            if(reward > 0):
+            if(reward is not None and reward > 0):
                 for seq in pst.pre_seqs[prob_uid][done_uid]:
                     seq = (*seq,)
                     if(seq not in self.sequences):
                         self.ifit_seq(seq)
 
-            elif(reward <= 0 and old_seqs):
+            elif((reward is None or reward <= 0) and old_seqs):
                 curr_seqs = pst.pre_seqs.get(prob_uid,{}).get(done_uid,set())
                 removed_seqs = old_seqs.difference(curr_seqs)
                 old_seqs = self.sequences.copy()
@@ -1592,26 +1602,35 @@ def parse_state_from_tracker(grammar, state, preseq_tracker, prob_uid=None):
 
     
     if(target_uid == prob_uid):
-    #     preseq_tracker.prim_path_cache[target_uid] = prim_paths        
+        preseq_tracker.prim_path_cache[target_uid] = prim_paths        
         return True, prim_paths
-    # elif(target_uid not in preseq_tracker.states):
-    #     # print("FAIL PARSE")
-    #     return False, []
-    # else:
+    elif(target_uid not in preseq_tracker.states):
+        # print("FAIL PARSE")
+        return False, []
+    
     begin_uid = prob_uid 
     begin_s_info = preseq_tracker.states[prob_uid]
 
-        # tar_info = preseq_tracker.states[target_uid]
-        # targ_ins = tar_info.get('ins', [])    
-        # if(len(targ_ins) > 0):
-        #     for sa in targ_ins:
-        #         s_uid = sa.state.get("__uid__")
-        #         if(s_uid in preseq_tracker.prim_path_cache):
-        #             begin_uid = s_uid
-        #             begin_s_info = preseq_tracker.states[begin_uid]
-        #             prim_paths = preseq_tracker.prim_path_cache[begin_uid]
-        #             print("BEGIN ", s_uid[:5])
-        #             break
+    tar_info = preseq_tracker.states[target_uid]
+    targ_ins = tar_info.get('ins', [])    
+    if(len(targ_ins) > 0):
+        # print("ARE INS")
+        # prim_paths = []
+        for sa in targ_ins:
+            s_uid = sa.state.get("__uid__")
+            if(s_uid in preseq_tracker.prim_path_cache):
+                begin_uid = s_uid
+                begin_s_info = preseq_tracker.states[begin_uid]
+                prim_paths = preseq_tracker.prim_path_cache[begin_uid]
+                # print(prim_paths)
+                # print("BEGIN ", s_uid[:5])
+                break
+            # else:
+            #     print("NOT CACHED")
+            # else:
+            #     print("NOT BEGIN")
+    # else:
+    #     print("NO INS")
                     
     next_items_paths = {sa:prim_paths for sa in begin_s_info.get('outs', [])}
     target_prim_paths = set()
@@ -1682,6 +1701,7 @@ def parse_state_from_tracker(grammar, state, preseq_tracker, prob_uid=None):
     if(len(target_prim_paths) > 0):
         # print("PARSE SUCCEED")
         # print(target_prim_paths)
+        preseq_tracker.prim_path_cache[target_uid] = list(target_prim_paths)
         return True, list(target_prim_paths)
     else:
         # print("PARSE FAILED")#, " ".join([str(x) for x in seq[:seq_ind]]), f"\033[9m{' '.join([str(x) for x in seq[seq_ind:]])}\033[0m")
