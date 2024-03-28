@@ -25,7 +25,9 @@ SECRET_KEY = 'g1s7^%a)(u(sy2l_flc@#5tm(w-@qu9)v^s(1dwyz9(-si_ca@'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["ai2t.site", "www.ai2t.site", "127.0.0.1"]
+ALLOWED_HOSTS = ["ai2t.site", "www.ai2t.site",
+                 "ai2t.online", "www.ai2t.online",
+                 "127.0.0.1"]
 
 
 # Application definition
