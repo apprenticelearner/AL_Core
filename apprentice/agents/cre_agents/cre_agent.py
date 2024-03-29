@@ -251,7 +251,10 @@ class SkillApplication(object):
         self.explanation_selected = explanation_selected
         self.is_demo = is_demo
 
-    def add_tracking(self):
+    def add_tracking(self, prob_uid=None):
+        if(prob_uid is not None):
+            self.prob_uid = prob_uid
+
         agent = self.skill.agent
         if(agent and self.uid not in agent.skill_apps_by_uid):
             agent.skill_apps_by_uid[self.uid] = self     
@@ -643,9 +646,13 @@ class CREAgent(BaseDIPLAgent):
             # except RuntimeError as e:
             #     print("--FAIL")
             # print("PROB UID", prob_uid)
-            in_process_grps = self.process_lrn_mech.get_next_skill_apps(
-                state, preseq_tracker,
-                prob_uid=prob_uid, group_by_depends=True)
+            try:
+                in_process_grps = self.process_lrn_mech.get_next_skill_apps(
+                    state, preseq_tracker,
+                    prob_uid=prob_uid, group_by_depends=True)
+            except:
+                in_process_grps = []
+
             filtered_skill_apps = []
 
             # Regroup in_process_grps into mut_excl_grps of form
@@ -810,7 +817,7 @@ class CREAgent(BaseDIPLAgent):
 
         skill_apps = self.which_cls.sort(state, skill_apps)
 
-        skill_apps = [sa for sa in skill_apps if sa.add_tracking()]
+        skill_apps = [sa for sa in skill_apps if sa.add_tracking(prob_uid)]
 
         # print("N SKILL APPS", len(skill_apps))
         # print('-^-')
@@ -1199,10 +1206,11 @@ class CREAgent(BaseDIPLAgent):
     def _recover_prev_skill_app(self, sai=None,
             uid=None, skill_uid=None, **kwargs):
         skill_app = None
-        if(uid is not None):
-            if(skill_uid is not None and skill_uid in self.skills):
-                skill_app = self.skills[skill_uid].skill_apps[uid]
-                return skill_app
+        if(skill_uid is not None and uid is not None):
+            if(skill_uid in self.skills):
+                if(uid in getattr(self.skills[skill_uid],"skill_apps", [])):
+                    skill_app = self.skills[skill_uid].skill_apps[uid]
+                    return skill_app
 
             for skill in self.skills.values():
                 if(uid in skill.skill_apps):
@@ -1298,7 +1306,7 @@ class CREAgent(BaseDIPLAgent):
             # print("IS START", is_start)
             self.process_lrn_mech.ifit(skill_app, is_start=is_start, reward=reward)
 
-        if(reward > 0):
+        if(reward is not None and reward > 0):
             skill_app.apply_implicit_rewards()
         elif(reward is None or reward <= 0):
             skill_app.clear_implicit_rewards()
@@ -1405,7 +1413,7 @@ class CREAgent(BaseDIPLAgent):
             Any remaining keyword arguments are passed to get_info().
         '''
         if(skill_uids):
-            skills = [self.skills[uid] for uid in skill_uids]
+            skills = [self.skills[uid] for uid in skill_uids if uid in self.skills]
         elif(skill_labels):
             skills = chain([skills_by_label.get(label,[]) for label in skill_labels])
         elif(states):

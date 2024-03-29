@@ -567,7 +567,10 @@ class HTNLearner:
         pst = self.preseq_tracker
 
         if(prob_uid is None):
-            prob_uid = pst.resolve_prob_uid(sa, is_start)
+            try:
+                prob_uid = pst.resolve_prob_uid(sa, is_start)
+            except:
+                return
 
         if(reward is not None and reward > 0):
             pst.add_skill_app(sa, is_start)
