@@ -1170,7 +1170,12 @@ class CREAgent(BaseDIPLAgent):
         if(sai.selection.id == "done"):
             how_part, explanation_set, args = -1, None, []
         else:
-            if(explanation_selected is not None):
+            # NOTE: This would be simpler with some kind of null-coalesce
+            if(explanation_selected is not None and
+                'data' in explanation_selected and
+                'func' in explanation_selected['data'] and
+                'args' in explanation_selected['data'] and
+                'repr' in explanation_selected['data']['repr']):
                 esd = explanation_selected['data']
                 choice_repr = esd['func']['repr']
                 choice_args = tuple(esd['args'])
