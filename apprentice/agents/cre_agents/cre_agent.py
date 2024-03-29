@@ -1175,7 +1175,7 @@ class CREAgent(BaseDIPLAgent):
                 'data' in explanation_selected and
                 'func' in explanation_selected['data'] and
                 'args' in explanation_selected['data'] and
-                'repr' in explanation_selected['data']['repr']):
+                'repr' in explanation_selected['data']['func']):
                 esd = explanation_selected['data']
                 choice_repr = esd['func']['repr']
                 choice_args = tuple(esd['args'])
