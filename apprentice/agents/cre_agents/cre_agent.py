@@ -145,20 +145,6 @@ class Skill(object):
         return SAI(match[0], self.action_type, inp)
 
 
-    def ifit(self, state, skill_app, reward):
-        if(reward is None and skill_app.uid in skill_app.skill.skill_apps):
-            del skill_app.skill.skill_apps[skill_app.uid]
-            if(len(skill_app.skill.skill_apps) == 0):
-                self.agent.remove_skill(skill_app.skill)
-            return
-        skill_app.skill.skill_apps[skill_app.uid] = skill_app
-
-        self.where_lrn_mech.ifit(state, skill_app.match, reward)
-        # with PrintElapse("fit when"):
-        self.when_lrn_mech.ifit(state, skill_app, reward)
-        # with PrintElapse("fit which"):
-        self.which_lrn_mech.ifit(state, skill_app, reward)
-
         # print("FIT", reward)
 
         # if(not hasattr(self.how_part,'__call__') and self.how_part == -1):
@@ -186,7 +172,7 @@ class SkillApplication(object):
     # __slots__ = ("skill", "match", "sai")
     def __new__(cls, skill, match, state, uid=None,
                 next_state=None, prob_uid=None, short_name=None,
-                when_pred=None):
+                reward=None, when_pred=None):
         # print(skill, [m.id for m in match])
         sai = skill(*match)
 
@@ -223,8 +209,10 @@ class SkillApplication(object):
         self.sai = sai
         self.uid = uid
         self.implicit_rewards = {}
+        self.implicit_dependants = {}
+        self.explicit_reward = reward
+        self.implicit_reward = None
         
-
         if(not hasattr(self, "when_pred") or when_pred is not None):
             self.when_pred = when_pred
         if(not hasattr(self, "prob_uid") or prob_uid is not None):
@@ -234,15 +222,22 @@ class SkillApplication(object):
             self.state = state
             self.next_state = next_state
 
-        # if(track and agent):
-            
-
         return self
 
+    @property
+    def reward(self):
+        explicit_reward = getattr(self, 'explicit_reward', None)
+        implicit_reward = getattr(self, 'implicit_reward', None)
+        if(explicit_reward is not None):
+            return explicit_reward
+        elif(implicit_reward is not None):
+            return implicit_reward
+        return None
+    
     def annotate_train_data(self, reward, arg_foci, skill_label, skill_uid,
                             how_help, explanation_selected, is_demo=False, **kwargs):
         self.train_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.reward = reward
+        # self.reward = reward
         self.explicit_reward = reward
         self.arg_foci = arg_foci
         self.skill_label = skill_label
@@ -251,7 +246,7 @@ class SkillApplication(object):
         self.explanation_selected = explanation_selected
         self.is_demo = is_demo
 
-    def add_tracking(self, prob_uid=None):
+    def add_seq_tracking(self, prob_uid=None):
         if(prob_uid is not None):
             self.prob_uid = prob_uid
 
@@ -295,7 +290,8 @@ class SkillApplication(object):
             train_data = {}
             train_data['train_time'] = getattr(self, 'train_time', None)
             train_data['explicit_reward'] = getattr(self, 'explicit_reward', None)
-            train_data['reward'] = getattr(self, 'reward', None)
+            train_data['implicit_reward'] = getattr(self, 'implicit_reward', None)
+            train_data['reward'] = self.reward #getattr(self, 'reward', None)
             train_data['arg_foci'] = getattr(self, 'arg_foci', None)
             train_data['skill_label'] = getattr(self, 'skill_label', None)
             train_data['skill_uid'] = getattr(self, 'skill_uid', None)
@@ -335,28 +331,83 @@ class SkillApplication(object):
     def __hash__(self):
         return hash(self.uid)
 
-    def add_implicit_reward(self, other, reward):
-        self.implicit_rewards[other] = reward
-
-    def clear_implicit_rewards(self, clear_fit=True):
-        if(clear_fit):
-            for sa, reward in self.implicit_rewards.items():
-                if(hasattr(sa, 'explicit_reward')):
+    def update_implicit_reward(self):
+        old_implicit_reward = self.implicit_reward
+        if(len(self.implicit_rewards) == 0):
+            self.implicit_reward = None
+        else:
+            max_rew = None
+            for src, (_, r) in self.implicit_rewards.items():
+                if( src.explicit_reward is None or
+                    src.explicit_reward <= 0):
                     continue
-                sa.skill.ifit(sa.state, sa, None)
-        old_implicit_rewards = self.implicit_rewards
-        self.implicit_rewards = {}
-        return old_implicit_rewards
+                if(max_rew is None or r > max_rew): 
+                    max_rew = r
+            self.implicit_reward = max_rew
+        return old_implicit_reward == self.implicit_reward, self.implicit_reward
 
-    def apply_implicit_rewards(self, old_implicit_rewards={}):
-        for sa, reward in self.implicit_rewards.items():
-            # Don't override explicit rewards
-            if(hasattr(sa, 'explicit_reward')):
-                continue
-            if(old_implicit_rewards.get(sa, None) == reward):
-                continue
+    def add_implicit_reward(self, depends, reward, update=False):
+        for other in depends:
+            self.implicit_rewards[other] = (depends, reward)
+            other.implicit_dependants[self] = (depends, reward)
+
+        # Recalculate the value of implicit_reward 
+        if(update):
+            return self.update_implicit_reward()
+        return False
+
+    def remove_implicit_reward(self, other, update=False):
+        if(other in self.implicit_rewards):
+            depends, reward = self.implicit_rewards[other]
+            for dep in depends:
+                del self.implicit_rewards[dep]
+                if(self in dep.implicit_dependants):
+                    del dep.implicit_dependants[self]
+
+        # Recalculate the value of implicit_reward 
+        if(update):
+            return self.update_implicit_reward()
+        return False
+        
+    def clear_implicit_dependants(self):
+        changed_depends = []
+        for dep in self.implicit_dependants:
+            did_change = dep.remove_implicit_reward(self)
+            if(did_change):
+                changed_depends.append(dep)
+        # if(clear_fit):
+        #     for sa, (depends,reward) in self.implicit_rewards.items():
+
+        #         sa.skill.ifit(sa.state, sa, None)
+        # old_implicit_rewards = self.implicit_rewards
+        # self.implicit_rewards = {}
+        return changed_depends
+
+    def ifit_implicit_dependants(self):
+        agent = self.skill.agent
+        for dep in self.implicit_dependants:
+            did_update, impl_rew = dep.update_implicit_reward()
+            if(did_update and dep.explicit_reward is None):
+                print("IMPLICIT", self, impl_rew)
+                agent._ifit_skill_app(dep, impl_rew)
+        # if(self.explicit_reward is not None and self.explicit_reward > 0):
+            
+        # elif(self.explicit_reward is None or self.explicit_reward <= 0):
+        #     for dep in self.implicit_dependants:
+        #         did_update, impl_rew = dep.update_implicit_reward()
+        #         if(did_update and dep.explicit_reward is None):
+        #             agent._ifit_skill_app(dep, impl_rew)
+
+    #     for sa, (depends, reward) in self.implicit_rewards.items():
+            # # Don't override explicit rewards
+            # if(hasattr(sa, 'explicit_reward')):
+            #     continue
+            # if(old_implicit_rewards.get(sa, None) == reward):
+            #     continue
+
+            # self.agent._ifit_skill_app(self.state, self, reward)
             # if(getattr(imp_neg_sa, "reward", 0) == 0):
-            sa.skill.ifit(sa.state, sa, reward)
+            # sa.skill.ifit(sa.state, sa, reward)
                 # self.train(imp_neg_sa.state, reward=-1, skill_app=imp_neg_sa)
 
 
@@ -626,9 +677,12 @@ class CREAgent(BaseDIPLAgent):
 
 
     def get_skill_applications(self, state,
+            is_start=None,
             prob_uid=None, eval_mode=False):
         skill_apps = set()
 
+        if(prob_uid is None and is_start):
+            prob_uid = state.get("__uid__")
         
         # print("\nGET SKILL APPS", state.get('__uid__')[:5])
         
@@ -784,7 +838,7 @@ class CREAgent(BaseDIPLAgent):
 
 
         if(len(skill_apps) == 0):
-            # print("BACKUP")
+            print("BACKUP")
             for skill in self.skills.values():
                 for skill_app in skill.get_applications(state):
                     skill_apps.add(skill_app)
@@ -797,15 +851,17 @@ class CREAgent(BaseDIPLAgent):
         #     when_pred = 1 if when_pred is None else when_pred
         #     print(f"{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
         # if(not apps_in_process):
+        # print("AN SKILL APPS", len(skill_apps))
         skill_apps = set(self.action_filter(state, skill_apps, **self.action_filter_args))
-
+        # print("BN SKILL APPS", len(skill_apps))
         s_uid = state.get('__uid__')
+
         known_sas = self.skill_apps_by_state_uid.get(s_uid, [])
         for skill_app in known_sas:
-            rew = getattr(skill_app, 'reward', 0)
+            rew = skill_app.reward
             if(rew is None):
-                if(skill_app in skill_apps):
-                    skill_apps.remove(skill_app)    
+            #     if(skill_app in skill_apps):
+            #         skill_apps.remove(skill_app)    
                 continue
             # Always show skill apps which have positive reward
             if(rew > 0):
@@ -815,9 +871,10 @@ class CREAgent(BaseDIPLAgent):
                  skill_app in skill_apps):
                 skill_apps.remove(skill_app)
 
+        # print("CN SKILL APPS", len(skill_apps))
         skill_apps = self.which_cls.sort(state, skill_apps)
 
-        skill_apps = [sa for sa in skill_apps if sa.add_tracking(prob_uid)]
+        skill_apps = [sa for sa in skill_apps if sa.add_seq_tracking(prob_uid)]
 
         # print("N SKILL APPS", len(skill_apps))
         # print('-^-')
@@ -832,7 +889,8 @@ class CREAgent(BaseDIPLAgent):
             **kwargs):
 
         state = self.standardize_state(state, is_start)
-        skill_apps = self.get_skill_applications(state, 
+        skill_apps = self.get_skill_applications(state,
+            is_start=is_start, 
             prob_uid=prob_uid, eval_mode=eval_mode)
 
         # if(self.track_rollout_preseqs):
@@ -869,6 +927,7 @@ class CREAgent(BaseDIPLAgent):
 
         state = self.standardize_state(state, is_start)
         skill_apps = self.get_skill_applications(state,
+            is_start=is_start, 
             prob_uid=prob_uid, eval_mode=eval_mode)
 
         # if(self.track_rollout_preseqs):
@@ -1226,42 +1285,22 @@ class CREAgent(BaseDIPLAgent):
         elif(self.prev_skill_app is not None and self.prev_skill_app.sai == sai):
 
             skill_app = self.prev_skill_app
-        return skill_app    
+        return skill_app
 
-    def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
-              skill_app=None, uid=None, 
-              skill_label=None, skill_uid=None, explanation_selected=None,
-              ret_train_expl=False, add_skill_info=False,
-              is_start=None,
-               **kwargs):
-        # print("SAI", sai, type(sai))
+    def _find_skill_app(self, state, sai=None, arg_foci=None, 
+                how_help=None, uid=None, skill_label=None, skill_uid=None,
+                explanation_selected=None, **kwargs):
         if(skill_label == "NO_LABEL"): skill_label = None
-        state = self.standardize_state(state, is_start)
-        # print("TRAIN IS START", is_start, state.is_start)
 
-        # print("---------------------------")
-        # for fact in state.get('working_memory').get_facts():
-        #     print(repr(fact))
-        # print("---------------------------")
-        # print("<<", sai, type(sai))
-
-        # skill_app = None
-
-        # print("--TRAIN:", sai.selection.id, sai.inputs['value'])
-
-        # Feedback Case : Train according to uid of the previous skill_app        
-        # print("::", skill_uid, uid, kwargs)
-        
-
-        if(skill_app is None):            
+        # if(skill_app is None):            
             
-            sai = self.standardize_SAI(sai)        
-            arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
-            # Case: Feedback on Previous Action (as sai or uid)
-            skill_app = self._recover_prev_skill_app(sai, uid, skill_uid, **kwargs)
-        else:
+        sai = self.standardize_SAI(sai)        
+        arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
+        # Case: Feedback on Previous Action (as sai or uid)
+        skill_app = self._recover_prev_skill_app(sai, uid, skill_uid, **kwargs)
+        # else:
             # Case: Feedback on Previous Action (as skill_app)
-            pass
+            # pass
 
 
         if(skill_app is None):
@@ -1294,14 +1333,31 @@ class CREAgent(BaseDIPLAgent):
                 skill_app = self.induce_skill(state, sai, func_explanations, skill_label,
                     explanation_selected=explanation_selected)
 
-        skill_app.add_tracking()
-        print("TRAIN", skill_app, reward)
-        # print("ANNOTATE ARG FOCI:", arg_foci)
-        skill_app.annotate_train_data(reward, arg_foci, skill_label, skill_uid, 
-            how_help, explanation_selected, **kwargs)
+        return skill_app
 
-        skill_app.skill.ifit(state, skill_app, reward)
+    def _ifit_skill_app(self, skill_app, reward, is_start=None, **kwargs):
+        state = skill_app.state
+        skill = skill_app.skill
 
+        # If reward==None then remove skill_app. If it is the
+        #  only SkillApp for 'skill' then completely remove 'skill'.
+        if(reward is None and skill_app.uid in skill.skill_apps):
+            del skill.skill_apps[skill_app.uid]
+            if(len(skill.skill_apps) == 0):
+                self.remove_skill(skill)
+            return
+
+        # Add skill_app to the skill's supporting skill_apps
+        skill.skill_apps[skill_app.uid] = skill_app
+
+        # Fit the skill-specific learning mechanisms where, when, which
+        skill.where_lrn_mech.ifit(state, skill_app.match, reward)
+        skill.when_lrn_mech.ifit(state, skill_app, reward)
+        skill.which_lrn_mech.ifit(state, skill_app, reward)
+
+        # Fit global process-learning mechanism
+        prob_uid = None if not is_start else state.get("__uid__") 
+        skill_app.add_seq_tracking(prob_uid)
         if(self.process_lrn_mech):
             next_state = None
             if(getattr(skill_app, 'next_state', None) is None):
@@ -1311,10 +1367,37 @@ class CREAgent(BaseDIPLAgent):
             # print("IS START", is_start)
             self.process_lrn_mech.ifit(skill_app, is_start=is_start, reward=reward)
 
-        if(reward is not None and reward > 0):
-            skill_app.apply_implicit_rewards()
-        elif(reward is None or reward <= 0):
-            skill_app.clear_implicit_rewards()
+    def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
+              skill_app=None, uid=None, skill_label=None, skill_uid=None,
+              explanation_selected=None, ret_train_expl=False, add_skill_info=False,
+              is_start=None, _ifit_implict=True, **kwargs):
+        # print("SAI", sai, type(sai))
+        
+        state = self.standardize_state(state, is_start)
+
+        # Find a SkillApp which explains the provided SAI, and other annotations
+        if(skill_app is None):
+            skill_app = self._find_skill_app(state, sai=sai, arg_foci=arg_foci, 
+                    how_help=how_help, uid=uid, skill_label=skill_label, skill_uid=skill_uid,
+                    explanation_selected=explanation_selected, **kwargs)        
+
+        
+        print("TRAIN", skill_app, reward)
+        # print("ANNOTATE ARG FOCI:", arg_foci)
+
+        # Annotate explicit calls to train() with a 
+        #  time-stamp, explicit_reward, and other info.
+        skill_app.annotate_train_data(reward, arg_foci, skill_label, skill_uid, 
+            how_help, explanation_selected, **kwargs)
+
+        # Pass the reward to various learning mechanisms
+        self._ifit_skill_app(skill_app, reward, is_start, **kwargs)
+
+        # Apply or remove any implicit second-order effects
+        if(reward is None):
+            self.clear_implicit_dependants()
+        elif(_ifit_implict):
+            self.ifit_implicit_dependants()
 
         # Return the skill_app that was updated
         return skill_app
@@ -1323,40 +1406,58 @@ class CREAgent(BaseDIPLAgent):
         print("START UNORDER GRP")
         pos_skill_apps = []
         for sa in skill_apps:
-            if(getattr(sa,"reward", 0) > 0):
+            rew = getattr(sa,"reward", 0)
+            if(rew is not None and rew > 0):
                 pos_skill_apps.append(sa)
+        pos_skill_apps = tuple(sorted(pos_skill_apps, key=lambda x: x.uid))
 
-        pos_skill_apps = tuple(pos_skill_apps)
         start_state = state
-        new_skill_apps = set()
+        
         print("POS", pos_skill_apps)
+        # already_exists = False
+        # for skill_app in pos_skill_apps:
+        #     skill_app.implicit_dependants
 
+
+        # Nothing more to do if only 1.
         if(len(pos_skill_apps) <= 1):
             return 
 
         prob_uid = pos_skill_apps[0].prob_uid
         print("PROB UID", prob_uid)
-        for order in itertools.permutations(pos_skill_apps):
+
+        # Go through the skill apps with positive reward, 
+        #  applying them one at a time forward and backward.
+
+        # for order in itertools.permutations(pos_skill_apps):
+        new_skill_apps = set()
+        for order in [pos_skill_apps, pos_skill_apps[::-1]]:
             # print(order)
             state = start_state
             for i, sa in enumerate(order):
-                if(i == 0):
-                    next_state = self.predict_next_state(state, sa.sai) 
-                else:
+                if(i != 0):
                     wm = state.get("working_memory")
                     match = [wm.get_fact(id=m.id) for m in sa.match]
-                    # print(match)
+                    
+                    # Restate the skill app using predicted next state
                     sa = SkillApplication(sa.skill, match, state, prob_uid=prob_uid)
-                    next_state = self.predict_next_state(state, sa.sai) 
                     if(sa not in new_skill_apps):
                         new_skill_apps.add(sa)
-                state = next_state
-        kwargs = {**kwargs}
-        if('is_start' in kwargs):
-            del kwargs['is_start']
+
+                state = self.predict_next_state(state, sa.sai) 
+
+        # TODO: This is prevents other kinds 
+        for sa in pos_skill_apps:
+            sa.clear_implicit_dependants()
+
+
+        # kwargs = {**kwargs}
+        # if('is_start' in kwargs):
+        #     del kwargs['is_start']
         for sa in new_skill_apps:
-            print("\t", sa)
-            self.train(state, skill_app=sa, reward=1)
+            sa.add_implicit_reward(pos_skill_apps, 1)
+            # print("\t", sa)
+            # self.train(state, skill_app=sa, reward=1)
         # print(new_skill_apps)
         print("-----------")
 
@@ -1372,7 +1473,7 @@ class CREAgent(BaseDIPLAgent):
             if(isinstance(state,str)):
                 state = states[state]
 
-            skill_app = self.train(state, **example, **kwargs)
+            skill_app = self.train(state, **example, **kwargs, _ifit_implict=False)
             skill_apps.append(skill_app)
 
         if("unordered_groups" in self.implicit_reward_kinds):
@@ -1384,6 +1485,9 @@ class CREAgent(BaseDIPLAgent):
                 apps_by_state[uid] = (sa.state, arr)
             for uid, (state,apps) in apps_by_state.items():
                 self._add_unorderd_group_implicit_rewards(state, skill_apps, **kwargs)
+
+        for skill_app in skill_apps:
+            skill_app.ifit_implicit_dependants()
 
         return skill_apps
 
@@ -1748,7 +1852,8 @@ class CREAgent(BaseDIPLAgent):
                 state = item['state']
                 is_start = len(item['hist'])==0
                 if(is_start):
-                    prob_uid = self.standardize_state(state).get("__uid__")
+                    state = self.standardize_state(state)
+                    prob_uid = state.get("__uid__")
                     # print()
                     # print("prob_uid", prob_uid)
                 # print("IS START", len(item['hist'])==0)
