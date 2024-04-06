@@ -236,7 +236,7 @@ class SkillApplication(object):
     
     def annotate_train_data(self, reward, arg_foci, skill_label, skill_uid,
                             how_help, explanation_selected, is_demo=False, **kwargs):
-        self.train_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
         # self.reward = reward
         self.explicit_reward = reward
         self.arg_foci = arg_foci
@@ -284,8 +284,13 @@ class SkillApplication(object):
             'action_type' :  sai.action_type.name,
             'inputs' :  sai.inputs,
             'args' : [m.id for m in self.args],
-            'when_pred' : self.when_pred
+            'when_pred' : self.when_pred,
+            'in_process' : getattr(self, 'in_process', False)
         }
+
+        if(getattr(self, 'path', None)):
+            info['path'] = self.path.get_info()
+
         if(hasattr(self, 'train_time')):
             train_data = {}
             train_data['train_time'] = getattr(self, 'train_time', None)
@@ -306,7 +311,7 @@ class SkillApplication(object):
                 # arg_foci = train_data['arg_foci']
                 # if(len(arg_foci) > 0 and isinstance(arg_foci[0], list)):
                 #     arg_foci = arg_foci[0]
-                train_data['arg_foci'] = [m.id for m in train_data['arg_foci']]
+                train_data['arg_foci'] = [m if isinstance(m,str) else m.id for m in train_data['arg_foci']]
             if('explicit_reward' in train_data):
                 train_data['confirmed'] = True
             info.update(train_data)
@@ -369,12 +374,14 @@ class SkillApplication(object):
             return self.update_implicit_reward()
         return False
         
-    def clear_implicit_dependants(self):
+    def clear_implicit_dependants(self, update=True):
         changed_depends = []
-        for dep in self.implicit_dependants:
-            did_change = dep.remove_implicit_reward(self)
+        for dep in [*self.implicit_dependants]:
+            did_change = dep.remove_implicit_reward(self, update)
             if(did_change):
                 changed_depends.append(dep)
+
+
         # if(clear_fit):
         #     for sa, (depends,reward) in self.implicit_rewards.items():
 
@@ -388,7 +395,7 @@ class SkillApplication(object):
         for dep in self.implicit_dependants:
             did_update, impl_rew = dep.update_implicit_reward()
             if(did_update and dep.explicit_reward is None):
-                print("IMPLICIT", self, impl_rew)
+                print("IMPLICIT", dep.state.get("__uid__")[:5], dep, impl_rew)
                 agent._ifit_skill_app(dep, impl_rew)
         # if(self.explicit_reward is not None and self.explicit_reward > 0):
             
@@ -412,6 +419,7 @@ class SkillApplication(object):
 
 
     def ensure_when_pred(self):
+        # print("ENSURE", self)
         self.when_pred = self.skill.when_lrn_mech.predict(self.state, self.match)
 
 
@@ -678,7 +686,11 @@ class CREAgent(BaseDIPLAgent):
 
     def get_skill_applications(self, state,
             is_start=None,
-            prob_uid=None, eval_mode=False):
+            prob_uid=None, 
+            eval_mode=False,
+            add_out_of_process=False,
+            ignore_filter=False,
+            add_known=True):
         skill_apps = set()
 
         if(prob_uid is None and is_start):
@@ -837,11 +849,14 @@ class CREAgent(BaseDIPLAgent):
             #             skill_apps.append(skill_app)
 
 
-        if(len(skill_apps) == 0):
-            print("BACKUP")
+        if(len(skill_apps) == 0 or add_out_of_process):
+            print("BACKUP", len(skill_apps), add_out_of_process)
             for skill in self.skills.values():
                 for skill_app in skill.get_applications(state):
-                    skill_apps.add(skill_app)
+                    if (skill_app not in skill_apps):
+                        skill_apps.add(skill_app)
+                        skill_app.in_process = False
+                        
                     if(prob_uid is not None):
                         skill_app.prob_uid = prob_uid
         
@@ -852,24 +867,39 @@ class CREAgent(BaseDIPLAgent):
         #     print(f"{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
         # if(not apps_in_process):
         # print("AN SKILL APPS", len(skill_apps))
-        skill_apps = set(self.action_filter(state, skill_apps, **self.action_filter_args))
+        
         # print("BN SKILL APPS", len(skill_apps))
-        s_uid = state.get('__uid__')
+        if(add_known):
+            s_uid = state.get('__uid__')
+            known_sas = self.skill_apps_by_state_uid.get(s_uid, [])
+            for skill_app in known_sas:
 
-        known_sas = self.skill_apps_by_state_uid.get(s_uid, [])
-        for skill_app in known_sas:
-            rew = skill_app.reward
-            if(rew is None):
-            #     if(skill_app in skill_apps):
-            #         skill_apps.remove(skill_app)    
-                continue
-            # Always show skill apps which have positive reward
-            if(rew > 0):
+                rew = skill_app.reward
+                if(rew is None):
+                    if(getattr(skill_app, "removed", False) and 
+                        skill_app in skill_apps):
+                        skill_apps.remove(skill_app)    
+                    continue
+
                 skill_apps.add(skill_app)
-            # Don't keep skill apps which have negative reward
-            elif(rew < 0 and
-                 skill_app in skill_apps):
-                skill_apps.remove(skill_app)
+                skill_app.ensure_when_pred()
+            # # Always show skill apps which have positive reward
+            # if(rew > 0):
+            #     skill_apps.add(skill_app)
+            # # Don't keep skill apps which have negative reward
+            # elif(rew < 0 and
+            #      skill_app in skill_apps):
+            #     skill_apps.remove(skill_app)
+
+        if(not ignore_filter):
+            print("DO FILTER", ignore_filter)
+            # print("BEFORE FILTER", [getattr(sa,'when_pred', None) for sa in skill_apps])
+            skill_apps = self.action_filter(state, skill_apps, **self.action_filter_args)
+            # print("AFTER FILTER:")
+            # for sa in skill_apps:
+            #     print(sa.reward, getattr(sa,'when_pred', None), skill_app)
+            
+
 
         # print("CN SKILL APPS", len(skill_apps))
         skill_apps = self.which_cls.sort(state, skill_apps)
@@ -923,12 +953,15 @@ class CREAgent(BaseDIPLAgent):
         is_start=None,
         prob_uid=None,
         eval_mode=False,
+        add_out_of_process=False,
+        ignore_filter=False,
         **kwargs):
 
         state = self.standardize_state(state, is_start)
         skill_apps = self.get_skill_applications(state,
-            is_start=is_start, 
-            prob_uid=prob_uid, eval_mode=eval_mode)
+            is_start=is_start,  prob_uid=prob_uid, 
+            eval_mode=eval_mode, add_out_of_process=add_out_of_process,
+            ignore_filter=ignore_filter)
 
         # if(self.track_rollout_preseqs):
         #     for skill_app in skill_apps:
@@ -1294,8 +1327,7 @@ class CREAgent(BaseDIPLAgent):
 
         # if(skill_app is None):            
             
-        sai = self.standardize_SAI(sai)        
-        arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
+        
         # Case: Feedback on Previous Action (as sai or uid)
         skill_app = self._recover_prev_skill_app(sai, uid, skill_uid, **kwargs)
         # else:
@@ -1367,6 +1399,8 @@ class CREAgent(BaseDIPLAgent):
             # print("IS START", is_start)
             self.process_lrn_mech.ifit(skill_app, is_start=is_start, reward=reward)
 
+        skill_app.train_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
               skill_app=None, uid=None, skill_label=None, skill_uid=None,
               explanation_selected=None, ret_train_expl=False, add_skill_info=False,
@@ -1377,6 +1411,8 @@ class CREAgent(BaseDIPLAgent):
 
         # Find a SkillApp which explains the provided SAI, and other annotations
         if(skill_app is None):
+            sai = self.standardize_SAI(sai)        
+            arg_foci = self.standardize_arg_foci(arg_foci, kwargs)
             skill_app = self._find_skill_app(state, sai=sai, arg_foci=arg_foci, 
                     how_help=how_help, uid=uid, skill_label=skill_label, skill_uid=skill_uid,
                     explanation_selected=explanation_selected, **kwargs)        
@@ -1395,9 +1431,10 @@ class CREAgent(BaseDIPLAgent):
 
         # Apply or remove any implicit second-order effects
         if(reward is None):
-            self.clear_implicit_dependants()
+            skill_app.removed = True
+            skill_app.clear_implicit_dependants()
         elif(_ifit_implict):
-            self.ifit_implicit_dependants()
+            skill_app.ifit_implicit_dependants()
 
         # Return the skill_app that was updated
         return skill_app
@@ -1407,7 +1444,7 @@ class CREAgent(BaseDIPLAgent):
         pos_skill_apps = []
         for sa in skill_apps:
             rew = getattr(sa,"reward", 0)
-            if(rew is not None and rew > 0):
+            if(rew is not None and rew > 0 and sa.sai.selection != "done"):
                 pos_skill_apps.append(sa)
         pos_skill_apps = tuple(sorted(pos_skill_apps, key=lambda x: x.uid))
 
@@ -1446,7 +1483,8 @@ class CREAgent(BaseDIPLAgent):
 
                 state = self.predict_next_state(state, sa.sai) 
 
-        # TODO: This is prevents other kinds 
+        # TODO: This clears things out but prevents
+        #  mixing with other kinds of implicit reward
         for sa in pos_skill_apps:
             sa.clear_implicit_dependants()
 
@@ -1488,6 +1526,14 @@ class CREAgent(BaseDIPLAgent):
 
         for skill_app in skill_apps:
             skill_app.ifit_implicit_dependants()
+
+        print("---------------")
+        for skill in self.skills.values():
+            print()
+            print(skill)
+            print(skill.when_lrn_mech)
+        print("---------------")
+
 
         return skill_apps
 
@@ -1545,10 +1591,31 @@ class CREAgent(BaseDIPLAgent):
 
 # ------------------------------------------------
 # act_rollout()
+    def _rollout_expand_policy(self, s_uid, states, actions):
+        state_obj = states[s_uid]
+        print("POLICY", s_uid[:5], state_obj['in_skill_app_uids'], state_obj['out_skill_app_uids'])
 
-    def _insert_rollout_skill_app(self, state, next_state, skill_app, states, actions, uid_stack, depth_counts, depth):
+        # Edge Case: s_uid refers to the start state
+        if(len(state_obj['in_skill_app_uids']) == 0):
+            return True
+
+        # Otherwise check if at least one explicit positive or 
+        #  in_process skill_app.
+        for in_uid in state_obj['in_skill_app_uids']:
+            sa = actions[in_uid]['skill_app']
+
+            if((sa.reward is not None and
+                sa.reward > 0) or
+                getattr(sa, 'in_process', False) == True):
+                return True
+
+        return False
+
+    def _insert_rollout_skill_app(self, state, next_state, skill_app, states, actions, depth_counts, depth):
         nxt_uid = next_state.get('__uid__')
-        
+            
+        # Make Action Object
+        action_is_new = False
         if(skill_app is not None):
             uid = state.get('__uid__')    
             action_obj = {
@@ -1557,40 +1624,48 @@ class CREAgent(BaseDIPLAgent):
                 "next_state_uid" : nxt_uid,
                 "skill_app" : skill_app,
             }
+            action_is_new = skill_app.uid not in actions
             actions[skill_app.uid] = action_obj
 
-        # Ensure Depth Counts long enought
+        # Ensure Depth Counts long enough
         while(depth >= len(depth_counts)):
             depth_counts.append(0)
         depth_index = depth_counts[depth]
 
-        
-        if(nxt_uid not in states):
-            state_obj = {"state": next_state, "uid" : nxt_uid, "depth" : depth, "depth_index" : depth_index}
-            states[nxt_uid] = state_obj
-            uid_stack.append(nxt_uid)
+        # Make State Object
+        state_is_new = nxt_uid not in states
+        if(state_is_new):
+            n_state_obj = {"state": next_state, "uid" : nxt_uid,
+                         "depth" : depth, "depth_index" : depth_index,
+                         "in_skill_app_uids" : [],
+                         "out_skill_app_uids" : []
+                         }
+            states[nxt_uid] = n_state_obj
+            # uid_stack.append(nxt_uid)
             depth_counts[depth] += 1
             if(getattr(next_state, 'is_done', False)):
                 # print("--------IS DONE!!!---------", nxt_uid)
-                state_obj['is_done'] = True
+                n_state_obj['is_done'] = True
         else:
-            state_obj = states[nxt_uid]
-            if(depth > state_obj['depth']):
-                state_obj['depth'] = depth
-                state_obj['depth_index'] = depth_index
+            n_state_obj = states[nxt_uid]
+            if(depth > n_state_obj['depth']):
+                n_state_obj['depth'] = depth
+                n_state_obj['depth_index'] = depth_index
                 depth_counts[depth] += 1
         
-        
-        # if(skill_app is not None):
-        #     state_obj = states[uid]
-        #     out_uids = state_obj.get('out_skill_app_uids', [])
-        #     out_uids.append(skill_app.uid)            
-        #     state_obj['out_skill_app_uids'] = out_uids
+        # Fill in/out connections
+        # print("CONNECT? ", action_is_new, skill_app is not None, state is not None)
+        if(action_is_new and
+           skill_app is not None and
+           state is not None):
 
-        #     nxt_state_obj = states[nxt_uid]
-        #     in_uids = state_obj.get('in_skill_app_uids', [])
-        #     in_uids.append(skill_app.uid)
-        #     nxt_state_obj['in_skill_app_uids'] = in_uids
+            state_obj = states[state.get("__uid__")]
+            state_obj['out_skill_app_uids'].append(skill_app.uid)
+            n_state_obj['in_skill_app_uids'].append(skill_app.uid)
+
+            
+                
+            
 
     def annotate_verified(self, states, actions):
         verified_state_uids = set()
@@ -1658,9 +1733,52 @@ class CREAgent(BaseDIPLAgent):
         #         skill_app.skill.ifit(states[action['state_uid']]['state'], skill_app, -1)
 
 
+    def _add_conflict_annotations(self, states, actions):
+        # Conflict annotations are used for deciding whether an 
+        #  uncertain action is worth showing to the user as a possibility 
+
+        # Add n_path_apps 
+        for sa_uid, act_obj in actions.items():
+            skill_app = act_obj['skill_app']
+            path = getattr(skill_app, 'path', None)
+            if(path is not None):
+                act_obj["n_path_apps"] = len(path.get_item().skill_apps)
+
+        # Add certainty, and certainty_diff
+        for s_uid, state_obj in states.items():
+            if(len(state_obj['out_skill_app_uids']) == 0):
+                continue
+
+            acts = [actions[x] for x in state_obj['out_skill_app_uids']]
+            apps = [x['skill_app'] for x in acts]
+            when_preds = np.array([sa.when_pred for sa in apps], dtype=np.float64)
+
+            in_process = np.array([getattr(sa,'in_process', False) for sa in apps],dtype=np.bool_)
+            n_apps = np.array([a.get('n_path_apps', 0) for a in acts],dtype=np.bool_)
+            avg_in_proc_pred = 0
+            avg_n_apps = 0
+            mask = in_process & (when_preds > 0)
+            if(np.sum(mask) > 0):
+                avg_in_proc_pred = np.average(when_preds[mask])
+                avg_n_apps = np.average(n_apps[mask])
+
+            certainty = when_preds[::1]
+            certainty[~in_process] /= (1.0+max(avg_in_proc_pred-1/(1+avg_n_apps),0))
+
+            max_cert = np.max(certainty)
+            cert_diffs = max_cert-when_preds
+
+            for act, cert, cert_diff in zip(acts, certainty, cert_diffs):
+                act['certainty'] = cert
+                act['cert_diff'] = cert_diff
+
+            # if(getattr(sa,'in_process', False) == False):
+            #     act['in_process_conflicts'] = in_process_uids
+        
 
     def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False,
                     base_depth=0, ret_avg_certainty=True, is_start=None, prob_uid=None,
+                    add_out_of_process=True, ignore_filter=True, add_conflict_annotations=True,
                      **kwargs):
         # print("IS START", is_start)
         ''' 
@@ -1683,65 +1801,81 @@ class CREAgent(BaseDIPLAgent):
 
         states = {}
         actions = {}
-        uid_stack = []
+        
         depth_counts = []
         self._insert_rollout_skill_app(None, state, None,
-                     states, actions, uid_stack, depth_counts, base_depth)
+                     states, actions, depth_counts, base_depth)
 
-        
+        uid_stack = [curr_state_uid]
+        print("ADD:OUT OF PROCESS", add_out_of_process)
         while(len(uid_stack) > 0):
             # print("RECURSE", uid_stack)
             # for _ in range(len(uid_stack)):
-            uid = uid_stack.pop()
-            depth = states[uid]['depth']+1
-            state = states[uid]['state']
-            src_wm = state.get("working_memory")
-            # print("---source---", uid)
-            # print(repr(src_wm))
-            if(getattr(state,"is_done", False) == True):
-                continue 
-            skill_apps = self.act_all(state, return_kind='skill_app', prob_uid=prob_uid)
-
-            for skill_app in skill_apps:
-                skill_app.skill.skill_apps[skill_app.uid] = skill_app
-
-                if(is_start):
-                    skill_app.prob_uid = curr_state_uid
-
-                at = skill_app.sai.action_type
-                # print("---skill_app :", skill_app)
-                # print("---action_type :", at)
-
-                if(hasattr(skill_app, 'next_state')):
-                    next_state = skill_app.next_state
-                else:
-                    next_state = self.predict_next_state(src_wm, skill_app.sai)
-                    skill_app.next_state = next_state
-
-                    
-                # next_wm = at.predict_state_change(src_wm, skill_app.sai)
-                # print("---dest---")
-                # print(repr(dest_wm))
-                # next_state = self.standardize_state(next_wm)
+            new_uids = set()
+            for uid in uid_stack:
+                depth = states[uid]['depth']+1
+                state = states[uid]['state']
                 
-                self._insert_rollout_skill_app(state, next_state, skill_app,
-                                states, actions, uid_stack, depth_counts, depth)
+                src_wm = state.get("working_memory")
+                # print("---source---", uid)
+                # print(repr(src_wm))
+                if(getattr(state,"is_done", False) == True):
+                    continue 
+
+                print("ACT ALL", ignore_filter)
+                skill_apps = self.act_all(state, 
+                    return_kind='skill_app', prob_uid=prob_uid,
+                    add_out_of_process=add_out_of_process,
+                    ignore_filter=ignore_filter)
+
+                for skill_app in skill_apps:
+                    skill_app.skill.skill_apps[skill_app.uid] = skill_app
+
+                    if(is_start):
+                        skill_app.prob_uid = curr_state_uid
+
+                    at = skill_app.sai.action_type
+                    # print("---skill_app :", skill_app)
+                    # print("---action_type :", at)
+
+                    if(getattr(skill_app, 'next_state', None) is not None):
+                        next_state = skill_app.next_state
+                    else:
+                        next_state = self.predict_next_state(src_wm, skill_app.sai)
+                        skill_app.next_state = next_state
+
+                        
+                    # next_wm = at.predict_state_change(src_wm, skill_app.sai)
+                    # print("---dest---")
+                    # print(repr(dest_wm))
+                    # next_state = self.standardize_state(next_wm)
+                    
+                    self._insert_rollout_skill_app(state, next_state, skill_app,
+                                    states, actions, depth_counts, depth)
+                    new_uids.add(next_state.get('__uid__'))
+
+            uid_stack = [uid for uid in new_uids 
+                         if self._rollout_expand_policy(uid, states, actions)]
+            # if(not ):
+                # self._insert_rollout_skill_app(None, state, None,
+                #      states, actions, uid_stack, depth_counts, depth)
+                # continue
             # print(uid_stack)
         # self.annotate_verified(states, actions)
 
 
 
-        for state_obj in states.values():
-            state_obj['out_skill_app_uids'] = []
-            state_obj['in_skill_app_uids'] = []
+        # for state_obj in states.values():
+        #     state_obj['out_skill_app_uids'] = []
+        #     state_obj['in_skill_app_uids'] = []
 
-        for uid, action in actions.items():
-            s_obj = states[action['state_uid']];
-            s_obj['out_skill_app_uids'].append(uid)
-            ns_obj = states[action['next_state_uid']];
-            ns_obj['in_skill_app_uids'].append(uid)
+        # for uid, action in actions.items():
+        #     s_obj = states[action['state_uid']];
+        #     s_obj['out_skill_app_uids'].append(uid)
+        #     ns_obj = states[action['next_state_uid']];
+        #     ns_obj['in_skill_app_uids'].append(uid)
 
-        if(hasattr(self, "process_lrn_mech")):
+        if(getattr(self, "process_lrn_mech", None) is not None):
             print()
             print(self.process_lrn_mech.grammar)
         # if(self.track_rollout_preseqs and is_start):
@@ -1762,6 +1896,8 @@ class CREAgent(BaseDIPLAgent):
         #         print(self.rollout_preseq_tracker.get_preseqs(last_state, prob_uid))
         #         print(">----------------<")
 
+        if(add_conflict_annotations):
+            self._add_conflict_annotations(states, actions)
 
         if(ret_avg_certainty):
             avg_certainty = 0.0

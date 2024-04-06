@@ -1339,9 +1339,19 @@ class ParsePath:
     def get_item(self):
         macro, meth_ind, item_ind, cov = self.steps[-1]
         return macro.methods[meth_ind].items[item_ind]
+
+    def get_info(self):
+        step_infos = []
+        for step in self.steps:
+            macro, meth_ind, item_ind, cov = step
+            step_infos.append({
+                "macro" : str(macro),
+                "meth_ind" : meth_ind,
+                "item_ind" : item_ind,
+                "cov" : list(cov) if cov else None
+            })
+        return step_infos
         
-
-
 
 def resolve_macro_prim_paths(path):
     # For a path which points to a Macro expand the path 

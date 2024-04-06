@@ -391,8 +391,8 @@ class STAND(BaseWhen, VectorTransformMixin):
 
     def ifit(self, state, skill_app, reward):
         index = self.add_example(state, skill_app, reward) # Insert into X_nom, Y
-        if(index != -1):
-            ia = self.classifier.instance_ambiguity(self.X_nom[index], None)
+        # if(index != -1):
+        #     ia = self.classifier.instance_ambiguity(self.X_nom[index], None)
         # print("WILL LEARN", ia > 0, ia)
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
         # print(self.classifier)
@@ -405,20 +405,25 @@ class STAND(BaseWhen, VectorTransformMixin):
         if(len(self.X_nom) == 0):
             return 1
         # prediction = self.classifier.predict(X_nom_subset, None)[0]
-        ia = self.classifier.instance_ambiguity(X_nom_subset[-1], None)
+        # ia = self.classifier.instance_ambiguity(X_nom_subset[-1], None)
         # print("IA", ia)
         
                 
-        probs = self.classifier.predict_prob(X_nom_subset, None)[0]
+        probs, labels  = self.classifier.predict_prob(X_nom_subset, None)
+        probs = probs[0]
+        best_ind = np.argmax(probs)
 
-        for a in probs:
-            if(a['y_class']==1):
-                prob = a['prob']
-                if(prob > 0):
-                    return prob
-            elif(a['y_class']==-1):
-                return -a['prob']
-                # return a['y_class']
+        # print("PROBS", labels, probs)
+        return labels[best_ind] * probs[best_ind]
+        
+        # for a in probs:
+        #     if(a['y_class']==1):
+        #         prob = a['prob']
+        #         if(prob > 0):
+        #             return prob
+        #     elif(a['y_class']==-1):
+        #         return -a['prob']
+        #         # return a['y_class']
         return 1
 
     def __str__(self):
