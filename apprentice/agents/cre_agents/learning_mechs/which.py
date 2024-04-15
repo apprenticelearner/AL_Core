@@ -29,6 +29,9 @@ class BaseWhich(metaclass=ABCMeta):
         raise NotImplemented()
 
     
+    def remove(self, state, skill_app):
+        # TODO: Haven't actually implemented anywhere below
+        return 
 
     def get_utility(self, state, skill_app):
         """

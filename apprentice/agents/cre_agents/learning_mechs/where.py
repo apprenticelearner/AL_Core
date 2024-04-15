@@ -229,12 +229,15 @@ class BaseCREWhere(BaseWhere):
             return new_mech, remap_info
         return new_mech
 
-    def remove_match(self, match):
+    def remove(self, state, match):
         match_ids = tuple([getattr(m, 'id', None) for m in match])
-
+        id_sets = self.id_sets
         if(match_ids in self.id_sets):
-            del self.id_sets[match_ids]
-            for args in self.id_sets.values():
+            del id_sets[match_ids]
+
+            # Refit everything
+            super().__init__(self.skill) 
+            for args in id_sets.values():
                 self.ifit(*args)
 
 
@@ -391,7 +394,7 @@ class Generalize(BaseCREWhere):
     def ifit(self, state, match, reward=1, var_names=None):
         # Only fit on positive reward
         if(reward is None or reward <= 0):
-            self.remove_match(match)
+            self.remove(match)
             return
 
             

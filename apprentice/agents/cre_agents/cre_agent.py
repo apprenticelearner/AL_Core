@@ -253,9 +253,10 @@ class SkillApplication(object):
         agent = self.skill.agent
         if(agent and self.uid not in agent.skill_apps_by_uid):
             agent.skill_apps_by_uid[self.uid] = self     
-            by_s_uid = agent.skill_apps_by_state_uid.get(self.state_uid,set())   
+            by_s_uid = agent.skill_apps_by_state_uid.get(self.state_uid, set())   
             by_s_uid.add(self)
             agent.skill_apps_by_state_uid[self.state_uid] = by_s_uid        
+
             if(hasattr(agent, 'rollout_preseq_tracker')):
                 # print(self)
                 if(self.next_state is None):
@@ -273,6 +274,14 @@ class SkillApplication(object):
                 agent.rollout_preseq_tracker.add_skill_app(self, getattr(self.state,'is_start', None), do_update=False)
         return True
 
+    def remove_seq_tracking(self):
+        agent = self.skill.agent
+        if(self.state_uid in agent.skill_apps_by_state_uid):
+            by_s_uid = agent.skill_apps_by_state_uid[self.state_uid]
+            by_s_uid.remove(self)
+        del agent.skill_apps_by_uid[self.uid]
+        agent.rollout_preseq_tracker.remove_skill_app(self, getattr(self.state,'is_start', None), do_update=False)
+
     def get_info(self):
         sai = self.sai
         info = {
@@ -285,11 +294,23 @@ class SkillApplication(object):
             'inputs' :  sai.inputs,
             'args' : [m.id for m in self.args],
             'when_pred' : self.when_pred,
-            'in_process' : getattr(self, 'in_process', False)
+            'in_process' : getattr(self, 'in_process', False),
+            
         }
+        if(self.skill and len(self.match) > 1):
+            hvs = self.skill.how_part.head_vars
+            head_vals = [hv[0](m) for hv, m in zip(hvs, self.match[1:])]
+            info['head_vals'] = head_vals
 
         if(getattr(self, 'path', None)):
             info['path'] = self.path.get_info()
+
+        if(getattr(self, 'certainty', None)):
+            info['certainty'] = self.certainty
+            info['cert_diff'] = self.cert_diff
+
+        if(getattr(self, 'removed', None)):
+            info['removed'] = self.removed
 
         if(hasattr(self, 'train_time')):
             train_data = {}
@@ -683,6 +704,38 @@ class CREAgent(BaseDIPLAgent):
         #             if(getattr(sa_a, 'reward', 0) == 1):
         #                 sa_a.apply_implicit_rewards()
 
+    def _add_conflict_certainty(self, skill_apps):
+        # Calculate certainty of each skill_app in a conflict set of possible  
+        #  next skill_apps. Helpful for choosing apps to show to user.
+        if(len(skill_apps) == 0):
+            return
+
+        # Add n_path_apps 
+        for skill_app in skill_apps:
+            path = getattr(skill_app, 'path', None)
+            if(path is not None):
+                skill_app.n_path_apps = len(path.get_item().skill_apps)
+
+        # Add certainty, and certainty_diff
+        when_preds = np.array([sa.when_pred for sa in skill_apps], dtype=np.float64)
+        in_process = np.array([getattr(sa,'in_process', False) for sa in skill_apps],dtype=np.bool_)
+        n_apps = np.array([getattr(sa,'n_path_apps', False) for sa in skill_apps],dtype=np.bool_)
+        avg_in_proc_pred = 0
+        avg_n_apps = 0
+        mask = in_process & (when_preds > 0)
+        if(np.sum(mask) > 0):
+            avg_in_proc_pred = np.average(when_preds[mask])
+            avg_n_apps = np.average(n_apps[mask])
+
+        certainty = when_preds[::1]
+        certainty[~in_process] /= (1.0+max(avg_in_proc_pred-1/(1+avg_n_apps),0))
+
+        max_cert = np.max(certainty)
+        cert_diffs = max_cert-when_preds
+
+        for sa, cert, cert_diff in zip(skill_apps, certainty, cert_diffs):
+            sa.certainty = cert
+            sa.cert_diff = cert_diff
 
     def get_skill_applications(self, state,
             is_start=None,
@@ -690,6 +743,7 @@ class CREAgent(BaseDIPLAgent):
             eval_mode=False,
             add_out_of_process=False,
             ignore_filter=False,
+            add_conflict_certainty=False,
             add_known=True):
         skill_apps = set()
 
@@ -850,7 +904,7 @@ class CREAgent(BaseDIPLAgent):
 
 
         if(len(skill_apps) == 0 or add_out_of_process):
-            print("BACKUP", len(skill_apps), add_out_of_process)
+            # print("BACKUP", len(skill_apps), add_out_of_process)
             for skill in self.skills.values():
                 for skill_app in skill.get_applications(state):
                     if (skill_app not in skill_apps):
@@ -890,6 +944,8 @@ class CREAgent(BaseDIPLAgent):
             # elif(rew < 0 and
             #      skill_app in skill_apps):
             #     skill_apps.remove(skill_app)
+        if(add_conflict_certainty):
+            self._add_conflict_certainty(skill_apps)
 
         if(not ignore_filter):
             print("DO FILTER", ignore_filter)
@@ -904,10 +960,13 @@ class CREAgent(BaseDIPLAgent):
         # print("CN SKILL APPS", len(skill_apps))
         skill_apps = self.which_cls.sort(state, skill_apps)
 
-        skill_apps = [sa for sa in skill_apps if sa.add_seq_tracking(prob_uid)]
+        out = []
+        for sa in skill_apps:
+            okay = sa.add_seq_tracking(prob_uid)
+            if(okay):
+                sa.skill.skill_apps[sa.uid] = sa
+                out.append(sa)
 
-        # print("N SKILL APPS", len(skill_apps))
-        # print('-^-')
         return skill_apps
 
     def act(self, state, 
@@ -934,7 +993,7 @@ class CREAgent(BaseDIPLAgent):
             # print(">>", skill_app)
 
             # Append to Skill 
-            skill_app.skill.skill_apps[skill_app.uid] = skill_app
+            # skill_app.skill.skill_apps[skill_app.uid] = skill_app
             
             self.prev_skill_app = skill_app
 
@@ -954,13 +1013,16 @@ class CREAgent(BaseDIPLAgent):
         prob_uid=None,
         eval_mode=False,
         add_out_of_process=False,
+        add_conflict_certainty=False,
         ignore_filter=False,
         **kwargs):
 
         state = self.standardize_state(state, is_start)
         skill_apps = self.get_skill_applications(state,
             is_start=is_start,  prob_uid=prob_uid, 
-            eval_mode=eval_mode, add_out_of_process=add_out_of_process,
+            eval_mode=eval_mode, 
+            add_conflict_certainty=add_conflict_certainty,
+            add_out_of_process=add_out_of_process,
             ignore_filter=ignore_filter)
 
         # if(self.track_rollout_preseqs):
@@ -973,8 +1035,8 @@ class CREAgent(BaseDIPLAgent):
         if(max_return >= 0):
             skill_apps = skill_apps[:max_return]
 
-        for skill_app in skill_apps:
-            skill_app.skill.skill_apps[skill_app.uid] = skill_app
+        # for skill_app in skill_apps:
+        #     skill_app.skill.skill_apps[skill_app.uid] = skill_app
 
         output = [sa.sai for sa in skill_apps] if(return_kind == 'sai') else skill_apps
             
@@ -1367,17 +1429,39 @@ class CREAgent(BaseDIPLAgent):
 
         return skill_app
 
-    def _ifit_skill_app(self, skill_app, reward, is_start=None, **kwargs):
+    def _remove_skill_app(self, skill_app, is_start=None, **kwargs):
         state = skill_app.state
         skill = skill_app.skill
 
-        # If reward==None then remove skill_app. If it is the
-        #  only SkillApp for 'skill' then completely remove 'skill'.
-        if(reward is None and skill_app.uid in skill.skill_apps):
+        # Remove form  skill-specific learning mechanisms where, when, which
+        skill.where_lrn_mech.remove(state, skill_app.match)
+        skill.when_lrn_mech.remove(state, skill_app)
+        skill.which_lrn_mech.remove(state, skill_app)
+
+        # TODO: Should remove from seq_tracking?? will ignoring cause issues?
+        # prob_uid = None if not is_start else state.get("__uid__")
+        # skill_app.add_seq_tracking(prob_uid)
+
+        # Remove global process-learning mechanism
+        if(self.process_lrn_mech):
+            self.process_lrn_mech.remove(state, skill_app, is_start=is_start)
+
+        # If a skill has no supporting skill_apps then delete it
+        skill_app.remove_seq_tracking()
+        if(skill_app.uid in skill.skill_apps):
             del skill.skill_apps[skill_app.uid]
             if(len(skill.skill_apps) == 0):
                 self.remove_skill(skill)
+
+    def _ifit_skill_app(self, skill_app, reward, is_start=None, **kwargs):
+        # If reward==None then remove skill_app. If it is the
+        #  only SkillApp for 'skill' then completely remove 'skill'.
+        if(reward is None):
+            self._remove_skill_app(skill_app, is_start, **kwargs)
             return
+
+        state = skill_app.state
+        skill = skill_app.skill
 
         # Add skill_app to the skill's supporting skill_apps
         skill.skill_apps[skill_app.uid] = skill_app
@@ -1391,20 +1475,14 @@ class CREAgent(BaseDIPLAgent):
         prob_uid = None if not is_start else state.get("__uid__") 
         skill_app.add_seq_tracking(prob_uid)
         if(self.process_lrn_mech):
-            next_state = None
-            if(getattr(skill_app, 'next_state', None) is None):
-                wm = state.get("working_memory")
-                next_state = self.predict_next_state(wm, skill_app.sai)
-                skill_app.next_state = next_state
-            # print("IS START", is_start)
-            self.process_lrn_mech.ifit(skill_app, is_start=is_start, reward=reward)
+            self.process_lrn_mech.ifit(state, skill_app, is_start=is_start, reward=reward)
 
         skill_app.train_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def train(self, state, sai=None, reward:float=None, arg_foci=None, how_help=None, 
               skill_app=None, uid=None, skill_label=None, skill_uid=None,
               explanation_selected=None, ret_train_expl=False, add_skill_info=False,
-              is_start=None, _ifit_implict=True, **kwargs):
+              is_start=None, _ifit_implict=True, remove=False, **kwargs):
         # print("SAI", sai, type(sai))
         
         state = self.standardize_state(state, is_start)
@@ -1418,23 +1496,31 @@ class CREAgent(BaseDIPLAgent):
                     explanation_selected=explanation_selected, **kwargs)        
 
         
-        print("TRAIN", skill_app, reward)
+        
         # print("ANNOTATE ARG FOCI:", arg_foci)
 
-        # Annotate explicit calls to train() with a 
-        #  time-stamp, explicit_reward, and other info.
-        skill_app.annotate_train_data(reward, arg_foci, skill_label, skill_uid, 
-            how_help, explanation_selected, **kwargs)
-
-        # Pass the reward to various learning mechanisms
-        self._ifit_skill_app(skill_app, reward, is_start, **kwargs)
-
-        # Apply or remove any implicit second-order effects
-        if(reward is None):
-            skill_app.removed = True
+        if(remove or reward is None):
+            print("REMOVE", skill_app)
+            # Remove skill_app from various learning mechanisms
+            self._remove_skill_app(skill_app, is_start, **kwargs)
+            # Remove any implicit second-order effects
             skill_app.clear_implicit_dependants()
-        elif(_ifit_implict):
-            skill_app.ifit_implicit_dependants()
+            skill_app.removed = True
+        else:
+            print("TRAIN", skill_app, reward)
+            # Annotate explicit calls to train() with a 
+            #  time-stamp, explicit_reward, and other info.
+            skill_app.annotate_train_data(reward, arg_foci, skill_label, skill_uid, 
+                how_help, explanation_selected, **kwargs)
+
+            # Pass the reward to various learning mechanisms
+            self._ifit_skill_app(skill_app, reward, is_start, **kwargs)
+
+            # Apply any implicit second-order effects
+            if(_ifit_implict):
+                skill_app.ifit_implicit_dependants()
+
+        
 
         # Return the skill_app that was updated
         return skill_app
@@ -1593,7 +1679,7 @@ class CREAgent(BaseDIPLAgent):
 # act_rollout()
     def _rollout_expand_policy(self, s_uid, states, actions):
         state_obj = states[s_uid]
-        print("POLICY", s_uid[:5], state_obj['in_skill_app_uids'], state_obj['out_skill_app_uids'])
+        # print("POLICY", s_uid[:5], state_obj['in_skill_app_uids'], state_obj['out_skill_app_uids'])
 
         # Edge Case: s_uid refers to the start state
         if(len(state_obj['in_skill_app_uids']) == 0):
@@ -1733,52 +1819,12 @@ class CREAgent(BaseDIPLAgent):
         #         skill_app.skill.ifit(states[action['state_uid']]['state'], skill_app, -1)
 
 
-    def _add_conflict_annotations(self, states, actions):
-        # Conflict annotations are used for deciding whether an 
-        #  uncertain action is worth showing to the user as a possibility 
 
-        # Add n_path_apps 
-        for sa_uid, act_obj in actions.items():
-            skill_app = act_obj['skill_app']
-            path = getattr(skill_app, 'path', None)
-            if(path is not None):
-                act_obj["n_path_apps"] = len(path.get_item().skill_apps)
-
-        # Add certainty, and certainty_diff
-        for s_uid, state_obj in states.items():
-            if(len(state_obj['out_skill_app_uids']) == 0):
-                continue
-
-            acts = [actions[x] for x in state_obj['out_skill_app_uids']]
-            apps = [x['skill_app'] for x in acts]
-            when_preds = np.array([sa.when_pred for sa in apps], dtype=np.float64)
-
-            in_process = np.array([getattr(sa,'in_process', False) for sa in apps],dtype=np.bool_)
-            n_apps = np.array([a.get('n_path_apps', 0) for a in acts],dtype=np.bool_)
-            avg_in_proc_pred = 0
-            avg_n_apps = 0
-            mask = in_process & (when_preds > 0)
-            if(np.sum(mask) > 0):
-                avg_in_proc_pred = np.average(when_preds[mask])
-                avg_n_apps = np.average(n_apps[mask])
-
-            certainty = when_preds[::1]
-            certainty[~in_process] /= (1.0+max(avg_in_proc_pred-1/(1+avg_n_apps),0))
-
-            max_cert = np.max(certainty)
-            cert_diffs = max_cert-when_preds
-
-            for act, cert, cert_diff in zip(acts, certainty, cert_diffs):
-                act['certainty'] = cert
-                act['cert_diff'] = cert_diff
-
-            # if(getattr(sa,'in_process', False) == False):
-            #     act['in_process_conflicts'] = in_process_uids
         
 
     def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False,
                     base_depth=0, ret_avg_certainty=True, is_start=None, prob_uid=None,
-                    add_out_of_process=True, ignore_filter=True, add_conflict_annotations=True,
+                    add_out_of_process=True, ignore_filter=True, add_conflict_certainty=True,
                      **kwargs):
         # print("IS START", is_start)
         ''' 
@@ -1813,6 +1859,11 @@ class CREAgent(BaseDIPLAgent):
             # for _ in range(len(uid_stack)):
             new_uids = set()
             for uid in uid_stack:
+
+                # Prevent cycles 
+                if(len(getattr(states[uid], 'out_skill_app_uids', [])) > 0):
+                    continue
+
                 depth = states[uid]['depth']+1
                 state = states[uid]['state']
                 
@@ -1822,14 +1873,15 @@ class CREAgent(BaseDIPLAgent):
                 if(getattr(state,"is_done", False) == True):
                     continue 
 
-                print("ACT ALL", ignore_filter)
+                # print("ACT ALL", ignore_filter)
                 skill_apps = self.act_all(state, 
                     return_kind='skill_app', prob_uid=prob_uid,
                     add_out_of_process=add_out_of_process,
+                    add_conflict_certainty=True,
                     ignore_filter=ignore_filter)
 
                 for skill_app in skill_apps:
-                    skill_app.skill.skill_apps[skill_app.uid] = skill_app
+                    # skill_app.skill.skill_apps[skill_app.uid] = skill_app
 
                     if(is_start):
                         skill_app.prob_uid = curr_state_uid
@@ -1896,8 +1948,8 @@ class CREAgent(BaseDIPLAgent):
         #         print(self.rollout_preseq_tracker.get_preseqs(last_state, prob_uid))
         #         print(">----------------<")
 
-        if(add_conflict_annotations):
-            self._add_conflict_annotations(states, actions)
+        # if(add_conflict_certainty):
+        #     self._add_conflict_certainty(states, actions)
 
         if(ret_avg_certainty):
             avg_certainty = 0.0

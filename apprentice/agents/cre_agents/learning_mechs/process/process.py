@@ -558,52 +558,110 @@ class HTNLearner:
         self.D = np.empty((0,0), dtype=np.int8)
         self.P = np.empty((0,), dtype=np.int8)
         self.grammar = None
-    
-    
 
-    def ifit(self, sa, is_start=None, prob_uid=None, reward=1):
-        sa = _ensure_convert_skill_app(sa)
+# -------------------------------
+# : ifit() and remove()
 
+    def _prep_fit(self, state, skill_app, is_start, prob_uid):
+        if(type(skill_app) is SkillApplication):
+            # Ensure that skill_app has next_state
+            if(getattr(skill_app, 'next_state', None) is None):
+                wm = state.get("working_memory")
+                next_state = skill_app.skill.agent.predict_next_state(wm, skill_app.sai)
+                skill_app.next_state = next_state
+
+        # Convert into 
+        skill_app = _ensure_convert_skill_app(skill_app)
         pst = self.preseq_tracker
 
         if(prob_uid is None):
             try:
-                prob_uid = pst.resolve_prob_uid(sa, is_start)
+                prob_uid = pst.resolve_prob_uid(skill_app, is_start)
             except:
-                return
+                pass
+
+        return skill_app, prob_uid
+
+    def _add_and_refit_seqs(self, skill_app, is_start, prob_uid):
+        pst = self.preseq_tracker
+        pst.add_skill_app(skill_app, is_start)
+        done_uid = pst.done_uids.get(prob_uid, None)
+        if(done_uid is not None):
+            for seq in pst.pre_seqs[prob_uid][done_uid]:
+                seq = (*seq,)
+                if(seq not in self.sequences):
+                    self.ifit_seq(seq)
+
+    def _remove_and_refit_seqs(self, skill_app, is_start, prob_uid):
+        pst = self.preseq_tracker
+        old_seqs = set()    
+        done_uid = pst.done_uids.get(prob_uid, None)
+        if(done_uid is not None):
+            old_seqs = pst.pre_seqs.get(prob_uid, {}).get(done_uid, set())
+        
+        pst.remove_skill_app(skill_app, is_start)
+
+        curr_seqs = pst.pre_seqs.get(prob_uid,{}).get(done_uid,set())
+        removed_seqs = old_seqs.difference(curr_seqs)
+        old_seqs = self.sequences.copy()
+        # print("O R",)
+        # print(old_seqs)
+        # print(removed_seqs)
+
+        # Clear sequences and refit everything, delay method pass until end.
+        if(len(removed_seqs) > 0):
+            self.reset()
+            for seq in old_seqs:
+                if(seq not in removed_seqs):
+                    self.ifit_seq(seq, skip_method_pass=True)
+                self.method_pass()
+
+    def remove(self, state, skill_app, is_start=None, prob_uid=None):
+        skill_app, prob_uid = self._prep_fit(state, skill_app, is_start, prob_uid)
+        if(not prob_uid): return
+        self._remove_and_refit_seqs(skill_app, is_start, prob_uid)
+
+    
+    def ifit(self, state, skill_app, is_start=None, prob_uid=None, reward=1):
+        skill_app, prob_uid = self._prep_fit(state, skill_app, is_start, prob_uid)
+        if(not prob_uid): return
 
         if(reward is not None and reward > 0):
-            pst.add_skill_app(sa, is_start)
-            done_uid = pst.done_uids.get(prob_uid, None)
+            self._add_and_refit_seqs(skill_app, is_start, prob_uid)
+            # pst.add_skill_app(skill_app, is_start)
+            # done_uid = pst.done_uids.get(prob_uid, None)
         else:
-            old_seqs = None    
-            done_uid = pst.done_uids.get(prob_uid, None)
-            if(done_uid):
-                old_seqs = pst.pre_seqs.get(prob_uid, {}).get(done_uid, set())
+            self._remove_and_refit_seqs(skill_app, is_start, prob_uid)
+
+
+            # old_seqs = None    
+            # done_uid = pst.done_uids.get(prob_uid, None)
+            # if(done_uid):
+            #     old_seqs = pst.pre_seqs.get(prob_uid, {}).get(done_uid, set())
             
-            pst.remove_skill_app(sa, is_start)
+            # pst.remove_skill_app(skill_app, is_start)
         
         # print(pst.done_uids)
-        if(done_uid is not None):
-            # print("NOT NONE", prob_uid)
-            if(reward is not None and reward > 0):
-                for seq in pst.pre_seqs[prob_uid][done_uid]:
-                    seq = (*seq,)
-                    if(seq not in self.sequences):
-                        self.ifit_seq(seq)
+        # if(done_uid is not None):
+        #     # print("NOT NONE", prob_uid)
+        #     if(reward is not None and reward > 0):
+        #         for seq in pst.pre_seqs[prob_uid][done_uid]:
+        #             seq = (*seq,)
+        #             if(seq not in self.sequences):
+        #                 self.ifit_seq(seq)
 
-            elif((reward is None or reward <= 0) and old_seqs):
-                curr_seqs = pst.pre_seqs.get(prob_uid,{}).get(done_uid,set())
-                removed_seqs = old_seqs.difference(curr_seqs)
-                old_seqs = self.sequences.copy()
-                # print("O R",)
-                # print(old_seqs)
-                # print(removed_seqs)
-                self.reset()
-                for seq in old_seqs:
-                    if(seq not in removed_seqs):
-                        self.ifit_seq(seq, skip_method_pass=True)
-                    self.method_pass()
+        #     elif((reward is None or reward <= 0) and old_seqs):
+        #         curr_seqs = pst.pre_seqs.get(prob_uid,{}).get(done_uid,set())
+        #         removed_seqs = old_seqs.difference(curr_seqs)
+        #         old_seqs = self.sequences.copy()
+        #         # print("O R",)
+        #         # print(old_seqs)
+        #         # print(removed_seqs)
+        #         self.reset()
+        #         for seq in old_seqs:
+        #             if(seq not in removed_seqs):
+        #                 self.ifit_seq(seq, skip_method_pass=True)
+        #             self.method_pass()
         # else:
         #     print("NONE", prob_uid)
 
@@ -611,6 +669,9 @@ class HTNLearner:
         #     print("--------------")
         #     print(self.grammar)
         #     print("--------------")
+
+# -------------------------------
+# : ifit() and remove()
 
     def ifit_seq(self, seq, skip_method_pass=False):
         seq = (*seq,)

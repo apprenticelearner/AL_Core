@@ -142,12 +142,13 @@ class RefittableMixin():
             Shifts the set of indicies and calls rebase_examples() from the
             child class.
         '''
-        # print("REMOVE EXAMPLE")
+        
         # raise ValueError("REMOVE EXAMPLE")
         # self._assert_skill_app_from_state(state, skill_app)
         did_change = False
         index, old_reward = self.examples.get(skill_app,(-1,0))
         if(index != -1):
+            print("REMOVE EXAMPLE", skill_app)
             for skill_app, (ind, reward) in self.examples.items():
                 if(ind > index):
                     self.examples[skill_app] = (ind-1, reward)
@@ -313,25 +314,22 @@ class VectorTransformMixin(RefittableMixin):
         self.X_nom = np.concatenate([self.X_nom[:index], self.X_nom[index+1:]])
         self.Y = np.concatenate([self.Y[:index], self.Y[index+1:]])
 
-
-# --------------------------------------------
-# : SklearnDecisionTree
-
-# @register_when(name="decisiontree")
-@register_when
-class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
+class BasicSKL(BaseWhen, VectorTransformMixin):
     def __init__(self, skill, **kwargs):
-        from sklearn.tree import DecisionTreeClassifier
-
-        # Default to one-hot
+        super().__init__(skill, **kwargs)
+        # Note: Most Sklearn classifiers only work well with one-hot
+        #  for instance decision trees use CART implementation
         kwargs['one_hot'] = kwargs.get('one_hot', True)
         BaseWhen.__init__(self, skill,**kwargs)
         VectorTransformMixin.__init__(self, skill, **kwargs)
-        self.classifier = DecisionTreeClassifier()
 
     def ifit(self, state, skill_app, reward):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
         self.classifier.fit(self.X_nom, self.Y) # Re-fit
+
+    def remove(self, state, skill_app):
+        self.remove_example(state, skill_app) # Insert into X_nom, Y
+        self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
@@ -339,95 +337,78 @@ class SklearnDecisionTree(BaseWhen, VectorTransformMixin):
         prediction = self.classifier.predict(X_nom_subset)[0]        
         return prediction
 
-# --------------------------------------------
-# : DecisionTree (i.e. STAND library implementation)
-
-@register_when
-class DecisionTree(BaseWhen, VectorTransformMixin):
-    def __init__(self, skill, impl="decision_tree",
-                **kwargs):
+class BasicSTAND(BaseWhen, VectorTransformMixin):
+    def __init__(self, skill, **kwargs):
         super().__init__(skill, **kwargs)
-        from stand.tree_classifier import TreeClassifier
-
+        # Note: Most STAND tends to work best without one-hot by default
         kwargs['one_hot'] = kwargs.get('one_hot', False)
-
         BaseWhen.__init__(self, skill,**kwargs)
         VectorTransformMixin.__init__(self, skill, **kwargs)
-        self.classifier = TreeClassifier(impl, inv_mapper=self.inv_mapper)
 
     def ifit(self, state, skill_app, reward):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+        if(len(self.X_nom) == 0): return
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
-        # print("CLASSIFIER:", self.skill)
-        # print(self.X_nom)
-        # print(self.vectorizer)
-        # print(self.classifier)
+    def remove(self, state, skill_app):
+        self.remove_example(state, skill_app) # Remove from X_nom, Y
+        if(len(self.X_nom) == 0): return
+        self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
     def predict(self, state, match):
+        if(len(self.X_nom) == 0): return 1
         continuous, nominal = self.transform(state, match)
         X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
         prediction = self.classifier.predict(X_nom_subset, None)[0]        
-
         return prediction
 
     def __str__(self):
         return str(self.classifier)
 
+# --------------------------------------------
+# : SklearnDecisionTree
+
+# @register_when(name="decisiontree")
+@register_when
+class SklearnDecisionTree(BasicSKL):
+    def __init__(self, skill, **kwargs):
+        super().__init__(skill, **kwargs)
+        from sklearn.tree import DecisionTreeClassifier
+        self.classifier = DecisionTreeClassifier()
+
+# --------------------------------------------
+# : DecisionTree (i.e. STAND library implementation)
+
+@register_when
+class DecisionTree(BasicSTAND):
+    def __init__(self, skill, impl="decision_tree",
+                **kwargs):
+        super().__init__(skill, **kwargs)
+        from stand.tree_classifier import TreeClassifier
+        self.classifier = TreeClassifier(impl, inv_mapper=self.inv_mapper)
 
 # --------------------------------------------
 # : STAND
 
 @register_when
-class STAND(BaseWhen, VectorTransformMixin):
-    def __init__(self, skill,
-                **kwargs):
+class STAND(BasicSTAND):
+    def __init__(self, skill, **kwargs):
+        super().__init__(skill, **kwargs)
         from stand.stand import STANDClassifier
-
-        kwargs['one_hot'] = kwargs.get('one_hot', False)
-        BaseWhen.__init__(self, skill,**kwargs)
-        VectorTransformMixin.__init__(self, skill, **kwargs)
         self.classifier = STANDClassifier(inv_mapper=self.inv_mapper, **kwargs)
-
-    def ifit(self, state, skill_app, reward):
-        index = self.add_example(state, skill_app, reward) # Insert into X_nom, Y
-        # if(index != -1):
-        #     ia = self.classifier.instance_ambiguity(self.X_nom[index], None)
-        # print("WILL LEARN", ia > 0, ia)
-        self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
-        # print(self.classifier)
         
-
     def predict(self, state, match):
+        if(len(self.X_nom) == 0): return 1
+
         continuous, nominal = self.transform(state, match)
-        X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
-        # print(X_nom_subset)
-        if(len(self.X_nom) == 0):
-            return 1
+        X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)        
         # prediction = self.classifier.predict(X_nom_subset, None)[0]
         # ia = self.classifier.instance_ambiguity(X_nom_subset[-1], None)
         # print("IA", ia)
         
-                
         probs, labels  = self.classifier.predict_prob(X_nom_subset, None)
         probs = probs[0]
         best_ind = np.argmax(probs)
 
-        # print("PROBS", labels, probs)
         return labels[best_ind] * probs[best_ind]
-        
-        # for a in probs:
-        #     if(a['y_class']==1):
-        #         prob = a['prob']
-        #         if(prob > 0):
-        #             return prob
-        #     elif(a['y_class']==-1):
-        #         return -a['prob']
-        #         # return a['y_class']
-        return 1
 
-    def __str__(self):
-        return str(self.classifier)
-        # print(probs)
-
-        # return prediction
