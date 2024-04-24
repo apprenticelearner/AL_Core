@@ -304,6 +304,8 @@ class SkillApplication(object):
 
         if(getattr(self, 'path', None)):
             info['path'] = self.path.get_info()
+            info['internal_unordered'] = self.path.is_internal_unordered
+            info['initial_unordered'] = self.path.is_initial_unordered
 
         if(getattr(self, 'certainty', None)):
             info['certainty'] = self.certainty
@@ -311,6 +313,10 @@ class SkillApplication(object):
 
         if(getattr(self, 'removed', None)):
             info['removed'] = self.removed
+
+        if(getattr(self, 'unordered_group', None)):
+            info['unordered_group'] = self.unordered_group
+            # info['group_next_state_uid'] = self.group_next_state_uid
 
         if(hasattr(self, 'train_time')):
             train_data = {}
@@ -586,6 +592,8 @@ class CREAgent(BaseDIPLAgent):
         return state
 
     def standardize_SAI(self, sai):
+        if(isinstance(sai, SkillApplication)):
+            sai = sai.sai
         if(isinstance(sai, BaseSAI)):
             # Always copy the SAI to avoid side effects in the caller
             sai = SAI(sai.selection, sai.action_type, sai.inputs)
@@ -623,35 +631,23 @@ class CREAgent(BaseDIPLAgent):
 # : Act, Act_All
 
     def _organize_mutl_excl(self, in_process_grps):
-        def path_prefix(path):
-            pp = []
-            for i, (macro, meth_ind, item_ind, cov) in enumerate(path.steps):
-                if(cov is not None):
-                    item_ind = 0
-                    cov = tuple(sorted([x for x in cov]))
-                pp.append((macro._id, meth_ind, item_ind, cov))
-            return tuple(pp)
-
         mut_excl_grps = []
         for i, grp in enumerate(in_process_grps):
             # print("<<", i)
-            prefix_groups = {}
-            for sa in grp:
 
+            filtered_grp = []
+            for sa in grp:
                 # Weh
                 if(not sa.skill.where_lrn_mech.check_match(sa.state, sa.match)):
                     continue
 
                 sa.in_process = True
                 sa.ensure_when_pred()
-                prefix = path_prefix(sa.path)
-                # print(sa, type(sa))
-                # print("\t", sa.path)
-                # print("\t", path_prefix(sa.path))
+                filtered_grp.append(sa)
 
-                pre_grp = prefix_groups.get(prefix, [])
-                pre_grp.append(sa)
-                prefix_groups[prefix] = pre_grp
+            prefix_groups = group_by_path(filtered_grp)
+
+
             me_grp = []
             for pre_grp in prefix_groups.values():
                 me_grp.append(pre_grp)
@@ -716,26 +712,44 @@ class CREAgent(BaseDIPLAgent):
             if(path is not None):
                 skill_app.n_path_apps = len(path.get_item().skill_apps)
 
-        # Add certainty, and certainty_diff
+        # Collect when_preds, when_preds, n_apps
         when_preds = np.array([sa.when_pred for sa in skill_apps], dtype=np.float64)
         in_process = np.array([getattr(sa,'in_process', False) for sa in skill_apps],dtype=np.bool_)
         n_apps = np.array([getattr(sa,'n_path_apps', False) for sa in skill_apps],dtype=np.bool_)
-        avg_in_proc_pred = 0
-        avg_n_apps = 0
+
+        def is_mid_unordered_grp(sa):
+            path = getattr(sa, "path", None)
+            if(path):
+                return path.is_initial_unordered
+                # macro, meth_ind, item_ind, cov = path.steps[-1]
+                # return cov and len(cov) > 0
+            return False
+
+
+        mid_unord = np.array([is_mid_unordered_grp(sa) for sa in skill_apps],dtype=np.bool_)
+        print("MID UNORD", mid_unord)
+        avg_iproc_pred, avg_iproc_n_apps = 0, 0
         mask = in_process & (when_preds > 0)
         if(np.sum(mask) > 0):
-            avg_in_proc_pred = np.average(when_preds[mask])
-            avg_n_apps = np.average(n_apps[mask])
+            avg_iproc_pred = np.average(when_preds[mask])
+            avg_iproc_n_apps = np.average(n_apps[mask])
 
-        certainty = when_preds[::1]
-        certainty[~in_process] /= (1.0+max(avg_in_proc_pred-1/(1+avg_n_apps),0))
+        # Initial certainty is the when predictions
+        certainty = when_preds.copy()
+
+        # Reduce out-of-process certainties by a function of the certainties of
+        #  in-process action's and their numbers of supporting skill_apps.
+        #  If there are any mid-unordered group apps then double the reduction.
+        certainty[~in_process] /= (1.0 + max(avg_iproc_pred-1/(1+avg_iproc_n_apps), 0))*(1+mid_unord.any())
+
+
 
         max_cert = np.max(certainty)
-        cert_diffs = max_cert-when_preds
+        cert_diffs = max_cert-certainty
 
         for sa, cert, cert_diff in zip(skill_apps, certainty, cert_diffs):
-            sa.certainty = cert
-            sa.cert_diff = cert_diff
+            sa.certainty = np.nan_to_num(cert, 0)
+            sa.cert_diff = np.nan_to_num(cert_diff, 1)
 
     def get_skill_applications(self, state,
             is_start=None,
@@ -744,7 +758,9 @@ class CREAgent(BaseDIPLAgent):
             add_out_of_process=False,
             ignore_filter=False,
             add_conflict_certainty=False,
-            add_known=True):
+            add_known=True,
+            hard_cert_thresh=None,
+            **kwargs):
         skill_apps = set()
 
         if(prob_uid is None and is_start):
@@ -946,11 +962,15 @@ class CREAgent(BaseDIPLAgent):
             #     skill_apps.remove(skill_app)
         if(add_conflict_certainty):
             self._add_conflict_certainty(skill_apps)
+            if(hard_cert_thresh is not None):
+                skill_apps = [sa for sa in skill_apps if getattr(sa,"explicit_reward", None) is not None or sa.certainty >= hard_cert_thresh]
 
         if(not ignore_filter):
-            print("DO FILTER", ignore_filter)
+            # print("DO FILTER", ignore_filter)
             # print("BEFORE FILTER", [getattr(sa,'when_pred', None) for sa in skill_apps])
             skill_apps = self.action_filter(state, skill_apps, **self.action_filter_args)
+
+        
             # print("AFTER FILTER:")
             # for sa in skill_apps:
             #     print(sa.reward, getattr(sa,'when_pred', None), skill_app)
@@ -980,7 +1000,8 @@ class CREAgent(BaseDIPLAgent):
         state = self.standardize_state(state, is_start)
         skill_apps = self.get_skill_applications(state,
             is_start=is_start, 
-            prob_uid=prob_uid, eval_mode=eval_mode)
+            prob_uid=prob_uid, eval_mode=eval_mode,
+            **kwargs)
 
         # if(self.track_rollout_preseqs):
         #     for skill_app in skill_apps:
@@ -1023,7 +1044,8 @@ class CREAgent(BaseDIPLAgent):
             eval_mode=eval_mode, 
             add_conflict_certainty=add_conflict_certainty,
             add_out_of_process=add_out_of_process,
-            ignore_filter=ignore_filter)
+            ignore_filter=ignore_filter,
+            **kwargs)
 
         # if(self.track_rollout_preseqs):
         #     for skill_app in skill_apps:
@@ -1249,33 +1271,41 @@ class CREAgent(BaseDIPLAgent):
 # : Predict Next State
 
     def predict_next_state(self, state, sai, json_friendly=False, **kwargs):
-        ''' Given a 'state' and 'sai' use the registered ActionType definitions to produce
-             the new state as a result of applying 'sai' on 'state'. '''
+        ''' Given a 'state' and 'sai' or list of sais use the registered ActionType definitions 
+             to produce the new state as a result of applying 'sai' on 'state'. '''
         state = self.standardize_state(state)
-        sai = self.standardize_SAI(sai)
-        at = sai.action_type
-        # print("PREDICT NEXT STATE", sai)
+        state_uid = state.get('__uid__')
 
-        # Special null state for done
-        if(sai.selection.id == "done"):
-            # print("SEL IS DONE!")
-            next_wm = MemSet()
-            next_state = self.standardize_state(next_wm)
-            next_state.is_done = True
-        # Otherwise standarize the input state
+        if(isinstance(sai, list)):
+            sai_list = sai
+            next_state = state
+            for sai in sai_list:
+                next_state = self.predict_next_state(next_state, sai)
+            next_wm = next_state.get('working_memory')
         else:
-            next_wm = at.predict_state_change(state.get('working_memory'), sai)
-            next_state = self.standardize_state(next_wm)
-            next_state.is_done = False
-        
-        if(state.get('__uid__') == next_state.get('__uid__')):
+            
+            sai = self.standardize_SAI(sai)
+            at = sai.action_type
+            # print("PREDICT NEXT STATE", sai)
+
+            # Special null state for done
+            if(sai.selection.id == "done"):
+                # print("SEL IS DONE!")
+                next_wm = MemSet()
+                next_state = self.standardize_state(next_wm)
+                next_state.is_done = True
+            # Otherwise standarize the input state
+            else:
+                next_wm = at.predict_state_change(state.get('working_memory'), sai)
+                next_state = self.standardize_state(next_wm)
+                next_state.is_done = False
+
+        next_state_uid = next_state.get('__uid__')
+        if(state_uid == next_state_uid):
             print(sai)
             raise ValueError("BAD ACTION")
         # print("PNS", state.get('__uid__')[:5], next_state.get('__uid__')[:5])
         if(json_friendly):
-            state_uid = state.get('__uid__')
-            next_state_uid = next_state.get('__uid__')
-
             next_state = {'state_uid' : state_uid, 'next_state_uid' : next_state_uid,
                           'next_state': next_wm.as_dict(key_attr='id'),
                          }
@@ -1530,7 +1560,7 @@ class CREAgent(BaseDIPLAgent):
         pos_skill_apps = []
         for sa in skill_apps:
             rew = getattr(sa,"reward", 0)
-            if(rew is not None and rew > 0 and sa.sai.selection != "done"):
+            if(rew is not None and rew > 0 and sa.sai.selection.id != "done"):
                 pos_skill_apps.append(sa)
         pos_skill_apps = tuple(sorted(pos_skill_apps, key=lambda x: x.uid))
 
@@ -1560,6 +1590,7 @@ class CREAgent(BaseDIPLAgent):
             for i, sa in enumerate(order):
                 if(i != 0):
                     wm = state.get("working_memory")
+
                     match = [wm.get_fact(id=m.id) for m in sa.match]
                     
                     # Restate the skill app using predicted next state
@@ -1818,13 +1849,89 @@ class CREAgent(BaseDIPLAgent):
         #         skill_app = action['skill_app']
         #         skill_app.skill.ifit(states[action['state_uid']]['state'], skill_app, -1)
 
+    def _annotate_unordered_groups(self, states, actions):
+        unordered_groups = {}
+        for s_uid, s_obj in states.items():
+            state = s_obj['state']
+            apps = [actions[uid]['skill_app'] for uid in s_obj['out_skill_app_uids']]
+            if(len(apps) <= 1):
+                continue
+
+            apps_not_in_grp = set(apps)
+            path_grps = group_by_path(apps)
+            if(len(path_grps) > 0):
+                for path, grp in path_grps.items():
+
+                    non_neg_apps = [sa for sa in grp if sa.reward is None or sa.reward > 0]
+                    if(len(non_neg_apps) <= 1 or non_neg_apps[0].path.is_internal_unordered):
+                        continue
 
 
-        
+                    try:
+                        # Try/except since sai seq can be invalid,
+                        #  for instance if mixed w/ "press done" 
+                        end_state = self.predict_next_state(state, [sa.sai for sa in non_neg_apps])
+                    except:
+                        continue
+                    start_uid = state.get('__uid__')
+                    end_uid = end_state.get('__uid__')
+                    grp_str = f"{start_uid}-{end_uid}"
+
+                    print("UNORDERED GROUP", start_uid[:5], end_uid[:5], [sa.sai for sa in grp])
+                    for sa in grp:
+                        sa.unordered_group = grp_str
+                        # sa.group_next_state_uid = end_uid
+                        if(sa.uid in actions):
+                            actions[sa.uid]['group_next_state_uid'] = end_uid
+                        # print(sa)
+                        apps_not_in_grp.remove(sa)
+
+                    unordered_groups[grp_str] = {
+                        "skill_app_uids" : [sa.uid for sa in grp],
+                        "start_state_uid" : start_uid,
+                        "end_state_uid" : end_uid,
+                    }
+
+
+            # Even if not yet an unordered group give it a group_next_state_uid
+            if(len(apps_not_in_grp) > 0):
+                pos_apps = [sa for sa in apps_not_in_grp if sa.reward is not None and sa.reward > 0]
+                print("POS APPS", state.get('__uid__')[:5])
+
+                if(len(pos_apps) <= 1):
+                    continue
+
+                try:
+                    # Try/except since sai seq can be invalid,
+                    #  for instance if mixed w/ "press done" 
+                    end_state = self.predict_next_state(state, [sa.sai for sa in pos_apps])
+                except:
+                    continue
+
+                end_uid = end_state.get('__uid__')
+                # print("POS APPS", state.get('__uid__')[:5], "->", end_uid[:5])
+                for sa in pos_apps:
+                    if(sa.uid in actions):
+                        print(">>", sa.uid)
+                        actions[sa.uid]['group_next_state_uid'] = end_uid
+
+
+        return unordered_groups
+
+    # def _annotate_group_next_state(self, states, actions):
+    #     for s_uid, s_obj in states.items():
+    #         state = s_obj['state']
+    #         apps = [actions[uid]['skill_app'] for uid in s_obj['out_skill_app_uids']]
+    #         if(len(apps) <= 1):
+    #             continue 
+    #         pos_apps = [sa for sa in apps if sa.reward > 0 or sa.in_process]
+
+
 
     def act_rollout(self, state, max_depth=-1, halt_policies=[], json_friendly=False,
                     base_depth=0, ret_avg_certainty=True, is_start=None, prob_uid=None,
-                    add_out_of_process=True, ignore_filter=True, add_conflict_certainty=True,
+                    add_out_of_process=False, ignore_filter=False, add_conflict_certainty=True,
+                    annotate_unordered_groups=True, annotate_group_next_state=True,
                      **kwargs):
         # print("IS START", is_start)
         ''' 
@@ -1877,8 +1984,9 @@ class CREAgent(BaseDIPLAgent):
                 skill_apps = self.act_all(state, 
                     return_kind='skill_app', prob_uid=prob_uid,
                     add_out_of_process=add_out_of_process,
-                    add_conflict_certainty=True,
-                    ignore_filter=ignore_filter)
+                    add_conflict_certainty=add_conflict_certainty,
+                    ignore_filter=ignore_filter,
+                    **kwargs)
 
                 for skill_app in skill_apps:
                     # skill_app.skill.skill_apps[skill_app.uid] = skill_app
@@ -1959,6 +2067,16 @@ class CREAgent(BaseDIPLAgent):
                 avg_certainty += cert
         avg_certainty = 0.0 if len(actions) == 0 else avg_certainty / len(actions)
         
+
+        out = {"curr_state_uid" :  curr_state_uid, 
+                "states" : states,
+                "actions" : actions,
+                }
+
+        if(annotate_unordered_groups):
+            unord_grps = self._annotate_unordered_groups(states, actions)
+            out["unordered_groups"] = unord_grps
+            
         if(json_friendly):
             for state_obj in states.values():
                 state_obj['state'] = state_obj['state'].get("py_dict")
@@ -1969,10 +2087,9 @@ class CREAgent(BaseDIPLAgent):
 
         from pprint import pprint
 
-        out = {"curr_state_uid" :  curr_state_uid, 
-                "states" : states,
-                "actions" : actions,
-                }
+        
+
+        
 
         if(ret_avg_certainty):
             out['avg_certainty'] = avg_certainty
@@ -2163,8 +2280,28 @@ class CREAgent(BaseDIPLAgent):
 
 
 
+def group_by_path(skill_apps):
+    prefix_groups = {}
+    for sa in skill_apps:
+        path = getattr(sa, 'path', None)
+        if(not path):
+            continue
+        prefix = path_prefix(sa.path)
+        pre_grp = prefix_groups.get(prefix, [])
+        pre_grp.append(sa)
+        prefix_groups[prefix] = pre_grp
+    return prefix_groups
 
 
+def path_prefix(path):
+    '''A helper function which converts a parse path into a hashable object'''
+    pp = []
+    for i, (macro, meth_ind, item_ind, cov) in enumerate(path.steps):
+        if(cov is not None):
+            item_ind = 0
+            cov = tuple(sorted([x for x in cov]))
+        pp.append((macro._id, meth_ind, item_ind, cov))
+    return tuple(pp)
 
 
 

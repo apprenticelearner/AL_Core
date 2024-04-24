@@ -660,10 +660,31 @@ def get_state_uid(http_request):
 # ---------------------------------------------------------------------
 # : Predict Next State
 
+def _standardize_predict_next_state_data(http_request, errs=[], warns=[]):
+    if http_request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    data = json.loads(http_request.body.decode("utf-8"))
+
+    ensure_field(data, "agent_uid", errs)
+    ensure_field(data, "state", errs)
+    ensure_field(data, "sai", errs)
+    # selection = ensure_field(data, "selection", errs)
+    # action_type = ensure_field(data, ('action_type', 'action'), errs)
+    # inputs = ensure_field(data, ('inputs', 'input'), errs)
+
+    # data['sai'] = (selection, action_type, inputs)
+    # _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
+
+    if len(errs) > 0:
+        for err in errs:
+            log.error(err)
+        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+    return data
+
 @csrf_exempt
 def predict_next_state(http_request):
     errs, warns = [], []
-    data = _standardize_explain_demo_data(http_request, errs, warns)
+    data = _standardize_predict_next_state_data(http_request, errs, warns)
     
     try:
         agent, model = get_agent_by_uid(data['agent_uid'])

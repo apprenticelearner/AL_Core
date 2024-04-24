@@ -1314,6 +1314,7 @@ class HTNLearner:
                 if(sk_app):
                     sk_app.path = path
                     skill_apps.append(sk_app)
+
             if(group_by_depends):
                 skill_app_grps.append(skill_apps)
                 skill_apps = []
@@ -1412,6 +1413,25 @@ class ParsePath:
                 "cov" : list(cov) if cov else None
             })
         return step_infos
+
+    @property
+    def is_internal_unordered(self):
+        if(len(self.steps) == 0):
+            return False
+        macro, meth_ind, item_ind, cov = self.steps[-1]
+        if(cov is not None and len(cov) > 0):
+            return True
+        return False
+
+    @property
+    def is_initial_unordered(self):
+        if(len(self.steps) == 0):
+            return False
+        macro, meth_ind, item_ind, cov = self.steps[-1]
+        if(cov is not None and len(cov) == 0):
+            return True
+        return False
+
         
 
 def resolve_macro_prim_paths(path):
