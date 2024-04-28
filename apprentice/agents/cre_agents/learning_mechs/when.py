@@ -350,6 +350,21 @@ class BasicSTAND(BaseWhen, VectorTransformMixin):
         if(len(self.X_nom) == 0): return
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
+    def fit(self, skill_app_reward_pairs):
+        cover = set()
+        old_apps = set(self.examples.keys())
+        for skill_app, reward in skill_app_reward_pairs:
+            state = skill_app.state
+            cover.add(skill_app)
+            self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+
+        not_cover = old_apps.difference(cover)
+        for skill_app in not_cover:
+            state = skill_app.state
+            state.remove_example(state, skill_app)
+
+        self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
+
     def remove(self, state, skill_app):
         self.remove_example(state, skill_app) # Remove from X_nom, Y
         if(len(self.X_nom) == 0): return

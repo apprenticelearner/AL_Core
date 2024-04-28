@@ -96,6 +96,9 @@ class Skill(object):
         self.when_lrn_mech = agent.when_cls(self,**agent.when_args)
         self.which_lrn_mech = agent.which_cls(self,*agent.which_args)
 
+        if(agent.process_lrn_mech and getattr(agent, 'sep_in_proc_when', False)):
+            self.in_proc_when_lrn_mech = agent.when_cls(self,**agent.when_args)
+
         self.skill_apps = {}
 
     def get_applications(self, state, skip_when=False):        
@@ -422,7 +425,7 @@ class SkillApplication(object):
         for dep in self.implicit_dependants:
             did_update, impl_rew = dep.update_implicit_reward()
             if(did_update and dep.explicit_reward is None):
-                print("IMPLICIT", dep.state.get("__uid__")[:5], dep, impl_rew)
+                # print("IMPLICIT", dep.state.get("__uid__")[:5], dep, impl_rew)
                 agent._ifit_skill_app(dep, impl_rew)
         # if(self.explicit_reward is not None and self.explicit_reward > 0):
             
@@ -447,7 +450,11 @@ class SkillApplication(object):
 
     def ensure_when_pred(self):
         # print("ENSURE", self)
-        self.when_pred = self.skill.when_lrn_mech.predict(self.state, self.match)
+        if(getattr(self.skill.agent, "sep_in_proc_when", False) and
+           getattr(self, "in_process", False)):
+            self.when_pred = self.skill.in_proc_when_lrn_mech.predict(self.state, self.match)
+        else:
+            self.when_pred = self.skill.when_lrn_mech.predict(self.state, self.match)
 
 
 # ----------------------
@@ -727,7 +734,7 @@ class CREAgent(BaseDIPLAgent):
 
 
         mid_unord = np.array([is_mid_unordered_grp(sa) for sa in skill_apps],dtype=np.bool_)
-        print("MID UNORD", mid_unord)
+        # print("MID UNORD", mid_unord)
         avg_iproc_pred, avg_iproc_n_apps = 0, 0
         mask = in_process & (when_preds > 0)
         if(np.sum(mask) > 0):
@@ -919,7 +926,7 @@ class CREAgent(BaseDIPLAgent):
             #             skill_apps.append(skill_app)
 
 
-        if(len(skill_apps) == 0 or add_out_of_process):
+        if(add_out_of_process or len(skill_apps) == 0):
             # print("BACKUP", len(skill_apps), add_out_of_process)
             for skill in self.skills.values():
                 for skill_app in skill.get_applications(state):
@@ -1475,6 +1482,8 @@ class CREAgent(BaseDIPLAgent):
         # Remove global process-learning mechanism
         if(self.process_lrn_mech):
             self.process_lrn_mech.remove(state, skill_app, is_start=is_start)
+            if(hasattr(skill, 'in_proc_when_lrn_mech')):
+                skill.in_proc_when_lrn_mech.remove(state, skill_app)
 
         # If a skill has no supporting skill_apps then delete it
         skill_app.remove_seq_tracking()
@@ -1506,6 +1515,15 @@ class CREAgent(BaseDIPLAgent):
         skill_app.add_seq_tracking(prob_uid)
         if(self.process_lrn_mech):
             self.process_lrn_mech.ifit(state, skill_app, is_start=is_start, reward=reward)
+            if(hasattr(skill, 'in_proc_when_lrn_mech') and (
+                reward > 0 or getattr(skill_app, 'in_process', False) == True)
+               ):
+                print("FIT IN PROC", skill_app)
+                app_rews = [(sa, rew) for sa, (ind, rew) in skill.when_lrn_mech.examples.items()
+                            if getattr(sa, 'in_process', False)==True or rew > 0]
+                skill.in_proc_when_lrn_mech.fit(app_rews)
+            else:
+                print("FIT OUT PROC", skill_app)
 
         skill_app.train_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1896,7 +1914,7 @@ class CREAgent(BaseDIPLAgent):
             # Even if not yet an unordered group give it a group_next_state_uid
             if(len(apps_not_in_grp) > 0):
                 pos_apps = [sa for sa in apps_not_in_grp if sa.reward is not None and sa.reward > 0]
-                print("POS APPS", state.get('__uid__')[:5])
+                # print("POS APPS", state.get('__uid__')[:5])
 
                 if(len(pos_apps) <= 1):
                     continue
@@ -1912,7 +1930,7 @@ class CREAgent(BaseDIPLAgent):
                 # print("POS APPS", state.get('__uid__')[:5], "->", end_uid[:5])
                 for sa in pos_apps:
                     if(sa.uid in actions):
-                        print(">>", sa.uid)
+                        # print(">>", sa.uid)
                         actions[sa.uid]['group_next_state_uid'] = end_uid
 
 
@@ -1960,7 +1978,7 @@ class CREAgent(BaseDIPLAgent):
                      states, actions, depth_counts, base_depth)
 
         uid_stack = [curr_state_uid]
-        print("ADD:OUT OF PROCESS", add_out_of_process)
+        # print("ADD:OUT OF PROCESS", add_out_of_process)
         while(len(uid_stack) > 0):
             # print("RECURSE", uid_stack)
             # for _ in range(len(uid_stack)):

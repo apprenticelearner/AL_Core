@@ -133,6 +133,9 @@ class BaseDIPLAgent(object):
         self.bottomout_exceptions = config_get("bottomout_exceptions",
             default=[('done', None, None)])
 
+        self.sep_in_proc_when = config_get("sep_in_proc_when",
+            default=True)
+
     def __init__(self, **config):
         self.uid = rand_agent_uid()
         self.standardize_config(config)
