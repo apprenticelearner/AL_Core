@@ -394,7 +394,7 @@ class Generalize(BaseCREWhere):
     def ifit(self, state, match, reward=1, var_names=None):
         # Only fit on positive reward
         if(reward is None or reward <= 0):
-            self.remove(match)
+            self.remove(state, match)
             return
 
             
