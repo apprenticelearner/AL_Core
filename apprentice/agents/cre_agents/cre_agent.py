@@ -1578,7 +1578,9 @@ class CREAgent(BaseDIPLAgent):
         pos_skill_apps = []
         for sa in skill_apps:
             rew = getattr(sa,"reward", 0)
-            if(rew is not None and rew > 0 and sa.sai.selection.id != "done"):
+            removed = getattr(sa, 'removed', False)
+            if(not removed and rew is not None and 
+                rew > 0 and sa.sai.selection.id != "done"):
                 pos_skill_apps.append(sa)
         pos_skill_apps = tuple(sorted(pos_skill_apps, key=lambda x: x.uid))
 
