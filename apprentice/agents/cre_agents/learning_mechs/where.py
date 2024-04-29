@@ -232,12 +232,12 @@ class BaseCREWhere(BaseWhere):
     def remove(self, state, match):
         match_ids = tuple([getattr(m, 'id', None) for m in match])
         id_sets = self.id_sets
-        if(match_ids in list(self.id_sets.keys())):
+        if(match_ids in list(id_sets.keys())):
             del id_sets[match_ids]
 
             # Refit everything
             super().__init__(self.skill) 
-            for args in id_sets.values():
+            for args in list(id_sets.values()):
                 self.ifit(*args)
 
 
