@@ -2021,7 +2021,13 @@ class CREAgent(BaseDIPLAgent):
                     if(getattr(skill_app, 'next_state', None) is not None):
                         next_state = skill_app.next_state
                     else:
-                        next_state = self.predict_next_state(src_wm, skill_app.sai)
+                        try:
+                            next_state = self.predict_next_state(src_wm, skill_app.sai)
+                        except ValueError:
+                            # Some unusual bug can cause this when training interactively
+                            #  probably has to do with giving feedback before rollout
+                            #  is finished computing.
+                            continue
                         skill_app.next_state = next_state
 
                         
