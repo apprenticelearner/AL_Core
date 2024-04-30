@@ -1521,7 +1521,8 @@ class CREAgent(BaseDIPLAgent):
                 print("FIT IN PROC", skill_app)
                 app_rews = [(sa, rew) for sa, (ind, rew) in skill.when_lrn_mech.examples.items()
                             if getattr(sa, 'in_process', False)==True or rew > 0]
-                skill.in_proc_when_lrn_mech.fit(app_rews)
+                with PrintElapse("IN PROC FIT:"):
+                    skill.in_proc_when_lrn_mech.fit(app_rews)
             else:
                 print("FIT OUT PROC", skill_app)
 
@@ -1668,7 +1669,7 @@ class CREAgent(BaseDIPLAgent):
         for skill in self.skills.values():
             print()
             print(skill)
-            print(skill.when_lrn_mech)
+            # print(skill.when_lrn_mech)
         print("---------------")
 
 

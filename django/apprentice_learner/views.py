@@ -35,6 +35,7 @@ class LogElapse():
     def __exit__(self,*args):
         self.t1 = time.time_ns()/float(1e6)
         self.logger.info(f'{self.message}: {self.t1-self.t0:.6f} ms')
+        print(f'{self.message}: {self.t1-self.t0:.6f} ms')
 
 active_agent = None
 active_agent_uid = None
