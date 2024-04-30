@@ -80,8 +80,8 @@ class ExplanationSet():
                     tup = (func_comp.depth, abs(func_comp.n_args-len(match)), func_comp.n_funcs)
                     return tup 
                 self.explanations = sorted(self.explanations, key=expl_key)
-                if(len(self.explanations) > 0):
-                    print("Any FOCI MATCH", not not has_foci_match[0])
+                # if(len(self.explanations) > 0):
+                #     print("Any FOCI MATCH", not not has_foci_match[0])
         else:
             self.explanations = []
 
