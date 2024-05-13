@@ -18,6 +18,7 @@ from numba.core.runtime.nrt import rtsys
 import gc
 import hashlib
 import base64
+import json
 from datetime import datetime
 
 
@@ -112,7 +113,7 @@ class Skill(object):
         # with PrintElapse("iter_matches"):
         for match in matches:
             when_pred = 1 if skip_when else self.when_lrn_mech.predict(state, match)
-            # print(when_pred, match)
+            # print(f"{when_pred:.2f}", str(self.how_part), ": ",  match)
             if(when_pred > 0 or self.agent.suggest_uncert_neg and when_pred != -1.0):
                 skill_app = SkillApplication(self, match, state, when_pred=when_pred)
                 if(skill_app is not None):
@@ -937,11 +938,11 @@ class CREAgent(BaseDIPLAgent):
                     if(prob_uid is not None):
                         skill_app.prob_uid = prob_uid
         
-        # print('---')
+        # print('---', add_out_of_process)
         # for skill_app in skill_apps:
         #     skill, match, when_pred = skill_app.skill, skill_app.match, skill_app.when_pred
         #     when_pred = 1 if when_pred is None else when_pred
-        #     print(f"{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
+        #     print(f"{getattr(skill_app, 'in_process', False)}{' ' if (when_pred >= 0) else ''}{when_pred:.2f} {skill_app}")
         # if(not apps_in_process):
         # print("AN SKILL APPS", len(skill_apps))
         
@@ -1544,19 +1545,19 @@ class CREAgent(BaseDIPLAgent):
                     how_help=how_help, uid=uid, skill_label=skill_label, skill_uid=skill_uid,
                     explanation_selected=explanation_selected, **kwargs)        
 
-        
-        
+        # skill_app.ensure_when_pred()
+        # print(f"{skill_app.when_pred:.2f}->{reward}", skill_app)
         # print("ANNOTATE ARG FOCI:", arg_foci)
 
         if(remove or reward is None):
-            print("REMOVE", skill_app)
+            # print("REMOVE", skill_app)
             # Remove skill_app from various learning mechanisms
             self._remove_skill_app(skill_app, is_start, **kwargs)
             # Remove any implicit second-order effects
             skill_app.clear_implicit_dependants()
             skill_app.removed = True
         else:
-            print("TRAIN", skill_app, reward)
+            # print("TRAIN", skill_app, reward)
             # Annotate explicit calls to train() with a 
             #  time-stamp, explicit_reward, and other info.
             skill_app.annotate_train_data(reward, arg_foci, skill_label, skill_uid, 
@@ -1665,12 +1666,12 @@ class CREAgent(BaseDIPLAgent):
         for skill_app in skill_apps:
             skill_app.ifit_implicit_dependants()
 
-        print("---------------")
-        for skill in self.skills.values():
-            print()
-            print(skill)
-            # print(skill.when_lrn_mech)
-        print("---------------")
+        # print("---------------")
+        # for skill in self.skills.values():
+        #     print()
+        #     print(skill)
+        #     # print(skill.when_lrn_mech)
+        # print("---------------")
 
 
         return skill_apps
@@ -2163,6 +2164,17 @@ class CREAgent(BaseDIPLAgent):
                         profile.write(json.dumps({'state' : state_obj['state'].get("py_dict"), 'sais' : sais})+"\n")
         # print("PROFILE DONE", os.path.abspath(output_file))
 
+    def _load_profile_line(self, line):
+        import json
+        item = json.loads(line)
+        profile_sais = [SAI(x) for x in item['sais']]
+        state = item['state']
+        is_start = len(item['hist'])==0
+        if(is_start):
+            state = self.standardize_state(state)
+            
+        return state, item, profile_sais
+
     def eval_completeness(self, profile, partial_credit=False,
                           print_diff=True, print_correct=False, return_diffs=False,
                          **kwargs):
@@ -2177,19 +2189,13 @@ class CREAgent(BaseDIPLAgent):
         with open(profile, 'r') as profile_f:
             for line_ind, line in enumerate(profile_f):
                 # Read a line from the profile
-                item = json.loads(line)
                 
-                # Get the ground-truth sais
-                profile_sais = [SAI(x) for x in item['sais']]
-                state = item['state']
-                is_start = len(item['hist'])==0
-                if(is_start):
-                    state = self.standardize_state(state)
-                    prob_uid = state.get("__uid__")
                     # print()
                     # print("prob_uid", prob_uid)
                 # print("IS START", len(item['hist'])==0)
-                
+                state, item, profile_sais = self._load_profile_line(line)
+                prob_uid = state.get("__uid__")            
+                is_start = len(item['hist'])==0
 
                 # print(item['state'])
                 # print("\t",item['problem'], item['hist'], prob_uid[:5])
@@ -2206,19 +2212,19 @@ class CREAgent(BaseDIPLAgent):
                 correct = set_agent_sais.intersection(set_profile_sais)
                 n_diff = len(missing) + len(extra)
 
-                if(n_diff > 0):
-                    print("\t",item['problem'], item['hist'], n_diff)
-                    apps = self.act_all(state, return_kind='skill_app', is_start=is_start, prob_uid=prob_uid, eval_mode=True)
-                    for app in apps:
-                        when_pred = getattr(app, 'when_pred', None)
-                        print(f"{app.when_pred:.2f}" if when_pred is not None else None, app)
+                # if(n_diff > 0):
+                #     print("\t",item['problem'], item['hist'], n_diff)
+                #     apps = self.act_all(state, return_kind='skill_app', is_start=is_start, prob_uid=prob_uid, eval_mode=True)
+                #     for app in apps:
+                #         when_pred = getattr(app, 'when_pred', None)
+                #         print(f"{app.when_pred:.2f}" if when_pred is not None else None, app)
 
                 # diff = profile_sai_strs.symmetric_difference(set_agent_sai_strs)
                 # if(return_diffs):
             # print()
                 diffs.append({"problem": item['problem'], 'hist' : item['hist'], "-": list(missing),"+": list(extra), "=" : list(correct)})
                 # if(len(item['hist']) == 0):
-                uid = self.standardize_state(state).uid
+                # uid = self.standardize_state(state).uid
                 
                 # print("OUTS", self.rollout_preseq_tracker.states[uid].get('outs',[]))
                 # if(n_diff == 0):

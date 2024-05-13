@@ -14,7 +14,6 @@ class BaseWhen(metaclass=ABCMeta):
     def __init__(self, skill,**kwargs):
         self.skill = skill
         self.agent = skill.agent
-        print("$$$$", kwargs, kwargs.get('check_sanity', True))
         self.check_sanity = kwargs.get('check_sanity', True)
 
         # Note this line makes it possible to call 
@@ -116,8 +115,8 @@ class RefittableMixin():
         # self._assert_skill_app_from_state(state, skill_app)
         did_change = False
         index, old_reward = self.examples.get(skill_app,(-1,0))
-        if(index != -1): 
-            print("REPLACING FEEDBACK", skill_app, old_reward, "->", reward, "@ index", index)
+        # if(index != -1): 
+        #     print("REPLACING FEEDBACK", skill_app, old_reward, "->", reward, "@ index", index)
 
         new_index = index
         if(reward is None and index != -1):
@@ -325,7 +324,9 @@ class BasicSKL(BaseWhen, VectorTransformMixin):
 
     def ifit(self, state, skill_app, reward):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
-        self.classifier.fit(self.X_nom, self.Y) # Re-fit
+
+        with PrintElapse(f"{type(self).__name__} fit:"):
+            self.classifier.fit(self.X_nom, self.Y) # Re-fit
 
     def remove(self, state, skill_app):
         self.remove_example(state, skill_app) # Insert into X_nom, Y
@@ -348,6 +349,8 @@ class BasicSTAND(BaseWhen, VectorTransformMixin):
     def ifit(self, state, skill_app, reward):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
         if(len(self.X_nom) == 0): return
+
+        # with PrintElapse(f"{type(self).__name__} fit:"):
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
     def fit(self, skill_app_reward_pairs):
@@ -390,6 +393,55 @@ class SklearnDecisionTree(BasicSKL):
         super().__init__(skill, **kwargs)
         from sklearn.tree import DecisionTreeClassifier
         self.classifier = DecisionTreeClassifier()
+
+@register_when
+class RandomForest(BasicSKL):
+    def __init__(self, skill, **kwargs):
+        super().__init__(skill, **kwargs)
+        from sklearn.ensemble import RandomForestClassifier
+        self.classifier = RandomForestClassifier()
+
+    def predict(self, state, match):
+        continuous, nominal = self.transform(state, match)
+        X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
+
+        # with PrintElapse(f"{type(self).__name__} predict:"):
+        probs = self.classifier.predict_proba(X_nom_subset)[0]
+        labels = self.classifier.classes_
+        best_ind = np.argmax(probs)
+
+
+        return labels[best_ind] * probs[best_ind]
+
+@register_when
+class XGBoost(BasicSKL):
+    def __init__(self, skill, **kwargs):
+        super().__init__(skill, **kwargs)
+        from xgboost import XGBClassifier
+        from sklearn.preprocessing import LabelEncoder
+        self.classifier = XGBClassifier()
+        self.le = LabelEncoder()
+        self.le.fit([-1,1])
+
+    def ifit(self, state, skill_app, reward):
+        self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+
+        Y = self.le.fit_transform(self.Y)
+        with PrintElapse(f"{type(self).__name__} fit:"):
+            self.classifier.fit(self.X_nom, Y) # Re-fit
+
+
+    def predict(self, state, match):
+        continuous, nominal = self.transform(state, match)
+        X_nom_subset = nominal[:self.X_nom.shape[1]].reshape(1,-1)
+
+        # with PrintElapse(f"{type(self).__name__} predict:"):
+        probs = self.classifier.predict_proba(X_nom_subset)[0]
+        labels = self.classifier.classes_
+        labels  = self.le.inverse_transform(labels)
+        best_ind = np.argmax(probs)
+
+        return labels[best_ind] * probs[best_ind]
 
 # --------------------------------------------
 # : DecisionTree (i.e. STAND library implementation)

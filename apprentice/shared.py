@@ -113,3 +113,22 @@ def rand_state_uid():
 
 def rand_agent_uid():
     return f"AG_{''.join(sample_w_replacement(alpha_num_chars, k=30))}"
+
+
+# ------------------------------------------------------------------------
+# : Time Logging Utils
+
+import time
+class ElapseLogger():
+    def __init__(self):
+        self.durations = []
+
+    def __enter__(self):
+        self.t0 = time.time_ns()/float(1e6)
+    def __exit__(self,*args):
+        self.t1 = time.time_ns()/float(1e6)
+        self.durations.append(self.t1-self.t0)
+
+    def __str__(self):
+        print("Avergage Elapse Time:", np.mean(self.durations))
+        print("Std Elapse Time:", np.std(self.durations))
