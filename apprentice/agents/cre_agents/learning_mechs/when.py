@@ -4,6 +4,9 @@ from abc import ABCMeta
 from abc import abstractmethod
 from cre.utils import PrintElapse
 from .registers import register_when
+from ....shared import ElapseLogger
+
+
 
 
 # ------------------------------------------------------------------------
@@ -42,6 +45,22 @@ class BaseWhen(metaclass=ABCMeta):
             ifit(self, state, skill_app, reward)
             self.sanity_check_ifit(state, skill_app, reward)
         setattr(cls, 'ifit', ifit_w_sanity_check)
+
+        # ifit_lgr = cls.ifit_elapse_logger = ElapseLogger("ifit")
+        # _ifit = cls.ifit
+        # def ifit_w_elog(self, state, skill_app, reward):
+        #     with ifit_lgr:
+        #         val = _ifit(self, state, skill_app, reward)
+        #     return val
+        # setattr(cls, 'ifit', ifit_w_elog)
+
+        # predict_lgr = cls.predict_elapse_logger = ElapseLogger("predict")
+        # predict = cls.predict
+        # def predict_w_elog(self, state, match):
+        #     with predict_lgr:
+        #         val = predict(self, state, match)
+        #     return val
+        # setattr(cls, 'predict', predict_w_elog)
 
     def ifit(self, state, skill_app, reward):
         """
@@ -459,10 +478,20 @@ class DecisionTree(BasicSTAND):
 
 @register_when
 class STAND(BasicSTAND):
-    def __init__(self, skill, **kwargs):
+    def __init__(self, skill, cert_kind="instance_certainty", **kwargs):
         super().__init__(skill, **kwargs)
         from stand.stand import STANDClassifier
         self.classifier = STANDClassifier(inv_mapper=self.inv_mapper, **kwargs)
+
+        if(cert_kind == "instance_certainty"):
+            # from stand.stand import instance_certainty
+            self.prob_func = STANDClassifier.instance_certainty
+        elif(cert_kind == "specific_only"):
+            # from stand.stand import instance_certainty
+            self.prob_func = STANDClassifier.predict_prob
+
+
+
         
     def predict(self, state, match):
         if(len(self.X_nom) == 0): return 1
@@ -473,9 +502,11 @@ class STAND(BasicSTAND):
         # ia = self.classifier.instance_ambiguity(X_nom_subset[-1], None)
         # print("IA", ia)
         
-        probs, labels  = self.classifier.predict_prob(X_nom_subset, None)
+        # probs, labels  = self.classifier.predict_prob(X_nom_subset, None)
+        probs, labels  = self.prob_func(self.classifier, X_nom_subset, None)
         probs = probs[0]
         best_ind = np.argmax(probs)
 
-        return labels[best_ind] * probs[best_ind]
+        return labels[best_ind] * (probs[best_ind])
+        # return labels[best_ind] * (probs[best_ind]-probs[~best_ind])
 

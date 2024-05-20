@@ -1545,9 +1545,10 @@ class CREAgent(BaseDIPLAgent):
                     how_help=how_help, uid=uid, skill_label=skill_label, skill_uid=skill_uid,
                     explanation_selected=explanation_selected, **kwargs)        
 
-        # skill_app.ensure_when_pred()
-        # print(f"{skill_app.when_pred:.2f}->{reward}", skill_app)
-        # print("ANNOTATE ARG FOCI:", arg_foci)
+        if(len(skill_app.skill.skill_apps) > 0):
+            skill_app.ensure_when_pred()
+            print(f"{skill_app.when_pred:.2f}->{reward}", skill_app)
+            # print("ANNOTATE ARG FOCI:", arg_foci)
 
         if(remove or reward is None):
             # print("REMOVE", skill_app)
@@ -2089,10 +2090,18 @@ class CREAgent(BaseDIPLAgent):
 
         if(ret_avg_certainty):
             avg_certainty = 0.0
+            min_certainty = 1.0
+            min_pos_certainty = 1.0
             for action in actions.values():
-                when_pred = getattr(action['skill_app'],'when_pred', None)
-                cert = abs(when_pred if when_pred is not None else 1.0)
+                when_pred = getattr(action['skill_app'],'when_pred', 1.0)
+                # print("WP:", when_pred)
+                cert = abs(when_pred)
                 avg_certainty += cert
+                if(cert < min_certainty):
+                    min_certainty = cert
+                if(when_pred > 0 and cert < min_pos_certainty):
+                    min_pos_certainty = cert
+
         avg_certainty = 0.0 if len(actions) == 0 else avg_certainty / len(actions)
         
 
@@ -2121,6 +2130,8 @@ class CREAgent(BaseDIPLAgent):
 
         if(ret_avg_certainty):
             out['avg_certainty'] = avg_certainty
+            out['min_certainty'] = min_certainty
+            out['min_pos_certainty'] = min_pos_certainty
 
         # print("curr_state_uid:",  curr_state_uid)
         # print(states[curr_state_uid])

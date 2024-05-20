@@ -118,9 +118,17 @@ def rand_agent_uid():
 # ------------------------------------------------------------------------
 # : Time Logging Utils
 
+def reject_outliers(data, m = 2.):
+    d = np.abs(data - np.median(data))
+    mdev = np.median(d)
+    s = d/mdev if mdev else np.zeros(len(d))
+    return data[s<m]
+
 import time
+import numpy as np
 class ElapseLogger():
-    def __init__(self):
+    def __init__(self, name):
+        self.name = name
         self.durations = []
 
     def __enter__(self):
@@ -130,5 +138,8 @@ class ElapseLogger():
         self.durations.append(self.t1-self.t0)
 
     def __str__(self):
-        print("Avergage Elapse Time:", np.mean(self.durations))
-        print("Std Elapse Time:", np.std(self.durations))
+        durs = reject_outliers(np.array(self.durations))
+        s = f"{self.name}:\n"
+        s += f"  Avergage Elapse Time: {np.mean(durs):.3f}\n"
+        s += f"  Std Elapse Time: {np.std(durs):.3f}\n"
+        return s
