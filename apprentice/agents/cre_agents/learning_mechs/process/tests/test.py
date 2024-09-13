@@ -192,7 +192,7 @@ def test_mc():
         for j in o:
             sa = seq[j]
         # for j, sa in enumerate(seq):
-            lrn.ifit(sa)
+            lrn.ifit(sa.state, sa)
 
             # if(hasattr(lrn, 'grammar')):
             #     ok, pps = parse_subseq(lrn.grammar, seq[:j+1])
@@ -229,6 +229,11 @@ def test_mc():
     # seq = mc_skill_apps("909","492")
     seq = mc_skill_apps("773","668")
     print(parse_subseq(lrn.grammar, seq))
+
+    ok, pp = parse_subseq(lrn.grammar, seq[:5])
+
+    print(", ".join([str(x) for x in seq[:5]]), "|", ", ".join([str(x) for x in seq[5:]]))
+    print(pp)
 
 
 
@@ -361,7 +366,7 @@ def test_parse_subseq():
     ok, pp = parse_subseq(grammar, [a])
 
     assert str(groups_items_by_depends(pp)) == "[[b], [c], [n, m, l, t, q], [x]]"
-    print()
+    print(pp)
 
     # parse_subseq(grammar, [a, b, t])
     # parse_subseq(grammar, [a, l])
@@ -398,8 +403,8 @@ def test_htn_lrn():
 
 
 if(__name__ == "__main__"):
-    # test_mc()
-    test_frac()
+    test_mc()
+    # test_frac()
     # test_parse_subseq()
     # test_htn_lrn()
 

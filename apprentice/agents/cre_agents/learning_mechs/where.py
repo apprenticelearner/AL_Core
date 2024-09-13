@@ -247,6 +247,7 @@ class BaseCREWhere(BaseWhere):
 class AntiUnify(BaseCREWhere):
     def __init__(self, skill):
         super().__init__(skill)
+        self.id_sets = {}
 
     # def will_learn(self, state, match, reward=1):
     #     ''' Returns true if the state match pair will  
