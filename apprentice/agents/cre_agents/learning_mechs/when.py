@@ -229,7 +229,9 @@ class VectorTransformMixin(RefittableMixin):
                     val = None
                 else:
                     val = self.agent.enumerizer.from_enum(nom, typ)
-                return key, val
+
+
+                return False, key, val # TODO: 01/14/2025 (is this right?)
             self.inv_mapper = inv_mapper
 
         # Initialize or retrive relative_encoder
