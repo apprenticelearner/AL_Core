@@ -621,6 +621,8 @@ class CREAgent(BaseDIPLAgent):
         # Allow for legacy name 'foci_of_attention'
         if(arg_foci is None):
             arg_foci = kwargs.get('foci_of_attention', None)
+        if(arg_foci is None):
+            arg_foci = kwargs.get('args', None)
         if(arg_foci is None): 
             return None
         new_arg_foci = []
