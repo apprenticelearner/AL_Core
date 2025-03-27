@@ -117,8 +117,8 @@ class ActionType(object):
 
     def predict_state_change(self, state, sai):
         cpy = copy(state)
-        selection = cpy.get_fact(id=sai.selection.id)
-        self.apply_expected_change(cpy, selection, sai.inputs)
+        selection = cpy.get_fact(id=sai.selection)
+        self.apply_expected_change(cpy, selection, sai.input)
         return copy(cpy)
 
     def __getitem__(self, attr):
@@ -155,37 +155,37 @@ register_action_type_set = new_register_decorator("action_type_set", full_descr=
 with register_all_action_types as HTML_action_type_set:
     # NOTE need to 
 
-    @define_action_type("PressButton", {
-        'value' : {'type' : int, "semantic" : False}
-        })
-    def PressButton(wm, selection, inputs):
+    @define_action_type("PressButton", 
+        {'type' : int, "semantic" : False}
+        )
+    def PressButton(wm, selection, inp):
         pass
 
-    @define_action_type("ButtonPressed", {
-        'value' : {'type' : int, "semantic" : False}
-        })
-    def ButtonPressed(wm, selection, inputs):
+    @define_action_type("ButtonPressed", 
+        {'type' : int, "semantic" : False}
+        )
+    def ButtonPressed(wm, selection, inp):
         pass
 
-    @define_action_type("UpdateTextArea", {
-        'value' : {'type' : str, "semantic" : True}
-        })
-    def UpdateTextArea(wm, selection, inputs):
-        wm.modify(selection, 'value', inputs['value'])
+    @define_action_type("UpdateTextArea", 
+        {'type' : str, "semantic" : True}
+        )
+    def UpdateTextArea(wm, selection, inp):
+        wm.modify(selection, 'value', inp)
         wm.modify(selection, 'locked', True)
 
-    @define_action_type("UpdateTextField", {
-        'value' : {'type' : str, "semantic" : True}
-        })
-    def UpdateTextField(wm, selection, inputs):
-        wm.modify(selection, 'value', inputs['value'])
+    @define_action_type("UpdateTextField", 
+        {'type' : str, "semantic" : True}
+        )
+    def UpdateTextField(wm, selection, inp):
+        wm.modify(selection, 'value', inp)
         wm.modify(selection, 'locked', True)
 
-    @define_action_type("UpdateField", {
-        'value' : {'type' : str, "semantic" : True}
-        })
-    def UpdateField(wm, selection, inputs):
-        wm.modify(selection, 'value', inputs['value'])
+    @define_action_type("UpdateField", 
+        {'type' : str, "semantic" : True}
+        )
+    def UpdateField(wm, selection, inp):
+        wm.modify(selection, 'value', inp)
         wm.modify(selection, 'locked', True)
 
 HTML_action_type_set = {x.name: x for x in HTML_action_type_set}

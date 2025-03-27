@@ -478,12 +478,12 @@ def _standardize_train_data(http_request, errs=[], warns=[]):
     ensure_field(data, "agent_uid", errs)
     ensure_field(data, "state", errs)
     selection = ensure_field(data, "selection", errs)
-    action_type = ensure_field(data, ('action_type', 'action'), errs)
+    action_type = ensure_field(data, 'action_type' , errs)
     inputs = ensure_field(data, ('inputs', 'input'), errs)
     ensure_field(data, 'reward', errs)
 
-    data['sai'] = (selection, action_type, inputs)
-    _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
+    data['action'] = (selection, action_type, inputs)
+    _del_keys(data, ['selection', 'action_type', 'inputs', 'input'])
 
     if len(errs) > 0:
         for err in errs:
@@ -534,12 +534,12 @@ def _standardize_train_all_data(http_request, errs=[], warns=[]):
     for item in data['training_set']:
         ensure_field(item, "state", errs)
         selection = ensure_field(item, "selection", errs)
-        action_type = ensure_field(item, ('action_type', 'action'), errs)
+        action_type = ensure_field(item, 'action_type', errs)
         inputs = ensure_field(item, ('inputs', 'input'), errs)
         ensure_field(item, 'reward', errs)
 
-        item['sai'] = (selection, action_type, inputs)
-        _del_keys(item, ['selection', 'action_type', 'action', 'inputs', 'input'])
+        item['action'] = (selection, action_type, inputs)
+        _del_keys(item, ['selection', 'action_type', 'inputs', 'input'])
 
     if len(errs) > 0:
         for err in errs:
@@ -590,11 +590,11 @@ def _standardize_explain_demo_data(http_request, errs=[], warns=[]):
     ensure_field(data, "agent_uid", errs)
     ensure_field(data, "state", errs)
     selection = ensure_field(data, "selection", errs)
-    action_type = ensure_field(data, ('action_type', 'action'), errs)
+    action_type = ensure_field(data, 'action_type', errs)
     inputs = ensure_field(data, ('inputs', 'input'), errs)
 
-    data['sai'] = (selection, action_type, inputs)
-    _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
+    data['action'] = (selection, action_type, inputs)
+    _del_keys(data, ['selection', 'action_type', 'inputs', 'input'])
 
     if len(errs) > 0:
         for err in errs:
@@ -610,6 +610,8 @@ def explain_demo(http_request):
     try:
         agent, model = get_agent_by_uid(data['agent_uid'])
         if(model): model.inc_train()
+
+        print("<<DATA", data)
 
         with LogElapse(performance_logger, "explain_demo() elapse"):
             response = agent.explain_demo(**data, json_friendly=True)
@@ -668,12 +670,12 @@ def _standardize_predict_next_state_data(http_request, errs=[], warns=[]):
 
     ensure_field(data, "agent_uid", errs)
     ensure_field(data, "state", errs)
-    ensure_field(data, "sai", errs)
+    ensure_field(data, "action", errs)
     # selection = ensure_field(data, "selection", errs)
     # action_type = ensure_field(data, ('action_type', 'action'), errs)
     # inputs = ensure_field(data, ('inputs', 'input'), errs)
 
-    # data['sai'] = (selection, action_type, inputs)
+    # data['action'] = (selection, action_type, inputs)
     # _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
 
     if len(errs) > 0:
@@ -714,11 +716,11 @@ def _standardize_check_data(http_request, errs=[], warns=[]):
     ensure_field(data, "agent_uid", errs)
     ensure_field(data, "state", errs)
     selection = ensure_field(data, "selection", errs)
-    action_type = ensure_field(data, ('action_type', 'action'), errs)
+    action_type = ensure_field(data, 'action_type', errs)
     inputs = ensure_field(data, ('inputs', 'input'), errs)
 
-    data['sai'] = (selection, action_type, inputs)
-    _del_keys(data, ['selection', 'action_type', 'action', 'inputs', 'input'])
+    data['action'] = (selection, action_type, inputs)
+    _del_keys(data, ['selection', 'action_type', 'inputs', 'input'])
 
     if len(errs) > 0:
         for err in errs:

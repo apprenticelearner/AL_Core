@@ -567,7 +567,7 @@ class HTNLearner:
             # Ensure that skill_app has next_state
             if(getattr(skill_app, 'next_state', None) is None):
                 wm = state.get("working_memory")
-                next_state = skill_app.skill.agent.predict_next_state(wm, skill_app.sai)
+                next_state = skill_app.skill.agent.predict_next_state(wm, skill_app.action)
                 skill_app.next_state = next_state
 
         # Convert into 

@@ -1,5 +1,6 @@
 from random import choices as sample_w_replacement
 import string
+from abc import ABC, ABCMeta, abstractmethod
 
 # -------------------------------------------------------------------------
 # : SAI
@@ -143,3 +144,104 @@ class ElapseLogger():
         s += f"  Avergage Elapse Time: {np.mean(durs):.3f}\n"
         s += f"  Std Elapse Time: {np.std(durs):.3f}\n"
         return s
+
+
+
+
+from abc import ABC, ABCMeta
+from typing import Any
+
+
+def sai_from_args(args):
+    # Case 1: Args has one object
+    if(len(args) == 1):
+        val = args[0]
+        if(hasattr(val, 'as_tuple')):
+            return val.as_tuple()
+
+        elif(hasattr(val, 'selection')):
+            selection = val.selection
+            action_type = getattr(val, 'action_type', None)
+            if(action_type is None):
+                action_type = getattr(val, 'action', None)
+            inp = inp.input
+        elif(isinstance(val, (list,tuple))):
+            selection, action_type, inp = val
+        elif(isinstance(val, dict)):
+            selection = val['selection']
+            action_type = val.get('action_type', val.get('action'))
+            if(action_type is None):
+                raise KeyError("'action_type' | 'action'")
+            inp = val['input']
+        else:
+            raise ValueError(f"Unable to translate {val} to Action.")
+
+    # Case 2: Args is a tuple
+    else:
+        selection, action_type, inp = args
+
+    return selection, action_type, inp
+
+
+class ActionLike(ABCMeta): 
+    selection : str
+    action_type : str
+    input : Any
+    slots = ('selection', 'action_type', 'input')
+
+    def __init__(self, *args):
+        sel, at, inp = sai_from_args(args)
+        self.selection = sel
+        self.action_type = at
+        self.input = inp
+
+    @abstractmethod
+    def as_tuple(self):
+        return (self.selection, self.action_type, self.input)
+
+
+class Action(metaclass=ActionLike):
+    selection : str
+    action_type : str
+    input : Any
+    sel_obj : Any
+    action_type_inst : "ActionType"
+
+    slots = ('selection', 'action_type', 'input', 'selection_inst', 'action_type_inst')
+
+    def __init__(self, *args):
+        sel, at, inp = sai_from_args(args)
+
+        if(not isinstance(sel, str)):
+            self.selection_inst = sel
+            sel = sel.id
+
+        if(not isinstance(at, str)):
+            self.action_type_inst = at
+            at = at.name
+
+        self.selection = sel
+        self.action_type = at
+        self.input = inp
+
+    def as_tuple(self):
+        return (self.selection, self.action_type, self.input)
+
+    @property
+    def sai(self):
+        return self.as_tuple()
+
+    def long_hash():
+        return unique_hash(self.as_tuple())
+
+    def __str__(self):
+        return f"{self.action_type}({self.selection}, {self.input})"
+
+    __repr__  = __str__
+        
+
+
+
+
+    
+
