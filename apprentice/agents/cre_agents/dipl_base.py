@@ -144,8 +144,8 @@ class BaseDIPLAgent(object):
         ''' Legacy method name : pipe into act ''' 
         return self.act(*args, **kwargs)
 
-    def is_bottom_out_exception(self, sai):
-        s, a, i = sai
+    def is_bottom_out_exception(self, action):
+        s, a, i = action.as_tuple()
         for (ex_s, ex_a, ex_i) in self.bottomout_exceptions:            
             if((ex_s is None or s == ex_s) and
                (ex_a is None or a == ex_a)
