@@ -125,7 +125,7 @@ class BaseDIPLAgent(object):
         self.config = {k:v for k,v in config.items() if k not in covered}
 
         self.error_on_bottom_out = config_get("error_on_bottom_out",
-            default=True)
+            default=False)
 
         self.one_skill_per_match = config_get("one_skill_per_match",
             default=False)

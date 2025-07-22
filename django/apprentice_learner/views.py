@@ -2,6 +2,7 @@
 Module Doc String
 """
 import json
+import numpy as np
 import traceback
 import logging
 from pprint import pprint
@@ -21,6 +22,20 @@ from django.http import HttpResponseNotAllowed
 from apprentice_learner.models import Agent
 from apprentice.shared import rand_agent_uid
 import importlib
+
+# Extend the JSONEncoder class
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+def to_json(x):
+    return json.dumps(x,cls=NpEncoder)
 
 
 log = logging.getLogger('al-django')
@@ -148,7 +163,7 @@ def _standardize_create_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
 
     return {"type": agent_type, "name": agent_name, "args": agent_args}
 
@@ -212,7 +227,7 @@ def create(http_request):
     for w in warns:
         log.warn(w)
 
-    return HttpResponse(json.dumps(resp_data))
+    return HttpResponse(to_json(resp_data))
 
 
 def _standardize_verify_data(http_request, errs=[], warns=[]):
@@ -245,7 +260,7 @@ def verify(http_request):
         pass
 
     if(not agent):
-        return HttpResponse(json.dumps({
+        return HttpResponse(to_json({
             "agent_uid" : data,
             "status": "error",
             "errors" : errs,
@@ -256,7 +271,7 @@ def verify(http_request):
     for w in warns:
         log.warn(w)
 
-    return HttpResponse(json.dumps({"agent_uid" : data, "status": "okay"}))
+    return HttpResponse(to_json({"agent_uid" : data, "status": "okay"}))
 
 @csrf_exempt
 def get_active_agent(http_request):
@@ -264,7 +279,7 @@ def get_active_agent(http_request):
     Returns the uid of the active agent
     """
     global active_agent_uid
-    return HttpResponse(json.dumps(active_agent_uid))
+    return HttpResponse(to_json(active_agent_uid))
 
 
 # --------------------------------------------------------------
@@ -281,7 +296,7 @@ def _standardize_act_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
 
     # Only require state and agent_uid, but pass data as is since 
     #  agent+client can conceivably agree on additional fields.
@@ -304,7 +319,7 @@ def _standardize_act_response(response, return_all, errs=[], warns=[]):
         for a in actions:
             selection = getattr(a, 'selection')
             action_type = getattr(a, 'action_type', getattr(a, 'action'))
-            inputs = getattr(a, 'inputs', getattr(a, 'input'))
+            inp = getattr(a, 'input')
 
             if(selection is None or action_type is None):
                 #
@@ -314,7 +329,7 @@ def _standardize_act_response(response, return_all, errs=[], warns=[]):
             new_action = {
                 "selection" : selection,
                 "action_type" : action_type,
-                "inputs" : inputs,
+                "input" : inp,
             }
             new_actions.append(new_action)
         actions = new_actions
@@ -363,7 +378,7 @@ def act(http_request):
         for w in warns:
             log.warn(w)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -409,7 +424,7 @@ def act_all(http_request):
         for w in warns:
             log.warn(w)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -453,7 +468,7 @@ def act_rollout(http_request):
         for w in warns:
             log.warn(w)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -488,7 +503,7 @@ def _standardize_train_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
     return data
 
 # ** END POINT ** 
@@ -504,17 +519,19 @@ def train(http_request):
     data = _standardize_train_data(http_request, errs, warns)
 
     try:
+        #print(">>", data)
         agent, model = get_agent_by_uid(data['agent_uid'])
         if(model): model.inc_train()
 
         with LogElapse(performance_logger, "train() elapse"):
             response = agent.train(**data)
+            response = True # Note: In future might want to return more info 
 
         if not dont_save:
             log.warning('Agent is being saved! This is probably not working.')
             if(model): model.save()
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -544,7 +561,7 @@ def _standardize_train_all_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
     return data
 
 @csrf_exempt
@@ -569,7 +586,7 @@ def train_all(http_request):
             log.warning('Agent is being saved! This is probably not working.')
             if(model): model.save()
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -599,7 +616,7 @@ def _standardize_explain_demo_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
     return data
 
 @csrf_exempt
@@ -616,7 +633,7 @@ def explain_demo(http_request):
         with LogElapse(performance_logger, "explain_demo() elapse"):
             response = agent.explain_demo(**data, json_friendly=True)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -635,7 +652,7 @@ def _standardize_get_state_uid_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
     return data
 
 
@@ -651,7 +668,7 @@ def get_state_uid(http_request):
         with LogElapse(performance_logger, "get_state_uid() elapse"):
             response = agent.get_state_uid(**data, json_friendly=True)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -681,7 +698,7 @@ def _standardize_predict_next_state_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
     return data
 
 @csrf_exempt
@@ -696,7 +713,7 @@ def predict_next_state(http_request):
         with LogElapse(performance_logger, "predict_next_state() elapse"):
             response = agent.predict_next_state(**data, json_friendly=True)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -725,7 +742,7 @@ def _standardize_check_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
     return data
 
 # ** END POINT ** 
@@ -744,7 +761,7 @@ def check(http_request):
         with LogElapse(performance_logger, "check() elapse"):
             reward = agent.check(**data)
 
-        return HttpResponse(json.dumps({'reward' : reward}))
+        return HttpResponse(to_json({'reward' : reward}))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -766,7 +783,7 @@ def _standardize_get_skills_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
 
     return data
 
@@ -787,7 +804,7 @@ def get_skills(http_request):
         with LogElapse(performance_logger, "get_skills elapse"):
             response = agent.get_skills(**data, json_friendly=True)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -807,7 +824,7 @@ def _standardize_gen_completeness_profile_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
 
     return data
 
@@ -831,7 +848,7 @@ def gen_completeness_profile(http_request):
         with LogElapse(performance_logger, "gen_completeness_profile elapse"):
             response = agent.gen_completeness_profile(**data)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -850,7 +867,7 @@ def _standardize_eval_completeness_data(http_request, errs=[], warns=[]):
     if len(errs) > 0:
         for err in errs:
             log.error(err)
-        return HttpResponseBadRequest(json.dumps({"errors": errs}))
+        return HttpResponseBadRequest(to_json({"errors": errs}))
 
     return data
 
@@ -871,7 +888,7 @@ def eval_completeness(http_request):
         with LogElapse(performance_logger, "eval_completeness elapse"):
             response = agent.eval_completeness(**data)
 
-        return HttpResponse(json.dumps(response))
+        return HttpResponse(to_json(response))
 
     except Exception as exp:
         tb_str = traceback.format_exc()
@@ -904,7 +921,7 @@ def report(http_request):
     }
 
     response = {k: str(response[k]) for k in response}
-    return HttpResponse(json.dumps(response))
+    return HttpResponse(to_json(response))
 
 
 # def report_by_name(http_request, agent_name):
