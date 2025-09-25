@@ -44,6 +44,23 @@ with register_all_facts as HTML_fact_types:
         "locked" : {"type" : bool, "visible" : True},
     })
 
+    MathField = define_fact("MathField", {
+        "inherit_from" : "Component",
+        "value" : {"type" : str, "visible" : True, "semantic" : True,
+                    'conversions' : {float : CastFloat}},
+        "locked" : {"type" : bool, "visible" : True},
+    })
+
+    Label = define_fact("Label", {
+        "inherit_from" : "Component",
+        "value" : {"type" : str, "visible" : True, "semantic" : True,
+                    'conversions' : {float : CastFloat}},
+        "locked" : {"type" : bool, "visible" : True},
+    })
+
+    # Label = define_fact("Label", {"inherit_from" : "TextField"})
+    # MathField = define_fact("MathField", {"inherit_from" : "TextField"})
+
     Button = define_fact("Button", {
         "inherit_from" : "Component",
     })
@@ -175,6 +192,13 @@ with register_all_action_types as HTML_action_type_set:
         wm.modify(selection, 'locked', True)
 
     @define_action_type("UpdateTextField", 
+        {'type' : str, "semantic" : True}
+        )
+    def UpdateTextField(wm, selection, inp):
+        wm.modify(selection, 'value', inp)
+        wm.modify(selection, 'locked', True)
+
+    @define_action_type("input change", 
         {'type' : str, "semantic" : True}
         )
     def UpdateTextField(wm, selection, inp):
