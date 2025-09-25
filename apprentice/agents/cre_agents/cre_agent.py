@@ -801,6 +801,7 @@ class CREAgent(BaseDIPLAgent):
             #     print("--FAIL")
             # print("PROB UID", prob_uid)
             try:
+                # print("prob_uid 0", prob_uid)
                 in_process_grps = self.process_lrn_mech.get_next_skill_apps(
                     state, preseq_tracker,
                     prob_uid=prob_uid, group_by_depends=True)
@@ -1036,7 +1037,7 @@ class CREAgent(BaseDIPLAgent):
             
             self.prev_skill_app = skill_app
 
-            output = skill_app.sai if(return_kind == 'sai') else skill_app
+            output = skill_app.as_tuple() if(return_kind == 'sai') else skill_app
                             
             if(json_friendly):
                 output = output.get_info()
@@ -1078,7 +1079,7 @@ class CREAgent(BaseDIPLAgent):
         # for skill_app in skill_apps:
         #     skill_app.skill.skill_apps[skill_app.uid] = skill_app
 
-        output = [sa.sai for sa in skill_apps] if(return_kind == 'sai') else skill_apps
+        output = [sa.as_tuple() for sa in skill_apps] if(return_kind == 'sai') else skill_apps
             
         if(json_friendly):
             output = [x.get_info() for x in output]
@@ -1558,10 +1559,12 @@ class CREAgent(BaseDIPLAgent):
               remove: bool=False, **kwargs):
         # print("action", action, type(action))
 
+        print("<<")
+        print(state)
+        
         state = self.standardize_state(state, is_start)
 
-        # print("<<")
-        # print(state)
+        
         # print("ACTION: ", action)
 
         # Find a SkillApp which explains the provided action, and other annotations
@@ -2005,6 +2008,7 @@ class CREAgent(BaseDIPLAgent):
         '''
         # with PrintElapse("ACT ROLLOUT"):
         # print("\n\t\tSTART ACT ROLLOUT\t\t", base_depth)
+        # print(state)
         curr_state = state = self.standardize_state(state, is_start)
         curr_state_uid = state.get('__uid__')
         if(is_start):

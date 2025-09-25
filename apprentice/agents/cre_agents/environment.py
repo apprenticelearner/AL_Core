@@ -22,6 +22,7 @@ register_fact_set = new_register_decorator("fact_set", full_descr='fact set')
 register_constraints = new_register_decorator("constraint", full_descr="base constraint")
 
 
+register_fact("Label", TextField)
 
 with register_all_facts as HTML_fact_types:
     Component = define_fact("Component", {
@@ -38,6 +39,13 @@ with register_all_facts as HTML_fact_types:
     })
 
     TextField = define_fact("TextField", {
+        "inherit_from" : "Component",
+        "value" : {"type" : str, "visible" : True, "semantic" : True,
+                    'conversions' : {float : CastFloat}},
+        "locked" : {"type" : bool, "visible" : True},
+    })
+
+    Label = define_fact("Label", {
         "inherit_from" : "Component",
         "value" : {"type" : str, "visible" : True, "semantic" : True,
                     'conversions' : {float : CastFloat}},

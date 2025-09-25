@@ -17,7 +17,7 @@ class BaseWhen(metaclass=ABCMeta):
     def __init__(self, skill,**kwargs):
         self.skill = skill
         self.agent = skill.agent
-        self.check_sanity = kwargs.get('check_sanity', True)
+        self.check_sanity = kwargs.get('check_sanity', False)
 
         # Note this line makes it possible to call 
         super(BaseWhen, self).__init__(skill, **kwargs)
@@ -69,10 +69,7 @@ class BaseWhen(metaclass=ABCMeta):
         """
         raise NotImplemented()
 
-    def fit(self, states, skill_apps, reward):
-        """
-        
-        """
+    def fit(self, skill_app_reward_pairs):
         raise NotImplemented()
 
     def score(self, state, skill_app):
@@ -251,8 +248,11 @@ class VectorTransformMixin(RefittableMixin):
         agent = self.skill.agent
 
         
+        # print(self.extra_features)
         for extra_feature in self.extra_features:
-            featurized_state = extra_feature(self, state, featurized_state, match)
+            # print(extra_feature)
+            if(hasattr(extra_feature, "__call__")):
+                featurized_state = extra_feature(self, state, featurized_state, match)
 
 
         wm = state.get("working_memory")
@@ -349,6 +349,22 @@ class BasicSKL(BaseWhen, VectorTransformMixin):
         with PrintElapse(f"{type(self).__name__} fit:"):
             self.classifier.fit(self.X_nom, self.Y) # Re-fit
 
+    def fit(self, skill_app_reward_pairs):
+        cover = set()
+        old_apps = set(self.examples.keys())
+        for skill_app, reward in skill_app_reward_pairs:
+            state = skill_app.state
+            cover.add(skill_app)
+            self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+
+        not_cover = old_apps.difference(cover)
+        for skill_app in not_cover:
+            state = skill_app.state
+            self.remove_example(state, skill_app)
+
+        # Y = self.le.fit_transform(self.Y)
+        self.classifier.fit(self.X_nom, self.Y) # Re-fit
+
     def remove(self, state, skill_app):
         self.remove_example(state, skill_app) # Insert into X_nom, Y
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
@@ -371,6 +387,8 @@ class BasicSTAND(BaseWhen, VectorTransformMixin):
         self.add_example(state, skill_app, reward) # Insert into X_nom, Y
         if(len(self.X_nom) == 0): return
 
+        self.classifier.ifit(self.X_nom, None, self.Y) # Re-fit
+
         # with PrintElapse(f"{type(self).__name__} fit:"):
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
@@ -385,7 +403,7 @@ class BasicSTAND(BaseWhen, VectorTransformMixin):
         not_cover = old_apps.difference(cover)
         for skill_app in not_cover:
             state = skill_app.state
-            state.remove_example(state, skill_app)
+            self.remove_example(state, skill_app)
 
         self.classifier.fit(self.X_nom, None, self.Y) # Re-fit
 
@@ -440,7 +458,7 @@ class XGBoost(BasicSKL):
         super().__init__(skill, **kwargs)
         from xgboost import XGBClassifier
         from sklearn.preprocessing import LabelEncoder
-        self.classifier = XGBClassifier()
+        self.classifier = XGBClassifier(base_score=0.5, n_jobs=1)
         self.le = LabelEncoder()
         self.le.fit([-1,1])
 
@@ -451,6 +469,21 @@ class XGBoost(BasicSKL):
         with PrintElapse(f"{type(self).__name__} fit:"):
             self.classifier.fit(self.X_nom, Y) # Re-fit
 
+    def fit(self, skill_app_reward_pairs):
+        cover = set()
+        old_apps = set(self.examples.keys())
+        for skill_app, reward in skill_app_reward_pairs:
+            state = skill_app.state
+            cover.add(skill_app)
+            self.add_example(state, skill_app, reward) # Insert into X_nom, Y
+
+        not_cover = old_apps.difference(cover)
+        for skill_app in not_cover:
+            state = skill_app.state
+            self.remove_example(state, skill_app)
+
+        Y = self.le.fit_transform(self.Y)
+        self.classifier.fit(self.X_nom, Y) # Re-fit
 
     def predict(self, state, match):
         continuous, nominal = self.transform(state, match)
@@ -480,20 +513,10 @@ class DecisionTree(BasicSTAND):
 
 @register_when
 class STAND(BasicSTAND):
-    def __init__(self, skill, cert_kind="instance_certainty", **kwargs):
+    def __init__(self, skill, **kwargs):
         super().__init__(skill, **kwargs)
         from stand.stand import STANDClassifier
         self.classifier = STANDClassifier(inv_mapper=self.inv_mapper, **kwargs)
-
-        if(cert_kind == "instance_certainty"):
-            # from stand.stand import instance_certainty
-            self.prob_func = STANDClassifier.instance_certainty
-        elif(cert_kind == "specific_only"):
-            # from stand.stand import instance_certainty
-            self.prob_func = STANDClassifier.predict_prob
-
-
-
         
     def predict(self, state, match):
         if(len(self.X_nom) == 0): return 1
@@ -505,7 +528,7 @@ class STAND(BasicSTAND):
         # print("IA", ia)
         
         # probs, labels  = self.classifier.predict_prob(X_nom_subset, None)
-        probs, labels  = self.prob_func(self.classifier, X_nom_subset, None)
+        probs, labels  = self.classifier.predict_proba(X_nom_subset, None)
         probs = probs[0]
         best_ind = np.argmax(probs)
 

@@ -69,8 +69,10 @@ class BaseDIPLAgent(object):
         for extra_feature, level in resolve_list(config.get('extra_features',[]), registries['feature_factory']):
             # print("<<", extra_feature, level)
             if(level == 'agent' or level is None):
+                print("&&!", level, extra_feature)
                 self.extra_features.append(extra_feature)
             elif(level == 'when'):
+                print("&&~", extra_feature)
                 ef = self.when_args.get('extra_features', [])
                 ef.append(extra_feature)
                 self.when_args['extra_features'] = ef
@@ -88,9 +90,9 @@ class BaseDIPLAgent(object):
 
         # Reroute config options that user might define at the agent level
         #  but belong at the learning mechanism level.
-        if('extra_features' not in self.when_args):
-            self.when_args['extra_features'] = config_get(['extra_features'], 
-                default=[])
+        # if('extra_features' not in self.when_args):
+        #     self.when_args['extra_features'] = config_get(['extra_features'], 
+        #         default=[])
 
         if('search_depth' not in self.how_args):
             self.how_args['search_depth'] = config_get(['search_depth'], 

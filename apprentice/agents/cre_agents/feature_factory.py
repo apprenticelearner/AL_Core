@@ -184,6 +184,28 @@ def SkillCandidates(agent, state, feat_state):
             # print(";;;", skill.how_part)
     return feat_state
 
+@njit(cache=True)
+def declare_toknized(memset, _id, s):
+    for i, token in enumerate(s.split(" ")):
+        head = TF("Token:", _id, i)
+        # nom  = enumerizer.to_enum(val)
+        gval = new_gval(head, token)
+        # print(gval)
+        memset.declare(gval)
+
+@register_feature_factory(level='agent')
+def TokenizeStr(agent, state, feat_state):
+    # print("START TOKENIZESTR")
+    memset = state.get("working_memory")
+    for fact in memset:
+        # print(">>", str(type(fact)))
+        if("TextField" in str(type(fact))):
+            val = fact.value
+            _id = fact.id
+            # print(">>", val, _id)
+            declare_toknized(feat_state, _id, val)
+    # print(feat_state)
+    return feat_state
 
 
 # -----------------------------------------------------------------
