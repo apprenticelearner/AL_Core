@@ -158,6 +158,67 @@ def AcrossMultiply(a, b):
 
     return (float(a.value) * float(b.value))
 
+# === Prior Knowledge & Cross-Domain Functions ===
+
+@CREFunc(signature=f8(TextField), shorthand='Num({0})')
+def Num(tf):
+    """Convert TextField value to a float."""
+    return float(str(tf.value).replace(',', '').strip())
+
+@CREFunc(signature=string(TextField), shorthand='Str({0})')
+def StrTF(tf):
+    """Extract string from a TextField."""
+    return str(tf.value)
+
+@CREFunc(signature=boolean(TextField), shorthand='IsDen({0})')
+def IsDen(tf):
+    """Return True if this TextField looks like a denominator."""
+    return 'den' in tf.id
+
+@CREFunc(signature=boolean(TextField), shorthand='IsNum({0})')
+def IsNum(tf):
+    """Return True if this TextField looks like a numerator."""
+    return 'num' in tf.id
+
+@CREFunc(signature=boolean(string, string), shorthand='lower({0}) == lower({1})', commutes=True)
+def EqualsIgnoreCase(a, b):
+    """Case-insensitive equality for strings."""
+    return a.lower() == b.lower()
+
+@CREFunc(signature=f8(string), shorthand='parse({0})')
+def ParseFloat(s):
+    """Parse numeric string into float."""
+    return float(s.replace(',', '').strip())
+
+@CREFunc(signature=string(string, string), shorthand='join({0},{1})', commutes=False)
+def JoinWithSpace(a, b):
+    """Join two strings with a space."""
+    return f"{a} {b}"
+
+@CREFunc(signature=f8(f8), shorthand='sq({0})')
+def Sq(a):
+    """Square a number."""
+    return a * a
+
+@CREFunc(signature=f8(f8, f8), shorthand='sq({0}) + {1}')
+def SqPlus(a, b):
+    """Square a number and add another."""
+    return (a * a) + b
+
+@CREFunc(signature=f8(f8, f8), shorthand='Reuse({0},{1})', commutes=True)
+def ReusePrior(a, b):
+    """Prefer previously known value a; otherwise use b."""
+    return a if a != 0 else b
+
+@CREFunc(signature=f8(f8), shorthand='Recall({0})')
+def RecallValue(a):
+    """Surface a previously computed value."""
+    return a
+
+@CREFunc(signature=f8(f8, f8), shorthand='AvgPrior({0},{1})', commutes=True)
+def AveragePrior(a, b):
+    """Combine earlier results (simple average)."""
+    return (a + b) / 2
 
 ##### Define all CREFuncs above this line #####
 
