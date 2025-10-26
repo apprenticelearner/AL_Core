@@ -201,7 +201,7 @@ with register_all_action_types as HTML_action_type_set:
     @define_action_type("input change", 
         {'type' : str, "semantic" : True}
         )
-    def UpdateTextField(wm, selection, inp):
+    def input_change(wm, selection, inp):
         wm.modify(selection, 'value', inp)
         wm.modify(selection, 'locked', True)
 
