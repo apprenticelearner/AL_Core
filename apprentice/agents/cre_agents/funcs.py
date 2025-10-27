@@ -41,6 +41,76 @@ def PowerRule(s):
     out = base + "^{" + str(a * b) + "}"
     return out
 
+# --- Product rule: a^{m} * a^{n}  ->  a^{m + n}
+@CREFunc(signature=string(string), shorthand='exp_product_rule({0})')
+def ProductRule(s: str) -> str:
+    # make robust like PowerRule
+    s = s.rsplit("/", 1)[-1].strip()
+
+    # split on either "\cdot" or "*"
+    if r'\cdot' in s:
+        left, right = [t.strip() for t in s.split(r'\cdot', 1)]
+    else:
+        left, right = [t.strip() for t in s.split('*', 1)]
+
+    # Parse left: a^{m}
+    iL = left.index('^{'); jL = iL + 2; kL = left.index('}', jL)
+    baseL = left[:iL]
+    m = left[jL:kL].strip()
+
+    # Parse right: a^{n}
+    iR = right.index('^{'); jR = iR + 2; kR = right.index('}', jR)
+    baseR = right[:iR]
+    n = right[jR:kR].strip()
+
+    # optional safety
+    if baseL != baseR:
+        raise ValueError("ProductRule expects matching bases.")
+
+    return f"{baseL}^{{{m} + {n}}}"
+
+
+@CREFunc(signature=string(string), shorthand='exp_product_simplify({0})')
+def SimplifyProduct(s: str) -> str:
+    s = s.rsplit("/", 1)[-1].strip()
+    i = s.index('^{'); j = i + 2; k = s.index('}', j)
+    base = s[:i]
+    m_str, n_str = [t.strip() for t in s[j:k].split('+', 1)]
+    val = int(m_str) + int(n_str)
+    return f"{base}^{{{val}}}"
+
+
+
+# --- Quotient rule: a^{m} / a^{n}  ->  a^{m - n}
+@CREFunc(signature=string(string), shorthand='exp_quotient_rule({0})')
+def QuotientRule(s: str) -> str:
+    s = s.rsplit("/", 1)[-1].strip()
+    left, right = [t.strip() for t in s.split('/', 1)]
+
+    iL = left.index('^{'); jL = iL + 2; kL = left.index('}', jL)
+    baseL = left[:iL]
+    m = left[jL:kL].strip()
+
+    iR = right.index('^{'); jR = iR + 2; kR = right.index('}', jR)
+    baseR = right[:iR]
+    n = right[jR:kR].strip()
+
+    if baseL != baseR:
+        raise ValueError("QuotientRule expects matching bases.")
+
+    return f"{baseL}^{{{m} - {n}}}"
+
+
+@CREFunc(signature=string(string), shorthand='exp_quotient_simplify({0})')
+def SimplifyQuotient(s: str) -> str:
+    s = s.rsplit("/", 1)[-1].strip()
+    i = s.index('^{'); j = i + 2; k = s.index('}', j)
+    base = s[:i]
+    m_str, n_str = [t.strip() for t in s[j:k].split('-', 1)]
+    val = int(m_str) - int(n_str)
+    return f"{base}^{{{val}}}"
+
+
 @CREFunc(signature=boolean(string,string),
     shorthand = '{0} == {1}',
     commutes=True)
