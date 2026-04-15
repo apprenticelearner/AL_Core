@@ -1409,7 +1409,7 @@ class CREAgent(BaseDIPLAgent):
 
         skill_app = None
         if(skill_uid in self.skills and skill_app_uid is not None):
-            if(uid in getattr(self.skills[skill_uid],"skill_apps", [])):
+            if(self.uid in getattr(self.skills[skill_uid],"skill_apps", [])):
                 skill_app = self.skills[skill_uid].skill_apps[skill_app_uid]
                 return skill_app
 
@@ -1749,7 +1749,7 @@ class CREAgent(BaseDIPLAgent):
         if(skill_uids):
             skills = [self.skills[uid] for uid in skill_uids if uid in self.skills]
         elif(skill_labels):
-            skills = chain([skills_by_label.get(label,[]) for label in skill_labels])
+            skills = chain([self.skills_by_label.get(label,[]) for label in skill_labels])
         elif(states):
             raise NotImplemented()
         else:
