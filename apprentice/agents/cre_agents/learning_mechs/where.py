@@ -116,7 +116,10 @@ class BaseCREWhere(BaseWhere):
             # print(match)
             raise ValueError()
         if(not self._base_conds.check_match(match, wm)):
-            return 0.0 
+            return 0.0
+        # A skill that has only ever had negative examples has no pattern yet.
+        if(self.conds is None):
+            return 0.0
         return self.conds.score_match(match, wm)
 
     def as_conditions(self):

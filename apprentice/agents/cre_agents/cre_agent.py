@@ -55,6 +55,18 @@ def func_get_info(func, ignore_funcs=[]):
     }
 
 
+def action_key(action):
+    ''' An action as (selection, action_type, input) in a form that compares 
+        equal however the input was written: a skill application may carry 
+        "6", an environment 6 or 6.0. ''' 
+    sel, at, inp = action.as_tuple() if hasattr(action, "as_tuple") else Action(action).as_tuple()
+    at = getattr(at, "name", at)
+    try:
+        inp = float(inp)
+    except (TypeError, ValueError):
+        inp = str(inp)
+    return (sel, at, inp)
+
 def action_uid(state, action):
     h = hashlib.sha224()
     h.update(state.get("__uid__", None).encode('utf-8'))
@@ -85,19 +97,24 @@ class Skill(object):
 
         self.skill_apps = {}
 
-    def get_applications(self, state, skip_when=False):        
+    def get_applications(self, state, skip_when=False, include_negative=False):        
         # print(str(self.how_part),":")
         # print(self.where_lrn_mech.conds)
         # with PrintElapse("get_matches"):
 
         applications = []
+        # A skill that has only had negative examples (and was not induced with
+        #  induce_from_negative) has no pattern for where it applies.
+        if(getattr(self.where_lrn_mech, 'conds', True) is None):
+            return applications
         matches = list(self.where_lrn_mech.get_matches(state))
 
         # with PrintElapse("iter_matches"):
         for match in matches:
             when_pred = 1 if skip_when else self.when_lrn_mech.predict(state, match)
             # print(f"{when_pred:.2f}", str(self.how_part), ": ",  match)
-            if(when_pred > 0 or self.agent.suggest_uncert_neg and when_pred != -1.0):
+            if(when_pred > 0 or include_negative or 
+                self.agent.suggest_uncert_neg and when_pred != -1.0):
                 skill_app = SkillApplication(self, match, state, when_pred=when_pred)
                 if(skill_app is not None):
                     applications.append(skill_app)
@@ -547,6 +564,14 @@ class CREAgent(BaseDIPLAgent):
                 from .learning_mechs.process.process import PreseqTracker
                 self.rollout_preseq_tracker = PreseqTracker()
 
+        # Optional mechanisms for acting without a tutor (None unless configured).
+        self.effect_lrn_mech = None
+        if(self.effect_cls):
+            self.effect_lrn_mech = self.effect_cls(self, **self.effect_args)
+        self.evaluator = None
+        if(self.evaluator_cls):
+            self.evaluator = self.evaluator_cls(self, **self.evaluator_args)
+
         self.working_memory = MemSet()
         self.init_processesors()
         self.skills = {}
@@ -778,6 +803,7 @@ class CREAgent(BaseDIPLAgent):
             add_conflict_certainty=False,
             add_known=True,
             hard_cert_thresh=None,
+            include_negative=False,
             **kwargs):
         skill_apps = set()
 
@@ -940,7 +966,7 @@ class CREAgent(BaseDIPLAgent):
         if(add_out_of_process or len(skill_apps) == 0):
             # print("BACKUP", len(skill_apps), add_out_of_process)
             for skill in self.skills.values():
-                for skill_app in skill.get_applications(state):
+                for skill_app in skill.get_applications(state, include_negative=include_negative):
                     if (skill_app not in skill_apps):
                         skill_apps.add(skill_app)
                         skill_app.in_process = False
@@ -1013,17 +1039,33 @@ class CREAgent(BaseDIPLAgent):
             is_start=None,
             prob_uid=None,
             eval_mode=False,
+            available_actions=None,
             **kwargs):
+        ''' available_actions: optionally, the actions the environment currently
+            allows, as (selection, action_type, input) tuples. If given, a skill
+            application is only used when it is one of them, and if no skill
+            applies and the agent has an explorer, the explorer chooses among
+            them. In that case the return value is an Action, not a
+            SkillApplication, whatever return_kind says.'''
 
         state = self.standardize_state(state, is_start)
         skill_apps = self.get_skill_applications(state,
-            is_start=is_start, 
+            is_start=is_start,
             prob_uid=prob_uid, eval_mode=eval_mode,
             **kwargs)
 
+        if(available_actions is not None):
+            allowed = set(action_key(a) for a in available_actions)
+            skill_apps = [sa for sa in skill_apps if action_key(sa) in allowed]
+
         # if(self.track_rollout_preseqs):
         #     for skill_app in skill_apps:
-                
+
+        # No skill applies: try something, if the agent is set up to.
+        if(len(skill_apps) == 0 and available_actions is not None
+            and self.explorer is not None):
+            return self._explore(state, available_actions,
+                        json_friendly=json_friendly, **kwargs)
 
         # Apply action_chooser to pick from conflict set
         output = None
@@ -1043,6 +1085,64 @@ class CREAgent(BaseDIPLAgent):
         
         
         return output
+
+    def _explore(self, state, available_actions, json_friendly=False, **kwargs):
+        ''' Choose among the available actions when no skill applies. What the
+            agent already expects of each one (from skills whose when-learners
+            predict it will go badly) is handed to the explorer, so that trying
+            things is informed by what has been learned. '''
+        expected = {}
+        known = self.get_skill_applications(state, ignore_filter=True,
+                    include_negative=True, add_out_of_process=True, **kwargs)
+        for sa in known:
+            pred = getattr(sa, 'when_pred', None)
+            if(pred is not None):
+                key = action_key(sa)
+                expected[key] = max(pred, expected.get(key, pred))
+
+        choice = self.explorer(self, state,
+                    [Action(a) for a in available_actions], expected,
+                    **self.explorer_args)
+        self.prev_skill_app = None
+        if(choice is None):
+            return None
+        if(json_friendly):
+            sel, at, inp = choice.as_tuple()
+            return {'selection' : sel, 'action_type' : at, 'input' : inp,
+                    'explored' : True}
+        return choice
+
+    # ------------------------------------------------
+    # : What actions do, and how the agent judges them (optional mechanisms)
+
+    def observe_effect(self, state, action, next_state, **kwargs):
+        ''' Tell the agent what an action led to, so that its effect-learning
+            mechanism (if it has one) can learn what actions do. States are in
+            any form accepted by act() and train(). '''
+        if(self.effect_lrn_mech is None):
+            return
+        state = self.standardize_state(state)
+        before = state.get('py_dict')
+        after = self.standardize_state(next_state).get('py_dict')
+        self.effect_lrn_mech.ifit(before, Action(action), after, **kwargs)
+
+    def predict_effect(self, state, action, **kwargs):
+        ''' What the agent expects an action to change, as learned by its
+            effect-learning mechanism; None if it has none or does not know. '''
+        if(self.effect_lrn_mech is None):
+            return None
+        state = self.standardize_state(state)
+        return self.effect_lrn_mech.predict(state.get('py_dict'), Action(action), **kwargs)
+
+    def evaluate(self, state, action, evidence, **kwargs):
+        ''' The agent's own judgement of how an action went, given evidence
+            about its outcome (a tutor's feedback, a change in the state, a
+            reaction from a game). With no evaluator configured the evidence is
+            taken to be the reward itself, which is how a tutor is treated.
+            Returns a reward, or None for "nothing to learn from this". '''
+        if(self.evaluator is None):
+            return evidence
+        return self.evaluator.evaluate(state, Action(action), evidence, **kwargs)
 
     def act_all(self, state,
         max_return=-1,
@@ -1107,6 +1207,15 @@ class CREAgent(BaseDIPLAgent):
         # print(sai, arg_foci, skill_label, skill_uid)
         # print(self.skills, )
         # print(subset)
+
+        # Optionally only consider skills learned for this type of action. Without
+        #  this a skill for one action type can explain another whenever their
+        #  how-parts produce the same input (e.g. several actions with no input).
+        if(getattr(self, "strict_action_types", False)):
+            at = getattr(sai, "action_type", None)
+            at = getattr(at, "name", at)
+            subset = [x for x in subset 
+                        if getattr(x.action_type, "name", x.action_type) == at]
 
         # subset = [x for x in subset if x.input_attr == list(sai.inputs.keys())[0]]
         # if(arg_foci is not None):
@@ -1512,7 +1621,14 @@ class CREAgent(BaseDIPLAgent):
         skill.skill_apps[skill_app.uid] = skill_app
 
         # Fit the skill-specific learning mechanisms where, when, which
-        skill.where_lrn_mech.ifit(state, skill_app.match, reward)
+        # Where a skill applies is normally learned from positive examples only, so
+        #  a skill first seen failing has no pattern and cannot be used or avoided.
+        #  With induce_from_negative, where it applies is fit from every example
+        #  whatever its outcome; the outcome still goes to when and which below.
+        where_reward = reward
+        if(getattr(self, "induce_from_negative", False) and reward <= 0):
+            where_reward = 1
+        skill.where_lrn_mech.ifit(state, skill_app.match, where_reward)
         skill.when_lrn_mech.ifit(state, skill_app, reward)
         skill.which_lrn_mech.ifit(state, skill_app, reward)
 
@@ -1555,10 +1671,21 @@ class CREAgent(BaseDIPLAgent):
               add_skill_info: bool=False,
               is_start: bool=None,
               _ifit_implict: bool=True, 
-              remove: bool=False, **kwargs):
+              remove: bool=False,
+              evidence=None, **kwargs):
+        ''' evidence: optionally, evidence about how the action went, in place of
+            a reward. The agent's evaluator (see evaluate()) turns it into the
+            agent's own judgement. If that judgement is "nothing to learn" the
+            call does nothing. Without an evaluator, evidence is used as the
+            reward. '''
         # print("action", action, type(action))
 
         state = self.standardize_state(state, is_start)
+
+        if(evidence is not None):
+            reward = self.evaluate(state, action, evidence)
+            if(reward is None):
+                return None
 
         # print("<<")
         # print(state)

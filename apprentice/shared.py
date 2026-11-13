@@ -164,7 +164,7 @@ def sai_from_args(args):
             action_type = getattr(val, 'action_type', None)
             if(action_type is None):
                 action_type = getattr(val, 'action', None)
-            inp = inp.input
+            inp = val.input
         elif(isinstance(val, (list,tuple))):
             selection, action_type, inp = val
         elif(isinstance(val, dict)):

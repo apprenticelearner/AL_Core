@@ -1,6 +1,13 @@
+from random import choice
 from .extending import new_register_decorator, registries
 from apprentice.agents.cre_agents import registries, register_when
 from apprentice.shared import rand_agent_uid
+
+# Registries for the optional mechanisms used when acting without a tutor.
+#  Their entries are defined in explore.py and learning_mechs/.
+register_explorer = new_register_decorator("explorer", full_descr="explorer")
+register_effect = new_register_decorator("effect", full_descr="effect-learning mechanism")
+register_evaluator = new_register_decorator("evaluator", full_descr="evaluation mechanism")
 
 
 def _config_get(config, registry, covered, names, default):
@@ -136,6 +143,39 @@ class BaseDIPLAgent(object):
         self.sep_in_proc_when = config_get("sep_in_proc_when",
             default=True)
 
+        # ---- Options for acting without a tutor (all default to the tutor behaviour) ----
+
+        # When explaining an action from existing skills, only consider skills
+        #  learned for the same action type. Off by default: tutors mostly use one
+        #  action type, sometimes under several names, and rely on the looser match.
+        self.strict_action_types = config_get(["strict_action_types"],
+            default=False)
+
+        # Induce a skill from an action even when its first example is negative,
+        #  and fit where a skill applies from every example whatever its outcome.
+        #  Off by default: with a tutor a skill is something that has worked once.
+        self.induce_from_negative = config_get(["induce_from_negative", "learn_from_failure"],
+            default=False)
+
+        # What act() falls back on when no skill applies and the caller has said
+        #  which actions are available. None keeps the tutor behaviour: return
+        #  nothing and wait to be shown.
+        self.explorer = config_get(["explorer"],
+            default=None, registry=registries['explorer'])
+        self.explorer_args = config_get("explorer_args", {})
+
+        # Optional mechanism that learns what actions do (see learning_mechs/effect.py).
+        self.effect_cls = config_get(["effect_type", "effect", "effect_cls", "effect_learner"],
+            default=None, registry=registries['effect'])
+        self.effect_args = config_get(["effect_args"], {})
+
+        # Optional mechanism that turns evidence about how an action went into the
+        #  agent's own evaluation of it (see learning_mechs/evaluate.py). None means
+        #  the reward given to train() is taken at face value, as with a tutor.
+        self.evaluator_cls = config_get(["evaluator_type", "evaluator", "evaluator_cls"],
+            default=None, registry=registries['evaluator'])
+        self.evaluator_args = config_get(["evaluator_args"], {})
+
     def __init__(self, **config):
         self.uid = rand_agent_uid()
         self.standardize_config(config)
@@ -148,7 +188,7 @@ class BaseDIPLAgent(object):
         s, a, i = action.as_tuple()
         for (ex_s, ex_a, ex_i) in self.bottomout_exceptions:            
             if((ex_s is None or s == ex_s) and
-               (ex_a is None or a == ex_a)
+               (ex_a is None or a == ex_a) and
                (ex_i is None or tuple(ex_i.items()) == tuple(i.items()))):
                 return True
         return False
@@ -172,6 +212,20 @@ def thresholds(state, skill_apps, thresholds=[.5, 0, -.5, -.999]):
         if(len(tg) > 0):
             return tg
     return []
+
+@register_skill_app_filter
+def positive_only(state, skill_apps, min_pred=0.0):
+    ''' Keep only skill applications that are not expected to go badly.
+        'thresholds' falls back to its best non-empty group even when every
+        prediction in it is negative, which suits a tutor author who wants
+        to see what the agent would try. An agent that acts on what it is
+        handed should not be handed what it predicts will fail.'''
+    out = []
+    for skill_app in skill_apps:
+        when_pred = getattr(skill_app, 'when_pred', None)
+        if(when_pred is None or when_pred > min_pred):
+            out.append(skill_app)
+    return out
 # -------------------------------------------------------------------------
 # : SkillApp Choosers
 
