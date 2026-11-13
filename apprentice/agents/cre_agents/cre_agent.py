@@ -1031,7 +1031,7 @@ class CREAgent(BaseDIPLAgent):
                 sa.skill.skill_apps[sa.uid] = sa
                 out.append(sa)
 
-        return skill_apps
+        return out
 
     def act(self, state, 
             return_kind='action', # 'sai' | 'skill_app'

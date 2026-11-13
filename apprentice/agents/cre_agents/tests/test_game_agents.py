@@ -89,12 +89,22 @@ def test_dict_inputs_are_rejected():
               ("0_answer", "UpdateTextField", {"value": 6}), 1, arg_foci=["0_upper", "0_lower"])
 
 
-@pytest.mark.xfail(strict=True, raises=NotImplementedError,
-                   reason="ActionType.predict_state_change calls MemSet.modify from pure "
-                          "Python, which cre 0.5.1 rejects.")
-def test_predict_next_state_applies_action(trained):
+@pytest.mark.parametrize("inp", ["6", 6, 6.0])
+def test_predict_next_state_applies_action(trained, inp):
+    ''' The input may be written as a number although the field holds a
+        string. Before, only "6" worked. '''
     state = new_mc_addition_state(124, 342)
-    quiet(trained.predict_next_state, state, ("0_answer", "UpdateTextField", 6), json_friendly=True)
+    out = quiet(trained.predict_next_state, state, ("0_answer", "UpdateTextField", inp), json_friendly=True)
+    field = out["next_state"]["0_answer"]
+    assert field["value"] == "6" and field["locked"] is True
+    assert out["next_state_uid"] != out["state_uid"]
+
+
+def test_all_proposed_applications_are_returned(trained):
+    ''' get_skill_applications returns the applications it could track. With
+        no rollout tracker (as here) that is all of them. '''
+    state = new_mc_addition_state(124, 342)
+    assert len(proposals(trained, state)) == 3
 
 
 # --------------------------------------------------------------------------

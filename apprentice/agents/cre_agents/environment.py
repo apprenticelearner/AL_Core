@@ -132,10 +132,25 @@ class ActionType(object):
         self.input_spec = input_spec
         self.apply_expected_change = apply_expected_change
 
+    def coerce_input(self, inp):
+        ''' The input as the type this action type declares. A number given
+            for a string input (6 or 6.0 for "6") would otherwise reach
+            MemSet.modify with the wrong type, which fails with an unrelated
+            looking error about intrinsics in pure python. '''
+        typ = self.input_spec.get('type', None) if isinstance(self.input_spec, dict) else None
+        if(not isinstance(typ, type) or isinstance(inp, typ) or inp is None):
+            return inp
+        if(typ is str and isinstance(inp, float) and inp.is_integer()):
+            return str(int(inp))
+        try:
+            return typ(inp)
+        except (TypeError, ValueError):
+            return inp
+
     def predict_state_change(self, state, sai):
         cpy = copy(state)
         selection = cpy.get_fact(id=sai.selection)
-        self.apply_expected_change(cpy, selection, sai.input)
+        self.apply_expected_change(cpy, selection, self.coerce_input(sai.input))
         return copy(cpy)
 
     def __getitem__(self, attr):

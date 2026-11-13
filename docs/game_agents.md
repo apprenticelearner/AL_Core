@@ -36,6 +36,10 @@ Registered names are matched ignoring case and underscores, so `"delta_table"`,
 - `dipl_base.py`: missing `and` in `is_bottom_out_exception`.
 - `where.py` / `cre_agent.py`: a skill induced from a negative first example has no
   where-conditions and crashed the next explanation. It is now inert.
+- `environment.py`: `predict_next_state` failed when the input was a number and the field
+  a string. The input is now converted to the action type's declared type.
+- `cre_agent.py`: `get_skill_applications` returned the unfiltered list instead of the
+  applications it could track.
 
 ## Status of the audit's problems
 
@@ -43,11 +47,11 @@ Numbers are those in the audit's "Problems found in AL_Core and CRE" list.
 
 | # | Problem | Status on this branch |
 |---|---|---|
-| 1 | `predict_next_state` fails under cre 0.5.1 | Not fixed. Pinned by an expected-failure test. |
+| 1 | `predict_next_state` fails when given a number for a string field | Fixed: `ActionType.coerce_input` converts the input to the declared type. It was never a CRE incompatibility. |
 | 2 | Skill first seen failing crashes the next explanation | Fixed: the skill is inert. `induce_from_negative` optionally makes it useful. |
 | 3 | Skills matched across action types | Fixed behind `strict_action_types`; default unchanged. |
 | 4 | `thresholds` filter hands back probable failures | Default unchanged. `positive_only` added as the alternative. |
-| 5 | `get_skill_applications` builds `out` but returns `skill_apps` | Deliberately left. The two differ only when a rollout tracker is present and `predict_next_state` fails. With problem 1 open, returning `out` would drop every application for process-learning agents. Fix together with 1. |
+| 5 | `get_skill_applications` builds `out` but returns `skill_apps` | Fixed: returns `out`. The two differ only when a rollout tracker is present and `predict_next_state` fails for an application, so this is not exercised by the tests here, which have no process learning. |
 | 6 | Missing `and` in `is_bottom_out_exception` | Fixed. |
 | 7 | `Action` reads `inp` before assignment | Fixed. |
 | 8 | `tests/test_agent.py` is stale and does not import | Not fixed. `test_game_agents.py` carries the regression tests instead. |
@@ -57,8 +61,8 @@ Numbers are those in the audit's "Problems found in AL_Core and CRE" list.
 
 ## Not done yet
 
-- `DeltaTable` is not used by `predict_next_state`, which is still broken under
-  cre 0.5.1 (`MemSet.modify` from pure Python).
+- `DeltaTable` is not used by `predict_next_state`, which still relies on the
+  hand-written expected change of each action type.
 - Goal induction and delayed judgement still live in AL_Games. They are meant to become
   the first real evaluator, since the goal an agent pursues is its own.
 - AL_Games `GameAgent` still uses its own wrapper logic, not these options.
@@ -66,5 +70,4 @@ Numbers are those in the audit's "Problems found in AL_Core and CRE" list.
 
 ## Tests
 
-`apprentice/agents/cre_agents/tests/test_game_agents.py`: 18 pass, 1 expected failure
-(`predict_next_state`). Run with `PYTHONPATH` set to this checkout and `-o addopts=""`.
+`apprentice/agents/cre_agents/tests/test_game_agents.py`: 22 pass. Run with `PYTHONPATH` set to this checkout and `-o addopts=""`.
