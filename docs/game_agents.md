@@ -4,6 +4,48 @@ These changes let a `CREAgent` act in an environment that has no tutor, such as 
 game. Every option is off by default, and a default agent behaves as before.
 The rationale is in `AL_Games/docs/al_core_audit.md`.
 
+## Goals
+
+A tutor quietly supplies four things that a learner otherwise has to supply for
+itself. Each change here gives the agent a place to do that. On this view, learning
+from a tutor is the special case in which all four come from outside, which is why
+every option defaults to the existing behaviour.
+
+| What the tutor supplies | What a game leaves to the learner | Change |
+|---|---|---|
+| The next step when the learner is stuck (a demonstration) | Deciding what to try | Explorer, `available_actions` |
+| A verdict on every step, at once | Judging for itself how an action went, sometimes much later | Evaluator, `evidence` |
+| The goal, implied by what gets marked right | Deciding which goal it is actually pursuing | Evaluator (goal induction is meant to live here) |
+| What each action does (hand-written per action type) | Finding out what actions do | Effect mechanism |
+
+The goal behind each change, as a claim about the learner:
+
+- **Trying things (explorer).** When no knowledge applies, the learner must generate
+  its own candidate actions. This is not blind: what has already been learned shapes
+  it, by steering away from expected failures and towards the untried.
+- **Judging outcomes (evaluator).** Feedback is evidence about what is being asked
+  for, not the goal itself. The learner turns evidence into its own evaluation, and
+  may weight, defer or ignore it. A tutor implies a goal; the learner decides which
+  goal it pursues.
+- **Knowing what actions do (effect).** A learner needs a forward model to think
+  ahead before acting. It also needs one in order to be surprised, which is what
+  accounts of affect and curiosity (Marinier 2008; Andersen et al. 2022) build on.
+- **Learning from a first failure (`induce_from_negative`).** With a tutor, an error
+  is a misapplication of something already known, so failures only refine existing
+  skills. Acting alone, the first encounter with an action can be a failure, and the
+  learner should still come away knowing that it went badly there. Whether that
+  knowledge is a skill at all is an open question, which is why this is a flag.
+- **What makes two skills the same (`strict_action_types`).** A skill's identity
+  includes the kind of action taken, not only how its value is computed. Tutors
+  rarely expose the difference because they use one or two action types.
+- **Acting versus proposing (`positive_only`).** A tutored agent proposes doubtful
+  steps because being corrected is cheap and informative. An agent acting alone bears
+  the consequences, so it should not commit to what it expects to fail.
+
+Not yet addressed, and of the same kind: treating numbers as magnitudes instead of
+labels; plans that span several actions; and affect itself, for which only the
+prerequisite (a prediction to be wrong about) is in place.
+
 ## Options on `CREAgent`
 
 | Option | Default | Effect |
